@@ -44,3 +44,11 @@ export interface ForecastData {
   confidence: number;
   trend: "increasing" | "decreasing" | "stable";
 }
+export interface User {
+  id: string;
+  username: string;
+  email: string;
+  role: "admin" | "instructor" | "student";
+  passwordHash: string;
+  createdAt: string;
+}
