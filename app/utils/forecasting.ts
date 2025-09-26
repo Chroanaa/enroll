@@ -47,7 +47,6 @@ export function generateForecast(
     const nextIndex = lastIndex + i;
     const predicted = Math.round(slope * nextIndex + intercept);
 
-    // Calculate confidence based on recent trend stability
     const recentTrend = enrollmentData.slice(-3);
     const variance =
       recentTrend.reduce((acc, val) => {
@@ -61,7 +60,6 @@ export function generateForecast(
       Math.min(95, 95 - (variance / 10000) * 100)
     );
 
-    // Determine trend direction
     let trend: "increasing" | "decreasing" | "stable" = "stable";
     if (slope > 10) trend = "increasing";
     else if (slope < -10) trend = "decreasing";

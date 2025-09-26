@@ -4,7 +4,8 @@ import Navigation from "./components/Navigation";
 import Dashboard from "./components/Dashboard";
 import StudentManagement from "./components/StudentManagement";
 import CourseManagement from "./components/CourseManagement";
-
+import EnrollmentManagement from "./components/EnrollmentManagement";
+import ForecastingAnalytics from "./components/ForecastingAnalytics";
 function App() {
   const [currentView, setCurrentView] = useState("dashboard");
 
@@ -17,9 +18,9 @@ function App() {
       case "courses":
         return <CourseManagement />;
       case "enrollments":
-        return <Dashboard />; // For now, show dashboard
+        return <EnrollmentManagement />;
       case "forecast":
-        return <Dashboard />; // For now, show dashboard
+        return <ForecastingAnalytics />;
       default:
         return <Dashboard />;
     }

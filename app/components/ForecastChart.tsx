@@ -11,7 +11,6 @@ const ForecastChart: React.FC<ForecastChartProps> = ({
   historicalData,
   forecastData,
 }) => {
-  // Take last 4 historical points and all forecast points
   const recentHistorical = historicalData.slice(-4);
   const allData = [
     ...recentHistorical.map((h) => ({
@@ -56,7 +55,6 @@ const ForecastChart: React.FC<ForecastChartProps> = ({
   return (
     <div className='relative'>
       <svg viewBox='0 0 100 100' className='w-full h-64'>
-        {/* Grid lines */}
         {[0, 25, 50, 75, 100].map((y) => (
           <line
             key={y}
@@ -69,7 +67,6 @@ const ForecastChart: React.FC<ForecastChartProps> = ({
           />
         ))}
 
-        {/* Historical line */}
         <path
           d={historicalPath}
           fill='none'
@@ -79,7 +76,6 @@ const ForecastChart: React.FC<ForecastChartProps> = ({
           strokeLinejoin='round'
         />
 
-        {/* Forecast line */}
         <path
           d={forecastPath}
           fill='none'
@@ -90,7 +86,6 @@ const ForecastChart: React.FC<ForecastChartProps> = ({
           strokeLinejoin='round'
         />
 
-        {/* Historical points */}
         {historicalPoints.map((point, index) => (
           <circle
             key={`historical-${index}`}
@@ -103,7 +98,6 @@ const ForecastChart: React.FC<ForecastChartProps> = ({
           />
         ))}
 
-        {/* Forecast points */}
         {forecastPoints.map((point, index) => (
           <circle
             key={`forecast-${index}`}
@@ -117,7 +111,6 @@ const ForecastChart: React.FC<ForecastChartProps> = ({
           />
         ))}
 
-        {/* Confidence bands for forecast */}
         {forecastPoints.map((point, index) => {
           if (!point.confidence) return null;
           const confidenceRange = ((100 - point.confidence) / 100) * 10;
@@ -147,7 +140,6 @@ const ForecastChart: React.FC<ForecastChartProps> = ({
         </text>
       </svg>
 
-      {/* Legend */}
       <div className='flex justify-center gap-4 mt-4 text-xs'>
         <div className='flex items-center gap-1'>
           <div className='w-3 h-0.5 bg-blue-500'></div>
