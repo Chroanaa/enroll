@@ -220,8 +220,8 @@ const ForecastingAnalytics: React.FC = () => {
   );
 
   return (
-    <div className='p-6 bg-gray-50 min-h-screen'>
-      <div className='max-w-7xl mx-auto'>
+    <div className='p-4 sm:p-6 bg-gray-50 min-h-screen'>
+      <div className='max-w-7xl mx-auto w-full'>
         <div className='mb-8'>
           <div className='flex items-center justify-between'>
             <div>
@@ -249,7 +249,7 @@ const ForecastingAnalytics: React.FC = () => {
           <h2 className='text-lg font-semibold text-gray-900 mb-4'>
             Forecast Parameters
           </h2>
-          <div className='grid grid-cols-1 md:grid-cols-3 gap-6'>
+          <div className='grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-6'>
             <div>
               <label className='block text-sm font-medium text-gray-700 mb-2'>
                 Forecast Periods (Months)

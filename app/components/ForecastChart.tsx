@@ -11,6 +11,7 @@ const ForecastChart: React.FC<ForecastChartProps> = ({
   historicalData,
   forecastData,
 }) => {
+  // Prepare data for chart
   const recentHistorical = historicalData.slice(-4);
   const allData = [
     ...recentHistorical.map((h) => ({
@@ -32,7 +33,7 @@ const ForecastChart: React.FC<ForecastChartProps> = ({
 
   const points = allData.map((item, index) => {
     const x = (index / (allData.length - 1)) * 100;
-    const y = 100 - ((item.value - minValue) / range) * 80 - 10;
+    const y = 100 - ((item.value - minValue) / (range || 1)) * 80 - 10;
     return { x, y, ...item };
   });
 
@@ -53,8 +54,12 @@ const ForecastChart: React.FC<ForecastChartProps> = ({
   }, "");
 
   return (
-    <div className='relative'>
-      <svg viewBox='0 0 100 100' className='w-full h-64'>
+    <div className='relative w-full max-w-full overflow-x-auto'>
+      <svg
+        viewBox='0 0 100 100'
+        className='w-full h-48 sm:h-56 md:h-64 lg:h-72 xl:h-80'
+        preserveAspectRatio='xMinYMin meet'
+      >
         {[0, 25, 50, 75, 100].map((y) => (
           <line
             key={y}
@@ -67,66 +72,45 @@ const ForecastChart: React.FC<ForecastChartProps> = ({
           />
         ))}
 
+        {/* Historical Line */}
         <path
           d={historicalPath}
           fill='none'
-          stroke='#3b82f6'
+          stroke='rgb(59, 130, 246)'
           strokeWidth='0.8'
           strokeLinecap='round'
           strokeLinejoin='round'
         />
 
+        {/* Forecast Line */}
         <path
           d={forecastPath}
           fill='none'
-          stroke='#8b5cf6'
+          stroke='rgb(251, 191, 36)'
           strokeWidth='0.8'
           strokeDasharray='2,2'
           strokeLinecap='round'
           strokeLinejoin='round'
         />
 
-        {historicalPoints.map((point, index) => (
-          <circle
-            key={`historical-${index}`}
-            cx={point.x}
-            cy={point.y}
-            r='1.2'
-            fill='white'
-            stroke='#3b82f6'
-            strokeWidth='0.6'
-          />
+        {/* Data points */}
+        {points.map((point, index) => (
+          <g key={index}>
+            <circle
+              cx={point.x}
+              cy={point.y}
+              r='1.2'
+              fill='white'
+              stroke={
+                point.type === "historical"
+                  ? "rgb(59, 130, 246)"
+                  : "rgb(251, 191, 36)"
+              }
+              strokeWidth='0.6'
+              className='hover:r-2 transition-all cursor-pointer'
+            />
+          </g>
         ))}
-
-        {forecastPoints.map((point, index) => (
-          <circle
-            key={`forecast-${index}`}
-            cx={point.x}
-            cy={point.y}
-            r='1.2'
-            fill='white'
-            stroke='#8b5cf6'
-            strokeWidth='0.6'
-            opacity={point.confidence ? point.confidence / 100 : 1}
-          />
-        ))}
-
-        {forecastPoints.map((point, index) => {
-          if (!point.confidence) return null;
-          const confidenceRange = ((100 - point.confidence) / 100) * 10;
-          return (
-            <g key={`confidence-${index}`}>
-              <ellipse
-                cx={point.x}
-                cy={point.y}
-                rx='2'
-                ry={confidenceRange}
-                fill='#8b5cf6'
-                opacity='0.1'
-              />
-            </g>
-          );
-        })}
 
         {/* Y-axis labels */}
         <text x='-2' y='14' fontSize='3' fill='#6b7280' textAnchor='end'>
@@ -140,26 +124,12 @@ const ForecastChart: React.FC<ForecastChartProps> = ({
         </text>
       </svg>
 
-      <div className='flex justify-center gap-4 mt-4 text-xs'>
-        <div className='flex items-center gap-1'>
-          <div className='w-3 h-0.5 bg-blue-500'></div>
-          <span className='text-gray-600'>Historical</span>
-        </div>
-        <div className='flex items-center gap-1'>
-          <div
-            className='w-3 h-0.5 bg-purple-500'
-            style={{ borderTop: "1px dashed" }}
-          ></div>
-          <span className='text-gray-600'>Forecast</span>
-        </div>
-      </div>
-
       {/* X-axis labels */}
-      <div className='flex justify-between mt-2 text-xs text-gray-500'>
+      <div className='flex flex-wrap justify-between mt-2 text-xs text-gray-500 w-full'>
         {allData.map((item, index) => {
           if (index % 2 === 0 || index === allData.length - 1) {
             return (
-              <span key={item.date} className='text-center'>
+              <span key={item.date} className='text-center min-w-[32px]'>
                 {new Date(item.date + "-01").toLocaleDateString("en-US", {
                   month: "short",
                 })}

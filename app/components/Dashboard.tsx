@@ -105,8 +105,8 @@ const Dashboard: React.FC = () => {
   );
 
   return (
-    <div className='p-6 bg-gray-50 min-h-screen'>
-      <div className='max-w-7xl mx-auto'>
+    <div className='p-4 sm:p-6 bg-gray-50 min-h-screen'>
+      <div className='max-w-7xl mx-auto w-full'>
         {/* Header */}
         <div className='mb-8'>
           <h1 className='text-3xl font-bold text-gray-900 mb-2'>
@@ -118,7 +118,7 @@ const Dashboard: React.FC = () => {
         </div>
 
         {/* Stats Grid */}
-        <div className='grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8'>
+        <div className='grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 mb-8'>
           <StatCard
             title='Active Students'
             value={stats.activeStudents}
@@ -147,7 +147,7 @@ const Dashboard: React.FC = () => {
         </div>
 
         {/* Charts Section */}
-        <div className='grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8'>
+        <div className='grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-2 gap-6 mb-8'>
           {/* Enrollment Trends */}
           <div className='bg-white rounded-xl shadow-sm border border-gray-100 p-6'>
             <div className='flex items-center justify-between mb-6'>
@@ -189,7 +189,7 @@ const Dashboard: React.FC = () => {
         </div>
 
         {/* Insights & Alerts */}
-        <div className='grid grid-cols-1 lg:grid-cols-3 gap-6'>
+        <div className='grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6'>
           {/* Key Insights */}
           <div className='lg:col-span-2 bg-white rounded-xl shadow-sm border border-gray-100 p-6'>
             <h2 className='text-xl font-bold text-gray-900 mb-4'>

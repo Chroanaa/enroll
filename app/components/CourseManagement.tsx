@@ -263,8 +263,8 @@ const CourseManagement: React.FC = () => {
   };
 
   return (
-    <div className='p-6 bg-gray-50 min-h-screen'>
-      <div className='max-w-6xl mx-auto'>
+    <div className='p-4 sm:p-6 bg-gray-50 min-h-screen'>
+      <div className='max-w-6xl mx-auto w-full'>
         {/* Header */}
         <div className='mb-6'>
           <h1 className='text-2xl font-bold text-gray-900 mb-2'>
@@ -277,8 +277,8 @@ const CourseManagement: React.FC = () => {
 
         {/* Controls */}
         <div className='bg-white rounded-lg shadow-sm border border-gray-100 p-4 mb-6'>
-          <div className='flex flex-col lg:flex-row gap-4'>
-            <div className='flex-1'>
+          <div className='flex flex-col md:flex-row gap-4'>
+            <div className='flex-1 min-w-0'>
               <div className='relative'>
                 <Search className='absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5' />
                 <input
@@ -317,7 +317,7 @@ const CourseManagement: React.FC = () => {
         </div>
 
         {/* Courses Grid */}
-        <div className='grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6'>
+        <div className='grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6'>
           {filteredCourses.map((course) => {
             const capacityPercentage =
               (course.currentEnrollment / course.maxCapacity) * 100;
@@ -421,7 +421,7 @@ const CourseManagement: React.FC = () => {
         </div>
 
         {filteredCourses.length === 0 && (
-          <div className='bg-white rounded-lg shadow-sm border border-gray-100 p-12 text-center'>
+          <div className='bg-white rounded-lg shadow-sm border border-gray-100 p-8 sm:p-12 text-center'>
             <BookOpen className='mx-auto h-12 w-12 text-gray-400' />
             <h3 className='mt-2 text-sm font-medium text-gray-900'>
               No courses found

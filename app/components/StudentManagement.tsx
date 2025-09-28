@@ -259,9 +259,8 @@ const StudentManagement: React.FC = () => {
   };
 
   return (
-    <div className='p-6 bg-gray-50 min-h-screen'>
-      <div className='max-w-6xl mx-auto'>
-        {/* Header */}
+    <div className='p-4 sm:p-6 bg-gray-50 min-h-screen'>
+      <div className='max-w-6xl mx-auto w-full'>
         <div className='mb-6'>
           <h1 className='text-2xl font-bold text-gray-900 mb-2'>
             Student Management
@@ -271,10 +270,9 @@ const StudentManagement: React.FC = () => {
           </p>
         </div>
 
-        {/* Controls */}
         <div className='bg-white rounded-lg shadow-sm border border-gray-100 p-4 mb-6'>
-          <div className='flex flex-col lg:flex-row gap-4'>
-            <div className='flex-1'>
+          <div className='flex flex-col md:flex-row gap-4'>
+            <div className='flex-1 min-w-0'>
               <div className='relative'>
                 <Search className='absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5' />
                 <input
@@ -312,8 +310,8 @@ const StudentManagement: React.FC = () => {
 
         {/* Students Table */}
         <div className='bg-white rounded-lg shadow-sm border border-gray-100 overflow-hidden'>
-          <div className='overflow-x-auto'>
-            <table className='w-full'>
+          <div className='overflow-x-auto w-full'>
+            <table className='w-full min-w-[600px]'>
               <thead className='bg-gray-50'>
                 <tr>
                   <th className='px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider'>

@@ -53,8 +53,12 @@ const EnrollmentChart: React.FC<EnrollmentChartProps> = ({ data, metric }) => {
   const areaPath = `${pathData} L 100 90 L 0 90 Z`;
 
   return (
-    <div className='relative'>
-      <svg viewBox='0 0 100 100' className='w-full h-64'>
+    <div className='relative w-full max-w-full overflow-x-auto'>
+      <svg
+        viewBox='0 0 100 100'
+        className='w-full h-48 sm:h-56 md:h-64 lg:h-72 xl:h-80'
+        preserveAspectRatio='xMinYMin meet'
+      >
         {/* Grid lines */}
         {[0, 25, 50, 75, 100].map((y) => (
           <line
