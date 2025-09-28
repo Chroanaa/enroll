@@ -6,6 +6,9 @@ import StudentManagement from "./components/StudentManagement";
 import CourseManagement from "./components/CourseManagement";
 import EnrollmentManagement from "./components/EnrollmentManagement";
 import ForecastingAnalytics from "./components/ForecastingAnalytics";
+import ProtectedRoute from "./components/ProtectedRoute";
+import { AuthProvider } from "./contexts/AuthContext";
+
 function App() {
   const [currentView, setCurrentView] = useState("dashboard");
 
@@ -27,10 +30,14 @@ function App() {
   };
 
   return (
-    <div className='flex h-screen bg-gray-50'>
-      <Navigation currentView={currentView} onViewChange={setCurrentView} />
-      <main className='flex-1 overflow-auto'>{renderCurrentView()}</main>
-    </div>
+    <AuthProvider>
+      <ProtectedRoute>
+        <div className='flex h-screen bg-gray-50'>
+          <Navigation currentView={currentView} onViewChange={setCurrentView} />
+          <main className='flex-1 overflow-auto'>{renderCurrentView()}</main>
+        </div>
+      </ProtectedRoute>
+    </AuthProvider>
   );
 }
 
