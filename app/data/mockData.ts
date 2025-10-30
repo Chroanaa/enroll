@@ -224,13 +224,3 @@ export const mockEnrollmentTrends: EnrollmentTrend[] = [
     courseCompletions: 150,
   },
 ];
-export const mockUsers: User[] = [
-  {
-    id: "1",
-    username: "adminUser",
-    email: "admin@example.com",
-    role: "admin",
-    passwordHash: "hashedpassword1",
-    createdAt: "2023-01-15T10:00:00Z",
-  },
-];

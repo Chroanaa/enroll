@@ -44,9 +44,9 @@ const Login: React.FC = () => {
   };
 
   return (
-    <div className='min-h-screen bg-[#30180e]-to-br from-blue-50 via-white to-purple-50 flex'>
+    <div className='min-h-screen bg-[#3A2313]-to-br from-blue-50 via-white to-purple-50 flex'>
       {/* Left Section */}
-      <div className='hidden lg:flex lg:w-1/2 bg-[#30180e] relative overflow-hidden'>
+      <div className='hidden lg:flex lg:w-1/2 bg-[#3A2313] relative overflow-hidden'>
         <div className='absolute inset-0 bg-black opacity-20'> </div>
         <div className='relative z-10 flex flex-col justify-center items-center text-white p-12'>
           {/* Background Pattern */}
@@ -182,7 +182,7 @@ const Login: React.FC = () => {
               <button
                 type='submit'
                 disabled={isLoading}
-                className='w-full bg-[#30180e] text-white py-3 px-4 rounded-lg font-medium hover:from-blue-600 hover:to-purple-700 focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed'
+                className='w-full bg-[#955A27] text-white py-3 px-4 rounded-lg font-medium hover:from-blue-600 hover:to-purple-700 focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed'
               >
                 {isLoading ? (
                   <div className='flex items-center justify-center gap-2'>
