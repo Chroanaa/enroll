@@ -1,6 +1,7 @@
 "use client";
 import React from "react";
 import { EnrollmentTrend, ForecastData } from "../types";
+import { colors } from "../colors";
 
 interface ForecastChartProps {
   historicalData: EnrollmentTrend[];
@@ -76,7 +77,7 @@ const ForecastChart: React.FC<ForecastChartProps> = ({
         <path
           d={historicalPath}
           fill='none'
-          stroke='rgb(59, 130, 246)'
+          stroke={colors.primary}
           strokeWidth='0.8'
           strokeLinecap='round'
           strokeLinejoin='round'
@@ -103,7 +104,7 @@ const ForecastChart: React.FC<ForecastChartProps> = ({
               fill='white'
               stroke={
                 point.type === "historical"
-                  ? "rgb(59, 130, 246)"
+                  ? colors.primary
                   : "rgb(251, 191, 36)"
               }
               strokeWidth='0.6'

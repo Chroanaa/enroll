@@ -14,6 +14,7 @@ import {
 } from "lucide-react";
 import { Enrollment, Student, Course } from "../types";
 import { mockEnrollments, mockStudents, mockCourses } from "../data/mockData";
+import { colors } from "../colors";
 
 const EnrollmentManagement: React.FC = () => {
   const [enrollments, setEnrollments] = useState<Enrollment[]>(mockEnrollments);
@@ -253,7 +254,10 @@ const EnrollmentManagement: React.FC = () => {
               </button>
               <button
                 type='submit'
-                className='px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors'
+                className='px-4 py-2 text-white rounded-lg transition-colors'
+                style={{ backgroundColor: colors.secondary }}
+                onMouseEnter={(e) => e.currentTarget.style.backgroundColor = colors.primary}
+                onMouseLeave={(e) => e.currentTarget.style.backgroundColor = colors.secondary}
               >
                 {enrollment ? "Update" : "Create"} Enrollment
               </button>
@@ -296,10 +300,10 @@ const EnrollmentManagement: React.FC = () => {
       <div className='max-w-7xl mx-auto w-full'>
         {/* Header */}
         <div className='mb-6'>
-          <h1 className='text-2xl font-bold text-gray-900 mb-2'>
+          <h1 className='text-2xl font-bold mb-2' style={{ color: colors.primary }}>
             Enrollment Management
           </h1>
-          <p className='text-gray-600'>
+          <p style={{ color: colors.primary }}>
             Manage student course enrollments and track progress
           </p>
         </div>
