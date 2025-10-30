@@ -23,55 +23,39 @@ const Login: React.FC = () => {
   const { login } = useAuth();
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
-
-  const handleGoogleSignIn = async () => {
-    setIsLoading(true);
-
-    setTimeout(() => {
-      const mockUser = mockUsers[0];
-      const userData = {
-        id: mockUser.id,
-        name: mockUser.username,
-        email: mockUser.email,
-        avatar:
-          "https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=32&h=32&fit=crop&crop=face",
-        provider: "google",
-        role: mockUser.role,
-      };
-      login(userData);
-      setIsLoading(false);
-    }, 1500);
-  };
+  const [error, setError] = useState("");
 
   const handleEmailLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsLoading(true);
+    setError("");
 
     const formData = new FormData(e.target as HTMLFormElement);
-    const email = formData.get("email") as string;
     const password = formData.get("password") as string;
+    const username = formData.get("username") as string;
 
-    setTimeout(() => {
-      const user = mockUsers.find((u) => u.email === email);
+    try {
+      const response = await fetch("/api/auth/login", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ username, password }),
+      });
 
-      if (user && password === "password123") {
-        const userData = {
-          id: user.id,
-          name: user.username,
-          email: user.email,
-          avatar:
-            "https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=32&h=32&fit=crop&crop=face",
-          provider: "email",
-          role: user.role,
-        };
-        login(userData);
+      const data = await response.json();
+
+      if (response.ok && data.success) {
+        login(data.user);
       } else {
-        alert(
-          "Invalid email or password. Try: admin@example.com / password123"
-        );
+        setError(data.error || "Login failed");
       }
+    } catch (err) {
+      setError("An error occurred. Please try again.");
+      console.error("Login error:", err);
+    } finally {
       setIsLoading(false);
-    }, 1500);
+    }
   };
 
   return (
@@ -204,6 +188,11 @@ const Login: React.FC = () => {
 
             {/* Email & Password Form */}
             <form onSubmit={handleEmailLogin} className='space-y-4'>
+              {error && (
+                <div className='p-3 bg-red-50 border border-red-200 rounded-lg'>
+                  <p className='text-sm text-red-600'>{error}</p>
+                </div>
+              )}
               <div>
                 <label htmlFor='email' className='block text-sm font-medium mb-2' style={{color: colors.primary}}>
                   Email Address
@@ -213,9 +202,9 @@ const Login: React.FC = () => {
                     <Mail className='h-5 w-5' style={{color: colors.tertiary}} />
                   </div>
                   <input
-                    id='email'
-                    name='email'
-                    type='email'
+                    id='username'
+                    name='username'
+                    type='text'
                     required
                     className='w-full pl-10 pr-3 py-3 border rounded-lg custom-focus transition-all duration-200'
                     style={{borderColor: colors.tertiary, color: colors.primary, background: colors.paper}}
