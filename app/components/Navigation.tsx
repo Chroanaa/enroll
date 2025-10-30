@@ -30,15 +30,21 @@ const Navigation: React.FC<NavigationProps> = ({
   ];
 
   return (
-    <nav className='bg-white border-r border-gray-200 w-16 md:w-64 min-h-screen p-2 md:p-4 flex flex-col'>
+    <nav className='bg-[#E9D6A5]  text-[#955A27] border-r border-gray-200 w-16 md:w-64 min-h-screen p-2 md:p-4 flex flex-col'>
       {/* Logo / Branding */}
       <div className='mb-8 flex items-center justify-center md:justify-start gap-0 md:gap-3'>
-        <div className='w-8 h-8 bg-gradient-to-br from-blue-500 to-purple-600 rounded-lg flex items-center justify-center'>
-          <img src='/logo.png' alt='' />
+        <div className='rounded-lg flex items-center justify-center'>
+          <img
+            src='/logo.png'
+            className='object-contain rounded'
+            alt=''
+            width={50}
+            height={50}
+          />
         </div>
         <div className='hidden md:block'>
-          <h1 className='font-bold text-gray-900'>ITerisian</h1>
-          <p className='text-xs text-gray-500'>Enrollment System</p>
+          <h1 className='font-bold '>ITerisian</h1>
+          <p className='text-xs '>Enrollment System</p>
         </div>
       </div>
 
@@ -52,8 +58,8 @@ const Navigation: React.FC<NavigationProps> = ({
                 onClick={() => onViewChange(item.id)}
                 className={`w-full flex items-center justify-center md:justify-start gap-0 md:gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all duration-200 ${
                   currentView === item.id
-                    ? "bg-blue-50 text-blue-700 border border-blue-200"
-                    : "text-gray-600 hover:bg-gray-50 hover:text-gray-900"
+                    ? "bg-blue-50 text-[#955A27] border border-blue-200"
+                    : "text-[#955A27] hover:bg-gray-50 hover:text-[#955A27]"
                 }`}
               >
                 <Icon className='w-5 h-5' />
@@ -66,21 +72,19 @@ const Navigation: React.FC<NavigationProps> = ({
 
       {/* Quick Stats */}
       <div className='hidden md:block mt-8 p-4 bg-gradient-to-br from-blue-50 to-purple-50 rounded-lg border border-blue-100'>
-        <h3 className='font-semibold text-gray-900 text-sm mb-2'>
-          Quick Stats
-        </h3>
+        <h3 className='font-semibold  text-sm mb-2'>Quick Stats</h3>
         <div className='space-y-2 text-xs'>
           <div className='flex justify-between'>
-            <span className='text-gray-600'>Active Students</span>
-            <span className='font-medium text-gray-900'>4</span>
+            <span className='text-[#955A27]'>Active Students</span>
+            <span className='font-medium '>4</span>
           </div>
           <div className='flex justify-between'>
-            <span className='text-gray-600'>Total Courses</span>
-            <span className='font-medium text-gray-900'>5</span>
+            <span className='text-[#955A27]'>Total Courses</span>
+            <span className='font-medium '>5</span>
           </div>
           <div className='flex justify-between'>
-            <span className='text-gray-600'>Enrollments</span>
-            <span className='font-medium text-gray-900'>6</span>
+            <span className='text-[#955A27]'>Enrollments</span>
+            <span className='font-medium '>6</span>
           </div>
         </div>
       </div>
@@ -90,7 +94,7 @@ const Navigation: React.FC<NavigationProps> = ({
         <div className='flex items-center gap-3 mb-3'>
           <div className='w-10 h-10 rounded-full bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center'></div>
           <div className='flex-1 min-w-0'>
-            <p className='text-sm font-medium text-gray-900 truncate'>
+            <p className='text-sm font-medium truncate'>
               {user?.username || "User"}
             </p>
           </div>
