@@ -45,10 +45,7 @@ export interface ForecastData {
   trend: "increasing" | "decreasing" | "stable";
 }
 export interface User {
-  id: string;
+  id: Number;
   username: string;
-  email: string;
-  role: "admin" | "instructor" | "student";
-  passwordHash: string;
-  createdAt: string;
+  password: string;
 }
