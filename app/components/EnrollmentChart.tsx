@@ -1,6 +1,7 @@
 "use client";
 import React from "react";
 import { EnrollmentTrend } from "../types";
+import { colors } from "../colors";
 
 interface EnrollmentChartProps {
   data: EnrollmentTrend[];
@@ -28,13 +29,13 @@ const EnrollmentChart: React.FC<EnrollmentChartProps> = ({ data, metric }) => {
   const getColor = () => {
     switch (metric) {
       case "enrollments":
-        return "rgb(59, 130, 246)";
+        return colors.primary; // Use primary brown for enrollment data
       case "students":
         return "rgb(16, 185, 129)";
       case "courses":
         return "rgb(139, 92, 246)";
       default:
-        return "rgb(59, 130, 246)";
+        return colors.primary;
     }
   };
 

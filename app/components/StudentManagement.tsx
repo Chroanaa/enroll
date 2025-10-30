@@ -11,6 +11,7 @@ import {
 } from "lucide-react";
 import { Student } from "../types";
 import { mockStudents } from "../data/mockData";
+import { colors } from "../colors";
 
 const StudentManagement: React.FC = () => {
   const [students, setStudents] = useState<Student[]>(mockStudents);
@@ -262,10 +263,10 @@ const StudentManagement: React.FC = () => {
     <div className='p-4 sm:p-6 bg-gray-50 min-h-screen'>
       <div className='max-w-6xl mx-auto w-full'>
         <div className='mb-6'>
-          <h1 className='text-2xl font-bold text-gray-900 mb-2'>
+          <h1 className='text-2xl font-bold mb-2' style={{ color: colors.primary }}>
             Student Management
           </h1>
-          <p className='text-gray-600'>
+          <p style={{ color: colors.primary }}>
             Manage student records and information
           </p>
         </div>
@@ -299,7 +300,10 @@ const StudentManagement: React.FC = () => {
 
               <button
                 onClick={() => setIsAddingStudent(true)}
-                className='flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors'
+                className='flex items-center gap-2 px-4 py-2 text-white rounded-lg transition-colors'
+                style={{ backgroundColor: colors.secondary }}
+                onMouseEnter={(e) => e.currentTarget.style.backgroundColor = colors.primary}
+                onMouseLeave={(e) => e.currentTarget.style.backgroundColor = colors.secondary}
               >
                 <Plus className='w-4 h-4' />
                 Add Student
