@@ -1,44 +1,30 @@
 "use client";
-import React, { useState } from "react";
-import Navigation from "./components/Navigation";
-import Dashboard from "./components/Dashboard";
-import StudentManagement from "./components/StudentManagement";
-import CourseManagement from "./components/CourseManagement";
-import EnrollmentManagement from "./components/EnrollmentManagement";
-import ForecastingAnalytics from "./components/ForecastingAnalytics";
-import ProtectedRoute from "./components/ProtectedRoute";
-import { AuthProvider } from "./contexts/AuthContext";
+import React from "react";
+import Login from "./components/Login";
+import { useSession } from "next-auth/react";
+import { useRouter } from "next/navigation";
+import { useEffect } from "react";
 
-function App() {
-  const [currentView, setCurrentView] = useState("dashboard");
+export default function Home() {
+  const { data: session, status } = useSession();
+  const router = useRouter();
 
-  const renderCurrentView = () => {
-    switch (currentView) {
-      case "dashboard":
-        return <Dashboard />;
-      case "students":
-        return <StudentManagement />;
-      case "courses":
-        return <CourseManagement />;
-      case "enrollments":
-        return <EnrollmentManagement />;
-      case "forecast":
-        return <ForecastingAnalytics />;
-      default:
-        return <Dashboard />;
+  useEffect(() => {
+    if (status === "authenticated") {
+      router.push("/dashboard");
     }
-  };
+  }, [status, router]);
 
-  return (
-    <AuthProvider>
-      <ProtectedRoute>
-        <div className='flex h-screen bg-gray-50'>
-          <Navigation currentView={currentView} onViewChange={setCurrentView} />
-          <main className='flex-1 overflow-auto'>{renderCurrentView()}</main>
+  if (status === "loading") {
+    return (
+      <div className='min-h-screen bg-gradient-to-br from-blue-50 via-white to-purple-50 flex items-center justify-center'>
+        <div className='text-center'>
+          <div className='w-16 h-16 border-4 border-blue-500 border-t-transparent rounded-full animate-spin mx-auto mb-4'></div>
+          <p className='text-gray-600'>Loading...</p>
         </div>
-      </ProtectedRoute>
-    </AuthProvider>
-  );
-}
+      </div>
+    );
+  }
 
-export default App;
+  return <Login />;
+}

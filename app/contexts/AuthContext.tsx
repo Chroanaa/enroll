@@ -35,7 +35,6 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
-    // Check for existing session on mount
     const savedUser = localStorage.getItem("user");
     if (savedUser) {
       try {
@@ -48,9 +47,24 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     setIsLoading(false);
   }, []);
 
-  const login = (userData: User) => {
-    setUser(userData);
-    localStorage.setItem("user", JSON.stringify(userData));
+  const login = async (userData: User) => {
+    const response = await fetch("/api/auth/login", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        username: userData.username,
+        password: userData.password,
+      }),
+    });
+    const data = await response.json();
+    if (response.ok) {
+      setUser(data.user);
+      localStorage.setItem("user", JSON.stringify(data.user));
+    } else {
+      throw new Error(data.error || "Login failed");
+    }
   };
 
   const logout = () => {
