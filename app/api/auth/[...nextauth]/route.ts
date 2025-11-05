@@ -30,6 +30,7 @@ export const authOptions: NextAuthOptions = {
               name: user.username,
               username: user.username,
               role: user.role,
+              status: 1, // Default status value
             };
           }
 
