@@ -9,9 +9,6 @@ interface ProtectedRouteProps {
 
 const ProtectedRoute: React.FC<ProtectedRouteProps> = ({ children }) => {
   const { data: session, status } = useSession();
-  if (status === "authenticated" && session.user.role !== 1) {
-    return <div>Access Denied</div>;
-  }
 
   if (status === "loading") {
     return (
