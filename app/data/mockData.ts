@@ -234,3 +234,107 @@ export const mockUsers: User[] = [
     createdAt: "2023-01-15T10:00:00Z",
   },
 ];
+
+// Department mock data
+export const mockDepartments = [
+  {
+    id: "1",
+    name: "School of Education",
+    code: "SOE",
+  },
+  {
+    id: "2",
+    name: "School of Hospitality and Tourism Management",
+    code: "SOHTM",
+  },
+  {
+    id: "3",
+    name: "School of Information Technology",
+    code: "SOIT",
+  },
+];
+
+// Course Program mock data
+export const mockCoursePrograms = [
+  // School of Education Programs
+  {
+    id: "1",
+    name: "Bachelor of Elementary Education (BEED)",
+    departmentId: "1",
+    department: "School of Education",
+  },
+  {
+    id: "2",
+    name: "Bachelor of Secondary Education (BSED) - Major in English",
+    departmentId: "1",
+    department: "School of Education",
+  },
+  {
+    id: "3",
+    name: "Bachelor of Secondary Education (BSED) - Major in Mathematics",
+    departmentId: "1",
+    department: "School of Education",
+  },
+  {
+    id: "4",
+    name: "Bachelor of Secondary Education (BSED) - Major in Science",
+    departmentId: "1",
+    department: "School of Education",
+  },
+  {
+    id: "5",
+    name: "Bachelor of Physical Education (BPED)",
+    departmentId: "1",
+    department: "School of Education",
+  },
+  // School of Hospitality and Tourism Management Programs
+  {
+    id: "6",
+    name: "Bachelor of Science in Hospitality Management (BSHM)",
+    departmentId: "2",
+    department: "School of Hospitality and Tourism Management",
+  },
+  {
+    id: "7",
+    name: "Bachelor of Science in Tourism Management (BSTM)",
+    departmentId: "2",
+    department: "School of Hospitality and Tourism Management",
+  },
+  {
+    id: "8",
+    name: "Bachelor of Science in Culinary Arts (BSCA)",
+    departmentId: "2",
+    department: "School of Hospitality and Tourism Management",
+  },
+  {
+    id: "9",
+    name: "Bachelor of Science in Hotel and Restaurant Management (BSHRM)",
+    departmentId: "2",
+    department: "School of Hospitality and Tourism Management",
+  },
+  // School of Information Technology Programs
+  {
+    id: "10",
+    name: "Bachelor of Science in Information Technology (BSIT)",
+    departmentId: "3",
+    department: "School of Information Technology",
+  },
+  {
+    id: "11",
+    name: "Bachelor of Science in Computer Science (BSCS)",
+    departmentId: "3",
+    department: "School of Information Technology",
+  },
+  {
+    id: "12",
+    name: "Bachelor of Science in Information Systems (BSIS)",
+    departmentId: "3",
+    department: "School of Information Technology",
+  },
+  {
+    id: "13",
+    name: "Bachelor of Science in Cybersecurity (BSCyS)",
+    departmentId: "3",
+    department: "School of Information Technology",
+  },
+];
