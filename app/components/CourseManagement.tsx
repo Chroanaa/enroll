@@ -268,7 +268,10 @@ const CourseManagement: React.FC = () => {
       <div className='max-w-6xl mx-auto w-full'>
         {/* Header */}
         <div className='mb-6'>
-          <h1 className='text-2xl font-bold mb-2' style={{ color: colors.primary }}>
+          <h1
+            className='text-2xl font-bold mb-2'
+            style={{ color: colors.primary }}
+          >
             Course Management
           </h1>
           <p style={{ color: colors.primary }}>
@@ -310,8 +313,12 @@ const CourseManagement: React.FC = () => {
                 onClick={() => setIsAddingCourse(true)}
                 className='flex items-center gap-2 px-4 py-2 text-white rounded-lg transition-colors'
                 style={{ backgroundColor: colors.secondary }}
-                onMouseEnter={(e) => e.currentTarget.style.backgroundColor = colors.primary}
-                onMouseLeave={(e) => e.currentTarget.style.backgroundColor = colors.secondary}
+                onMouseEnter={(e) =>
+                  (e.currentTarget.style.backgroundColor = colors.primary)
+                }
+                onMouseLeave={(e) =>
+                  (e.currentTarget.style.backgroundColor = colors.secondary)
+                }
               >
                 <Plus className='w-4 h-4' />
                 Add Course
