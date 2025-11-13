@@ -28,39 +28,6 @@ const EnrollmentManagement: React.FC = () => {
     null
   );
 
-  const enrichedEnrollments = useMemo(() => {
-    return enrollments.map((enrollment) => {
-      const student = mockStudents.find((s) => s.id === enrollment.studentId);
-      const course = mockCourses.find((c) => c.id === enrollment.courseId);
-      return {
-        ...enrollment,
-        student,
-        course,
-      };
-    });
-  }, [enrollments]);
-
-  const filteredEnrollments = enrichedEnrollments.filter((enrollment) => {
-    const matchesSearch =
-      enrollment.student?.firstName
-        .toLowerCase()
-        .includes(searchTerm.toLowerCase()) ||
-      enrollment.student?.lastName
-        .toLowerCase()
-        .includes(searchTerm.toLowerCase()) ||
-      enrollment.course?.code
-        .toLowerCase()
-        .includes(searchTerm.toLowerCase()) ||
-      enrollment.course?.name.toLowerCase().includes(searchTerm.toLowerCase());
-
-    const matchesStatus =
-      statusFilter === "all" || enrollment.status === statusFilter;
-    const matchesCourse =
-      courseFilter === "all" || enrollment.courseId === courseFilter;
-
-    return matchesSearch && matchesStatus && matchesCourse;
-  });
-
   const stats = useMemo(() => {
     const total = enrollments.length;
     const enrolled = enrollments.filter((e) => e.status === "enrolled").length;
@@ -153,7 +120,7 @@ const EnrollmentManagement: React.FC = () => {
                   .filter((s) => s.status === "active")
                   .map((student) => (
                     <option key={student.id} value={student.id}>
-                      {student.firstName} {student.lastName} - {student.major}
+                      {student.firstName} {student.lastName}
                     </option>
                   ))}
               </select>
@@ -256,8 +223,12 @@ const EnrollmentManagement: React.FC = () => {
                 type='submit'
                 className='px-4 py-2 text-white rounded-lg transition-colors'
                 style={{ backgroundColor: colors.secondary }}
-                onMouseEnter={(e) => e.currentTarget.style.backgroundColor = colors.primary}
-                onMouseLeave={(e) => e.currentTarget.style.backgroundColor = colors.secondary}
+                onMouseEnter={(e) =>
+                  (e.currentTarget.style.backgroundColor = colors.primary)
+                }
+                onMouseLeave={(e) =>
+                  (e.currentTarget.style.backgroundColor = colors.secondary)
+                }
               >
                 {enrollment ? "Update" : "Create"} Enrollment
               </button>
@@ -300,7 +271,10 @@ const EnrollmentManagement: React.FC = () => {
       <div className='max-w-7xl mx-auto w-full'>
         {/* Header */}
         <div className='mb-6'>
-          <h1 className='text-2xl font-bold mb-2' style={{ color: colors.primary }}>
+          <h1
+            className='text-2xl font-bold mb-2'
+            style={{ color: colors.primary }}
+          >
             Enrollment Management
           </h1>
           <p style={{ color: colors.primary }}>
@@ -446,97 +420,8 @@ const EnrollmentManagement: React.FC = () => {
                   </th>
                 </tr>
               </thead>
-              <tbody className='bg-white divide-y divide-gray-200'>
-                {filteredEnrollments.map((enrollment) => (
-                  <tr
-                    key={enrollment.id}
-                    className='hover:bg-gray-50 transition-colors'
-                  >
-                    <td className='px-6 py-4 whitespace-nowrap'>
-                      <div className='text-sm font-medium text-gray-900'>
-                        {enrollment.student?.firstName}{" "}
-                        {enrollment.student?.lastName}
-                      </div>
-                      <div className='text-sm text-gray-500'>
-                        {enrollment.student?.major}
-                      </div>
-                    </td>
-                    <td className='px-6 py-4 whitespace-nowrap'>
-                      <div className='text-sm font-medium text-gray-900'>
-                        {enrollment.course?.code}
-                      </div>
-                      <div className='text-sm text-gray-500'>
-                        {enrollment.course?.name}
-                      </div>
-                    </td>
-                    <td className='px-6 py-4 whitespace-nowrap'>
-                      <div className='flex items-center gap-2'>
-                        <select
-                          value={enrollment.status}
-                          onChange={(e) =>
-                            handleStatusChange(
-                              enrollment.id,
-                              e.target.value as Enrollment["status"]
-                            )
-                          }
-                          className={`text-xs font-semibold rounded-full px-2 py-1 border-0 ${getStatusColor(
-                            enrollment.status
-                          )} focus:ring-2 focus:ring-blue-500`}
-                        >
-                          <option value='pending'>Pending</option>
-                          <option value='enrolled'>Enrolled</option>
-                          <option value='completed'>Completed</option>
-                          <option value='dropped'>Dropped</option>
-                        </select>
-                      </div>
-                    </td>
-                    <td className='px-6 py-4 whitespace-nowrap text-sm text-gray-900'>
-                      {new Date(enrollment.enrollmentDate).toLocaleDateString()}
-                    </td>
-                    <td className='px-6 py-4 whitespace-nowrap'>
-                      {enrollment.grade ? (
-                        <span className='text-sm font-medium text-gray-900'>
-                          {enrollment.grade}
-                        </span>
-                      ) : (
-                        <span className='text-sm text-gray-400'>-</span>
-                      )}
-                    </td>
-                    <td className='px-6 py-4 whitespace-nowrap text-right text-sm font-medium'>
-                      <div className='flex justify-end gap-2'>
-                        <button
-                          onClick={() => setEditingEnrollment(enrollment)}
-                          className='text-blue-600 hover:text-blue-900 p-1 hover:bg-blue-50 rounded transition-colors'
-                        >
-                          <Edit className='w-4 h-4' />
-                        </button>
-                        <button
-                          onClick={() => handleDeleteEnrollment(enrollment.id)}
-                          className='text-red-600 hover:text-red-900 p-1 hover:bg-red-50 rounded transition-colors'
-                        >
-                          <Trash2 className='w-4 h-4' />
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
             </table>
           </div>
-
-          {filteredEnrollments.length === 0 && (
-            <div className='text-center py-12'>
-              <UserPlus className='mx-auto h-12 w-12 text-gray-400' />
-              <h3 className='mt-2 text-sm font-medium text-gray-900'>
-                No enrollments found
-              </h3>
-              <p className='mt-1 text-sm text-gray-500'>
-                {searchTerm || statusFilter !== "all" || courseFilter !== "all"
-                  ? "Try adjusting your search or filters."
-                  : "Get started by creating a new enrollment."}
-              </p>
-            </div>
-          )}
         </div>
 
         {/* Add/Edit Enrollment Form */}

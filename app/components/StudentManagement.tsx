@@ -32,7 +32,7 @@ const StudentManagement: React.FC<StudentManagementProps> = ({
       student.firstName.toLowerCase().includes(searchTerm.toLowerCase()) ||
       student.lastName.toLowerCase().includes(searchTerm.toLowerCase()) ||
       student.email.toLowerCase().includes(searchTerm.toLowerCase());
-    const matchesStatus = statusFilter === 1;
+    const matchesStatus = 1;
     return matchesSearch && matchesStatus;
   });
 
@@ -205,12 +205,6 @@ const StudentManagement: React.FC<StudentManagementProps> = ({
     }
   };
 
-  const handleDeleteStudent = (studentId: string) => {
-    if (window.confirm("Are you sure you want to delete this student?")) {
-      setStudents((prev) => prev.filter((s) => s.id !== studentId));
-    }
-  };
-
   return (
     <div className='p-4 sm:p-6 bg-gray-50 min-h-screen'>
       <div className='max-w-6xl mx-auto w-full'>
@@ -346,20 +340,6 @@ const StudentManagement: React.FC<StudentManagementProps> = ({
               </tbody>
             </table>
           </div>
-
-          {filteredStudents.length === 0 && (
-            <div className='text-center py-12'>
-              <User className='mx-auto h-12 w-12 text-gray-400' />
-              <h3 className='mt-2 text-sm font-medium text-gray-900'>
-                No students found
-              </h3>
-              <p className='mt-1 text-sm text-gray-500'>
-                {searchTerm || statusFilter !== 1
-                  ? "Try adjusting your search or filters."
-                  : "Get started by adding a new student."}
-              </p>
-            </div>
-          )}
         </div>
 
         {/* Edit Student Form */}
