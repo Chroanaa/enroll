@@ -9,10 +9,10 @@ export interface EnrollmentFormData {
   department: string;
   courseProgram: string;
   photo: File | null;
-  
+
   // Page 2: Admission Requirements
   requirements: string[];
-  
+
   // Page 3: Student Information
   familyName: string;
   firstName: string;
@@ -24,12 +24,12 @@ export interface EnrollmentFormData {
   completeAddress: string;
   contactNumber: string;
   emailAddress: string;
-  
+
   // Page 4: Emergency Information
   emergencyContactName: string;
   emergencyRelationship: string;
   emergencyContactNumber: string;
-  
+
   // Page 5: Educational Background
   lastSchoolAttended: string;
   schoolYear: string;
@@ -47,10 +47,10 @@ const initialFormData: EnrollmentFormData = {
   department: "",
   courseProgram: "",
   photo: null,
-  
+
   // Page 2: Admission Requirements
   requirements: [],
-  
+
   // Page 3: Student Information
   familyName: "",
   firstName: "",
@@ -62,12 +62,12 @@ const initialFormData: EnrollmentFormData = {
   completeAddress: "",
   contactNumber: "",
   emailAddress: "",
-  
+
   // Page 4: Emergency Information
   emergencyContactName: "",
   emergencyRelationship: "",
   emergencyContactNumber: "",
-  
+
   // Page 5: Educational Background
   lastSchoolAttended: "",
   schoolYear: "",
@@ -82,22 +82,21 @@ export const useEnrollmentForm = () => {
   const [photoPreview, setPhotoPreview] = useState<string | null>(null);
   const photoPreviewRef = useRef<string | null>(null);
 
-  // Get today's date 
+  // Get today's date
   const getTodayDate = () => {
     const today = new Date();
-    const options: Intl.DateTimeFormatOptions = { 
-      year: 'numeric', 
-      month: 'long', 
-      day: 'numeric' 
+    const options: Intl.DateTimeFormatOptions = {
+      year: "numeric",
+      month: "long",
+      day: "numeric",
     };
-    return today.toLocaleDateString('en-US', options);
+    return today.toLocaleDateString("en-US", options);
   };
 
-  // Cleanup photo 
+  // Cleanup photo
   useEffect(() => {
     if (!formData.photo && photoPreviewRef.current) {
-   
-      if (photoPreviewRef.current.startsWith('blob:')) {
+      if (photoPreviewRef.current.startsWith("blob:")) {
         URL.revokeObjectURL(photoPreviewRef.current);
       }
       photoPreviewRef.current = null;
@@ -105,22 +104,25 @@ export const useEnrollmentForm = () => {
     }
   }, [formData.photo]);
 
-
   useEffect(() => {
     return () => {
-      if (photoPreviewRef.current && photoPreviewRef.current.startsWith('blob:')) {
+      if (
+        photoPreviewRef.current &&
+        photoPreviewRef.current.startsWith("blob:")
+      ) {
         URL.revokeObjectURL(photoPreviewRef.current);
         photoPreviewRef.current = null;
       }
     };
   }, []);
 
-
   const filteredCoursePrograms = useMemo(() => {
     if (!formData.department) {
       return [];
     }
-    return mockCoursePrograms.filter((program) => program.departmentId === formData.department);
+    return mockCoursePrograms.filter(
+      (program) => program.departmentId === formData.department
+    );
   }, [formData.department]);
 
   // Reset course program when department changes
@@ -132,7 +134,10 @@ export const useEnrollmentForm = () => {
     }));
   };
 
-  const handleInputChange = (field: keyof EnrollmentFormData, value: string) => {
+  const handleInputChange = (
+    field: keyof EnrollmentFormData,
+    value: string
+  ) => {
     setFormData((prev) => ({ ...prev, [field]: value }));
   };
 
@@ -148,13 +153,13 @@ export const useEnrollmentForm = () => {
 
   const handlePhotoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
-    
+
     if (!file) {
       return;
     }
 
     // Validate file type
-    if (!file.type.startsWith('image/')) {
+    if (!file.type.startsWith("image/")) {
       alert("Please select a valid image file (JPG, PNG, GIF, etc.)");
       if (fileInputRef.current) {
         fileInputRef.current.value = "";
@@ -165,7 +170,9 @@ export const useEnrollmentForm = () => {
     // Validate file size (max 5MB)
     const maxSize = 5 * 1024 * 1024; // 5MB in bytes
     if (file.size > maxSize) {
-      alert("Image file size must be less than 5MB. Please choose a smaller image.");
+      alert(
+        "Image file size must be less than 5MB. Please choose a smaller image."
+      );
       if (fileInputRef.current) {
         fileInputRef.current.value = "";
       }
@@ -173,23 +180,32 @@ export const useEnrollmentForm = () => {
     }
 
     // Cleanup previous preview URL if it's a blob URL
-    if (photoPreviewRef.current && photoPreviewRef.current.startsWith('blob:')) {
+    if (
+      photoPreviewRef.current &&
+      photoPreviewRef.current.startsWith("blob:")
+    ) {
       URL.revokeObjectURL(photoPreviewRef.current);
       photoPreviewRef.current = null;
     }
-    
+
     // Use FileReader to create a data URL (more stable than blob URL)
     const reader = new FileReader();
     reader.onloadend = () => {
       const result = reader.result as string;
-      if (result && result.length > 0 && result.startsWith('data:image/')) {
-        console.log("Image loaded successfully, data URL length:", result.length);
+      if (result && result.length > 0 && result.startsWith("data:image/")) {
+        console.log(
+          "Image loaded successfully, data URL length:",
+          result.length
+        );
         photoPreviewRef.current = result;
         setPhotoPreview(result);
         // Update form data
         setFormData((prev) => ({ ...prev, photo: file }));
       } else {
-        console.error("FileReader returned invalid result:", result ? "empty or invalid format" : "null");
+        console.error(
+          "FileReader returned invalid result:",
+          result ? "empty or invalid format" : "null"
+        );
         // Fallback to blob URL
         try {
           const objectUrl = URL.createObjectURL(file);
@@ -253,7 +269,10 @@ export const useEnrollmentForm = () => {
 
   const removePhoto = () => {
     // Cleanup blob URL if it exists
-    if (photoPreviewRef.current && photoPreviewRef.current.startsWith('blob:')) {
+    if (
+      photoPreviewRef.current &&
+      photoPreviewRef.current.startsWith("blob:")
+    ) {
       URL.revokeObjectURL(photoPreviewRef.current);
     }
     photoPreviewRef.current = null;
@@ -281,7 +300,7 @@ export const useEnrollmentForm = () => {
     filteredCoursePrograms,
     progress,
     TOTAL_PAGES,
-    
+
     // Functions
     getTodayDate,
     handleDepartmentChange,
@@ -296,4 +315,3 @@ export const useEnrollmentForm = () => {
     handlePhotoError,
   };
 };
-

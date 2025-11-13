@@ -81,14 +81,21 @@ const Dashboard: React.FC = () => {
     color: string;
   }> = ({ title, value, icon, trend, color }) => {
     // Check if color is a hex value (starts with #) or a className (like "bg-blue-500")
-    const isHexColor = color.startsWith('#');
-    
+    const isHexColor = color.startsWith("#");
+
     return (
       <div className='bg-white rounded-xl shadow-sm border border-gray-100 p-6 hover:shadow-md transition-all duration-200'>
         <div className='flex items-center justify-between'>
           <div>
-            <p className='text-sm font-medium mb-1' style={{ color: colors.primary }}>{title}</p>
-            <p className='text-2xl font-bold' style={{ color: colors.primary }}>{value}</p>
+            <p
+              className='text-sm font-medium mb-1'
+              style={{ color: colors.primary }}
+            >
+              {title}
+            </p>
+            <p className='text-2xl font-bold' style={{ color: colors.primary }}>
+              {value}
+            </p>
             {trend !== undefined && (
               <div
                 className='flex items-center mt-2'
@@ -103,8 +110,8 @@ const Dashboard: React.FC = () => {
               </div>
             )}
           </div>
-          <div 
-            className={`p-3 rounded-lg ${!isHexColor ? color : ''}`}
+          <div
+            className={`p-3 rounded-lg ${!isHexColor ? color : ""}`}
             style={isHexColor ? { backgroundColor: color } : {}}
           >
             {icon}
@@ -119,7 +126,10 @@ const Dashboard: React.FC = () => {
       <div className='max-w-7xl mx-auto w-full'>
         {/* Header */}
         <div className='mb-8'>
-          <h1 className='text-3xl font-bold mb-2' style={{ color: colors.primary }}>
+          <h1
+            className='text-3xl font-bold mb-2'
+            style={{ color: colors.primary }}
+          >
             Enrollment Analytics Dashboard
           </h1>
           <p style={{ color: colors.primary }}>
@@ -134,7 +144,6 @@ const Dashboard: React.FC = () => {
             value={stats.activeStudents}
             icon={<Users className='w-6 h-6 text-white' />}
             color={colors.secondary}
-              
           />
           <StatCard
             title='Total Courses'
@@ -162,7 +171,10 @@ const Dashboard: React.FC = () => {
           {/* Enrollment Trends */}
           <div className='bg-white rounded-xl shadow-sm border border-gray-100 p-6'>
             <div className='flex items-center justify-between mb-6'>
-              <h2 className='text-xl font-bold' style={{ color: colors.primary }}>
+              <h2
+                className='text-xl font-bold'
+                style={{ color: colors.primary }}
+              >
                 Enrollment Trends
               </h2>
               <div className='flex gap-2'>
@@ -171,17 +183,22 @@ const Dashboard: React.FC = () => {
                     key={metric}
                     onClick={() => setSelectedMetric(metric as any)}
                     className='px-3 py-1 rounded-lg text-sm font-medium transition-colors'
-                    style={selectedMetric === metric
-                      ? { backgroundColor: `${colors.primary}10`, color: colors.primary }
-                      : { color: '#6B7280', backgroundColor: 'transparent' }}
+                    style={
+                      selectedMetric === metric
+                        ? {
+                            backgroundColor: `${colors.primary}10`,
+                            color: colors.primary,
+                          }
+                        : { color: "#6B7280", backgroundColor: "transparent" }
+                    }
                     onMouseEnter={(e) => {
                       if (selectedMetric !== metric) {
-                        e.currentTarget.style.backgroundColor = '#F3F4F6';
+                        e.currentTarget.style.backgroundColor = "#F3F4F6";
                       }
                     }}
                     onMouseLeave={(e) => {
                       if (selectedMetric !== metric) {
-                        e.currentTarget.style.backgroundColor = 'transparent';
+                        e.currentTarget.style.backgroundColor = "transparent";
                       }
                     }}
                   >
@@ -198,7 +215,10 @@ const Dashboard: React.FC = () => {
 
           {/* Forecast */}
           <div className='bg-white rounded-xl shadow-sm border border-gray-100 p-6'>
-            <h2 className='text-xl font-bold mb-6' style={{ color: colors.primary }}>
+            <h2
+              className='text-xl font-bold mb-6'
+              style={{ color: colors.primary }}
+            >
               6-Month Forecast
             </h2>
             <ForecastChart
@@ -212,7 +232,10 @@ const Dashboard: React.FC = () => {
         <div className='grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6'>
           {/* Key Insights */}
           <div className='lg:col-span-2 bg-white rounded-xl shadow-sm border border-gray-100 p-6'>
-            <h2 className='text-xl font-bold mb-4' style={{ color: colors.primary }}>
+            <h2
+              className='text-xl font-bold mb-4'
+              style={{ color: colors.primary }}
+            >
               Key Insights
             </h2>
             <div className='space-y-4'>
@@ -231,7 +254,9 @@ const Dashboard: React.FC = () => {
               <div className='flex items-start gap-3'>
                 <TrendingUp className='w-5 h-5 text-blue-500 mt-0.5' />
                 <div>
-                  <p className='font-medium' style={{ color: colors.primary }}>Growth Trajectory</p>
+                  <p className='font-medium' style={{ color: colors.primary }}>
+                    Growth Trajectory
+                  </p>
                   <p className='text-sm' style={{ color: colors.primary }}>
                     {stats.growthRate > 0 ? "Positive" : "Negative"} growth of{" "}
                     {Math.abs(stats.growthRate).toFixed(1)}% this period
@@ -255,7 +280,12 @@ const Dashboard: React.FC = () => {
 
           {/* Alerts */}
           <div className='bg-white rounded-xl shadow-sm border border-gray-100 p-6'>
-            <h2 className='text-xl font-bold mb-4' style={{ color: colors.primary }}>Alerts</h2>
+            <h2
+              className='text-xl font-bold mb-4'
+              style={{ color: colors.primary }}
+            >
+              Alerts
+            </h2>
             <div className='space-y-3'>
               {mockCourses
                 .filter(
