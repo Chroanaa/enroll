@@ -13,13 +13,16 @@ import { Student } from "../types";
 import { mockStudents } from "../data/mockData";
 import { colors } from "../colors";
 
-const StudentManagement: React.FC = () => {
+interface StudentManagementProps {
+  onViewChange?: (view: string) => void;
+}
+
+const StudentManagement: React.FC<StudentManagementProps> = ({ onViewChange }) => {
   const [students, setStudents] = useState<Student[]>(mockStudents);
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState<
     "all" | "active" | "inactive" | "graduated"
   >("all");
-  const [isAddingStudent, setIsAddingStudent] = useState(false);
   const [editingStudent, setEditingStudent] = useState<Student | null>(null);
 
   const filteredStudents = students.filter((student) => {
@@ -55,29 +58,18 @@ const StudentManagement: React.FC = () => {
   };
 
   const StudentForm: React.FC<{
-    student?: Student;
+    student: Student;
     onSave: (student: Student) => void;
     onCancel: () => void;
   }> = ({ student, onSave, onCancel }) => {
-    const [formData, setFormData] = useState<Partial<Student>>(
-      student || {
-        firstName: "",
-        lastName: "",
-        email: "",
-        dateOfBirth: "",
-        enrollmentDate: "",
-        status: "active",
-        gpa: 0,
-        major: "",
-      }
-    );
+    const [formData, setFormData] = useState<Partial<Student>>(student);
 
     const handleSubmit = (e: React.FormEvent) => {
       e.preventDefault();
       if (formData.firstName && formData.lastName && formData.email) {
         onSave({
           ...formData,
-          id: student?.id || Date.now().toString(),
+          id: student.id,
         } as Student);
       }
     };
@@ -86,7 +78,7 @@ const StudentManagement: React.FC = () => {
       <div className='fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50'>
         <div className='bg-white rounded-xl max-w-md w-full p-6'>
           <h2 className='text-xl font-bold text-gray-900 mb-4'>
-            {student ? "Edit Student" : "Add New Student"}
+            Edit Student
           </h2>
 
           <form onSubmit={handleSubmit} className='space-y-4'>
@@ -232,7 +224,7 @@ const StudentManagement: React.FC = () => {
                 type='submit'
                 className='px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors'
               >
-                {student ? "Update" : "Add"} Student
+                Update Student
               </button>
             </div>
           </form>
@@ -247,9 +239,6 @@ const StudentManagement: React.FC = () => {
         prev.map((s) => (s.id === studentData.id ? studentData : s))
       );
       setEditingStudent(null);
-    } else {
-      setStudents((prev) => [...prev, studentData]);
-      setIsAddingStudent(false);
     }
   };
 
@@ -298,16 +287,18 @@ const StudentManagement: React.FC = () => {
                 <option value='graduated'>Graduated</option>
               </select>
 
-              <button
-                onClick={() => setIsAddingStudent(true)}
-                className='flex items-center gap-2 px-4 py-2 text-white rounded-lg transition-colors'
-                style={{ backgroundColor: colors.secondary }}
-                onMouseEnter={(e) => e.currentTarget.style.backgroundColor = colors.primary}
-                onMouseLeave={(e) => e.currentTarget.style.backgroundColor = colors.secondary}
-              >
-                <Plus className='w-4 h-4' />
-                Add Student
-              </button>
+              {onViewChange && (
+                <button
+                  onClick={() => onViewChange("enrollment-form")}
+                  className='flex items-center gap-2 px-4 py-2 text-white rounded-lg transition-colors'
+                  style={{ backgroundColor: colors.secondary }}
+                  onMouseEnter={(e) => e.currentTarget.style.backgroundColor = colors.primary}
+                  onMouseLeave={(e) => e.currentTarget.style.backgroundColor = colors.secondary}
+                >
+                  <Plus className='w-4 h-4' />
+                  Add Student
+                </button>
+              )}
             </div>
           </div>
         </div>
@@ -428,14 +419,7 @@ const StudentManagement: React.FC = () => {
           )}
         </div>
 
-        {/* Add/Edit Student Form */}
-        {isAddingStudent && (
-          <StudentForm
-            onSave={handleSaveStudent}
-            onCancel={() => setIsAddingStudent(false)}
-          />
-        )}
-
+        {/* Edit Student Form */}
         {editingStudent && (
           <StudentForm
             student={editingStudent}

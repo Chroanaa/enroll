@@ -1,20 +1,45 @@
 "use client";
-import React from "react";
-import Login from "./components/Login";
+import React, { useState } from "react";
+import Navigation from "./components/Navigation";
+import Dashboard from "./components/Dashboard";
+import StudentManagement from "./components/StudentManagement";
+import CourseManagement from "./components/CourseManagement";
+import EnrollmentManagement from "./components/EnrollmentManagement";
+import EnrollmentForm from "./components/EnrollmentForm";
+import ForecastingAnalytics from "./components/ForecastingAnalytics";
+import ProtectedRoute from "./components/ProtectedRoute";
+import { AuthProvider } from "./contexts/AuthContext";
 import { useSession } from "next-auth/react";
 import { useRouter } from "next/navigation";
 import { useEffect } from "react";
 
-export default function Home() {
+function App() {
+  const [currentView, setCurrentView] = useState("dashboard");
   const { data: session, status } = useSession();
   const router = useRouter();
-
   useEffect(() => {
     if (status === "authenticated") {
       router.push("/dashboard");
     }
   }, [status, router]);
-
+  const renderCurrentView = () => {
+    switch (currentView) {
+      case "dashboard":
+        return <Dashboard />;
+      case "students":
+        return <StudentManagement onViewChange={setCurrentView} />;
+      case "courses":
+        return <CourseManagement />;
+      case "enrollments":
+        return <EnrollmentManagement />;
+      case "enrollment-form":
+        return <EnrollmentForm />;
+      case "forecast":
+        return <ForecastingAnalytics />;
+      default:
+        return <Dashboard />;
+    }
+  };
   if (status === "loading") {
     return (
       <div className='min-h-screen bg-gradient-to-br from-blue-50 via-white to-purple-50 flex items-center justify-center'>
@@ -26,5 +51,16 @@ export default function Home() {
     );
   }
 
-  return <Login />;
+  return (
+    <AuthProvider>
+      <ProtectedRoute>
+        <div className='flex h-screen bg-gray-50'>
+          <Navigation currentView={currentView} onViewChange={setCurrentView} />
+          <main className='flex-1 overflow-auto'>{renderCurrentView()}</main>
+        </div>
+      </ProtectedRoute>
+    </AuthProvider>
+  );  
+ 
 }
+export default App
