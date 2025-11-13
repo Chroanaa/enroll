@@ -1,5 +1,5 @@
 "use client";
-import React from "react";
+import React, { useState, useEffect } from "react";
 import {
   BarChart3,
   Users,
@@ -9,6 +9,20 @@ import {
   LogOut,
   User,
   FileText,
+  Calculator,
+  FileBarChart,
+  CalendarClock,
+  CreditCard,
+  GraduationCap,
+  Settings,
+  ChevronDown,
+  ChevronRight,
+  Building2,
+  Network,
+  Users2,
+  DollarSign,
+  DoorOpen,
+  FolderTree,
 } from "lucide-react";
 import Image from "next/image";
 import { useSession, signOut } from "next-auth/react";
@@ -24,17 +38,59 @@ const Navigation: React.FC<NavigationProps> = ({
   onViewChange,
 }) => {
   const { data: session } = useSession();
-  const navItems = [
-    { id: "dashboard", label: "Dashboard", icon: BarChart3 },
+  const [isFileMaintenanceOpen, setIsFileMaintenanceOpen] = useState(false);
+
+  const fileMaintenanceSubItems = [
+    { id: "file-maintenance-building", label: "Building", icon: Building2 },
+    { id: "file-maintenance-section", label: "Section", icon: FolderTree },
+    { id: "file-maintenance-room", label: "Room", icon: DoorOpen },
+    { id: "file-maintenance-department", label: "Department", icon: Network },
+    { id: "file-maintenance-faculty", label: "Faculty", icon: Users2 },
+    { id: "file-maintenance-fees", label: "Fees", icon: DollarSign },
+  ];
+
+  const navGroups = [
+    {
+      category: "Academic",
+      items: [
     { id: "students", label: "Students", icon: Users },
     { id: "courses", label: "Courses", icon: BookOpen },
     { id: "enrollments", label: "Enrollments", icon: UserPlus },
     { id: "enrollment-form", label: "Enrollment Form", icon: FileText },
+        { id: "curriculum", label: "Curriculum", icon: GraduationCap },
+        { id: "scheduling", label: "Scheduling", icon: CalendarClock },
+      ],
+    },
+    {
+      category: "System",
+      items: [
+        { id: "dashboard", label: "Dashboard", icon: BarChart3 },
+        { id: "file-maintenance", label: "File Maintenance", icon: Settings, hasSubmenu: true },
+        { id: "reports", label: "Reports", icon: FileBarChart },
     { id: "forecast", label: "Forecasting", icon: Calendar },
+      ],
+    },
+    {
+      category: "Payment",
+      items: [
+    { id: "assessment", label: "Assessment", icon: Calculator },
+    { id: "payment-billing", label: "Payment & Billing", icon: CreditCard },
+      ],
+    },
   ];
+
+  // Check if current view is a file maintenance sub-item
+  const isFileMaintenanceActive = currentView.startsWith("file-maintenance");
+  
+  // Auto-expand file maintenance if a sub-item is active
+  useEffect(() => {
+    if (isFileMaintenanceActive && !isFileMaintenanceOpen) {
+      setIsFileMaintenanceOpen(true);
+    }
+  }, [currentView, isFileMaintenanceActive, isFileMaintenanceOpen]);
   return (
     <nav
-      className='border-r w-16 md:w-64 min-h-screen p-2 md:p-4 flex flex-col'
+      className='border-r w-16 md:w-64 h-screen p-2 md:p-4 flex flex-col overflow-hidden'
       style={{ backgroundColor: colors.primary }}
     >
       {/* Logo / Branding */}
@@ -62,17 +118,53 @@ const Navigation: React.FC<NavigationProps> = ({
         </div>
       </div>
 
-      {/* Nav Items */}
-      <ul className='space-y-1 flex-1'>
-        {navItems.map((item) => {
+      {/* Nav Items with Scrollbar */}
+      <div 
+        className='flex-1 overflow-y-auto overflow-x-hidden pr-1 nav-scroll' 
+        style={{ 
+          scrollbarWidth: 'thin',
+          scrollbarColor: `${colors.paper}40 transparent`
+        }}
+      >
+        <ul className='space-y-4'>
+          {navGroups.map((group) => (
+            <li key={group.category}>
+              {/* Group Header */}
+              <div className='hidden md:block mb-2 px-3'>
+                <h3
+                  className='text-xs font-semibold uppercase tracking-wider'
+                  style={{ color: colors.paper, opacity: 0.6 }}
+                >
+                  {group.category}
+                </h3>
+              </div>
+              
+              {/* Group Items */}
+              <ul className='space-y-1'>
+                {group.items.map((item) => {
           const Icon = item.icon;
+                  const isFileMaintenance = item.id === "file-maintenance";
+                  const isActive = isFileMaintenance 
+                    ? isFileMaintenanceActive 
+                    : currentView === item.id;
+
           return (
             <li key={item.id}>
               <button
-                onClick={() => onViewChange(item.id)}
+                        onClick={(e) => {
+                          e.preventDefault();
+                          if (isFileMaintenance && item.hasSubmenu) {
+                            setIsFileMaintenanceOpen(!isFileMaintenanceOpen);
+                            if (!isFileMaintenanceOpen) {
+                              onViewChange("file-maintenance");
+                            }
+                          } else {
+                            onViewChange(item.id);
+                          }
+                        }}
                 className='w-full flex items-center justify-center md:justify-start gap-0 md:gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all duration-200'
                 style={
-                  currentView === item.id
+                          isActive
                     ? {
                         backgroundColor: `${colors.secondary}30`,
                         color: colors.paper,
@@ -86,66 +178,88 @@ const Navigation: React.FC<NavigationProps> = ({
                       }
                 }
                 onMouseEnter={(e) => {
-                  if (currentView !== item.id) {
+                          if (!isActive) {
                     e.currentTarget.style.backgroundColor = `${colors.paper}20`;
                     e.currentTarget.style.opacity = "1";
                   }
                 }}
                 onMouseLeave={(e) => {
-                  if (currentView !== item.id) {
+                          if (!isActive) {
                     e.currentTarget.style.backgroundColor = "transparent";
                     e.currentTarget.style.opacity = "0.8";
                   }
                 }}
               >
                 <Icon className='w-5 h-5' />
-                <span className='hidden md:inline'>{item.label}</span>
+                        <span className='hidden md:inline flex-1 text-left'>{item.label}</span>
+                        {isFileMaintenance && item.hasSubmenu && (
+                          <span className='hidden md:inline'>
+                            {isFileMaintenanceOpen ? (
+                              <ChevronDown className='w-4 h-4' />
+                            ) : (
+                              <ChevronRight className='w-4 h-4' />
+                            )}
+                          </span>
+                        )}
+                      </button>
+                      
+                      {/* File Maintenance Submenu */}
+                      {isFileMaintenance && item.hasSubmenu && isFileMaintenanceOpen && (
+                        <ul className='ml-0 md:ml-4 mt-1 space-y-1'>
+                          {fileMaintenanceSubItems.map((subItem) => {
+                            const SubIcon = subItem.icon;
+                            const isSubActive = currentView === subItem.id;
+                            return (
+                              <li key={subItem.id}>
+                                <button
+                                  onClick={(e) => {
+                                    e.preventDefault();
+                                    e.stopPropagation();
+                                    onViewChange(subItem.id);
+                                  }}
+                                  className='w-full flex items-center justify-center md:justify-start gap-0 md:gap-3 px-3 py-2 rounded-lg text-xs md:text-sm font-medium transition-all duration-200'
+                                  style={
+                                    isSubActive
+                                      ? {
+                                          backgroundColor: `${colors.secondary}40`,
+                                          color: colors.paper,
+                                          border: `1px solid ${colors.secondary}`,
+                                        }
+                                      : {
+                                          color: colors.paper,
+                                          backgroundColor: "transparent",
+                                          border: "1px solid transparent",
+                                          opacity: 0.7,
+                                        }
+                                  }
+                                  onMouseEnter={(e) => {
+                                    if (!isSubActive) {
+                                      e.currentTarget.style.backgroundColor = `${colors.paper}20`;
+                                      e.currentTarget.style.opacity = "1";
+                                    }
+                                  }}
+                                  onMouseLeave={(e) => {
+                                    if (!isSubActive) {
+                                      e.currentTarget.style.backgroundColor = "transparent";
+                                      e.currentTarget.style.opacity = "0.7";
+                                    }
+                                  }}
+                                >
+                                  <SubIcon className='w-4 h-4' />
+                                  <span className='hidden md:inline'>{subItem.label}</span>
               </button>
             </li>
           );
         })}
       </ul>
-
-      {/* Quick Stats */}
-      <div
-        className='hidden md:block mt-8 p-4 rounded-lg border'
-        style={{
-          backgroundColor: `${colors.paper}10`,
-          borderColor: `${colors.paper}30`,
-        }}
-      >
-        <h3
-          className='font-semibold text-sm mb-2'
-          style={{ color: colors.paper }}
-        >
-          Quick Stats
-        </h3>
-        <div className='space-y-2 text-xs'>
-          <div className='flex justify-between'>
-            <span style={{ color: colors.paper, opacity: 0.8 }}>
-              Active Students
-            </span>
-            <span className='font-medium' style={{ color: colors.paper }}>
-              4
-            </span>
-          </div>
-          <div className='flex justify-between'>
-            <span style={{ color: colors.paper, opacity: 0.8 }}>
-              Total Courses
-            </span>
-            <span className='font-medium' style={{ color: colors.paper }}>
-              5
-            </span>
-          </div>
-          <div className='flex justify-between'>
-            <span style={{ color: colors.paper, opacity: 0.8 }}>
-              Enrollments
-            </span>
-            <span className='font-medium' style={{ color: colors.paper }}>
-              6
-            </span>
-          </div>
-        </div>
+                      )}
+                    </li>
+                  );
+                })}
+              </ul>
+            </li>
+          ))}
+        </ul>
       </div>
 
       {/* User Profile Section*/}
