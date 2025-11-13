@@ -430,3 +430,77 @@ export const mockAcademicYears = [
   { value: "2025-2026", label: "2025-2026" },
   { value: "2026-2027", label: "2026-2027" },
 ];
+
+// Course Programs for enrollment form (flat list for filtering by department)
+export const mockCoursePrograms = [
+  // College of Computer Studies
+  {
+    id: "BSCS",
+    name: "Bachelor of Science in Computer Science",
+    departmentId: "CCS",
+  },
+  {
+    id: "BSIT",
+    name: "Bachelor of Science in Information Technology",
+    departmentId: "CCS",
+  },
+  {
+    id: "BSIS",
+    name: "Bachelor of Science in Information Systems",
+    departmentId: "CCS",
+  },
+
+  // College of Business Administration
+  {
+    id: "BSA",
+    name: "Bachelor of Science in Accountancy",
+    departmentId: "CBA",
+  },
+  {
+    id: "BSBA",
+    name: "Bachelor of Science in Business Administration",
+    departmentId: "CBA",
+  },
+  {
+    id: "BSAIS",
+    name: "Bachelor of Science in Accounting Information System",
+    departmentId: "CBA",
+  },
+
+  // College of Nursing
+  { id: "BSN", name: "Bachelor of Science in Nursing", departmentId: "CN" },
+
+  // College of Engineering
+  {
+    id: "BSCE",
+    name: "Bachelor of Science in Civil Engineering",
+    departmentId: "COE",
+  },
+  {
+    id: "BSEE",
+    name: "Bachelor of Science in Electrical Engineering",
+    departmentId: "COE",
+  },
+  {
+    id: "BSME",
+    name: "Bachelor of Science in Mechanical Engineering",
+    departmentId: "COE",
+  },
+
+  // College of Arts and Sciences
+  {
+    id: "AB-PSYCH",
+    name: "Bachelor of Arts in Psychology",
+    departmentId: "CAS",
+  },
+  {
+    id: "AB-COMM",
+    name: "Bachelor of Arts in Communication",
+    departmentId: "CAS",
+  },
+  {
+    id: "BS-PSYCH",
+    name: "Bachelor of Science in Psychology",
+    departmentId: "CAS",
+  },
+];
