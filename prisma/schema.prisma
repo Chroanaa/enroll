@@ -32,3 +32,55 @@ model roles {
   role   String? @db.VarChar(255)
   status Int?
 }
+
+model course {
+  id           Int     @id @default(autoincrement())
+  code         String  @unique @db.VarChar(50)
+  name         String  @db.VarChar(150)
+  description  String?
+  units        Int
+  status       Int?    @default(1)
+  instructor   String? @db.VarChar(50)
+  semester     String? @db.VarChar(50)
+  max_capacity Int?
+  department   Int?
+}
+
+model section {
+  id            Int     @id @default(autoincrement())
+  section_name  String? @db.VarChar(50)
+  status        Int?
+  course_id     Int?
+  student_count Int?
+}
+
+model students {
+  student_id              Int       @id @default(autoincrement())
+  student_number          String    @unique @db.VarChar(20)
+  first_name              String    @db.VarChar(100)
+  middle_name             String?   @db.VarChar(100)
+  last_name               String    @db.VarChar(100)
+  suffix                  String?   @db.VarChar(10)
+  gender                  String?   @db.VarChar(10)
+  date_of_birth           DateTime? @db.Date
+  place_of_birth          String?   @db.VarChar(150)
+  nationality             String?   @db.VarChar(100)
+  civil_status            String?   @db.VarChar(20)
+  email_address           String?   @unique @db.VarChar(150)
+  contact_number          String?   @db.VarChar(20)
+  street                  String?   @db.VarChar(150)
+  barangay                String?   @db.VarChar(100)
+  city                    String?   @db.VarChar(100)
+  province                String?   @db.VarChar(100)
+  postal_code             String?   @db.VarChar(10)
+  father_name             String?   @db.VarChar(150)
+  mother_name             String?   @db.VarChar(150)
+  guardian_name           String?   @db.VarChar(150)
+  guardian_contact_number String?   @db.VarChar(20)
+  guardian_address        String?   @db.VarChar(255)
+  course_id               Int?
+  year_level              String?   @db.VarChar(50)
+  section_id              Int?
+  enrollment_status       String?   @default("pending") @db.VarChar(50)
+  academic_year           String?   @db.VarChar(20)
+}
