@@ -8,6 +8,7 @@ import {
   Calendar,
   LogOut,
   User,
+  FileText,
 } from "lucide-react";
 import Image from "next/image";
 import { useSession, signOut } from "next-auth/react";
@@ -28,6 +29,7 @@ const Navigation: React.FC<NavigationProps> = ({
     { id: "students", label: "Students", icon: Users },
     { id: "courses", label: "Courses", icon: BookOpen },
     { id: "enrollments", label: "Enrollments", icon: UserPlus },
+    { id: "enrollment-form", label: "Enrollment Form", icon: FileText },
     { id: "forecast", label: "Forecasting", icon: Calendar },
   ];
   return (

@@ -6,6 +6,7 @@ import StudentManagement from "../components/StudentManagement";
 import CourseManagement from "../components/CourseManagement";
 import EnrollmentManagement from "../components/EnrollmentManagement";
 import ForecastingAnalytics from "../components/ForecastingAnalytics";
+import EnrollmentForm from "../components/EnrollmentForm";
 import ProtectedRoute from "../components/ProtectedRoute";
 
 export default function DashboardPage() {
@@ -21,6 +22,8 @@ export default function DashboardPage() {
         return <CourseManagement />;
       case "enrollments":
         return <EnrollmentManagement />;
+      case "enrollment-form":
+        return <EnrollmentForm />;
       case "forecast":
         return <ForecastingAnalytics />;
       default:
