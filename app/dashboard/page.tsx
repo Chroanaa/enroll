@@ -5,8 +5,15 @@ import Dashboard from "../components/Dashboard";
 import StudentManagement from "../components/StudentManagement";
 import CourseManagement from "../components/CourseManagement";
 import EnrollmentManagement from "../components/EnrollmentManagement";
-import ForecastingAnalytics from "../components/ForecastingAnalytics";
 import EnrollmentForm from "../components/EnrollmentForm";
+import ForecastingAnalytics from "../components/ForecastingAnalytics";
+import AssessmentManagement from "../components/AssessmentManagement";
+import ReportManagement from "../components/ReportManagement";
+import SchedulingManagement from "../components/SchedulingManagement";
+import PaymentBillingManagement from "../components/PaymentBillingManagement";
+import CurriculumManagement from "../components/CurriculumManagement";
+import FileMaintenanceManagement from "../components/FileMaintenanceManagement";
+import { Building, Section, Room, Department, Faculty, Fees } from "../components/fileMaintenance";
 import ProtectedRoute from "../components/ProtectedRoute";
 
 export default function DashboardPage() {
@@ -17,7 +24,7 @@ export default function DashboardPage() {
       case "dashboard":
         return <Dashboard />;
       case "students":
-        return <StudentManagement />;
+        return <StudentManagement onViewChange={setCurrentView} />;
       case "courses":
         return <CourseManagement />;
       case "enrollments":
@@ -26,6 +33,30 @@ export default function DashboardPage() {
         return <EnrollmentForm />;
       case "forecast":
         return <ForecastingAnalytics />;
+      case "assessment":
+        return <AssessmentManagement />;
+      case "reports":
+        return <ReportManagement />;
+      case "scheduling":
+        return <SchedulingManagement />;
+      case "payment-billing":
+        return <PaymentBillingManagement />;
+      case "curriculum":
+        return <CurriculumManagement />;
+      case "file-maintenance":
+        return <FileMaintenanceManagement />;
+      case "file-maintenance-building":
+        return <Building />;
+      case "file-maintenance-section":
+        return <Section />;
+      case "file-maintenance-room":
+        return <Room />;
+      case "file-maintenance-department":
+        return <Department />;
+      case "file-maintenance-faculty":
+        return <Faculty />;
+      case "file-maintenance-fees":
+        return <Fees />;
       default:
         return <Dashboard />;
     }
