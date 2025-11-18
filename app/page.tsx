@@ -12,7 +12,6 @@ import ReportManagement from "./components/ReportManagement";
 import SchedulingManagement from "./components/SchedulingManagement";
 import PaymentBillingManagement from "./components/PaymentBillingManagement";
 import CurriculumManagement from "./components/CurriculumManagement";
-import FileMaintenanceManagement from "./components/FileMaintenanceManagement";
 import { Building, Section, Room, Department, Faculty, Fees } from "./components/fileMaintenance";
 import ProtectedRoute from "./components/ProtectedRoute";
 import { AuthProvider } from "./contexts/AuthContext";
@@ -53,8 +52,6 @@ function App() {
         return <PaymentBillingManagement />;
       case "curriculum":
         return <CurriculumManagement />;
-      case "file-maintenance":
-        return <FileMaintenanceManagement />;
       case "file-maintenance-building":
         return <Building />;
       case "file-maintenance-section":

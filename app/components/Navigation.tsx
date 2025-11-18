@@ -1,5 +1,5 @@
 "use client";
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import {
   BarChart3,
   Users,
@@ -39,6 +39,7 @@ const Navigation: React.FC<NavigationProps> = ({
 }) => {
   const { data: session } = useSession();
   const [isFileMaintenanceOpen, setIsFileMaintenanceOpen] = useState(false);
+  const prevViewRef = useRef<string>("");
 
   const fileMaintenanceSubItems = [
     { id: "file-maintenance-building", label: "Building", icon: Building2 },
@@ -81,13 +82,15 @@ const Navigation: React.FC<NavigationProps> = ({
 
   // Check if current view is a file maintenance sub-item
   const isFileMaintenanceActive = currentView.startsWith("file-maintenance");
+  const prevWasFileMaintenance = prevViewRef.current.startsWith("file-maintenance");
   
-  // Auto-expand file maintenance if a sub-item is active
+  // Auto-expand file maintenance only when navigating TO a sub-item from a non-file-maintenance view
   useEffect(() => {
-    if (isFileMaintenanceActive && !isFileMaintenanceOpen) {
+    if (isFileMaintenanceActive && !prevWasFileMaintenance && !isFileMaintenanceOpen) {
       setIsFileMaintenanceOpen(true);
     }
-  }, [currentView, isFileMaintenanceActive, isFileMaintenanceOpen]);
+    prevViewRef.current = currentView;
+  }, [currentView, isFileMaintenanceActive, prevWasFileMaintenance, isFileMaintenanceOpen]);
   return (
     <nav
       className='border-r w-16 md:w-64 h-screen p-2 md:p-4 flex flex-col overflow-hidden'
@@ -155,9 +158,6 @@ const Navigation: React.FC<NavigationProps> = ({
                           e.preventDefault();
                           if (isFileMaintenance && item.hasSubmenu) {
                             setIsFileMaintenanceOpen(!isFileMaintenanceOpen);
-                            if (!isFileMaintenanceOpen) {
-                              onViewChange("file-maintenance");
-                            }
                           } else {
                             onViewChange(item.id);
                           }
