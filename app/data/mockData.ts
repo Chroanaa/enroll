@@ -362,7 +362,7 @@ export const mockForecastData: ForecastData[] = [
 ];
 
 // Department and Course Program mock data for enrollment form
-export const mockDepartments = [
+export const mockDepartmentsForEnrollment = [
   {
     id: "CCS",
     name: "College of Computer Studies",
@@ -502,5 +502,348 @@ export const mockCoursePrograms = [
     id: "BS-PSYCH",
     name: "Bachelor of Science in Psychology",
     departmentId: "CAS",
+  },
+];
+
+// File Maintenance Mock Data
+export interface Building {
+  id: number;
+  name: string;
+  code: string;
+  description?: string;
+  address?: string;
+  floorCount: number;
+  status: "active" | "inactive";
+}
+
+export interface Room {
+  id: number;
+  buildingId: number;
+  buildingName?: string;
+  roomNumber: string;
+  capacity: number;
+  roomType: "classroom" | "laboratory" | "office" | "library" | "auditorium" | "other";
+  floor: number;
+  status: "available" | "occupied" | "maintenance";
+}
+
+export interface Department {
+  id: number;
+  code: string;
+  name: string;
+  description?: string;
+  buildingId?: number;
+  buildingName?: string;
+  head?: string;
+  status: "active" | "inactive";
+}
+
+export interface Faculty {
+  id: number;
+  employeeId: string;
+  firstName: string;
+  lastName: string;
+  middleName?: string;
+  email: string;
+  phone?: string;
+  departmentId: number;
+  departmentName?: string;
+  position: "professor" | "associate professor" | "assistant professor" | "instructor" | "lecturer";
+  specialization?: string;
+  status: "active" | "inactive";
+}
+
+export interface Fee {
+  id: number;
+  code: string;
+  name: string;
+  description?: string;
+  amount: number;
+  category: "tuition" | "miscellaneous" | "laboratory" | "library" | "other";
+  academicYear: string;
+  semester?: string;
+  status: "active" | "inactive";
+}
+
+export const mockBuildings: Building[] = [
+  {
+    id: 1,
+    name: "Main Building",
+    code: "MB",
+    description: "Main administrative and academic building",
+    address: "123 University Avenue",
+    floorCount: 5,
+    status: "active",
+  },
+  {
+    id: 2,
+    name: "Science Building",
+    code: "SB",
+    description: "Houses science laboratories and classrooms",
+    address: "124 University Avenue",
+    floorCount: 4,
+    status: "active",
+  },
+  {
+    id: 3,
+    name: "Engineering Building",
+    code: "EB",
+    description: "Engineering laboratories and classrooms",
+    address: "125 University Avenue",
+    floorCount: 3,
+    status: "active",
+  },
+  {
+    id: 4,
+    name: "Library Building",
+    code: "LB",
+    description: "Main library and study areas",
+    address: "126 University Avenue",
+    floorCount: 3,
+    status: "active",
+  },
+];
+
+export const mockRooms: Room[] = [
+  {
+    id: 1,
+    buildingId: 1,
+    buildingName: "Main Building",
+    roomNumber: "MB-101",
+    capacity: 40,
+    roomType: "classroom",
+    floor: 1,
+    status: "available",
+  },
+  {
+    id: 2,
+    buildingId: 1,
+    buildingName: "Main Building",
+    roomNumber: "MB-102",
+    capacity: 35,
+    roomType: "classroom",
+    floor: 1,
+    status: "available",
+  },
+  {
+    id: 3,
+    buildingId: 2,
+    buildingName: "Science Building",
+    roomNumber: "SB-201",
+    capacity: 30,
+    roomType: "laboratory",
+    floor: 2,
+    status: "occupied",
+  },
+  {
+    id: 4,
+    buildingId: 2,
+    buildingName: "Science Building",
+    roomNumber: "SB-202",
+    capacity: 25,
+    roomType: "laboratory",
+    floor: 2,
+    status: "available",
+  },
+  {
+    id: 5,
+    buildingId: 4,
+    buildingName: "Library Building",
+    roomNumber: "LB-301",
+    capacity: 100,
+    roomType: "library",
+    floor: 3,
+    status: "available",
+  },
+  {
+    id: 6,
+    buildingId: 1,
+    buildingName: "Main Building",
+    roomNumber: "MB-501",
+    capacity: 200,
+    roomType: "auditorium",
+    floor: 5,
+    status: "available",
+  },
+];
+
+export const mockDepartments: Department[] = [
+  {
+    id: 1,
+    code: "CCS",
+    name: "College of Computer Studies",
+    description: "Computer Science and Information Technology programs",
+    buildingId: 2,
+    buildingName: "Science Building",
+    head: "Dr. John Smith",
+    status: "active",
+  },
+  {
+    id: 2,
+    code: "CBA",
+    name: "College of Business Administration",
+    description: "Business and Accountancy programs",
+    buildingId: 1,
+    buildingName: "Main Building",
+    head: "Dr. Maria Santos",
+    status: "active",
+  },
+  {
+    id: 3,
+    code: "CN",
+    name: "College of Nursing",
+    description: "Nursing and Health Sciences programs",
+    buildingId: 1,
+    buildingName: "Main Building",
+    head: "Dr. Angela Cruz",
+    status: "active",
+  },
+  {
+    id: 4,
+    code: "COE",
+    name: "College of Engineering",
+    description: "Engineering programs",
+    buildingId: 3,
+    buildingName: "Engineering Building",
+    head: "Dr. Robert Lee",
+    status: "active",
+  },
+  {
+    id: 5,
+    code: "CAS",
+    name: "College of Arts and Sciences",
+    description: "Liberal Arts and Sciences programs",
+    buildingId: 1,
+    buildingName: "Main Building",
+    head: "Dr. Patricia Garcia",
+    status: "active",
+  },
+];
+
+export const mockFaculty: Faculty[] = [
+  {
+    id: 1,
+    employeeId: "EMP001",
+    firstName: "John",
+    lastName: "Smith",
+    middleName: "Michael",
+    email: "john.smith@university.edu",
+    phone: "09171234567",
+    departmentId: 1,
+    departmentName: "College of Computer Studies",
+    position: "professor",
+    specialization: "Artificial Intelligence",
+    status: "active",
+  },
+  {
+    id: 2,
+    employeeId: "EMP002",
+    firstName: "Maria",
+    lastName: "Santos",
+    middleName: "Cruz",
+    email: "maria.santos@university.edu",
+    phone: "09181234567",
+    departmentId: 2,
+    departmentName: "College of Business Administration",
+    position: "associate professor",
+    specialization: "Business Management",
+    status: "active",
+  },
+  {
+    id: 3,
+    employeeId: "EMP003",
+    firstName: "Angela",
+    lastName: "Cruz",
+    email: "angela.cruz@university.edu",
+    phone: "09191234567",
+    departmentId: 3,
+    departmentName: "College of Nursing",
+    position: "professor",
+    specialization: "Medical-Surgical Nursing",
+    status: "active",
+  },
+  {
+    id: 4,
+    employeeId: "EMP004",
+    firstName: "Robert",
+    lastName: "Lee",
+    middleName: "James",
+    email: "robert.lee@university.edu",
+    phone: "09201234567",
+    departmentId: 4,
+    departmentName: "College of Engineering",
+    position: "professor",
+    specialization: "Civil Engineering",
+    status: "active",
+  },
+  {
+    id: 5,
+    employeeId: "EMP005",
+    firstName: "Patricia",
+    lastName: "Garcia",
+    email: "patricia.garcia@university.edu",
+    phone: "09211234567",
+    departmentId: 5,
+    departmentName: "College of Arts and Sciences",
+    position: "associate professor",
+    specialization: "Psychology",
+    status: "active",
+  },
+];
+
+export const mockFees: Fee[] = [
+  {
+    id: 1,
+    code: "TUITION",
+    name: "Tuition Fee",
+    description: "Regular tuition fee per unit",
+    amount: 1500,
+    category: "tuition",
+    academicYear: "2024-2025",
+    semester: "1st",
+    status: "active",
+  },
+  {
+    id: 2,
+    code: "MISC",
+    name: "Miscellaneous Fee",
+    description: "General miscellaneous fee",
+    amount: 5000,
+    category: "miscellaneous",
+    academicYear: "2024-2025",
+    semester: "1st",
+    status: "active",
+  },
+  {
+    id: 3,
+    code: "LAB-FEE",
+    name: "Laboratory Fee",
+    description: "Laboratory fee for science courses",
+    amount: 2000,
+    category: "laboratory",
+    academicYear: "2024-2025",
+    semester: "1st",
+    status: "active",
+  },
+  {
+    id: 4,
+    code: "LIB-FEE",
+    name: "Library Fee",
+    description: "Library access and resources fee",
+    amount: 500,
+    category: "library",
+    academicYear: "2024-2025",
+    semester: "1st",
+    status: "active",
+  },
+  {
+    id: 5,
+    code: "REG-FEE",
+    name: "Registration Fee",
+    description: "Student registration fee",
+    amount: 1000,
+    category: "miscellaneous",
+    academicYear: "2024-2025",
+    status: "active",
   },
 ];
