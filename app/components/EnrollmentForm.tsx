@@ -70,7 +70,6 @@ const EnrollmentForm: React.FC = () => {
               totalPages={TOTAL_PAGES}
               progress={progress}
               pageTitle={PAGE_TITLES[currentPage - 1]}
-              onPageClick={goToPage}
             />
 
             <form onSubmit={handleSubmit}>

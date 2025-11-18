@@ -71,10 +71,11 @@ export interface User {
   status: Number;
 }
 export interface Section {
-  id: Number;
-  courseId: Number;
+  id: number;
+  courseId: number;
   section_name: string;
   advisor: string;
   student_count: number;
-  status: Number;
+  status: number;
+  courseName?: string;
 }

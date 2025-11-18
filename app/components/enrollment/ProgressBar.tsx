@@ -7,7 +7,6 @@ interface ProgressBarProps {
   totalPages: number;
   progress: number;
   pageTitle: string;
-  onPageClick: (page: number) => void;
 }
 
 export const ProgressBar: React.FC<ProgressBarProps> = ({
@@ -15,7 +14,6 @@ export const ProgressBar: React.FC<ProgressBarProps> = ({
   totalPages,
   progress,
   pageTitle,
-  onPageClick,
 }) => {
   return (
     <div className="mb-8">
@@ -48,52 +46,6 @@ export const ProgressBar: React.FC<ProgressBarProps> = ({
             background: `linear-gradient(90deg, ${colors.secondary}, ${colors.tertiary})`,
           }}
         />
-      </div>
-      {/* Page Indicators */}
-      <div className="flex justify-center gap-2 mt-6">
-        {Array.from({ length: totalPages }).map((_, index) => {
-          const pageNum = index + 1;
-          const isActive = currentPage === pageNum;
-          
-          return (
-            <button
-              key={pageNum}
-              type="button"
-              onClick={() => onPageClick(pageNum)}
-              className={`w-8 h-8 rounded-full text-xs font-semibold transition-all duration-300 ${
-                isActive ? "text-white" : "border"
-              }`}
-              style={
-                isActive
-                  ? { 
-                      background: `linear-gradient(135deg, ${colors.secondary}, ${colors.tertiary})`,
-                      boxShadow: `0 2px 8px ${colors.secondary}30`
-                    }
-                  : {
-                      borderColor: colors.tertiary + "60",
-                      color: colors.secondary,
-                      backgroundColor: "white",
-                    }
-              }
-              onMouseEnter={(e) => {
-                if (!isActive) {
-                  e.currentTarget.style.borderColor = colors.secondary;
-                  e.currentTarget.style.backgroundColor = colors.accent + "15";
-                  e.currentTarget.style.transform = "scale(1.05)";
-                }
-              }}
-              onMouseLeave={(e) => {
-                if (!isActive) {
-                  e.currentTarget.style.borderColor = colors.tertiary + "60";
-                  e.currentTarget.style.backgroundColor = "white";
-                  e.currentTarget.style.transform = "scale(1)";
-                }
-              }}
-            >
-              {pageNum}
-            </button>
-          );
-        })}
       </div>
     </div>
   );
