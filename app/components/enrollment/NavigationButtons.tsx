@@ -18,12 +18,15 @@ export const NavigationButtons: React.FC<NavigationButtonsProps> = ({
   onSubmit,
 }) => {
   return (
-    <div className="flex justify-between gap-4 mt-6 pt-4 border-t" style={{ borderTopColor: colors.accent + "20" }}>
+    <div
+      className='flex justify-between gap-4 mt-6 pt-4 border-t'
+      style={{ borderTopColor: colors.accent + "20" }}
+    >
       <button
-        type="button"
+        type='button'
         onClick={onPrevious}
         disabled={currentPage === 1}
-        className="flex items-center gap-1.5 px-4 py-2 border rounded-lg text-sm font-medium transition-all duration-200 disabled:opacity-40 disabled:cursor-not-allowed bg-white"
+        className='flex items-center gap-1.5 px-4 py-2 border rounded-lg text-sm font-medium transition-all duration-200 disabled:opacity-40 disabled:cursor-not-allowed bg-white'
         style={{
           borderColor: colors.tertiary + "50",
           color: colors.primary,
@@ -41,15 +44,15 @@ export const NavigationButtons: React.FC<NavigationButtonsProps> = ({
           }
         }}
       >
-        <ChevronLeft className="w-4 h-4" />
+        <ChevronLeft className='w-4 h-4' />
         Previous
       </button>
-      <div className="flex gap-3">
+      <div className='flex gap-3'>
         {currentPage < totalPages ? (
           <button
-            type="button"
+            type='button'
             onClick={onNext}
-            className="flex items-center gap-1.5 px-5 py-2 rounded-lg text-sm font-medium transition-all duration-200 text-white"
+            className='flex items-center gap-1.5 px-5 py-2 rounded-lg text-sm font-medium transition-all duration-200 text-white'
             style={{ backgroundColor: colors.secondary }}
             onMouseEnter={(e) => {
               e.currentTarget.style.backgroundColor = colors.primary;
@@ -59,13 +62,13 @@ export const NavigationButtons: React.FC<NavigationButtonsProps> = ({
             }}
           >
             Next
-            <ChevronRight className="w-4 h-4" />
+            <ChevronRight className='w-4 h-4' />
           </button>
         ) : (
           <button
-            type="submit"
+            type='submit'
             onClick={onSubmit}
-            className="flex items-center gap-1.5 px-5 py-2 rounded-lg text-sm font-medium transition-all duration-200 text-white"
+            className='flex items-center gap-1.5 px-5 py-2 rounded-lg text-sm font-medium transition-all duration-200 text-white'
             style={{ backgroundColor: colors.secondary }}
             onMouseEnter={(e) => {
               e.currentTarget.style.backgroundColor = colors.primary;
@@ -74,7 +77,7 @@ export const NavigationButtons: React.FC<NavigationButtonsProps> = ({
               e.currentTarget.style.backgroundColor = colors.secondary;
             }}
           >
-            <CheckCircle2 className="w-4 h-4" />
+            <CheckCircle2 className='w-4 h-4' />
             Submit Enrollment
           </button>
         )}
@@ -82,4 +85,3 @@ export const NavigationButtons: React.FC<NavigationButtonsProps> = ({
     </div>
   );
 };
-

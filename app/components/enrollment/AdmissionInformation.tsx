@@ -9,7 +9,7 @@ import {
   Image as ImageIcon,
 } from "lucide-react";
 import { colors } from "../../colors";
-import { mockDepartments } from "../../data/mockData";
+import { mockDepartments, mockCoursePrograms } from "../../data/mockData";
 import { EnrollmentPageProps } from "./types";
 
 const AdmissionInformation: React.FC<EnrollmentPageProps> = ({
@@ -24,6 +24,7 @@ const AdmissionInformation: React.FC<EnrollmentPageProps> = ({
   handlePhotoError,
   getTodayDate,
 }) => {
+  formData.admissionDate = getTodayDate?.() || "";
   return (
     <div className='space-y-6'>
       <div
@@ -109,7 +110,9 @@ const AdmissionInformation: React.FC<EnrollmentPageProps> = ({
               </label>
               <select
                 value={formData.department}
-                onChange={(e) => handleDepartmentChange?.(e.target.value)}
+                onChange={(e) =>
+                  handleDepartmentChange?.(Number(e.target.value))
+                }
                 className='w-full px-4 py-2.5 border rounded-lg custom-focus transition-all duration-200 text-sm bg-white hover:shadow-sm'
                 style={{
                   borderColor: colors.tertiary + "60",

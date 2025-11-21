@@ -1,12 +1,12 @@
 import { useState, useMemo, useRef, useEffect } from "react";
 import { mockCoursePrograms } from "../data/mockData";
-
+import Axios from "axios";
 export interface EnrollmentFormData {
   // Page 1: Admission Information
   admissionDate: string;
   admissionStatus: string;
   term: string;
-  department: string;
+  department: number;
   courseProgram: string;
   photo: File | null;
 
@@ -44,7 +44,7 @@ const initialFormData: EnrollmentFormData = {
   admissionDate: "",
   admissionStatus: "",
   term: "",
-  department: "",
+  department: 0,
   courseProgram: "",
   photo: null,
 
@@ -126,7 +126,7 @@ export const useEnrollmentForm = () => {
   }, [formData.department]);
 
   // Reset course program when department changes
-  const handleDepartmentChange = (departmentId: string) => {
+  const handleDepartmentChange = (departmentId: number) => {
     setFormData((prev) => ({
       ...prev,
       department: departmentId,
@@ -245,8 +245,13 @@ export const useEnrollmentForm = () => {
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    console.log("Form submitted:", formData);
-    // Handle form submission here
+    Axios.post("/api/auth/enroll", { formData })
+      .then((response) => {
+        console.log("Enrollment submitted successfully:", response.data);
+      })
+      .catch((error) => {
+        console.error("Error submitting enrollment:", error);
+      });
   };
 
   const nextPage = () => {

@@ -1,7 +1,6 @@
 import {
   Student,
   Course,
-  Enrollment,
   EnrollmentTrend,
   ForecastData,
   Section,
@@ -166,7 +165,7 @@ export const mockCourses: Course[] = [
     semester: "1st Semester",
     maxCapacity: 40,
     currentEnrollment: 35,
-    department: "College of Computer Studies",
+    department: 1,
   },
   {
     id: "2",
@@ -177,7 +176,7 @@ export const mockCourses: Course[] = [
     semester: "1st Semester",
     maxCapacity: 45,
     currentEnrollment: 40,
-    department: "College of Computer Studies",
+    department: 1,
   },
   {
     id: "3",
@@ -188,7 +187,7 @@ export const mockCourses: Course[] = [
     semester: "1st Semester",
     maxCapacity: 35,
     currentEnrollment: 30,
-    department: "College of Business Administration",
+    department: 2,
   },
   {
     id: "4",
@@ -199,7 +198,7 @@ export const mockCourses: Course[] = [
     semester: "1st Semester",
     maxCapacity: 50,
     currentEnrollment: 45,
-    department: "College of Business Administration",
+    department: 2,
   },
   {
     id: "5",
@@ -210,7 +209,7 @@ export const mockCourses: Course[] = [
     semester: "1st Semester",
     maxCapacity: 30,
     currentEnrollment: 28,
-    department: "College of Nursing",
+    department: 3,
   },
 ];
 
@@ -257,7 +256,7 @@ export const mockSections: Section[] = [
   },
 ];
 
-export const mockEnrollments: Enrollment[] = [
+export const mockEnrollments = [
   {
     id: "1",
     studentId: "1",
@@ -437,71 +436,70 @@ export const mockCoursePrograms = [
   {
     id: "BSCS",
     name: "Bachelor of Science in Computer Science",
-    departmentId: "CCS",
+    departmentId: 1,
   },
   {
     id: "BSIT",
     name: "Bachelor of Science in Information Technology",
-    departmentId: "CCS",
+    departmentId: 1,
   },
   {
     id: "BSIS",
     name: "Bachelor of Science in Information Systems",
-    departmentId: "CCS",
+    departmentId: 1,
   },
 
   // College of Business Administration
   {
     id: "BSA",
     name: "Bachelor of Science in Accountancy",
-    departmentId: "CBA",
+    departmentId: 2,
   },
   {
     id: "BSBA",
     name: "Bachelor of Science in Business Administration",
-    departmentId: "CBA",
+    departmentId: 2,
   },
   {
     id: "BSAIS",
     name: "Bachelor of Science in Accounting Information System",
-    departmentId: "CBA",
+    departmentId: 2,
   },
 
   // College of Nursing
-  { id: "BSN", name: "Bachelor of Science in Nursing", departmentId: "CN" },
-
+  { id: "BSN", name: "Bachelor of Science in Nursing", departmentId: 3 },
   // College of Engineering
   {
     id: "BSCE",
     name: "Bachelor of Science in Civil Engineering",
-    departmentId: "COE",
+    departmentId: 4,
   },
   {
     id: "BSEE",
     name: "Bachelor of Science in Electrical Engineering",
-    departmentId: "COE",
+    departmentId: 4,
   },
   {
     id: "BSME",
     name: "Bachelor of Science in Mechanical Engineering",
-    departmentId: "COE",
+    departmentId: 4,
   },
 
   // College of Arts and Sciences
   {
     id: "AB-PSYCH",
     name: "Bachelor of Arts in Psychology",
-    departmentId: "CAS",
+    departmentId: 5,
   },
   {
     id: "AB-COMM",
     name: "Bachelor of Arts in Communication",
-    departmentId: "CAS",
+    departmentId: 5,
   },
   {
     id: "BS-PSYCH",
     name: "Bachelor of Science in Psychology",
-    departmentId: "CAS",
+    departmentId: 5,
   },
 ];
 
@@ -522,7 +520,13 @@ export interface Room {
   buildingName?: string;
   roomNumber: string;
   capacity: number;
-  roomType: "classroom" | "laboratory" | "office" | "library" | "auditorium" | "other";
+  roomType:
+    | "classroom"
+    | "laboratory"
+    | "office"
+    | "library"
+    | "auditorium"
+    | "other";
   floor: number;
   status: "available" | "occupied" | "maintenance";
 }
@@ -548,7 +552,12 @@ export interface Faculty {
   phone?: string;
   departmentId: number;
   departmentName?: string;
-  position: "professor" | "associate professor" | "assistant professor" | "instructor" | "lecturer";
+  position:
+    | "professor"
+    | "associate professor"
+    | "assistant professor"
+    | "instructor"
+    | "lecturer";
   specialization?: string;
   status: "active" | "inactive";
 }

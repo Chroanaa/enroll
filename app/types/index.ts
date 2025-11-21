@@ -38,16 +38,7 @@ export interface Course {
   semester: string;
   maxCapacity: number;
   currentEnrollment: number;
-  department: string;
-}
-
-export interface Enrollment {
-  id: string;
-  studentId: string;
-  courseId: string;
-  enrollmentDate: string;
-  grade?: string;
-  status: "enrolled" | "completed" | "dropped" | "pending";
+  department: number;
 }
 
 export interface EnrollmentTrend {
@@ -78,4 +69,9 @@ export interface Section {
   student_count: number;
   status: number;
   courseName?: string;
+}
+export interface Department {
+  id: string;
+  name: string;
+  description: string;
 }
