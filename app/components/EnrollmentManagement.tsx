@@ -1,5 +1,5 @@
 "use client";
-import React, { useState, useMemo } from "react";
+import React, { useState, useMemo, useEffect } from "react";
 import {
   Search,
   Plus,
@@ -12,16 +12,49 @@ import {
   Clock,
   Filter,
 } from "lucide-react";
-import { Enrollment, Student, Course } from "../types";
+import { Student, Course } from "../types";
 import { mockEnrollments, mockStudents, mockCourses } from "../data/mockData";
 import { colors } from "../colors";
+import { EnrollmentFormData } from "../hooks/useEnrollmentForm";
+import { getEnrollments } from "@/app/utils/getEnrollments";
+
+interface Enrollment extends EnrollmentFormData {
+  id: string;
+  studentId: string;
+  courseId: string;
+  enrollmentDate: string;
+  status: number;
+}
 
 const EnrollmentManagement: React.FC = () => {
-  const [enrollments, setEnrollments] = useState<Enrollment[]>(mockEnrollments);
+  const [enrollments, setEnrollments] = useState<Enrollment[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const fetchData = async () => {
+      try {
+        const data = await getEnrollments();
+        console.log("Fetched enrollments:", data);
+        // Ensure data is an array
+        if (Array.isArray(data)) {
+          setEnrollments(data as Enrollment[]);
+        } else {
+          console.error("Data is not an array:", data);
+          setEnrollments([]);
+        }
+      } catch (error) {
+        console.error("Error fetching enrollments:", error);
+        setEnrollments([]);
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchData();
+  }, []);
   const [searchTerm, setSearchTerm] = useState("");
-  const [statusFilter, setStatusFilter] = useState<
-    "all" | "enrolled" | "completed" | "dropped" | "pending"
-  >("all");
+  const [statusFilter, setStatusFilter] = useState<"all" | 1 | 2 | 3 | 4>(
+    "all"
+  );
   const [courseFilter, setCourseFilter] = useState<string>("all");
   const [isAddingEnrollment, setIsAddingEnrollment] = useState(false);
   const [editingEnrollment, setEditingEnrollment] = useState<Enrollment | null>(
@@ -30,25 +63,23 @@ const EnrollmentManagement: React.FC = () => {
 
   const stats = useMemo(() => {
     const total = enrollments.length;
-    const enrolled = enrollments.filter((e) => e.status === "enrolled").length;
-    const completed = enrollments.filter(
-      (e) => e.status === "completed"
-    ).length;
-    const pending = enrollments.filter((e) => e.status === "pending").length;
-    const dropped = enrollments.filter((e) => e.status === "dropped").length;
+    const enrolled = enrollments.filter((e) => e.status === 1).length;
+    const completed = enrollments.filter((e) => e.status === 2).length;
+    const pending = enrollments.filter((e) => e.status === 4).length;
+    const dropped = enrollments.filter((e) => e.status === 3).length;
 
     return { total, enrolled, completed, pending, dropped };
   }, [enrollments]);
 
-  const getStatusColor = (status: string) => {
+  const getStatusColor = (status: number) => {
     switch (status) {
-      case "enrolled":
+      case 1:
         return "bg-blue-100 text-blue-800";
-      case "completed":
+      case 2:
         return "bg-emerald-100 text-emerald-800";
-      case "dropped":
+      case 3:
         return "bg-red-100 text-red-800";
-      case "pending":
+      case 4:
         return "bg-yellow-100 text-yellow-800";
       default:
         return "bg-gray-100 text-gray-800";
@@ -80,8 +111,7 @@ const EnrollmentManagement: React.FC = () => {
         studentId: "",
         courseId: "",
         enrollmentDate: new Date().toISOString().split("T")[0],
-        status: "pending",
-        grade: "",
+        status: 4,
       }
     );
 
@@ -170,46 +200,18 @@ const EnrollmentManagement: React.FC = () => {
                   onChange={(e) =>
                     setFormData({
                       ...formData,
-                      status: e.target.value as Enrollment["status"],
+                      status: parseInt(e.target.value),
                     })
                   }
                   className='w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:border-transparent'
                 >
-                  <option value='pending'>Pending</option>
-                  <option value='enrolled'>Enrolled</option>
-                  <option value='completed'>Completed</option>
-                  <option value='dropped'>Dropped</option>
+                  <option value='4'>Pending</option>
+                  <option value='1'>Enrolled</option>
+                  <option value='2'>Completed</option>
+                  <option value='3'>Dropped</option>
                 </select>
               </div>
             </div>
-
-            {formData.status === "completed" && (
-              <div>
-                <label className='block text-sm font-medium text-gray-700 mb-1'>
-                  Grade
-                </label>
-                <select
-                  value={formData.grade || ""}
-                  onChange={(e) =>
-                    setFormData({ ...formData, grade: e.target.value })
-                  }
-                  className='w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:border-transparent'
-                >
-                  <option value=''>Select grade</option>
-                  <option value='A+'>A+</option>
-                  <option value='A'>A</option>
-                  <option value='A-'>A-</option>
-                  <option value='B+'>B+</option>
-                  <option value='B'>B</option>
-                  <option value='B-'>B-</option>
-                  <option value='C+'>C+</option>
-                  <option value='C'>C</option>
-                  <option value='C-'>C-</option>
-                  <option value='D'>D</option>
-                  <option value='F'>F</option>
-                </select>
-              </div>
-            )}
 
             <div className='flex justify-end gap-3 pt-4'>
               <button
@@ -257,14 +259,21 @@ const EnrollmentManagement: React.FC = () => {
     }
   };
 
-  const handleStatusChange = (
-    enrollmentId: string,
-    newStatus: Enrollment["status"]
-  ) => {
+  const handleStatusChange = (enrollmentId: string, newStatus: number) => {
     setEnrollments((prev) =>
       prev.map((e) => (e.id === enrollmentId ? { ...e, status: newStatus } : e))
     );
   };
+
+  if (loading) {
+    return (
+      <div className='p-4 sm:p-6 bg-gray-50 min-h-screen'>
+        <div className='max-w-7xl mx-auto w-full'>
+          <p className='text-center py-8'>Loading enrollments...</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className='p-4 sm:p-6 bg-gray-50 min-h-screen'>
@@ -412,14 +421,44 @@ const EnrollmentManagement: React.FC = () => {
                   <th className='px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider'>
                     Enrollment Date
                   </th>
-                  <th className='px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider'>
-                    Grade
-                  </th>
                   <th className='px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider'>
                     Actions
                   </th>
                 </tr>
               </thead>
+              <tbody className='divide-y divide-gray-100'>
+                {enrollments.map((enrollment) => (
+                  <tr key={enrollment.id}>
+                    <td className='px-6 py-4 whitespace-nowrap text-sm text-gray-900'>
+                      {enrollment.first_name} {enrollment.middle_name}{" "}
+                      {enrollment.family_name}
+                    </td>
+                    <td className='px-6 py-4 whitespace-nowrap text-sm text-gray-900'>
+                      {enrollment.course_program}
+                    </td>
+                    <td className='px-6 py-4 whitespace-nowrap'>
+                      <span
+                        className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${getStatusColor(
+                          enrollment.status
+                        )}`}
+                      >
+                        {enrollment.status}
+                      </span>
+                    </td>
+                    <td className='px-6 py-4 whitespace-nowrap text-sm text-gray-900'>
+                      {enrollment.admission_date}
+                    </td>
+                    <td className='px-6 py-4 whitespace-nowrap text-right text-sm font-medium'>
+                      <button
+                        onClick={() => setEditingEnrollment(enrollment)}
+                        className='text-blue-600 hover:text-blue-900'
+                      >
+                        Edit
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
             </table>
           </div>
         </div>

@@ -111,4 +111,55 @@ model enrollment {
   school_year              String?   @db.VarChar(20)
   program_shs              String?   @db.VarChar(150)
   remarks                  String?
+  status                   Int?
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+model building {
+  id          Int          @id @default(autoincrement())
+  name        String       @db.VarChar(255)
+  code        String       @db.VarChar(100)
+  description String?
+  address     String?
+  floor_count Int
+  status      String       @db.VarChar(10)
+  department  department[]
+  room        room[]
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+model department {
+  id          Int       @id @default(autoincrement())
+  code        String    @db.VarChar(50)
+  name        String    @db.VarChar(255)
+  description String?
+  building_id Int?
+  head        String?   @db.VarChar(255)
+  status      String    @db.VarChar(10)
+  building    building? @relation(fields: [building_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_department_building")
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+model fee {
+  id            Int     @id @default(autoincrement())
+  code          String  @db.VarChar(50)
+  name          String  @db.VarChar(255)
+  description   String?
+  amount        Decimal @db.Decimal(10, 2)
+  category      String  @db.VarChar(20)
+  academic_year String  @db.VarChar(20)
+  semester      String? @db.VarChar(20)
+  status        String  @db.VarChar(10)
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+model room {
+  id          Int      @id @default(autoincrement())
+  building_id Int
+  room_number String   @db.VarChar(100)
+  capacity    Int
+  room_type   String   @db.VarChar(20)
+  floor       Int
+  status      String   @db.VarChar(20)
+  building    building @relation(fields: [building_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_building")
 }
