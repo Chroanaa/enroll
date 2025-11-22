@@ -363,7 +363,7 @@ export const mockForecastData: ForecastData[] = [
 // Department and Course Program mock data for enrollment form
 export const mockDepartmentsForEnrollment = [
   {
-    id: "CCS",
+    id: 1,
     name: "College of Computer Studies",
     courses: [
       { id: "BSCS", name: "Bachelor of Science in Computer Science" },
@@ -372,7 +372,7 @@ export const mockDepartmentsForEnrollment = [
     ],
   },
   {
-    id: "CBA",
+    id: 2,
     name: "College of Business Administration",
     courses: [
       { id: "BSA", name: "Bachelor of Science in Accountancy" },
@@ -384,12 +384,12 @@ export const mockDepartmentsForEnrollment = [
     ],
   },
   {
-    id: "CN",
+    id: 3,
     name: "College of Nursing",
     courses: [{ id: "BSN", name: "Bachelor of Science in Nursing" }],
   },
   {
-    id: "COE",
+    id: 4,
     name: "College of Engineering",
     courses: [
       { id: "BSCE", name: "Bachelor of Science in Civil Engineering" },
@@ -398,7 +398,7 @@ export const mockDepartmentsForEnrollment = [
     ],
   },
   {
-    id: "CAS",
+    id: 5,
     name: "College of Arts and Sciences",
     courses: [
       { id: "AB-PSYCH", name: "Bachelor of Arts in Psychology" },
@@ -510,7 +510,7 @@ export interface Building {
   code: string;
   description?: string;
   address?: string;
-  floorCount: number;
+  floor_count: number;
   status: "active" | "inactive";
 }
 
@@ -581,7 +581,7 @@ export const mockBuildings: Building[] = [
     code: "MB",
     description: "Main administrative and academic building",
     address: "123 University Avenue",
-    floorCount: 5,
+    floor_count: 5,
     status: "active",
   },
   {
@@ -590,7 +590,7 @@ export const mockBuildings: Building[] = [
     code: "SB",
     description: "Houses science laboratories and classrooms",
     address: "124 University Avenue",
-    floorCount: 4,
+    floor_count: 4,
     status: "active",
   },
   {
@@ -599,7 +599,7 @@ export const mockBuildings: Building[] = [
     code: "EB",
     description: "Engineering laboratories and classrooms",
     address: "125 University Avenue",
-    floorCount: 3,
+    floor_count: 3,
     status: "active",
   },
   {
@@ -608,7 +608,7 @@ export const mockBuildings: Building[] = [
     code: "LB",
     description: "Main library and study areas",
     address: "126 University Avenue",
-    floorCount: 3,
+    floor_count: 3,
     status: "active",
   },
 ];

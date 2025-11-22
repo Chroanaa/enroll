@@ -3,75 +3,76 @@ import { mockCoursePrograms } from "../data/mockData";
 import Axios from "axios";
 export interface EnrollmentFormData {
   // Page 1: Admission Information
-  admissionDate: string;
-  admissionStatus: string;
+  admission_date: string;
+  admission_status: string;
   term: string;
-  department: number;
-  courseProgram: string;
+  department: string;
+  course_program: string;
   photo: File | null;
 
   // Page 2: Admission Requirements
   requirements: string[];
 
   // Page 3: Student Information
-  familyName: string;
-  firstName: string;
-  middleName: string;
+  family_name: string;
+  first_name: string;
+  middle_name: string;
   sex: string;
-  civilStatus: string;
+  civil_status: string;
   birthdate: string;
   birthplace: string;
-  completeAddress: string;
-  contactNumber: string;
-  emailAddress: string;
+  complete_address: string;
+  contact_number: string;
+  email_address: string;
 
   // Page 4: Emergency Information
-  emergencyContactName: string;
-  emergencyRelationship: string;
-  emergencyContactNumber: string;
+  emergency_contact_name: string;
+  emergency_relationship: string;
+  emergency_contact_number: string;
 
   // Page 5: Educational Background
-  lastSchoolAttended: string;
-  schoolYear: string;
-  programSHS: string;
+  last_school_attended: string;
+  school_year: string;
+  program_shs: string;
   remarks: string;
+  status?: number;
 }
 
 const TOTAL_PAGES = 5;
 
 const initialFormData: EnrollmentFormData = {
   // Page 1: Admission Information
-  admissionDate: "",
-  admissionStatus: "",
+  admission_date: "",
+  admission_status: "",
   term: "",
-  department: 0,
-  courseProgram: "",
+  department: "",
+  course_program: "",
   photo: null,
 
   // Page 2: Admission Requirements
   requirements: [],
 
   // Page 3: Student Information
-  familyName: "",
-  firstName: "",
-  middleName: "",
+  family_name: "",
+  first_name: "",
+  middle_name: "",
   sex: "",
-  civilStatus: "",
+  civil_status: "",
   birthdate: "",
   birthplace: "",
-  completeAddress: "",
-  contactNumber: "",
-  emailAddress: "",
+  complete_address: "",
+  contact_number: "",
+  email_address: "",
 
   // Page 4: Emergency Information
-  emergencyContactName: "",
-  emergencyRelationship: "",
-  emergencyContactNumber: "",
+  emergency_contact_name: "",
+  emergency_relationship: "",
+  emergency_contact_number: "",
 
   // Page 5: Educational Background
-  lastSchoolAttended: "",
-  schoolYear: "",
-  programSHS: "",
+  last_school_attended: "",
+  school_year: "",
+  program_shs: "",
   remarks: "",
 };
 
@@ -116,21 +117,12 @@ export const useEnrollmentForm = () => {
     };
   }, []);
 
-  const filteredCoursePrograms = useMemo(() => {
-    if (!formData.department) {
-      return [];
-    }
-    return mockCoursePrograms.filter(
-      (program) => program.departmentId === formData.department
-    );
-  }, [formData.department]);
-
   // Reset course program when department changes
-  const handleDepartmentChange = (departmentId: number) => {
+  const handleDepartmentChange = (departmentId: string) => {
     setFormData((prev) => ({
       ...prev,
       department: departmentId,
-      courseProgram: "",
+      course_program: "",
     }));
   };
 
@@ -302,7 +294,6 @@ export const useEnrollmentForm = () => {
     formData,
     photoPreview,
     fileInputRef,
-    filteredCoursePrograms,
     progress,
     TOTAL_PAGES,
 

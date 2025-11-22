@@ -30,11 +30,6 @@ const CourseManagement: React.FC = () => {
       course.code.toLowerCase().includes(searchTerm.toLowerCase()) ||
       course.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
       course.instructor.toLowerCase().includes(searchTerm.toLowerCase());
-
-    const matchesDepartment =
-      departmentFilter === "all" || course.department === departmentFilter;
-
-    return matchesSearch && matchesDepartment;
   });
 
   const getCapacityColor = (current: number, max: number) => {
@@ -56,8 +51,9 @@ const CourseManagement: React.FC = () => {
     onSave: (course: Course) => void;
     onCancel: () => void;
   }> = ({ course, onSave, onCancel }) => {
-    const [formData, setFormData] = useState<Partial<Course>>(
+    const [formData, setFormData] = useState<Course>(
       course || {
+        id: "",
         code: "",
         name: "",
         credits: 3,
@@ -65,7 +61,7 @@ const CourseManagement: React.FC = () => {
         semester: "",
         maxCapacity: 50,
         currentEnrollment: 0,
-        department: "",
+        department: 0,
       }
     );
 
@@ -179,7 +175,10 @@ const CourseManagement: React.FC = () => {
                   type='text'
                   value={formData.department}
                   onChange={(e) =>
-                    setFormData({ ...formData, department: e.target.value })
+                    setFormData({
+                      ...formData,
+                      department: parseInt(e.target.value),
+                    })
                   }
                   className='w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:border-transparent'
                   placeholder='e.g., Computer Science'

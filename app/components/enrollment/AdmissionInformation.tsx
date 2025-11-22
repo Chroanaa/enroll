@@ -9,7 +9,10 @@ import {
   Image as ImageIcon,
 } from "lucide-react";
 import { colors } from "../../colors";
-import { mockDepartments, mockCoursePrograms } from "../../data/mockData";
+import {
+  mockDepartmentsForEnrollment,
+  mockCoursePrograms,
+} from "../../data/mockData";
 import { EnrollmentPageProps } from "./types";
 
 const AdmissionInformation: React.FC<EnrollmentPageProps> = ({
@@ -24,7 +27,7 @@ const AdmissionInformation: React.FC<EnrollmentPageProps> = ({
   handlePhotoError,
   getTodayDate,
 }) => {
-  formData.admissionDate = getTodayDate?.() || "";
+  formData.admission_date = getTodayDate?.() || "";
   return (
     <div className='space-y-6'>
       <div
@@ -80,9 +83,9 @@ const AdmissionInformation: React.FC<EnrollmentPageProps> = ({
                 Admission Status
               </label>
               <select
-                value={formData.admissionStatus}
+                value={formData.admission_status}
                 onChange={(e) =>
-                  handleInputChange("admissionStatus", e.target.value)
+                  handleInputChange("admission_status", e.target.value)
                 }
                 className='w-full px-4 py-2.5 border rounded-lg custom-focus transition-all duration-200 text-sm bg-white hover:shadow-sm'
                 style={{
@@ -120,7 +123,7 @@ const AdmissionInformation: React.FC<EnrollmentPageProps> = ({
                 }}
               >
                 <option value=''>Select Department</option>
-                {mockDepartments.map((dept) => (
+                {mockDepartmentsForEnrollment.map((dept) => (
                   <option key={dept.id} value={dept.id}>
                     {dept.name}
                   </option>
@@ -139,9 +142,9 @@ const AdmissionInformation: React.FC<EnrollmentPageProps> = ({
                 Course/Program
               </label>
               <select
-                value={formData.courseProgram}
+                value={formData.course_program}
                 onChange={(e) =>
-                  handleInputChange("courseProgram", e.target.value)
+                  handleInputChange("course_program", e.target.value)
                 }
                 disabled={!formData.department}
                 className='w-full px-4 py-2.5 border rounded-lg custom-focus transition-all duration-200 text-sm disabled:opacity-50 disabled:cursor-not-allowed bg-white hover:shadow-sm'
