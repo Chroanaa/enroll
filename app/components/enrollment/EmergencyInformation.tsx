@@ -8,43 +8,45 @@ const EmergencyInformation: React.FC<EnrollmentPageProps> = ({
   handleInputChange,
 }) => {
   return (
-    <div className="space-y-6">
+    <div className='space-y-6'>
       <div
-        className="p-6 rounded-xl bg-white border shadow-sm"
-        style={{ 
+        className='p-6 rounded-xl bg-white border shadow-sm'
+        style={{
           borderColor: colors.accent + "40",
-          background: `linear-gradient(to bottom, ${colors.paper}, white)`
+          background: `linear-gradient(to bottom, ${colors.paper}, white)`,
         }}
       >
-        <div className="flex items-center gap-3 mb-6">
-          <div 
-            className="p-2 rounded-lg"
+        <div className='flex items-center gap-3 mb-6'>
+          <div
+            className='p-2 rounded-lg'
             style={{ backgroundColor: colors.accent + "20" }}
           >
-            <Users className="w-5 h-5" style={{ color: colors.secondary }} />
+            <Users className='w-5 h-5' style={{ color: colors.secondary }} />
           </div>
           <div>
-            <h2
-              className="text-xl font-bold"
-              style={{ color: colors.primary }}
-            >
+            <h2 className='text-xl font-bold' style={{ color: colors.primary }}>
               EMERGENCY INFORMATION
             </h2>
-            <p className="text-xs mt-0.5" style={{ color: colors.tertiary }}>
+            <p className='text-xs mt-0.5' style={{ color: colors.tertiary }}>
               Emergency contact details
             </p>
           </div>
         </div>
-        <div className="grid grid-cols-3 gap-4">
+        <div className='grid grid-cols-3 gap-4'>
           <div>
-            <label className="block text-sm font-medium mb-1" style={{ color: colors.primary }}>
+            <label
+              className='block text-sm font-medium mb-1'
+              style={{ color: colors.primary }}
+            >
               Name of Emergency Contact
             </label>
             <input
-              type="text"
-              value={formData.emergencyContactName}
-              onChange={(e) => handleInputChange("emergencyContactName", e.target.value)}
-              className="w-full px-3 py-2 border rounded-lg custom-focus transition-all duration-200 text-sm"
+              type='text'
+              value={formData.emergency_contact_name}
+              onChange={(e) =>
+                handleInputChange("emergency_contact_name", e.target.value)
+              }
+              className='w-full px-3 py-2 border rounded-lg custom-focus transition-all duration-200 text-sm'
               style={{
                 borderColor: colors.tertiary + "60",
                 color: colors.primary,
@@ -52,50 +54,58 @@ const EmergencyInformation: React.FC<EnrollmentPageProps> = ({
             />
           </div>
           <div>
-            <label className="block text-sm font-medium mb-1" style={{ color: colors.primary }}>
+            <label
+              className='block text-sm font-medium mb-1'
+              style={{ color: colors.primary }}
+            >
               Relationship
             </label>
             <select
-              value={formData.emergencyRelationship}
-              onChange={(e) => handleInputChange("emergencyRelationship", e.target.value)}
-              className="w-full px-3 py-2 border rounded-lg custom-focus transition-all duration-200 text-sm bg-white"
+              value={formData.emergency_relationship}
+              onChange={(e) =>
+                handleInputChange("emergency_relationship", e.target.value)
+              }
+              className='w-full px-3 py-2 border rounded-lg custom-focus transition-all duration-200 text-sm bg-white'
               style={{
                 borderColor: colors.tertiary + "60",
                 color: colors.primary,
               }}
             >
-              <option value="">Select Relationship</option>
-              <option value="Mother">Mother</option>
-              <option value="Father">Father</option>
-              <option value="Spouse">Spouse</option>
-              <option value="Sibling">Sibling</option>
-              <option value="Legal Guardian">Legal Guardian</option>
-              <option value="Grandparent">Grandparent</option>
-              <option value="Aunt / Uncle">Aunt / Uncle</option>
-              <option value="Relative">Relative</option>
-              <option value="Other">Other</option>
+              <option value=''>Select Relationship</option>
+              <option value='Mother'>Mother</option>
+              <option value='Father'>Father</option>
+              <option value='Spouse'>Spouse</option>
+              <option value='Sibling'>Sibling</option>
+              <option value='Legal Guardian'>Legal Guardian</option>
+              <option value='Grandparent'>Grandparent</option>
+              <option value='Aunt / Uncle'>Aunt / Uncle</option>
+              <option value='Relative'>Relative</option>
+              <option value='Other'>Other</option>
             </select>
           </div>
           <div>
-            <label className="block text-sm font-medium mb-1" style={{ color: colors.primary }}>
+            <label
+              className='block text-sm font-medium mb-1'
+              style={{ color: colors.primary }}
+            >
               Emergency Contact Number
             </label>
             <input
-              type="tel"
-              value={formData.emergencyContactNumber}
+              type='tel'
+              value={formData.emergency_contact_number}
               onChange={(e) => {
                 // Only allow numbers
-                const value = e.target.value.replace(/\D/g, '');
-                handleInputChange("emergencyContactNumber", value);
+                const value = e.target.value.replace(/\D/g, "");
+                handleInputChange("emergency_contact_number", value);
               }}
-              className="w-full px-3 py-2 border rounded-lg custom-focus transition-all duration-200 text-sm"
+              className='w-full px-3 py-2 border rounded-lg custom-focus transition-all duration-200 text-sm'
               style={{
                 borderColor: colors.tertiary + "60",
                 color: colors.primary,
               }}
-              placeholder="Enter numbers only"
-              pattern="[0-9]*"
-              inputMode="numeric"
+              placeholder='Enter numbers only'
+              pattern='[0-9]*'
+              inputMode='numeric'
             />
           </div>
         </div>
@@ -105,4 +115,3 @@ const EmergencyInformation: React.FC<EnrollmentPageProps> = ({
 };
 
 export default EmergencyInformation;
-

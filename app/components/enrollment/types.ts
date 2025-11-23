@@ -5,11 +5,7 @@ export interface EnrollmentPageProps {
   handleInputChange: (field: keyof EnrollmentFormData, value: string) => void;
   handleDepartmentChange?: (departmentId: number) => void;
   handleCheckboxChange?: (value: string) => void;
-  filteredCoursePrograms?: Array<{
-    id: string;
-    name: string;
-    departmentId: number;
-  }>;
+  filteredCoursePrograms?: Array<{ id: number; name: string }>;
   photoPreview?: string | null;
   fileInputRef?: React.RefObject<HTMLInputElement | null>;
   handlePhotoUpload?: (e: React.ChangeEvent<HTMLInputElement>) => void;

@@ -6,7 +6,7 @@ export interface EnrollmentFormData {
   admission_date: string;
   admission_status: string;
   term: string;
-  department: string;
+  department: number;
   course_program: string;
   photo: File | null;
 
@@ -45,7 +45,7 @@ const initialFormData: EnrollmentFormData = {
   admission_date: "",
   admission_status: "",
   term: "",
-  department: "",
+  department: 0,
   course_program: "",
   photo: null,
 
@@ -118,7 +118,7 @@ export const useEnrollmentForm = () => {
   }, []);
 
   // Reset course program when department changes
-  const handleDepartmentChange = (departmentId: string) => {
+  const handleDepartmentChange = (departmentId: number) => {
     setFormData((prev) => ({
       ...prev,
       department: departmentId,
@@ -287,7 +287,11 @@ export const useEnrollmentForm = () => {
 
   // Progress calculation
   const progress = (currentPage / TOTAL_PAGES) * 100;
-
+  const filteredCoursePrograms = useMemo(() => {
+    return mockCoursePrograms.filter(
+      (program) => program.departmentId === formData.department
+    );
+  }, [formData.department]);
   return {
     // State
     currentPage,
@@ -296,6 +300,7 @@ export const useEnrollmentForm = () => {
     fileInputRef,
     progress,
     TOTAL_PAGES,
+    filteredCoursePrograms,
 
     // Functions
     getTodayDate,
