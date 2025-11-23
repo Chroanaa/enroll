@@ -74,3 +74,15 @@ export interface Department {
   name: string;
   description: string;
 }
+
+export interface Subject {
+  id: number;
+  code: string;
+  name: string;
+  description?: string;
+  units: number;
+  department_id: number;
+  departmentName?: string;
+  prerequisites?: string;
+  status: "active" | "inactive";
+}
