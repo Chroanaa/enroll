@@ -47,11 +47,12 @@ model course {
 }
 
 model section {
-  id            Int     @id @default(autoincrement())
-  section_name  String? @db.VarChar(50)
-  status        Int?
-  course_id     Int?
-  student_count Int?
+  id            Int    @id @default(autoincrement())
+  course_id     Int
+  section_name  String @db.VarChar(100)
+  advisor       String @db.VarChar(150)
+  student_count Int    @default(0)
+  status        String @db.VarChar(20)
 }
 
 model students {
@@ -162,4 +163,19 @@ model room {
   floor       Int
   status      String   @db.VarChar(20)
   building    building @relation(fields: [building_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_building")
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+model faculty {
+  id             Int     @id @default(autoincrement())
+  employee_id    String  @db.VarChar(100)
+  first_name     String  @db.VarChar(100)
+  last_name      String  @db.VarChar(100)
+  middle_name    String? @db.VarChar(100)
+  email          String  @unique @db.VarChar(150)
+  phone          String? @db.VarChar(20)
+  department_id  Int
+  position       String  @db.VarChar(50)
+  specialization String? @db.VarChar(255)
+  status         String  @db.VarChar(20)
 }

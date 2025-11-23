@@ -20,7 +20,9 @@ import { colors } from "../../colors";
 const FeesManagement: React.FC = () => {
   const [fees, setFees] = useState<Fee[]>(mockFees);
   const [searchTerm, setSearchTerm] = useState("");
-  const [statusFilter, setStatusFilter] = useState<"all" | "active" | "inactive">("all");
+  const [statusFilter, setStatusFilter] = useState<
+    "all" | "active" | "inactive"
+  >("all");
   const [categoryFilter, setCategoryFilter] = useState<string>("all");
   const [editingFee, setEditingFee] = useState<Fee | null>(null);
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
@@ -30,9 +32,10 @@ const FeesManagement: React.FC = () => {
       fee.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
       fee.code.toLowerCase().includes(searchTerm.toLowerCase()) ||
       fee.description?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      fee.academicYear.toLowerCase().includes(searchTerm.toLowerCase());
+      fee.academic_year.toLowerCase().includes(searchTerm.toLowerCase());
     const matchesStatus = statusFilter === "all" || fee.status === statusFilter;
-    const matchesCategory = categoryFilter === "all" || fee.category === categoryFilter;
+    const matchesCategory =
+      categoryFilter === "all" || fee.category === categoryFilter;
     return matchesSearch && matchesStatus && matchesCategory;
   });
 
@@ -83,7 +86,7 @@ const FeesManagement: React.FC = () => {
         description: "",
         amount: 0,
         category: "miscellaneous",
-        academicYear: "2024-2025",
+        academic_year: "2024-2025",
         semester: "1st",
         status: "active",
       }
@@ -92,51 +95,56 @@ const FeesManagement: React.FC = () => {
     const handleSubmit = (e: React.FormEvent) => {
       e.preventDefault();
       if (formData.code && formData.name && formData.amount !== undefined) {
-        const feeData: Fee = {
+        const feeData: Partial<Fee> = {
           ...formData,
-          id: fee?.id || Date.now(),
           code: formData.code.toUpperCase()!,
           name: formData.name!,
           description: formData.description || "",
           amount: formData.amount!,
           category: (formData.category as Fee["category"]) || "miscellaneous",
-          academicYear: formData.academicYear || "2024-2025",
+          academic_year: formData.academic_year || "2024-2025",
           semester: formData.semester || "1st",
           status: (formData.status as "active" | "inactive") || "active",
         };
-        onSave(feeData);
+        fetch("/api/auth/fees", {
+          method: "POST",
+          body: JSON.stringify(feeData),
+        });
       }
     };
 
     return (
-      <div 
+      <div
         className='fixed inset-0 flex items-center justify-center p-4 z-50 backdrop-blur-sm'
         style={{ backgroundColor: `${colors.primary}20` }}
         onClick={onCancel}
       >
-        <div 
+        <div
           className='rounded-2xl shadow-2xl max-w-4xl w-full max-h-[90vh] flex flex-col'
           style={{
-            backgroundColor: 'white',
+            backgroundColor: "white",
             border: `1px solid ${colors.accent}30`,
           }}
           onClick={(e) => e.stopPropagation()}
         >
-          <div 
+          <div
             className='px-6 py-4 rounded-t-2xl flex items-center justify-between'
-            style={{ 
+            style={{
               backgroundColor: `${colors.secondary}10`,
-              borderBottom: `1px solid ${colors.accent}30`
+              borderBottom: `1px solid ${colors.accent}30`,
             }}
           >
             <div className='flex items-center gap-3'>
-              <div 
+              <div
                 className='p-2 rounded-lg'
                 style={{ backgroundColor: `${colors.secondary}20` }}
               >
-                <DollarSign className='w-5 h-5' style={{ color: colors.secondary }} />
+                <DollarSign
+                  className='w-5 h-5'
+                  style={{ color: colors.secondary }}
+                />
               </div>
-              <h2 
+              <h2
                 className='text-xl font-bold'
                 style={{ color: colors.primary }}
               >
@@ -152,318 +160,354 @@ const FeesManagement: React.FC = () => {
             </button>
           </div>
           <div className='p-6 overflow-y-auto flex-1'>
-          <form onSubmit={handleSubmit} className='space-y-4'>
-            <div className='grid grid-cols-1 md:grid-cols-2 gap-4'>
-              <div>
-                <label 
-                  className='flex items-center gap-2 text-sm font-medium mb-2'
-                  style={{ color: colors.primary }}
-                >
-                  <Hash className='w-4 h-4' style={{ color: colors.secondary }} />
-                  Fee Code <span className='text-red-500'>*</span>
-                </label>
-                <input
-                  type='text'
-                  value={formData.code || ""}
-                  onChange={(e) =>
-                    setFormData({ ...formData, code: e.target.value.toUpperCase() })
-                  }
-                  className='w-full rounded-lg px-3 py-2 transition-all'
-                  style={{
-                    border: `1px solid ${colors.tertiary}60`,
-                    backgroundColor: 'white',
-                    color: colors.primary,
-                  }}
-                  onFocus={(e) => {
-                    e.currentTarget.style.borderColor = colors.secondary;
-                    e.currentTarget.style.boxShadow = `0 0 0 3px ${colors.secondary}20`;
-                  }}
-                  onBlur={(e) => {
-                    e.currentTarget.style.borderColor = `${colors.tertiary}60`;
-                    e.currentTarget.style.boxShadow = 'none';
-                  }}
-                  required
-                />
+            <form onSubmit={handleSubmit} className='space-y-4'>
+              <div className='grid grid-cols-1 md:grid-cols-2 gap-4'>
+                <div>
+                  <label
+                    className='flex items-center gap-2 text-sm font-medium mb-2'
+                    style={{ color: colors.primary }}
+                  >
+                    <Hash
+                      className='w-4 h-4'
+                      style={{ color: colors.secondary }}
+                    />
+                    Fee Code <span className='text-red-500'>*</span>
+                  </label>
+                  <input
+                    type='text'
+                    value={formData.code || ""}
+                    onChange={(e) =>
+                      setFormData({
+                        ...formData,
+                        code: e.target.value.toUpperCase(),
+                      })
+                    }
+                    className='w-full rounded-lg px-3 py-2 transition-all'
+                    style={{
+                      border: `1px solid ${colors.tertiary}60`,
+                      backgroundColor: "white",
+                      color: colors.primary,
+                    }}
+                    onFocus={(e) => {
+                      e.currentTarget.style.borderColor = colors.secondary;
+                      e.currentTarget.style.boxShadow = `0 0 0 3px ${colors.secondary}20`;
+                    }}
+                    onBlur={(e) => {
+                      e.currentTarget.style.borderColor = `${colors.tertiary}60`;
+                      e.currentTarget.style.boxShadow = "none";
+                    }}
+                    required
+                  />
+                </div>
+
+                <div>
+                  <label
+                    className='flex items-center gap-2 text-sm font-medium mb-2'
+                    style={{ color: colors.primary }}
+                  >
+                    <DollarSign
+                      className='w-4 h-4'
+                      style={{ color: colors.secondary }}
+                    />
+                    Fee Name <span className='text-red-500'>*</span>
+                  </label>
+                  <input
+                    type='text'
+                    value={formData.name || ""}
+                    onChange={(e) =>
+                      setFormData({ ...formData, name: e.target.value })
+                    }
+                    className='w-full rounded-lg px-3 py-2 transition-all'
+                    style={{
+                      border: `1px solid ${colors.tertiary}60`,
+                      backgroundColor: "white",
+                      color: colors.primary,
+                    }}
+                    onFocus={(e) => {
+                      e.currentTarget.style.borderColor = colors.secondary;
+                      e.currentTarget.style.boxShadow = `0 0 0 3px ${colors.secondary}20`;
+                    }}
+                    onBlur={(e) => {
+                      e.currentTarget.style.borderColor = `${colors.tertiary}60`;
+                      e.currentTarget.style.boxShadow = "none";
+                    }}
+                    required
+                  />
+                </div>
+
+                <div className='md:col-span-2'>
+                  <label
+                    className='flex items-center gap-2 text-sm font-medium mb-2'
+                    style={{ color: colors.primary }}
+                  >
+                    <FileText
+                      className='w-4 h-4'
+                      style={{ color: colors.secondary }}
+                    />
+                    Description
+                  </label>
+                  <textarea
+                    value={formData.description || ""}
+                    onChange={(e) =>
+                      setFormData({ ...formData, description: e.target.value })
+                    }
+                    className='w-full rounded-lg px-3 py-2 transition-all'
+                    style={{
+                      border: `1px solid ${colors.tertiary}60`,
+                      backgroundColor: "white",
+                      color: colors.primary,
+                    }}
+                    onFocus={(e) => {
+                      e.currentTarget.style.borderColor = colors.secondary;
+                      e.currentTarget.style.boxShadow = `0 0 0 3px ${colors.secondary}20`;
+                    }}
+                    onBlur={(e) => {
+                      e.currentTarget.style.borderColor = `${colors.tertiary}60`;
+                      e.currentTarget.style.boxShadow = "none";
+                    }}
+                    rows={3}
+                  />
+                </div>
+
+                <div>
+                  <label
+                    className='flex items-center gap-2 text-sm font-medium mb-2'
+                    style={{ color: colors.primary }}
+                  >
+                    <DollarSign
+                      className='w-4 h-4'
+                      style={{ color: colors.secondary }}
+                    />
+                    Amount (PHP) <span className='text-red-500'>*</span>
+                  </label>
+                  <input
+                    type='number'
+                    min='0'
+                    step='0.01'
+                    value={formData.amount || 0}
+                    onChange={(e) =>
+                      setFormData({
+                        ...formData,
+                        amount: parseFloat(e.target.value) || 0,
+                      })
+                    }
+                    className='w-full rounded-lg px-3 py-2 transition-all'
+                    style={{
+                      border: `1px solid ${colors.tertiary}60`,
+                      backgroundColor: "white",
+                      color: colors.primary,
+                    }}
+                    onFocus={(e) => {
+                      e.currentTarget.style.borderColor = colors.secondary;
+                      e.currentTarget.style.boxShadow = `0 0 0 3px ${colors.secondary}20`;
+                    }}
+                    onBlur={(e) => {
+                      e.currentTarget.style.borderColor = `${colors.tertiary}60`;
+                      e.currentTarget.style.boxShadow = "none";
+                    }}
+                    required
+                  />
+                </div>
+
+                <div>
+                  <label
+                    className='flex items-center gap-2 text-sm font-medium mb-2'
+                    style={{ color: colors.primary }}
+                  >
+                    <Tag
+                      className='w-4 h-4'
+                      style={{ color: colors.secondary }}
+                    />
+                    Category <span className='text-red-500'>*</span>
+                  </label>
+                  <select
+                    value={formData.category || "miscellaneous"}
+                    onChange={(e) =>
+                      setFormData({
+                        ...formData,
+                        category: e.target.value as Fee["category"],
+                      })
+                    }
+                    className='w-full rounded-lg px-3 py-2 transition-all'
+                    style={{
+                      border: `1px solid ${colors.tertiary}60`,
+                      backgroundColor: "white",
+                      color: colors.primary,
+                    }}
+                    onFocus={(e) => {
+                      e.currentTarget.style.borderColor = colors.secondary;
+                      e.currentTarget.style.boxShadow = `0 0 0 3px ${colors.secondary}20`;
+                    }}
+                    onBlur={(e) => {
+                      e.currentTarget.style.borderColor = `${colors.tertiary}60`;
+                      e.currentTarget.style.boxShadow = "none";
+                    }}
+                  >
+                    <option value='tuition'>Tuition</option>
+                    <option value='miscellaneous'>Miscellaneous</option>
+                    <option value='laboratory'>Laboratory</option>
+                    <option value='library'>Library</option>
+                    <option value='other'>Other</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label
+                    className='flex items-center gap-2 text-sm font-medium mb-2'
+                    style={{ color: colors.primary }}
+                  >
+                    <Calendar
+                      className='w-4 h-4'
+                      style={{ color: colors.secondary }}
+                    />
+                    Academic Year <span className='text-red-500'>*</span>
+                  </label>
+                  <input
+                    type='text'
+                    value={formData.academic_year || ""}
+                    onChange={(e) =>
+                      setFormData({
+                        ...formData,
+                        academic_year: e.target.value,
+                      })
+                    }
+                    className='w-full rounded-lg px-3 py-2 transition-all'
+                    style={{
+                      border: `1px solid ${colors.tertiary}60`,
+                      backgroundColor: "white",
+                      color: colors.primary,
+                    }}
+                    onFocus={(e) => {
+                      e.currentTarget.style.borderColor = colors.secondary;
+                      e.currentTarget.style.boxShadow = `0 0 0 3px ${colors.secondary}20`;
+                    }}
+                    onBlur={(e) => {
+                      e.currentTarget.style.borderColor = `${colors.tertiary}60`;
+                      e.currentTarget.style.boxShadow = "none";
+                    }}
+                    placeholder='e.g., 2024-2025'
+                    required
+                  />
+                </div>
+
+                <div>
+                  <label
+                    className='flex items-center gap-2 text-sm font-medium mb-2'
+                    style={{ color: colors.primary }}
+                  >
+                    <GraduationCap
+                      className='w-4 h-4'
+                      style={{ color: colors.secondary }}
+                    />
+                    Semester
+                  </label>
+                  <select
+                    value={formData.semester || "1st"}
+                    onChange={(e) =>
+                      setFormData({ ...formData, semester: e.target.value })
+                    }
+                    className='w-full rounded-lg px-3 py-2 transition-all'
+                    style={{
+                      border: `1px solid ${colors.tertiary}60`,
+                      backgroundColor: "white",
+                      color: colors.primary,
+                    }}
+                    onFocus={(e) => {
+                      e.currentTarget.style.borderColor = colors.secondary;
+                      e.currentTarget.style.boxShadow = `0 0 0 3px ${colors.secondary}20`;
+                    }}
+                    onBlur={(e) => {
+                      e.currentTarget.style.borderColor = `${colors.tertiary}60`;
+                      e.currentTarget.style.boxShadow = "none";
+                    }}
+                  >
+                    <option value='1st'>1st Semester</option>
+                    <option value='2nd'>2nd Semester</option>
+                    <option value='Summer'>Summer</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label
+                    className='flex items-center gap-2 text-sm font-medium mb-2'
+                    style={{ color: colors.primary }}
+                  >
+                    <CheckCircle2
+                      className='w-4 h-4'
+                      style={{ color: colors.secondary }}
+                    />
+                    Status <span className='text-red-500'>*</span>
+                  </label>
+                  <select
+                    value={formData.status || "active"}
+                    onChange={(e) =>
+                      setFormData({
+                        ...formData,
+                        status: e.target.value as "active" | "inactive",
+                      })
+                    }
+                    className='w-full rounded-lg px-3 py-2 transition-all'
+                    style={{
+                      border: `1px solid ${colors.tertiary}60`,
+                      backgroundColor: "white",
+                      color: colors.primary,
+                    }}
+                    onFocus={(e) => {
+                      e.currentTarget.style.borderColor = colors.secondary;
+                      e.currentTarget.style.boxShadow = `0 0 0 3px ${colors.secondary}20`;
+                    }}
+                    onBlur={(e) => {
+                      e.currentTarget.style.borderColor = `${colors.tertiary}60`;
+                      e.currentTarget.style.boxShadow = "none";
+                    }}
+                  >
+                    <option value='active'>Active</option>
+                    <option value='inactive'>Inactive</option>
+                  </select>
+                </div>
               </div>
 
-              <div>
-                <label 
-                  className='flex items-center gap-2 text-sm font-medium mb-2'
-                  style={{ color: colors.primary }}
-                >
-                  <DollarSign className='w-4 h-4' style={{ color: colors.secondary }} />
-                  Fee Name <span className='text-red-500'>*</span>
-                </label>
-                <input
-                  type='text'
-                  value={formData.name || ""}
-                  onChange={(e) =>
-                    setFormData({ ...formData, name: e.target.value })
-                  }
-                  className='w-full rounded-lg px-3 py-2 transition-all'
-                  style={{
-                    border: `1px solid ${colors.tertiary}60`,
-                    backgroundColor: 'white',
-                    color: colors.primary,
-                  }}
-                  onFocus={(e) => {
-                    e.currentTarget.style.borderColor = colors.secondary;
-                    e.currentTarget.style.boxShadow = `0 0 0 3px ${colors.secondary}20`;
-                  }}
-                  onBlur={(e) => {
-                    e.currentTarget.style.borderColor = `${colors.tertiary}60`;
-                    e.currentTarget.style.boxShadow = 'none';
-                  }}
-                  required
-                />
-              </div>
-
-              <div className='md:col-span-2'>
-                <label 
-                  className='flex items-center gap-2 text-sm font-medium mb-2'
-                  style={{ color: colors.primary }}
-                >
-                  <FileText className='w-4 h-4' style={{ color: colors.secondary }} />
-                  Description
-                </label>
-                <textarea
-                  value={formData.description || ""}
-                  onChange={(e) =>
-                    setFormData({ ...formData, description: e.target.value })
-                  }
-                  className='w-full rounded-lg px-3 py-2 transition-all'
-                  style={{
-                    border: `1px solid ${colors.tertiary}60`,
-                    backgroundColor: 'white',
-                    color: colors.primary,
-                  }}
-                  onFocus={(e) => {
-                    e.currentTarget.style.borderColor = colors.secondary;
-                    e.currentTarget.style.boxShadow = `0 0 0 3px ${colors.secondary}20`;
-                  }}
-                  onBlur={(e) => {
-                    e.currentTarget.style.borderColor = `${colors.tertiary}60`;
-                    e.currentTarget.style.boxShadow = 'none';
-                  }}
-                  rows={3}
-                />
-              </div>
-
-              <div>
-                <label 
-                  className='flex items-center gap-2 text-sm font-medium mb-2'
-                  style={{ color: colors.primary }}
-                >
-                  <DollarSign className='w-4 h-4' style={{ color: colors.secondary }} />
-                  Amount (PHP) <span className='text-red-500'>*</span>
-                </label>
-                <input
-                  type='number'
-                  min='0'
-                  step='0.01'
-                  value={formData.amount || 0}
-                  onChange={(e) =>
-                    setFormData({ ...formData, amount: parseFloat(e.target.value) || 0 })
-                  }
-                  className='w-full rounded-lg px-3 py-2 transition-all'
-                  style={{
-                    border: `1px solid ${colors.tertiary}60`,
-                    backgroundColor: 'white',
-                    color: colors.primary,
-                  }}
-                  onFocus={(e) => {
-                    e.currentTarget.style.borderColor = colors.secondary;
-                    e.currentTarget.style.boxShadow = `0 0 0 3px ${colors.secondary}20`;
-                  }}
-                  onBlur={(e) => {
-                    e.currentTarget.style.borderColor = `${colors.tertiary}60`;
-                    e.currentTarget.style.boxShadow = 'none';
-                  }}
-                  required
-                />
-              </div>
-
-              <div>
-                <label 
-                  className='flex items-center gap-2 text-sm font-medium mb-2'
-                  style={{ color: colors.primary }}
-                >
-                  <Tag className='w-4 h-4' style={{ color: colors.secondary }} />
-                  Category <span className='text-red-500'>*</span>
-                </label>
-                <select
-                  value={formData.category || "miscellaneous"}
-                  onChange={(e) =>
-                    setFormData({
-                      ...formData,
-                      category: e.target.value as Fee["category"],
-                    })
-                  }
-                  className='w-full rounded-lg px-3 py-2 transition-all'
-                  style={{
-                    border: `1px solid ${colors.tertiary}60`,
-                    backgroundColor: 'white',
-                    color: colors.primary,
-                  }}
-                  onFocus={(e) => {
-                    e.currentTarget.style.borderColor = colors.secondary;
-                    e.currentTarget.style.boxShadow = `0 0 0 3px ${colors.secondary}20`;
-                  }}
-                  onBlur={(e) => {
-                    e.currentTarget.style.borderColor = `${colors.tertiary}60`;
-                    e.currentTarget.style.boxShadow = 'none';
-                  }}
-                >
-                  <option value='tuition'>Tuition</option>
-                  <option value='miscellaneous'>Miscellaneous</option>
-                  <option value='laboratory'>Laboratory</option>
-                  <option value='library'>Library</option>
-                  <option value='other'>Other</option>
-                </select>
-              </div>
-
-              <div>
-                <label 
-                  className='flex items-center gap-2 text-sm font-medium mb-2'
-                  style={{ color: colors.primary }}
-                >
-                  <Calendar className='w-4 h-4' style={{ color: colors.secondary }} />
-                  Academic Year <span className='text-red-500'>*</span>
-                </label>
-                <input
-                  type='text'
-                  value={formData.academicYear || ""}
-                  onChange={(e) =>
-                    setFormData({ ...formData, academicYear: e.target.value })
-                  }
-                  className='w-full rounded-lg px-3 py-2 transition-all'
-                  style={{
-                    border: `1px solid ${colors.tertiary}60`,
-                    backgroundColor: 'white',
-                    color: colors.primary,
-                  }}
-                  onFocus={(e) => {
-                    e.currentTarget.style.borderColor = colors.secondary;
-                    e.currentTarget.style.boxShadow = `0 0 0 3px ${colors.secondary}20`;
-                  }}
-                  onBlur={(e) => {
-                    e.currentTarget.style.borderColor = `${colors.tertiary}60`;
-                    e.currentTarget.style.boxShadow = 'none';
-                  }}
-                  placeholder='e.g., 2024-2025'
-                  required
-                />
-              </div>
-
-              <div>
-                <label 
-                  className='flex items-center gap-2 text-sm font-medium mb-2'
-                  style={{ color: colors.primary }}
-                >
-                  <GraduationCap className='w-4 h-4' style={{ color: colors.secondary }} />
-                  Semester
-                </label>
-                <select
-                  value={formData.semester || "1st"}
-                  onChange={(e) =>
-                    setFormData({ ...formData, semester: e.target.value })
-                  }
-                  className='w-full rounded-lg px-3 py-2 transition-all'
-                  style={{
-                    border: `1px solid ${colors.tertiary}60`,
-                    backgroundColor: 'white',
-                    color: colors.primary,
-                  }}
-                  onFocus={(e) => {
-                    e.currentTarget.style.borderColor = colors.secondary;
-                    e.currentTarget.style.boxShadow = `0 0 0 3px ${colors.secondary}20`;
-                  }}
-                  onBlur={(e) => {
-                    e.currentTarget.style.borderColor = `${colors.tertiary}60`;
-                    e.currentTarget.style.boxShadow = 'none';
-                  }}
-                >
-                  <option value='1st'>1st Semester</option>
-                  <option value='2nd'>2nd Semester</option>
-                  <option value='Summer'>Summer</option>
-                </select>
-              </div>
-
-              <div>
-                <label 
-                  className='flex items-center gap-2 text-sm font-medium mb-2'
-                  style={{ color: colors.primary }}
-                >
-                  <CheckCircle2 className='w-4 h-4' style={{ color: colors.secondary }} />
-                  Status <span className='text-red-500'>*</span>
-                </label>
-                <select
-                  value={formData.status || "active"}
-                  onChange={(e) =>
-                    setFormData({
-                      ...formData,
-                      status: e.target.value as "active" | "inactive",
-                    })
-                  }
-                  className='w-full rounded-lg px-3 py-2 transition-all'
-                  style={{
-                    border: `1px solid ${colors.tertiary}60`,
-                    backgroundColor: 'white',
-                    color: colors.primary,
-                  }}
-                  onFocus={(e) => {
-                    e.currentTarget.style.borderColor = colors.secondary;
-                    e.currentTarget.style.boxShadow = `0 0 0 3px ${colors.secondary}20`;
-                  }}
-                  onBlur={(e) => {
-                    e.currentTarget.style.borderColor = `${colors.tertiary}60`;
-                    e.currentTarget.style.boxShadow = 'none';
-                  }}
-                >
-                  <option value='active'>Active</option>
-                  <option value='inactive'>Inactive</option>
-                </select>
-              </div>
-            </div>
-
-            <div className='flex justify-end gap-3 pt-4 mt-6 border-t' style={{ borderColor: `${colors.accent}30` }}>
-              <button
-                type='button'
-                onClick={onCancel}
-                className='px-6 py-2.5 rounded-lg transition-colors font-medium flex items-center gap-2'
-                style={{ 
-                  color: colors.primary,
-                  border: `1px solid ${colors.tertiary}60`,
-                  backgroundColor: 'white',
-                }}
-                onMouseEnter={(e) => {
-                  e.currentTarget.style.backgroundColor = `${colors.accent}15`;
-                  e.currentTarget.style.borderColor = colors.tertiary;
-                }}
-                onMouseLeave={(e) => {
-                  e.currentTarget.style.backgroundColor = 'white';
-                  e.currentTarget.style.borderColor = `${colors.tertiary}60`;
-                }}
+              <div
+                className='flex justify-end gap-3 pt-4 mt-6 border-t'
+                style={{ borderColor: `${colors.accent}30` }}
               >
-                <X className='w-4 h-4' />
-                Cancel
-              </button>
-              <button
-                type='submit'
-                className='px-6 py-2.5 text-white rounded-lg transition-colors font-medium flex items-center gap-2'
-                style={{ backgroundColor: colors.secondary }}
-                onMouseEnter={(e) =>
-                  (e.currentTarget.style.backgroundColor = colors.primary)
-                }
-                onMouseLeave={(e) =>
-                  (e.currentTarget.style.backgroundColor = colors.secondary)
-                }
-              >
-                <CheckCircle2 className='w-4 h-4' />
-                {fee ? "Update Fee" : "Add Fee"}
-              </button>
-            </div>
-          </form>
+                <button
+                  type='button'
+                  onClick={onCancel}
+                  className='px-6 py-2.5 rounded-lg transition-colors font-medium flex items-center gap-2'
+                  style={{
+                    color: colors.primary,
+                    border: `1px solid ${colors.tertiary}60`,
+                    backgroundColor: "white",
+                  }}
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.backgroundColor = `${colors.accent}15`;
+                    e.currentTarget.style.borderColor = colors.tertiary;
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.backgroundColor = "white";
+                    e.currentTarget.style.borderColor = `${colors.tertiary}60`;
+                  }}
+                >
+                  <X className='w-4 h-4' />
+                  Cancel
+                </button>
+                <button
+                  type='submit'
+                  className='px-6 py-2.5 text-white rounded-lg transition-colors font-medium flex items-center gap-2'
+                  style={{ backgroundColor: colors.secondary }}
+                  onMouseEnter={(e) =>
+                    (e.currentTarget.style.backgroundColor = colors.primary)
+                  }
+                  onMouseLeave={(e) =>
+                    (e.currentTarget.style.backgroundColor = colors.secondary)
+                  }
+                >
+                  <CheckCircle2 className='w-4 h-4' />
+                  {fee ? "Update Fee" : "Add Fee"}
+                </button>
+              </div>
+            </form>
           </div>
         </div>
       </div>
@@ -472,9 +516,7 @@ const FeesManagement: React.FC = () => {
 
   const handleSaveFee = (feeData: Fee) => {
     if (editingFee) {
-      setFees((prev) =>
-        prev.map((f) => (f.id === feeData.id ? feeData : f))
-      );
+      setFees((prev) => prev.map((f) => (f.id === feeData.id ? feeData : f)));
       setEditingFee(null);
     } else {
       setFees((prev) => [...prev, feeData]);
@@ -595,7 +637,10 @@ const FeesManagement: React.FC = () => {
               <tbody className='bg-white divide-y divide-gray-200'>
                 {filteredFees.length === 0 ? (
                   <tr>
-                    <td colSpan={8} className='px-6 py-8 text-center text-gray-500'>
+                    <td
+                      colSpan={8}
+                      className='px-6 py-8 text-center text-gray-500'
+                    >
                       No fees found
                     </td>
                   </tr>
@@ -651,7 +696,7 @@ const FeesManagement: React.FC = () => {
                       </td>
                       <td className='px-6 py-4 whitespace-nowrap'>
                         <span className='text-sm text-gray-900'>
-                          {fee.academicYear}
+                          {fee.academic_year}
                         </span>
                       </td>
                       <td className='px-6 py-4 whitespace-nowrap'>

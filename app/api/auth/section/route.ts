@@ -1,18 +1,18 @@
+import axios from "axios";
+import { NextResponse, NextRequest } from "next/server";
 import { prisma } from "@/app/lib/prisma";
-import { NextRequest, NextResponse } from "next/server";
-
 export async function POST(request: NextRequest) {
   try {
     const data = await request.json();
-    const newDepartment = await prisma.department.create({
+    const newSection = await prisma.section.create({
       data: {
         ...data,
       },
     });
-    return NextResponse.json(newDepartment);
+    return NextResponse.json(newSection);
   } catch (error) {
     return NextResponse.json(
-      { error: "Failed to create department" },
+      { error: "Failed to create section" },
       { status: 500 }
     );
   }

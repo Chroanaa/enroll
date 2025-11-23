@@ -16,32 +16,43 @@ import {
   CheckCircle2,
   X,
 } from "lucide-react";
-import { Faculty, mockFaculty, Department, mockDepartments } from "../../data/mockData";
+import {
+  Faculty,
+  mockFaculty,
+  Department,
+  mockDepartments,
+} from "../../data/mockData";
 import { colors } from "../../colors";
 
 const FacultyManagement: React.FC = () => {
   const [faculty, setFaculty] = useState<Faculty[]>(
     mockFaculty.map((fac) => ({
       ...fac,
-      departmentName: mockDepartments.find((d) => d.id === fac.departmentId)?.name || "",
+      departmentName:
+        mockDepartments.find((d) => d.id === fac.department_id)?.name || "",
     }))
   );
   const [searchTerm, setSearchTerm] = useState("");
-  const [statusFilter, setStatusFilter] = useState<"all" | "active" | "inactive">("all");
+  const [statusFilter, setStatusFilter] = useState<
+    "all" | "active" | "inactive"
+  >("all");
   const [positionFilter, setPositionFilter] = useState<string>("all");
   const [editingFaculty, setEditingFaculty] = useState<Faculty | null>(null);
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
 
   const filteredFaculty = faculty.filter((fac) => {
-    const matchesSearch =
-      fac.firstName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      fac.lastName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      fac.employeeId.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      fac.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      fac.departmentName?.toLowerCase().includes(searchTerm.toLowerCase());
-    const matchesStatus = statusFilter === "all" || fac.status === statusFilter;
-    const matchesPosition = positionFilter === "all" || fac.position === positionFilter;
-    return matchesSearch && matchesStatus && matchesPosition;
+    // const matchesSearch =
+    //   fac.first_name.toLocaleLowerCase().includes(searchTerm.toLowerCase()) ||
+    //   fac.last_name.toLocaleLowerCase().includes(searchTerm.toLowerCase()) ||
+    //   fac.employee_id.toLocaleLowerCase().includes(searchTerm.toLowerCase()) ||
+    //   fac.email.toLocaleLowerCase().includes(searchTerm.toLowerCase()) ||
+    //   fac.departmentName
+    //     ?.toLocaleLowerCase()
+    //     .includes(searchTerm.toLowerCase());
+    // const matchesStatus = statusFilter === "all" || fac.status === statusFilter;
+    // const matchesPosition =
+    //   positionFilter === "all" || fac.position === positionFilter;
+    // return matchesSearch && matchesStatus && matchesPosition;
   });
 
   const getStatusColor = (status: string) => {
@@ -79,13 +90,13 @@ const FacultyManagement: React.FC = () => {
   }> = ({ faculty, onSave, onCancel }) => {
     const [formData, setFormData] = useState<Partial<Faculty>>(
       faculty || {
-        employeeId: "",
-        firstName: "",
-        lastName: "",
-        middleName: "",
+        employee_id: "",
+        first_name: "",
+        last_name: "",
+        middle_name: "",
         email: "",
         phone: "",
-        departmentId: (mockDepartments[0]?.id as number) || 1,
+        department_id: (mockDepartments[0]?.id as number) || 1,
         position: "instructor",
         specialization: "",
         status: "active",
@@ -94,56 +105,65 @@ const FacultyManagement: React.FC = () => {
 
     const handleSubmit = (e: React.FormEvent) => {
       e.preventDefault();
-      if (formData.employeeId && formData.firstName && formData.lastName && formData.email && formData.departmentId) {
-        const departmentName = mockDepartments.find((d) => (d.id as number) === formData.departmentId)?.name || "";
-        const facultyData: Faculty = {
+      if (
+        formData.employee_id &&
+        formData.first_name &&
+        formData.last_name &&
+        formData.email &&
+        formData.department_id
+      ) {
+        const facultyData: Partial<Faculty> = {
           ...formData,
-          id: faculty?.id || Date.now(),
-          employeeId: formData.employeeId!,
-          firstName: formData.firstName!,
-          lastName: formData.lastName!,
-          middleName: formData.middleName || "",
+          employee_id: formData.employee_id!,
+          first_name: formData.first_name!,
+          last_name: formData.last_name!,
+          middle_name: formData.middle_name || "",
           email: formData.email!,
           phone: formData.phone || "",
-          departmentId: formData.departmentId!,
-          departmentName,
+          department_id: formData.department_id!,
           position: (formData.position as Faculty["position"]) || "instructor",
           specialization: formData.specialization || "",
           status: (formData.status as "active" | "inactive") || "active",
         };
-        onSave(facultyData);
+        fetch("/api/auth/faculty", {
+          method: "POST",
+          body: JSON.stringify(facultyData),
+        });
       }
     };
 
     return (
-      <div 
+      <div
         className='fixed inset-0 flex items-center justify-center p-4 z-50 backdrop-blur-sm'
         style={{ backgroundColor: `${colors.primary}20` }}
         onClick={onCancel}
       >
-        <div 
+        <div
           className='rounded-2xl shadow-2xl max-w-4xl w-full max-h-[90vh] flex flex-col'
           style={{
-            backgroundColor: 'white',
+            backgroundColor: "white",
             border: `1px solid ${colors.accent}30`,
           }}
           onClick={(e) => e.stopPropagation()}
         >
-          <div 
+          <div
             className='px-6 py-4 rounded-t-2xl flex items-center justify-between'
-            style={{ 
+            style={{
               backgroundColor: `${colors.secondary}10`,
-              borderBottom: `1px solid ${colors.accent}30`
+              borderBottom: `1px solid ${colors.accent}30`,
             }}
           >
             <div className='flex items-center gap-3'>
-              <div 
+              <div
                 className='p-2 rounded-lg'
                 style={{ backgroundColor: `${colors.secondary}20` }}
               >
-                <Users2 className='w-5 h-5' style={{ color: colors.secondary }} />
+                <Users2
+                  className='w-5 h-5'
+                  style={{ color: colors.secondary }}
+                />
               </div>
-              <h2 
+              <h2
                 className='text-xl font-bold'
                 style={{ color: colors.primary }}
               >
@@ -159,380 +179,426 @@ const FacultyManagement: React.FC = () => {
             </button>
           </div>
           <div className='p-6 overflow-y-auto flex-1'>
-          <form onSubmit={handleSubmit} className='space-y-4'>
-            <div className='grid grid-cols-1 md:grid-cols-2 gap-4'>
-              <div className='md:col-span-2'>
-                <label 
-                  className='flex items-center gap-2 text-sm font-medium mb-2'
-                  style={{ color: colors.primary }}
-                >
-                  <Hash className='w-4 h-4' style={{ color: colors.secondary }} />
-                  Employee ID <span className='text-red-500'>*</span>
-                </label>
-                <input
-                  type='text'
-                  value={formData.employeeId || ""}
-                  onChange={(e) =>
-                    setFormData({ ...formData, employeeId: e.target.value.toUpperCase() })
-                  }
-                  className='w-full rounded-lg px-3 py-2 transition-all'
-                  style={{
-                    border: `1px solid ${colors.tertiary}60`,
-                    backgroundColor: 'white',
-                    color: colors.primary,
-                  }}
-                  onFocus={(e) => {
-                    e.currentTarget.style.borderColor = colors.secondary;
-                    e.currentTarget.style.boxShadow = `0 0 0 3px ${colors.secondary}20`;
-                  }}
-                  onBlur={(e) => {
-                    e.currentTarget.style.borderColor = `${colors.tertiary}60`;
-                    e.currentTarget.style.boxShadow = 'none';
-                  }}
-                  required
-                />
-              </div>
+            <form onSubmit={handleSubmit} className='space-y-4'>
+              <div className='grid grid-cols-1 md:grid-cols-2 gap-4'>
+                <div className='md:col-span-2'>
+                  <label
+                    className='flex items-center gap-2 text-sm font-medium mb-2'
+                    style={{ color: colors.primary }}
+                  >
+                    <Hash
+                      className='w-4 h-4'
+                      style={{ color: colors.secondary }}
+                    />
+                    Employee ID <span className='text-red-500'>*</span>
+                  </label>
+                  <input
+                    type='text'
+                    value={formData.employee_id || ""}
+                    onChange={(e) =>
+                      setFormData({
+                        ...formData,
+                        employee_id: e.target.value.toUpperCase(),
+                      })
+                    }
+                    className='w-full rounded-lg px-3 py-2 transition-all'
+                    style={{
+                      border: `1px solid ${colors.tertiary}60`,
+                      backgroundColor: "white",
+                      color: colors.primary,
+                    }}
+                    onFocus={(e) => {
+                      e.currentTarget.style.borderColor = colors.secondary;
+                      e.currentTarget.style.boxShadow = `0 0 0 3px ${colors.secondary}20`;
+                    }}
+                    onBlur={(e) => {
+                      e.currentTarget.style.borderColor = `${colors.tertiary}60`;
+                      e.currentTarget.style.boxShadow = "none";
+                    }}
+                    required
+                  />
+                </div>
 
-              <div>
-                <label 
-                  className='flex items-center gap-2 text-sm font-medium mb-2'
-                  style={{ color: colors.primary }}
-                >
-                  <User className='w-4 h-4' style={{ color: colors.secondary }} />
-                  First Name <span className='text-red-500'>*</span>
-                </label>
-                <input
-                  type='text'
-                  value={formData.firstName || ""}
-                  onChange={(e) =>
-                    setFormData({ ...formData, firstName: e.target.value })
-                  }
-                  className='w-full rounded-lg px-3 py-2 transition-all'
-                  style={{
-                    border: `1px solid ${colors.tertiary}60`,
-                    backgroundColor: 'white',
-                    color: colors.primary,
-                  }}
-                  onFocus={(e) => {
-                    e.currentTarget.style.borderColor = colors.secondary;
-                    e.currentTarget.style.boxShadow = `0 0 0 3px ${colors.secondary}20`;
-                  }}
-                  onBlur={(e) => {
-                    e.currentTarget.style.borderColor = `${colors.tertiary}60`;
-                    e.currentTarget.style.boxShadow = 'none';
-                  }}
-                  required
-                />
-              </div>
+                <div>
+                  <label
+                    className='flex items-center gap-2 text-sm font-medium mb-2'
+                    style={{ color: colors.primary }}
+                  >
+                    <User
+                      className='w-4 h-4'
+                      style={{ color: colors.secondary }}
+                    />
+                    First Name <span className='text-red-500'>*</span>
+                  </label>
+                  <input
+                    type='text'
+                    value={formData.first_name || ""}
+                    onChange={(e) =>
+                      setFormData({ ...formData, first_name: e.target.value })
+                    }
+                    className='w-full rounded-lg px-3 py-2 transition-all'
+                    style={{
+                      border: `1px solid ${colors.tertiary}60`,
+                      backgroundColor: "white",
+                      color: colors.primary,
+                    }}
+                    onFocus={(e) => {
+                      e.currentTarget.style.borderColor = colors.secondary;
+                      e.currentTarget.style.boxShadow = `0 0 0 3px ${colors.secondary}20`;
+                    }}
+                    onBlur={(e) => {
+                      e.currentTarget.style.borderColor = `${colors.tertiary}60`;
+                      e.currentTarget.style.boxShadow = "none";
+                    }}
+                    required
+                  />
+                </div>
 
-              <div>
-                <label 
-                  className='flex items-center gap-2 text-sm font-medium mb-2'
-                  style={{ color: colors.primary }}
-                >
-                  <User className='w-4 h-4' style={{ color: colors.secondary }} />
-                  Last Name <span className='text-red-500'>*</span>
-                </label>
-                <input
-                  type='text'
-                  value={formData.lastName || ""}
-                  onChange={(e) =>
-                    setFormData({ ...formData, lastName: e.target.value })
-                  }
-                  className='w-full rounded-lg px-3 py-2 transition-all'
-                  style={{
-                    border: `1px solid ${colors.tertiary}60`,
-                    backgroundColor: 'white',
-                    color: colors.primary,
-                  }}
-                  onFocus={(e) => {
-                    e.currentTarget.style.borderColor = colors.secondary;
-                    e.currentTarget.style.boxShadow = `0 0 0 3px ${colors.secondary}20`;
-                  }}
-                  onBlur={(e) => {
-                    e.currentTarget.style.borderColor = `${colors.tertiary}60`;
-                    e.currentTarget.style.boxShadow = 'none';
-                  }}
-                  required
-                />
-              </div>
+                <div>
+                  <label
+                    className='flex items-center gap-2 text-sm font-medium mb-2'
+                    style={{ color: colors.primary }}
+                  >
+                    <User
+                      className='w-4 h-4'
+                      style={{ color: colors.secondary }}
+                    />
+                    Last Name <span className='text-red-500'>*</span>
+                  </label>
+                  <input
+                    type='text'
+                    value={formData.last_name || ""}
+                    onChange={(e) =>
+                      setFormData({ ...formData, last_name: e.target.value })
+                    }
+                    className='w-full rounded-lg px-3 py-2 transition-all'
+                    style={{
+                      border: `1px solid ${colors.tertiary}60`,
+                      backgroundColor: "white",
+                      color: colors.primary,
+                    }}
+                    onFocus={(e) => {
+                      e.currentTarget.style.borderColor = colors.secondary;
+                      e.currentTarget.style.boxShadow = `0 0 0 3px ${colors.secondary}20`;
+                    }}
+                    onBlur={(e) => {
+                      e.currentTarget.style.borderColor = `${colors.tertiary}60`;
+                      e.currentTarget.style.boxShadow = "none";
+                    }}
+                    required
+                  />
+                </div>
 
-              <div className='md:col-span-2'>
-                <label 
-                  className='flex items-center gap-2 text-sm font-medium mb-2'
-                  style={{ color: colors.primary }}
-                >
-                  <User className='w-4 h-4' style={{ color: colors.secondary }} />
-                  Middle Name
-                </label>
-                <input
-                  type='text'
-                  value={formData.middleName || ""}
-                  onChange={(e) =>
-                    setFormData({ ...formData, middleName: e.target.value })
-                  }
-                  className='w-full rounded-lg px-3 py-2 transition-all'
-                  style={{
-                    border: `1px solid ${colors.tertiary}60`,
-                    backgroundColor: 'white',
-                    color: colors.primary,
-                  }}
-                  onFocus={(e) => {
-                    e.currentTarget.style.borderColor = colors.secondary;
-                    e.currentTarget.style.boxShadow = `0 0 0 3px ${colors.secondary}20`;
-                  }}
-                  onBlur={(e) => {
-                    e.currentTarget.style.borderColor = `${colors.tertiary}60`;
-                    e.currentTarget.style.boxShadow = 'none';
-                  }}
-                />
-              </div>
+                <div className='md:col-span-2'>
+                  <label
+                    className='flex items-center gap-2 text-sm font-medium mb-2'
+                    style={{ color: colors.primary }}
+                  >
+                    <User
+                      className='w-4 h-4'
+                      style={{ color: colors.secondary }}
+                    />
+                    Middle Name
+                  </label>
+                  <input
+                    type='text'
+                    value={formData.middle_name || ""}
+                    onChange={(e) =>
+                      setFormData({ ...formData, middle_name: e.target.value })
+                    }
+                    className='w-full rounded-lg px-3 py-2 transition-all'
+                    style={{
+                      border: `1px solid ${colors.tertiary}60`,
+                      backgroundColor: "white",
+                      color: colors.primary,
+                    }}
+                    onFocus={(e) => {
+                      e.currentTarget.style.borderColor = colors.secondary;
+                      e.currentTarget.style.boxShadow = `0 0 0 3px ${colors.secondary}20`;
+                    }}
+                    onBlur={(e) => {
+                      e.currentTarget.style.borderColor = `${colors.tertiary}60`;
+                      e.currentTarget.style.boxShadow = "none";
+                    }}
+                  />
+                </div>
 
-              <div>
-                <label 
-                  className='flex items-center gap-2 text-sm font-medium mb-2'
-                  style={{ color: colors.primary }}
-                >
-                  <Mail className='w-4 h-4' style={{ color: colors.secondary }} />
-                  Email <span className='text-red-500'>*</span>
-                </label>
-                <input
-                  type='email'
-                  value={formData.email || ""}
-                  onChange={(e) =>
-                    setFormData({ ...formData, email: e.target.value })
-                  }
-                  className='w-full rounded-lg px-3 py-2 transition-all'
-                  style={{
-                    border: `1px solid ${colors.tertiary}60`,
-                    backgroundColor: 'white',
-                    color: colors.primary,
-                  }}
-                  onFocus={(e) => {
-                    e.currentTarget.style.borderColor = colors.secondary;
-                    e.currentTarget.style.boxShadow = `0 0 0 3px ${colors.secondary}20`;
-                  }}
-                  onBlur={(e) => {
-                    e.currentTarget.style.borderColor = `${colors.tertiary}60`;
-                    e.currentTarget.style.boxShadow = 'none';
-                  }}
-                  required
-                />
-              </div>
+                <div>
+                  <label
+                    className='flex items-center gap-2 text-sm font-medium mb-2'
+                    style={{ color: colors.primary }}
+                  >
+                    <Mail
+                      className='w-4 h-4'
+                      style={{ color: colors.secondary }}
+                    />
+                    Email <span className='text-red-500'>*</span>
+                  </label>
+                  <input
+                    type='email'
+                    value={formData.email || ""}
+                    onChange={(e) =>
+                      setFormData({ ...formData, email: e.target.value })
+                    }
+                    className='w-full rounded-lg px-3 py-2 transition-all'
+                    style={{
+                      border: `1px solid ${colors.tertiary}60`,
+                      backgroundColor: "white",
+                      color: colors.primary,
+                    }}
+                    onFocus={(e) => {
+                      e.currentTarget.style.borderColor = colors.secondary;
+                      e.currentTarget.style.boxShadow = `0 0 0 3px ${colors.secondary}20`;
+                    }}
+                    onBlur={(e) => {
+                      e.currentTarget.style.borderColor = `${colors.tertiary}60`;
+                      e.currentTarget.style.boxShadow = "none";
+                    }}
+                    required
+                  />
+                </div>
 
-              <div>
-                <label 
-                  className='flex items-center gap-2 text-sm font-medium mb-2'
-                  style={{ color: colors.primary }}
-                >
-                  <Phone className='w-4 h-4' style={{ color: colors.secondary }} />
-                  Phone
-                </label>
-                <input
-                  type='tel'
-                  value={formData.phone || ""}
-                  onChange={(e) =>
-                    setFormData({ ...formData, phone: e.target.value })
-                  }
-                  className='w-full rounded-lg px-3 py-2 transition-all'
-                  style={{
-                    border: `1px solid ${colors.tertiary}60`,
-                    backgroundColor: 'white',
-                    color: colors.primary,
-                  }}
-                  onFocus={(e) => {
-                    e.currentTarget.style.borderColor = colors.secondary;
-                    e.currentTarget.style.boxShadow = `0 0 0 3px ${colors.secondary}20`;
-                  }}
-                  onBlur={(e) => {
-                    e.currentTarget.style.borderColor = `${colors.tertiary}60`;
-                    e.currentTarget.style.boxShadow = 'none';
-                  }}
-                />
-              </div>
+                <div>
+                  <label
+                    className='flex items-center gap-2 text-sm font-medium mb-2'
+                    style={{ color: colors.primary }}
+                  >
+                    <Phone
+                      className='w-4 h-4'
+                      style={{ color: colors.secondary }}
+                    />
+                    Phone
+                  </label>
+                  <input
+                    type='tel'
+                    value={formData.phone || ""}
+                    onChange={(e) =>
+                      setFormData({ ...formData, phone: e.target.value })
+                    }
+                    className='w-full rounded-lg px-3 py-2 transition-all'
+                    style={{
+                      border: `1px solid ${colors.tertiary}60`,
+                      backgroundColor: "white",
+                      color: colors.primary,
+                    }}
+                    onFocus={(e) => {
+                      e.currentTarget.style.borderColor = colors.secondary;
+                      e.currentTarget.style.boxShadow = `0 0 0 3px ${colors.secondary}20`;
+                    }}
+                    onBlur={(e) => {
+                      e.currentTarget.style.borderColor = `${colors.tertiary}60`;
+                      e.currentTarget.style.boxShadow = "none";
+                    }}
+                  />
+                </div>
 
-              <div className='md:col-span-2'>
-                <label 
-                  className='flex items-center gap-2 text-sm font-medium mb-2'
-                  style={{ color: colors.primary }}
-                >
-                  <Building2 className='w-4 h-4' style={{ color: colors.secondary }} />
-                  Department <span className='text-red-500'>*</span>
-                </label>
-                <select
-                  value={formData.departmentId || ""}
-                  onChange={(e) =>
-                    setFormData({ ...formData, departmentId: parseInt(e.target.value) })
-                  }
-                  className='w-full rounded-lg px-3 py-2 transition-all'
-                  style={{
-                    border: `1px solid ${colors.tertiary}60`,
-                    backgroundColor: 'white',
-                    color: colors.primary,
-                  }}
-                  onFocus={(e) => {
-                    e.currentTarget.style.borderColor = colors.secondary;
-                    e.currentTarget.style.boxShadow = `0 0 0 3px ${colors.secondary}20`;
-                  }}
-                  onBlur={(e) => {
-                    e.currentTarget.style.borderColor = `${colors.tertiary}60`;
-                    e.currentTarget.style.boxShadow = 'none';
-                  }}
-                  required
-                >
-                  {mockDepartments.map((dept) => (
-                    <option key={dept.id} value={dept.id as number}>
-                      {dept.name}
+                <div className='md:col-span-2'>
+                  <label
+                    className='flex items-center gap-2 text-sm font-medium mb-2'
+                    style={{ color: colors.primary }}
+                  >
+                    <Building2
+                      className='w-4 h-4'
+                      style={{ color: colors.secondary }}
+                    />
+                    Department <span className='text-red-500'>*</span>
+                  </label>
+                  <select
+                    value={formData.department_id || ""}
+                    onChange={(e) =>
+                      setFormData({
+                        ...formData,
+                        department_id: parseInt(e.target.value),
+                      })
+                    }
+                    className='w-full rounded-lg px-3 py-2 transition-all'
+                    style={{
+                      border: `1px solid ${colors.tertiary}60`,
+                      backgroundColor: "white",
+                      color: colors.primary,
+                    }}
+                    onFocus={(e) => {
+                      e.currentTarget.style.borderColor = colors.secondary;
+                      e.currentTarget.style.boxShadow = `0 0 0 3px ${colors.secondary}20`;
+                    }}
+                    onBlur={(e) => {
+                      e.currentTarget.style.borderColor = `${colors.tertiary}60`;
+                      e.currentTarget.style.boxShadow = "none";
+                    }}
+                    required
+                  >
+                    {mockDepartments.map((dept) => (
+                      <option key={dept.id} value={dept.id as number}>
+                        {dept.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div>
+                  <label
+                    className='flex items-center gap-2 text-sm font-medium mb-2'
+                    style={{ color: colors.primary }}
+                  >
+                    <Briefcase
+                      className='w-4 h-4'
+                      style={{ color: colors.secondary }}
+                    />
+                    Position <span className='text-red-500'>*</span>
+                  </label>
+                  <select
+                    value={formData.position || "instructor"}
+                    onChange={(e) =>
+                      setFormData({
+                        ...formData,
+                        position: e.target.value as Faculty["position"],
+                      })
+                    }
+                    className='w-full rounded-lg px-3 py-2 transition-all'
+                    style={{
+                      border: `1px solid ${colors.tertiary}60`,
+                      backgroundColor: "white",
+                      color: colors.primary,
+                    }}
+                    onFocus={(e) => {
+                      e.currentTarget.style.borderColor = colors.secondary;
+                      e.currentTarget.style.boxShadow = `0 0 0 3px ${colors.secondary}20`;
+                    }}
+                    onBlur={(e) => {
+                      e.currentTarget.style.borderColor = `${colors.tertiary}60`;
+                      e.currentTarget.style.boxShadow = "none";
+                    }}
+                  >
+                    <option value='professor'>Professor</option>
+                    <option value='associate professor'>
+                      Associate Professor
                     </option>
-                  ))}
-                </select>
+                    <option value='assistant professor'>
+                      Assistant Professor
+                    </option>
+                    <option value='instructor'>Instructor</option>
+                    <option value='lecturer'>Lecturer</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label
+                    className='flex items-center gap-2 text-sm font-medium mb-2'
+                    style={{ color: colors.primary }}
+                  >
+                    <CheckCircle2
+                      className='w-4 h-4'
+                      style={{ color: colors.secondary }}
+                    />
+                    Status <span className='text-red-500'>*</span>
+                  </label>
+                  <select
+                    value={formData.status || "active"}
+                    onChange={(e) =>
+                      setFormData({
+                        ...formData,
+                        status: e.target.value as "active" | "inactive",
+                      })
+                    }
+                    className='w-full rounded-lg px-3 py-2 transition-all'
+                    style={{
+                      border: `1px solid ${colors.tertiary}60`,
+                      backgroundColor: "white",
+                      color: colors.primary,
+                    }}
+                    onFocus={(e) => {
+                      e.currentTarget.style.borderColor = colors.secondary;
+                      e.currentTarget.style.boxShadow = `0 0 0 3px ${colors.secondary}20`;
+                    }}
+                    onBlur={(e) => {
+                      e.currentTarget.style.borderColor = `${colors.tertiary}60`;
+                      e.currentTarget.style.boxShadow = "none";
+                    }}
+                  >
+                    <option value='active'>Active</option>
+                    <option value='inactive'>Inactive</option>
+                  </select>
+                </div>
+
+                <div className='md:col-span-2'>
+                  <label
+                    className='flex items-center gap-2 text-sm font-medium mb-2'
+                    style={{ color: colors.primary }}
+                  >
+                    <GraduationCap
+                      className='w-4 h-4'
+                      style={{ color: colors.secondary }}
+                    />
+                    Specialization
+                  </label>
+                  <input
+                    type='text'
+                    value={formData.specialization || ""}
+                    onChange={(e) =>
+                      setFormData({
+                        ...formData,
+                        specialization: e.target.value,
+                      })
+                    }
+                    className='w-full rounded-lg px-3 py-2 transition-all'
+                    style={{
+                      border: `1px solid ${colors.tertiary}60`,
+                      backgroundColor: "white",
+                      color: colors.primary,
+                    }}
+                    onFocus={(e) => {
+                      e.currentTarget.style.borderColor = colors.secondary;
+                      e.currentTarget.style.boxShadow = `0 0 0 3px ${colors.secondary}20`;
+                    }}
+                    onBlur={(e) => {
+                      e.currentTarget.style.borderColor = `${colors.tertiary}60`;
+                      e.currentTarget.style.boxShadow = "none";
+                    }}
+                  />
+                </div>
               </div>
 
-              <div>
-                <label 
-                  className='flex items-center gap-2 text-sm font-medium mb-2'
-                  style={{ color: colors.primary }}
-                >
-                  <Briefcase className='w-4 h-4' style={{ color: colors.secondary }} />
-                  Position <span className='text-red-500'>*</span>
-                </label>
-                <select
-                  value={formData.position || "instructor"}
-                  onChange={(e) =>
-                    setFormData({
-                      ...formData,
-                      position: e.target.value as Faculty["position"],
-                    })
-                  }
-                  className='w-full rounded-lg px-3 py-2 transition-all'
-                  style={{
-                    border: `1px solid ${colors.tertiary}60`,
-                    backgroundColor: 'white',
-                    color: colors.primary,
-                  }}
-                  onFocus={(e) => {
-                    e.currentTarget.style.borderColor = colors.secondary;
-                    e.currentTarget.style.boxShadow = `0 0 0 3px ${colors.secondary}20`;
-                  }}
-                  onBlur={(e) => {
-                    e.currentTarget.style.borderColor = `${colors.tertiary}60`;
-                    e.currentTarget.style.boxShadow = 'none';
-                  }}
-                >
-                  <option value='professor'>Professor</option>
-                  <option value='associate professor'>Associate Professor</option>
-                  <option value='assistant professor'>Assistant Professor</option>
-                  <option value='instructor'>Instructor</option>
-                  <option value='lecturer'>Lecturer</option>
-                </select>
-              </div>
-
-              <div>
-                <label 
-                  className='flex items-center gap-2 text-sm font-medium mb-2'
-                  style={{ color: colors.primary }}
-                >
-                  <CheckCircle2 className='w-4 h-4' style={{ color: colors.secondary }} />
-                  Status <span className='text-red-500'>*</span>
-                </label>
-                <select
-                  value={formData.status || "active"}
-                  onChange={(e) =>
-                    setFormData({
-                      ...formData,
-                      status: e.target.value as "active" | "inactive",
-                    })
-                  }
-                  className='w-full rounded-lg px-3 py-2 transition-all'
-                  style={{
-                    border: `1px solid ${colors.tertiary}60`,
-                    backgroundColor: 'white',
-                    color: colors.primary,
-                  }}
-                  onFocus={(e) => {
-                    e.currentTarget.style.borderColor = colors.secondary;
-                    e.currentTarget.style.boxShadow = `0 0 0 3px ${colors.secondary}20`;
-                  }}
-                  onBlur={(e) => {
-                    e.currentTarget.style.borderColor = `${colors.tertiary}60`;
-                    e.currentTarget.style.boxShadow = 'none';
-                  }}
-                >
-                  <option value='active'>Active</option>
-                  <option value='inactive'>Inactive</option>
-                </select>
-              </div>
-
-              <div className='md:col-span-2'>
-                <label 
-                  className='flex items-center gap-2 text-sm font-medium mb-2'
-                  style={{ color: colors.primary }}
-                >
-                  <GraduationCap className='w-4 h-4' style={{ color: colors.secondary }} />
-                  Specialization
-                </label>
-                <input
-                  type='text'
-                  value={formData.specialization || ""}
-                  onChange={(e) =>
-                    setFormData({ ...formData, specialization: e.target.value })
-                  }
-                  className='w-full rounded-lg px-3 py-2 transition-all'
-                  style={{
-                    border: `1px solid ${colors.tertiary}60`,
-                    backgroundColor: 'white',
-                    color: colors.primary,
-                  }}
-                  onFocus={(e) => {
-                    e.currentTarget.style.borderColor = colors.secondary;
-                    e.currentTarget.style.boxShadow = `0 0 0 3px ${colors.secondary}20`;
-                  }}
-                  onBlur={(e) => {
-                    e.currentTarget.style.borderColor = `${colors.tertiary}60`;
-                    e.currentTarget.style.boxShadow = 'none';
-                  }}
-                />
-              </div>
-            </div>
-
-            <div className='flex justify-end gap-3 pt-4 mt-6 border-t' style={{ borderColor: `${colors.accent}30` }}>
-              <button
-                type='button'
-                onClick={onCancel}
-                className='px-6 py-2.5 rounded-lg transition-colors font-medium flex items-center gap-2'
-                style={{ 
-                  color: colors.primary,
-                  border: `1px solid ${colors.tertiary}60`,
-                  backgroundColor: 'white',
-                }}
-                onMouseEnter={(e) => {
-                  e.currentTarget.style.backgroundColor = `${colors.accent}15`;
-                  e.currentTarget.style.borderColor = colors.tertiary;
-                }}
-                onMouseLeave={(e) => {
-                  e.currentTarget.style.backgroundColor = 'white';
-                  e.currentTarget.style.borderColor = `${colors.tertiary}60`;
-                }}
+              <div
+                className='flex justify-end gap-3 pt-4 mt-6 border-t'
+                style={{ borderColor: `${colors.accent}30` }}
               >
-                <X className='w-4 h-4' />
-                Cancel
-              </button>
-              <button
-                type='submit'
-                className='px-6 py-2.5 text-white rounded-lg transition-colors font-medium flex items-center gap-2'
-                style={{ backgroundColor: colors.secondary }}
-                onMouseEnter={(e) =>
-                  (e.currentTarget.style.backgroundColor = colors.primary)
-                }
-                onMouseLeave={(e) =>
-                  (e.currentTarget.style.backgroundColor = colors.secondary)
-                }
-              >
-                <CheckCircle2 className='w-4 h-4' />
-                {faculty ? "Update Faculty" : "Add Faculty"}
-              </button>
-            </div>
-          </form>
+                <button
+                  type='button'
+                  onClick={onCancel}
+                  className='px-6 py-2.5 rounded-lg transition-colors font-medium flex items-center gap-2'
+                  style={{
+                    color: colors.primary,
+                    border: `1px solid ${colors.tertiary}60`,
+                    backgroundColor: "white",
+                  }}
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.backgroundColor = `${colors.accent}15`;
+                    e.currentTarget.style.borderColor = colors.tertiary;
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.backgroundColor = "white";
+                    e.currentTarget.style.borderColor = `${colors.tertiary}60`;
+                  }}
+                >
+                  <X className='w-4 h-4' />
+                  Cancel
+                </button>
+                <button
+                  type='submit'
+                  className='px-6 py-2.5 text-white rounded-lg transition-colors font-medium flex items-center gap-2'
+                  style={{ backgroundColor: colors.secondary }}
+                  onMouseEnter={(e) =>
+                    (e.currentTarget.style.backgroundColor = colors.primary)
+                  }
+                  onMouseLeave={(e) =>
+                    (e.currentTarget.style.backgroundColor = colors.secondary)
+                  }
+                >
+                  <CheckCircle2 className='w-4 h-4' />
+                  {faculty ? "Update Faculty" : "Add Faculty"}
+                </button>
+              </div>
+            </form>
           </div>
         </div>
       </div>
@@ -661,7 +727,10 @@ const FacultyManagement: React.FC = () => {
               <tbody className='bg-white divide-y divide-gray-200'>
                 {filteredFaculty.length === 0 ? (
                   <tr>
-                    <td colSpan={7} className='px-6 py-8 text-center text-gray-500'>
+                    <td
+                      colSpan={7}
+                      className='px-6 py-8 text-center text-gray-500'
+                    >
                       No faculty found
                     </td>
                   </tr>
@@ -686,7 +755,7 @@ const FacultyManagement: React.FC = () => {
                           </div>
                           <div className='ml-4'>
                             <div className='text-sm font-medium text-gray-900'>
-                              {fac.firstName} {fac.middleName} {fac.lastName}
+                              {fac.first_name} {fac.middle_name} {fac.last_name}
                             </div>
                             {fac.specialization && (
                               <div className='text-sm text-gray-500'>
@@ -698,7 +767,7 @@ const FacultyManagement: React.FC = () => {
                       </td>
                       <td className='px-6 py-4 whitespace-nowrap'>
                         <span className='text-sm font-medium text-gray-900'>
-                          {fac.employeeId}
+                          {fac.employee_id}
                         </span>
                       </td>
                       <td className='px-6 py-4'>

@@ -20,22 +20,26 @@ const RoomManagement: React.FC = () => {
   const [rooms, setRooms] = useState<Room[]>(
     mockRooms.map((room) => ({
       ...room,
-      buildingName: mockBuildings.find((b) => b.id === room.buildingId)?.name || "",
+      buildingName:
+        mockBuildings.find((b) => b.id === room.building_id)?.name || "",
     }))
   );
   const [searchTerm, setSearchTerm] = useState("");
-  const [statusFilter, setStatusFilter] = useState<"all" | "available" | "occupied" | "maintenance">("all");
+  const [statusFilter, setStatusFilter] = useState<
+    "all" | "available" | "occupied" | "maintenance"
+  >("all");
   const [typeFilter, setTypeFilter] = useState<string>("all");
   const [editingRoom, setEditingRoom] = useState<Room | null>(null);
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
 
   const filteredRooms = rooms.filter((room) => {
-    const matchesSearch =
-      room.roomNumber.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      room.buildingName?.toLowerCase().includes(searchTerm.toLowerCase());
-    const matchesStatus = statusFilter === "all" || room.status === statusFilter;
-    const matchesType = typeFilter === "all" || room.roomType === typeFilter;
-    return matchesSearch && matchesStatus && matchesType;
+    // const matchesSearch = room.room_number
+    //   .toLowerCase()
+    //   .includes(searchTerm.toLowerCase());
+    // const matchesStatus =
+    //   statusFilter === "all" || room.status === statusFilter;
+    // const matchesType = typeFilter === "all" || room.room_type === typeFilter;
+    // return matchesSearch && matchesStatus && matchesType;
   });
 
   const getStatusColor = (status: string) => {
@@ -75,10 +79,10 @@ const RoomManagement: React.FC = () => {
   }> = ({ room, onSave, onCancel }) => {
     const [formData, setFormData] = useState<Partial<Room>>(
       room || {
-        roomNumber: "",
-        buildingId: mockBuildings[0]?.id || 1,
+        room_number: "",
+        building_id: mockBuildings[0]?.id || 1,
         capacity: 30,
-        roomType: "classroom",
+        room_type: "classroom",
         floor: 1,
         status: "available",
       }
@@ -86,52 +90,60 @@ const RoomManagement: React.FC = () => {
 
     const handleSubmit = (e: React.FormEvent) => {
       e.preventDefault();
-      if (formData.roomNumber && formData.buildingId) {
-        const buildingName = mockBuildings.find((b) => b.id === formData.buildingId)?.name || "";
-        const roomData: Room = {
+      if (formData.room_number && formData.building_id) {
+        const buildingName =
+          mockBuildings.find((b) => b.id === formData.building_id)?.name || "";
+        const roomData: Partial<Room> = {
           ...formData,
-          id: room?.id || Date.now(),
-          roomNumber: formData.roomNumber!,
-          buildingId: formData.buildingId!,
-          buildingName,
+          room_number: formData.room_number!,
+          building_id: formData.building_id!,
           capacity: formData.capacity || 30,
-          roomType: (formData.roomType as Room["roomType"]) || "classroom",
+          room_type: (formData.room_type as Room["room_type"]) || "classroom",
           floor: formData.floor || 1,
           status: (formData.status as Room["status"]) || "available",
         };
-        onSave(roomData);
+        fetch("/api/auth/room", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify(roomData),
+        });
       }
     };
 
     return (
-      <div 
+      <div
         className='fixed inset-0 flex items-center justify-center p-4 z-50 backdrop-blur-sm'
         style={{ backgroundColor: `${colors.primary}20` }}
         onClick={onCancel}
       >
-        <div 
+        <div
           className='rounded-2xl shadow-2xl max-w-4xl w-full max-h-[90vh] flex flex-col'
           style={{
-            backgroundColor: 'white',
+            backgroundColor: "white",
             border: `1px solid ${colors.accent}30`,
           }}
           onClick={(e) => e.stopPropagation()}
         >
-          <div 
+          <div
             className='px-6 py-4 rounded-t-2xl flex items-center justify-between'
-            style={{ 
+            style={{
               backgroundColor: `${colors.secondary}10`,
-              borderBottom: `1px solid ${colors.accent}30`
+              borderBottom: `1px solid ${colors.accent}30`,
             }}
           >
             <div className='flex items-center gap-3'>
-              <div 
+              <div
                 className='p-2 rounded-lg'
                 style={{ backgroundColor: `${colors.secondary}20` }}
               >
-                <DoorOpen className='w-5 h-5' style={{ color: colors.secondary }} />
+                <DoorOpen
+                  className='w-5 h-5'
+                  style={{ color: colors.secondary }}
+                />
               </div>
-              <h2 
+              <h2
                 className='text-xl font-bold'
                 style={{ color: colors.primary }}
               >
@@ -147,259 +159,292 @@ const RoomManagement: React.FC = () => {
             </button>
           </div>
           <div className='p-6 overflow-y-auto flex-1'>
-          <form onSubmit={handleSubmit} className='space-y-4'>
-            <div className='grid grid-cols-1 md:grid-cols-2 gap-4'>
-              <div>
-                <label 
-                  className='flex items-center gap-2 text-sm font-medium mb-2'
-                  style={{ color: colors.primary }}
-                >
-                  <Hash className='w-4 h-4' style={{ color: colors.secondary }} />
-                  Room Number <span className='text-red-500'>*</span>
-                </label>
-                <input
-                  type='text'
-                  value={formData.roomNumber || ""}
-                  onChange={(e) =>
-                    setFormData({ ...formData, roomNumber: e.target.value.toUpperCase() })
-                  }
-                  className='w-full rounded-lg px-3 py-2 transition-all'
-                  style={{
-                    border: `1px solid ${colors.tertiary}60`,
-                    backgroundColor: 'white',
-                    color: colors.primary,
-                  }}
-                  onFocus={(e) => {
-                    e.target.style.borderColor = colors.secondary;
-                    e.target.style.boxShadow = `0 0 0 3px ${colors.secondary}20`;
-                  }}
-                  onBlur={(e) => {
-                    e.target.style.borderColor = `${colors.tertiary}60`;
-                    e.target.style.boxShadow = 'none';
-                  }}
-                  required
-                />
+            <form onSubmit={handleSubmit} className='space-y-4'>
+              <div className='grid grid-cols-1 md:grid-cols-2 gap-4'>
+                <div>
+                  <label
+                    className='flex items-center gap-2 text-sm font-medium mb-2'
+                    style={{ color: colors.primary }}
+                  >
+                    <Hash
+                      className='w-4 h-4'
+                      style={{ color: colors.secondary }}
+                    />
+                    Room Number <span className='text-red-500'>*</span>
+                  </label>
+                  <input
+                    type='text'
+                    value={formData.room_number || ""}
+                    onChange={(e) =>
+                      setFormData({
+                        ...formData,
+                        room_number: e.target.value.toUpperCase(),
+                      })
+                    }
+                    className='w-full rounded-lg px-3 py-2 transition-all'
+                    style={{
+                      border: `1px solid ${colors.tertiary}60`,
+                      backgroundColor: "white",
+                      color: colors.primary,
+                    }}
+                    onFocus={(e) => {
+                      e.target.style.borderColor = colors.secondary;
+                      e.target.style.boxShadow = `0 0 0 3px ${colors.secondary}20`;
+                    }}
+                    onBlur={(e) => {
+                      e.target.style.borderColor = `${colors.tertiary}60`;
+                      e.target.style.boxShadow = "none";
+                    }}
+                    required
+                  />
+                </div>
+
+                <div>
+                  <label
+                    className='flex items-center gap-2 text-sm font-medium mb-2'
+                    style={{ color: colors.primary }}
+                  >
+                    <Building2
+                      className='w-4 h-4'
+                      style={{ color: colors.secondary }}
+                    />
+                    Building <span className='text-red-500'>*</span>
+                  </label>
+                  <select
+                    value={formData.building_id || ""}
+                    onChange={(e) =>
+                      setFormData({
+                        ...formData,
+                        building_id: parseInt(e.target.value),
+                      })
+                    }
+                    className='w-full rounded-lg px-3 py-2 transition-all'
+                    style={{
+                      border: `1px solid ${colors.tertiary}60`,
+                      backgroundColor: "white",
+                      color: colors.primary,
+                    }}
+                    onFocus={(e) => {
+                      e.target.style.borderColor = colors.secondary;
+                      e.target.style.boxShadow = `0 0 0 3px ${colors.secondary}20`;
+                    }}
+                    onBlur={(e) => {
+                      e.target.style.borderColor = `${colors.tertiary}60`;
+                      e.target.style.boxShadow = "none";
+                    }}
+                    required
+                  >
+                    {mockBuildings.map((building) => (
+                      <option key={building.id} value={building.id}>
+                        {building.name} ({building.code})
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div>
+                  <label
+                    className='flex items-center gap-2 text-sm font-medium mb-2'
+                    style={{ color: colors.primary }}
+                  >
+                    <DoorOpen
+                      className='w-4 h-4'
+                      style={{ color: colors.secondary }}
+                    />
+                    Room Type <span className='text-red-500'>*</span>
+                  </label>
+                  <select
+                    value={formData.room_type || "classroom"}
+                    onChange={(e) =>
+                      setFormData({
+                        ...formData,
+                        room_type: e.target.value as Room["room_type"],
+                      })
+                    }
+                    className='w-full rounded-lg px-3 py-2 transition-all'
+                    style={{
+                      border: `1px solid ${colors.tertiary}60`,
+                      backgroundColor: "white",
+                      color: colors.primary,
+                    }}
+                    onFocus={(e) => {
+                      e.target.style.borderColor = colors.secondary;
+                      e.target.style.boxShadow = `0 0 0 3px ${colors.secondary}20`;
+                    }}
+                    onBlur={(e) => {
+                      e.target.style.borderColor = `${colors.tertiary}60`;
+                      e.target.style.boxShadow = "none";
+                    }}
+                  >
+                    <option value='classroom'>Classroom</option>
+                    <option value='laboratory'>Laboratory</option>
+                    <option value='office'>Office</option>
+                    <option value='library'>Library</option>
+                    <option value='auditorium'>Auditorium</option>
+                    <option value='other'>Other</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label
+                    className='flex items-center gap-2 text-sm font-medium mb-2'
+                    style={{ color: colors.primary }}
+                  >
+                    <Layers
+                      className='w-4 h-4'
+                      style={{ color: colors.secondary }}
+                    />
+                    Floor <span className='text-red-500'>*</span>
+                  </label>
+                  <input
+                    type='number'
+                    min='1'
+                    value={formData.floor || 1}
+                    onChange={(e) =>
+                      setFormData({
+                        ...formData,
+                        floor: parseInt(e.target.value) || 1,
+                      })
+                    }
+                    className='w-full rounded-lg px-3 py-2 transition-all'
+                    style={{
+                      border: `1px solid ${colors.tertiary}60`,
+                      backgroundColor: "white",
+                      color: colors.primary,
+                    }}
+                    onFocus={(e) => {
+                      e.target.style.borderColor = colors.secondary;
+                      e.target.style.boxShadow = `0 0 0 3px ${colors.secondary}20`;
+                    }}
+                    onBlur={(e) => {
+                      e.target.style.borderColor = `${colors.tertiary}60`;
+                      e.target.style.boxShadow = "none";
+                    }}
+                    required
+                  />
+                </div>
+
+                <div>
+                  <label
+                    className='flex items-center gap-2 text-sm font-medium mb-2'
+                    style={{ color: colors.primary }}
+                  >
+                    <Users
+                      className='w-4 h-4'
+                      style={{ color: colors.secondary }}
+                    />
+                    Capacity <span className='text-red-500'>*</span>
+                  </label>
+                  <input
+                    type='number'
+                    min='1'
+                    value={formData.capacity || 30}
+                    onChange={(e) =>
+                      setFormData({
+                        ...formData,
+                        capacity: parseInt(e.target.value) || 30,
+                      })
+                    }
+                    className='w-full rounded-lg px-3 py-2 transition-all'
+                    style={{
+                      border: `1px solid ${colors.tertiary}60`,
+                      backgroundColor: "white",
+                      color: colors.primary,
+                    }}
+                    onFocus={(e) => {
+                      e.target.style.borderColor = colors.secondary;
+                      e.target.style.boxShadow = `0 0 0 3px ${colors.secondary}20`;
+                    }}
+                    onBlur={(e) => {
+                      e.target.style.borderColor = `${colors.tertiary}60`;
+                      e.target.style.boxShadow = "none";
+                    }}
+                    required
+                  />
+                </div>
+
+                <div>
+                  <label
+                    className='flex items-center gap-2 text-sm font-medium mb-2'
+                    style={{ color: colors.primary }}
+                  >
+                    <CheckCircle2
+                      className='w-4 h-4'
+                      style={{ color: colors.secondary }}
+                    />
+                    Status <span className='text-red-500'>*</span>
+                  </label>
+                  <select
+                    value={formData.status || "available"}
+                    onChange={(e) =>
+                      setFormData({
+                        ...formData,
+                        status: e.target.value as Room["status"],
+                      })
+                    }
+                    className='w-full rounded-lg px-3 py-2 transition-all'
+                    style={{
+                      border: `1px solid ${colors.tertiary}60`,
+                      backgroundColor: "white",
+                      color: colors.primary,
+                    }}
+                    onFocus={(e) => {
+                      e.target.style.borderColor = colors.secondary;
+                      e.target.style.boxShadow = `0 0 0 3px ${colors.secondary}20`;
+                    }}
+                    onBlur={(e) => {
+                      e.target.style.borderColor = `${colors.tertiary}60`;
+                      e.target.style.boxShadow = "none";
+                    }}
+                  >
+                    <option value='available'>Available</option>
+                    <option value='occupied'>Occupied</option>
+                    <option value='maintenance'>Maintenance</option>
+                  </select>
+                </div>
               </div>
 
-              <div>
-                <label 
-                  className='flex items-center gap-2 text-sm font-medium mb-2'
-                  style={{ color: colors.primary }}
-                >
-                  <Building2 className='w-4 h-4' style={{ color: colors.secondary }} />
-                  Building <span className='text-red-500'>*</span>
-                </label>
-                <select
-                  value={formData.buildingId || ""}
-                  onChange={(e) =>
-                    setFormData({ ...formData, buildingId: parseInt(e.target.value) })
-                  }
-                  className='w-full rounded-lg px-3 py-2 transition-all'
-                  style={{
-                    border: `1px solid ${colors.tertiary}60`,
-                    backgroundColor: 'white',
-                    color: colors.primary,
-                  }}
-                  onFocus={(e) => {
-                    e.target.style.borderColor = colors.secondary;
-                    e.target.style.boxShadow = `0 0 0 3px ${colors.secondary}20`;
-                  }}
-                  onBlur={(e) => {
-                    e.target.style.borderColor = `${colors.tertiary}60`;
-                    e.target.style.boxShadow = 'none';
-                  }}
-                  required
-                >
-                  {mockBuildings.map((building) => (
-                    <option key={building.id} value={building.id}>
-                      {building.name} ({building.code})
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              <div>
-                <label 
-                  className='flex items-center gap-2 text-sm font-medium mb-2'
-                  style={{ color: colors.primary }}
-                >
-                  <DoorOpen className='w-4 h-4' style={{ color: colors.secondary }} />
-                  Room Type <span className='text-red-500'>*</span>
-                </label>
-                <select
-                  value={formData.roomType || "classroom"}
-                  onChange={(e) =>
-                    setFormData({
-                      ...formData,
-                      roomType: e.target.value as Room["roomType"],
-                    })
-                  }
-                  className='w-full rounded-lg px-3 py-2 transition-all'
-                  style={{
-                    border: `1px solid ${colors.tertiary}60`,
-                    backgroundColor: 'white',
-                    color: colors.primary,
-                  }}
-                  onFocus={(e) => {
-                    e.target.style.borderColor = colors.secondary;
-                    e.target.style.boxShadow = `0 0 0 3px ${colors.secondary}20`;
-                  }}
-                  onBlur={(e) => {
-                    e.target.style.borderColor = `${colors.tertiary}60`;
-                    e.target.style.boxShadow = 'none';
-                  }}
-                >
-                  <option value='classroom'>Classroom</option>
-                  <option value='laboratory'>Laboratory</option>
-                  <option value='office'>Office</option>
-                  <option value='library'>Library</option>
-                  <option value='auditorium'>Auditorium</option>
-                  <option value='other'>Other</option>
-                </select>
-              </div>
-
-              <div>
-                <label 
-                  className='flex items-center gap-2 text-sm font-medium mb-2'
-                  style={{ color: colors.primary }}
-                >
-                  <Layers className='w-4 h-4' style={{ color: colors.secondary }} />
-                  Floor <span className='text-red-500'>*</span>
-                </label>
-                <input
-                  type='number'
-                  min='1'
-                  value={formData.floor || 1}
-                  onChange={(e) =>
-                    setFormData({ ...formData, floor: parseInt(e.target.value) || 1 })
-                  }
-                  className='w-full rounded-lg px-3 py-2 transition-all'
-                  style={{
-                    border: `1px solid ${colors.tertiary}60`,
-                    backgroundColor: 'white',
-                    color: colors.primary,
-                  }}
-                  onFocus={(e) => {
-                    e.target.style.borderColor = colors.secondary;
-                    e.target.style.boxShadow = `0 0 0 3px ${colors.secondary}20`;
-                  }}
-                  onBlur={(e) => {
-                    e.target.style.borderColor = `${colors.tertiary}60`;
-                    e.target.style.boxShadow = 'none';
-                  }}
-                  required
-                />
-              </div>
-
-              <div>
-                <label 
-                  className='flex items-center gap-2 text-sm font-medium mb-2'
-                  style={{ color: colors.primary }}
-                >
-                  <Users className='w-4 h-4' style={{ color: colors.secondary }} />
-                  Capacity <span className='text-red-500'>*</span>
-                </label>
-                <input
-                  type='number'
-                  min='1'
-                  value={formData.capacity || 30}
-                  onChange={(e) =>
-                    setFormData({ ...formData, capacity: parseInt(e.target.value) || 30 })
-                  }
-                  className='w-full rounded-lg px-3 py-2 transition-all'
-                  style={{
-                    border: `1px solid ${colors.tertiary}60`,
-                    backgroundColor: 'white',
-                    color: colors.primary,
-                  }}
-                  onFocus={(e) => {
-                    e.target.style.borderColor = colors.secondary;
-                    e.target.style.boxShadow = `0 0 0 3px ${colors.secondary}20`;
-                  }}
-                  onBlur={(e) => {
-                    e.target.style.borderColor = `${colors.tertiary}60`;
-                    e.target.style.boxShadow = 'none';
-                  }}
-                  required
-                />
-              </div>
-
-              <div>
-                <label 
-                  className='flex items-center gap-2 text-sm font-medium mb-2'
-                  style={{ color: colors.primary }}
-                >
-                  <CheckCircle2 className='w-4 h-4' style={{ color: colors.secondary }} />
-                  Status <span className='text-red-500'>*</span>
-                </label>
-                <select
-                  value={formData.status || "available"}
-                  onChange={(e) =>
-                    setFormData({
-                      ...formData,
-                      status: e.target.value as Room["status"],
-                    })
-                  }
-                  className='w-full rounded-lg px-3 py-2 transition-all'
-                  style={{
-                    border: `1px solid ${colors.tertiary}60`,
-                    backgroundColor: 'white',
-                    color: colors.primary,
-                  }}
-                  onFocus={(e) => {
-                    e.target.style.borderColor = colors.secondary;
-                    e.target.style.boxShadow = `0 0 0 3px ${colors.secondary}20`;
-                  }}
-                  onBlur={(e) => {
-                    e.target.style.borderColor = `${colors.tertiary}60`;
-                    e.target.style.boxShadow = 'none';
-                  }}
-                >
-                  <option value='available'>Available</option>
-                  <option value='occupied'>Occupied</option>
-                  <option value='maintenance'>Maintenance</option>
-                </select>
-              </div>
-            </div>
-
-            <div className='flex justify-end gap-3 pt-4 mt-6 border-t' style={{ borderColor: `${colors.accent}30` }}>
-              <button
-                type='button'
-                onClick={onCancel}
-                className='px-6 py-2.5 rounded-lg transition-colors font-medium flex items-center gap-2'
-                style={{ 
-                  color: colors.primary,
-                  border: `1px solid ${colors.tertiary}60`,
-                  backgroundColor: 'white',
-                }}
-                onMouseEnter={(e) => {
-                  e.currentTarget.style.backgroundColor = `${colors.accent}15`;
-                  e.currentTarget.style.borderColor = colors.tertiary;
-                }}
-                onMouseLeave={(e) => {
-                  e.currentTarget.style.backgroundColor = 'white';
-                  e.currentTarget.style.borderColor = `${colors.tertiary}60`;
-                }}
+              <div
+                className='flex justify-end gap-3 pt-4 mt-6 border-t'
+                style={{ borderColor: `${colors.accent}30` }}
               >
-                <X className='w-4 h-4' />
-                Cancel
-              </button>
-              <button
-                type='submit'
-                className='px-6 py-2.5 text-white rounded-lg transition-colors font-medium flex items-center gap-2'
-                style={{ backgroundColor: colors.secondary }}
-                onMouseEnter={(e) =>
-                  (e.currentTarget.style.backgroundColor = colors.primary)
-                }
-                onMouseLeave={(e) =>
-                  (e.currentTarget.style.backgroundColor = colors.secondary)
-                }
-              >
-                <CheckCircle2 className='w-4 h-4' />
-                {room ? "Update Room" : "Add Room"}
-              </button>
-            </div>
-          </form>
+                <button
+                  type='button'
+                  onClick={onCancel}
+                  className='px-6 py-2.5 rounded-lg transition-colors font-medium flex items-center gap-2'
+                  style={{
+                    color: colors.primary,
+                    border: `1px solid ${colors.tertiary}60`,
+                    backgroundColor: "white",
+                  }}
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.backgroundColor = `${colors.accent}15`;
+                    e.currentTarget.style.borderColor = colors.tertiary;
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.backgroundColor = "white";
+                    e.currentTarget.style.borderColor = `${colors.tertiary}60`;
+                  }}
+                >
+                  <X className='w-4 h-4' />
+                  Cancel
+                </button>
+                <button
+                  type='submit'
+                  className='px-6 py-2.5 text-white rounded-lg transition-colors font-medium flex items-center gap-2'
+                  style={{ backgroundColor: colors.secondary }}
+                  onMouseEnter={(e) =>
+                    (e.currentTarget.style.backgroundColor = colors.primary)
+                  }
+                  onMouseLeave={(e) =>
+                    (e.currentTarget.style.backgroundColor = colors.secondary)
+                  }
+                >
+                  <CheckCircle2 className='w-4 h-4' />
+                  {room ? "Update Room" : "Add Room"}
+                </button>
+              </div>
+            </form>
           </div>
         </div>
       </div>
@@ -530,7 +575,10 @@ const RoomManagement: React.FC = () => {
               <tbody className='bg-white divide-y divide-gray-200'>
                 {filteredRooms.length === 0 ? (
                   <tr>
-                    <td colSpan={7} className='px-6 py-8 text-center text-gray-500'>
+                    <td
+                      colSpan={7}
+                      className='px-6 py-8 text-center text-gray-500'
+                    >
                       No rooms found
                     </td>
                   </tr>
@@ -555,30 +603,34 @@ const RoomManagement: React.FC = () => {
                           </div>
                           <div className='ml-4'>
                             <div className='text-sm font-medium text-gray-900'>
-                              {room.roomNumber}
+                              {room.room_number}
                             </div>
                           </div>
                         </div>
                       </td>
                       <td className='px-6 py-4 whitespace-nowrap'>
                         <span className='text-sm text-gray-900'>
-                          {room.buildingName || "N/A"}
+                          {room.building_id || "N/A"}
                         </span>
                       </td>
                       <td className='px-6 py-4 whitespace-nowrap'>
                         <span
                           className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${getTypeColor(
-                            room.roomType
+                            room.room_type
                           )}`}
                         >
-                          {room.roomType}
+                          {room.room_type}
                         </span>
                       </td>
                       <td className='px-6 py-4 whitespace-nowrap'>
-                        <span className='text-sm text-gray-900'>{room.floor}</span>
+                        <span className='text-sm text-gray-900'>
+                          {room.floor}
+                        </span>
                       </td>
                       <td className='px-6 py-4 whitespace-nowrap'>
-                        <span className='text-sm text-gray-900'>{room.capacity}</span>
+                        <span className='text-sm text-gray-900'>
+                          {room.capacity}
+                        </span>
                       </td>
                       <td className='px-6 py-4 whitespace-nowrap'>
                         <span

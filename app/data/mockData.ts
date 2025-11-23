@@ -516,11 +516,10 @@ export interface Building {
 
 export interface Room {
   id: number;
-  buildingId: number;
-  buildingName?: string;
-  roomNumber: string;
+  building_id: number;
+  room_number: string;
   capacity: number;
-  roomType:
+  room_type:
     | "classroom"
     | "laboratory"
     | "office"
@@ -536,7 +535,7 @@ export interface Department {
   code: string;
   name: string;
   description?: string;
-  buildingId?: number;
+  building_id?: number;
   buildingName?: string;
   head?: string;
   status: "active" | "inactive";
@@ -544,13 +543,13 @@ export interface Department {
 
 export interface Faculty {
   id: number;
-  employeeId: string;
-  firstName: string;
-  lastName: string;
-  middleName?: string;
+  employee_id: string;
+  first_name: string;
+  last_name: string;
+  middle_name?: string;
   email: string;
   phone?: string;
-  departmentId: number;
+  department_id: number;
   departmentName?: string;
   position:
     | "professor"
@@ -569,7 +568,7 @@ export interface Fee {
   description?: string;
   amount: number;
   category: "tuition" | "miscellaneous" | "laboratory" | "library" | "other";
-  academicYear: string;
+  academic_year: string;
   semester?: string;
   status: "active" | "inactive";
 }
