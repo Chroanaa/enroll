@@ -22,31 +22,34 @@ const SectionManagement: React.FC = () => {
   const [sections, setSections] = useState<Section[]>(
     mockSections.map((section) => ({
       ...section,
-      courseName: mockCourses.find((c) => parseInt(c.id) === section.courseId)?.name || "",
+      courseName:
+        mockCourses.find((c) => parseInt(c.id) === section.course_id)?.name ||
+        "",
     }))
   );
   const [searchTerm, setSearchTerm] = useState("");
-  const [statusFilter, setStatusFilter] = useState<"all" | "active" | "inactive">("all");
+  const [statusFilter, setStatusFilter] = useState<
+    "all" | "active" | "inactive"
+  >("all");
   const [editingSection, setEditingSection] = useState<Section | null>(null);
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
 
   const filteredSections = sections.filter((section) => {
-    const matchesSearch =
-      section.section_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      section.advisor.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      section.courseName?.toLowerCase().includes(searchTerm.toLowerCase());
-    const matchesStatus =
-      statusFilter === "all" ||
-      (statusFilter === "active" && section.status === 1) ||
-      (statusFilter === "inactive" && section.status === 0);
-    return matchesSearch && matchesStatus;
+    // const matchesSearch =
+    //   section.section_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    //   section.advisor.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    // const matchesStatus =
+    //   statusFilter === "all" ||
+    //   (statusFilter === "active" && section.status === 1) ||
+    //   (statusFilter === "inactive" && section.status === 0);
+    // return matchesSearch && matchesStatus;
   });
 
-  const getStatusColor = (status: number) => {
+  const getStatusColor = (status: string) => {
     switch (status) {
-      case 1:
+      case "active":
         return "bg-emerald-100 text-emerald-800";
-      case 0:
+      case "inactive":
         return "bg-gray-100 text-gray-800";
       default:
         return "bg-gray-100 text-gray-800";
@@ -61,62 +64,73 @@ const SectionManagement: React.FC = () => {
     const [formData, setFormData] = useState<Partial<Section>>(
       section || {
         section_name: "",
-        courseId: parseInt(mockCourses[0]?.id || "1"),
+        course_id: parseInt(mockCourses[0]?.id || "1"),
         advisor: "",
         student_count: 0,
-        status: 1,
+        status: "active",
       }
     );
 
     const handleSubmit = (e: React.FormEvent) => {
       e.preventDefault();
-      if (formData.section_name && formData.courseId && formData.advisor !== undefined) {
-        const courseName = mockCourses.find(
-          (c) => parseInt(c.id) === formData.courseId
-        )?.name || "";
-        const sectionData: Section & { courseName?: string } = {
+      if (
+        formData.section_name &&
+        formData.course_id &&
+        formData.advisor !== undefined
+      ) {
+        const courseName =
+          mockCourses.find((c) => parseInt(c.id) === formData.course_id)
+            ?.name || "";
+        const sectionData: Partial<Section> & { courseName?: string } = {
           ...formData,
-          id: section?.id || Date.now(),
           section_name: formData.section_name!,
-          courseId: formData.courseId!,
+          course_id: formData.course_id!,
           advisor: formData.advisor || "",
           student_count: formData.student_count || 0,
-          status: formData.status || 1,
-          courseName,
+          status: formData.status || "active",
         };
-        onSave(sectionData as Section);
+        fetch("/api/auth/section", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify(sectionData),
+        });
       }
     };
 
     return (
-      <div 
+      <div
         className='fixed inset-0 flex items-center justify-center p-4 z-50 backdrop-blur-sm'
         style={{ backgroundColor: `${colors.primary}20` }}
         onClick={onCancel}
       >
-        <div 
+        <div
           className='rounded-2xl shadow-2xl max-w-4xl w-full max-h-[90vh] flex flex-col'
           style={{
-            backgroundColor: 'white',
+            backgroundColor: "white",
             border: `1px solid ${colors.accent}30`,
           }}
           onClick={(e) => e.stopPropagation()}
         >
-          <div 
+          <div
             className='px-6 py-4 rounded-t-2xl flex items-center justify-between'
-            style={{ 
+            style={{
               backgroundColor: `${colors.secondary}10`,
-              borderBottom: `1px solid ${colors.accent}30`
+              borderBottom: `1px solid ${colors.accent}30`,
             }}
           >
             <div className='flex items-center gap-3'>
-              <div 
+              <div
                 className='p-2 rounded-lg'
                 style={{ backgroundColor: `${colors.secondary}20` }}
               >
-                <FolderTree className='w-5 h-5' style={{ color: colors.secondary }} />
+                <FolderTree
+                  className='w-5 h-5'
+                  style={{ color: colors.secondary }}
+                />
               </div>
-              <h2 
+              <h2
                 className='text-xl font-bold'
                 style={{ color: colors.primary }}
               >
@@ -132,219 +146,243 @@ const SectionManagement: React.FC = () => {
             </button>
           </div>
           <div className='p-6 overflow-y-auto flex-1'>
-          <form onSubmit={handleSubmit} className='space-y-4'>
-            <div className='grid grid-cols-1 md:grid-cols-2 gap-4'>
-              <div>
-                <label 
-                  className='flex items-center gap-2 text-sm font-medium mb-2'
-                  style={{ color: colors.primary }}
-                >
-                  <Hash className='w-4 h-4' style={{ color: colors.secondary }} />
-                  Section Name <span className='text-red-500'>*</span>
-                </label>
-                <input
-                  type='text'
-                  value={formData.section_name || ""}
-                  onChange={(e) =>
-                    setFormData({ ...formData, section_name: e.target.value.toUpperCase() })
-                  }
-                  className='w-full rounded-lg px-3 py-2 transition-all'
-                  style={{
-                    border: `1px solid ${colors.tertiary}60`,
-                    backgroundColor: 'white',
-                    color: colors.primary,
-                  }}
-                  onFocus={(e) => {
-                    e.currentTarget.style.borderColor = colors.secondary;
-                    e.currentTarget.style.boxShadow = `0 0 0 3px ${colors.secondary}20`;
-                  }}
-                  onBlur={(e) => {
-                    e.currentTarget.style.borderColor = `${colors.tertiary}60`;
-                    e.currentTarget.style.boxShadow = 'none';
-                  }}
-                  required
-                />
+            <form onSubmit={handleSubmit} className='space-y-4'>
+              <div className='grid grid-cols-1 md:grid-cols-2 gap-4'>
+                <div>
+                  <label
+                    className='flex items-center gap-2 text-sm font-medium mb-2'
+                    style={{ color: colors.primary }}
+                  >
+                    <Hash
+                      className='w-4 h-4'
+                      style={{ color: colors.secondary }}
+                    />
+                    Section Name <span className='text-red-500'>*</span>
+                  </label>
+                  <input
+                    type='text'
+                    value={formData.section_name || ""}
+                    onChange={(e) =>
+                      setFormData({
+                        ...formData,
+                        section_name: e.target.value.toUpperCase(),
+                      })
+                    }
+                    className='w-full rounded-lg px-3 py-2 transition-all'
+                    style={{
+                      border: `1px solid ${colors.tertiary}60`,
+                      backgroundColor: "white",
+                      color: colors.primary,
+                    }}
+                    onFocus={(e) => {
+                      e.currentTarget.style.borderColor = colors.secondary;
+                      e.currentTarget.style.boxShadow = `0 0 0 3px ${colors.secondary}20`;
+                    }}
+                    onBlur={(e) => {
+                      e.currentTarget.style.borderColor = `${colors.tertiary}60`;
+                      e.currentTarget.style.boxShadow = "none";
+                    }}
+                    required
+                  />
+                </div>
+
+                <div>
+                  <label
+                    className='flex items-center gap-2 text-sm font-medium mb-2'
+                    style={{ color: colors.primary }}
+                  >
+                    <BookOpen
+                      className='w-4 h-4'
+                      style={{ color: colors.secondary }}
+                    />
+                    Course <span className='text-red-500'>*</span>
+                  </label>
+                  <select
+                    value={formData.course_id?.toString() || ""}
+                    onChange={(e) =>
+                      setFormData({
+                        ...formData,
+                        course_id: parseInt(e.target.value),
+                      })
+                    }
+                    className='w-full rounded-lg px-3 py-2 transition-all'
+                    style={{
+                      border: `1px solid ${colors.tertiary}60`,
+                      backgroundColor: "white",
+                      color: colors.primary,
+                    }}
+                    onFocus={(e) => {
+                      e.currentTarget.style.borderColor = colors.secondary;
+                      e.currentTarget.style.boxShadow = `0 0 0 3px ${colors.secondary}20`;
+                    }}
+                    onBlur={(e) => {
+                      e.currentTarget.style.borderColor = `${colors.tertiary}60`;
+                      e.currentTarget.style.boxShadow = "none";
+                    }}
+                    required
+                  >
+                    {mockCourses.map((course) => (
+                      <option key={course.id} value={course.id}>
+                        {course.code} - {course.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div className='md:col-span-2'>
+                  <label
+                    className='flex items-center gap-2 text-sm font-medium mb-2'
+                    style={{ color: colors.primary }}
+                  >
+                    <User
+                      className='w-4 h-4'
+                      style={{ color: colors.secondary }}
+                    />
+                    Advisor <span className='text-red-500'>*</span>
+                  </label>
+                  <input
+                    type='text'
+                    value={formData.advisor || ""}
+                    onChange={(e) =>
+                      setFormData({ ...formData, advisor: e.target.value })
+                    }
+                    className='w-full rounded-lg px-3 py-2 transition-all'
+                    style={{
+                      border: `1px solid ${colors.tertiary}60`,
+                      backgroundColor: "white",
+                      color: colors.primary,
+                    }}
+                    onFocus={(e) => {
+                      e.currentTarget.style.borderColor = colors.secondary;
+                      e.currentTarget.style.boxShadow = `0 0 0 3px ${colors.secondary}20`;
+                    }}
+                    onBlur={(e) => {
+                      e.currentTarget.style.borderColor = `${colors.tertiary}60`;
+                      e.currentTarget.style.boxShadow = "none";
+                    }}
+                    required
+                  />
+                </div>
+
+                <div>
+                  <label
+                    className='flex items-center gap-2 text-sm font-medium mb-2'
+                    style={{ color: colors.primary }}
+                  >
+                    <Users
+                      className='w-4 h-4'
+                      style={{ color: colors.secondary }}
+                    />
+                    Student Count
+                  </label>
+                  <input
+                    type='number'
+                    min='0'
+                    value={formData.student_count || 0}
+                    onChange={(e) =>
+                      setFormData({
+                        ...formData,
+                        student_count: parseInt(e.target.value) || 0,
+                      })
+                    }
+                    className='w-full rounded-lg px-3 py-2 transition-all'
+                    style={{
+                      border: `1px solid ${colors.tertiary}60`,
+                      backgroundColor: "white",
+                      color: colors.primary,
+                    }}
+                    onFocus={(e) => {
+                      e.currentTarget.style.borderColor = colors.secondary;
+                      e.currentTarget.style.boxShadow = `0 0 0 3px ${colors.secondary}20`;
+                    }}
+                    onBlur={(e) => {
+                      e.currentTarget.style.borderColor = `${colors.tertiary}60`;
+                      e.currentTarget.style.boxShadow = "none";
+                    }}
+                  />
+                </div>
+
+                <div>
+                  <label
+                    className='flex items-center gap-2 text-sm font-medium mb-2'
+                    style={{ color: colors.primary }}
+                  >
+                    <CheckCircle2
+                      className='w-4 h-4'
+                      style={{ color: colors.secondary }}
+                    />
+                    Status <span className='text-red-500'>*</span>
+                  </label>
+                  <select
+                    value={formData.status?.toString() || "1"}
+                    onChange={(e) =>
+                      setFormData({
+                        ...formData,
+                        status: e.target.value,
+                      })
+                    }
+                    className='w-full rounded-lg px-3 py-2 transition-all'
+                    style={{
+                      border: `1px solid ${colors.tertiary}60`,
+                      backgroundColor: "white",
+                      color: colors.primary,
+                    }}
+                    onFocus={(e) => {
+                      e.currentTarget.style.borderColor = colors.secondary;
+                      e.currentTarget.style.boxShadow = `0 0 0 3px ${colors.secondary}20`;
+                    }}
+                    onBlur={(e) => {
+                      e.currentTarget.style.borderColor = `${colors.tertiary}60`;
+                      e.currentTarget.style.boxShadow = "none";
+                    }}
+                  >
+                    <option value={"active"}>Active</option>
+                    <option value={"inactive"}>Inactive</option>
+                  </select>
+                </div>
               </div>
 
-              <div>
-                <label 
-                  className='flex items-center gap-2 text-sm font-medium mb-2'
-                  style={{ color: colors.primary }}
-                >
-                  <BookOpen className='w-4 h-4' style={{ color: colors.secondary }} />
-                  Course <span className='text-red-500'>*</span>
-                </label>
-                <select
-                  value={formData.courseId?.toString() || ""}
-                  onChange={(e) =>
-                    setFormData({ ...formData, courseId: parseInt(e.target.value) })
-                  }
-                  className='w-full rounded-lg px-3 py-2 transition-all'
-                  style={{
-                    border: `1px solid ${colors.tertiary}60`,
-                    backgroundColor: 'white',
-                    color: colors.primary,
-                  }}
-                  onFocus={(e) => {
-                    e.currentTarget.style.borderColor = colors.secondary;
-                    e.currentTarget.style.boxShadow = `0 0 0 3px ${colors.secondary}20`;
-                  }}
-                  onBlur={(e) => {
-                    e.currentTarget.style.borderColor = `${colors.tertiary}60`;
-                    e.currentTarget.style.boxShadow = 'none';
-                  }}
-                  required
-                >
-                  {mockCourses.map((course) => (
-                    <option key={course.id} value={course.id}>
-                      {course.code} - {course.name}
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              <div className='md:col-span-2'>
-                <label 
-                  className='flex items-center gap-2 text-sm font-medium mb-2'
-                  style={{ color: colors.primary }}
-                >
-                  <User className='w-4 h-4' style={{ color: colors.secondary }} />
-                  Advisor <span className='text-red-500'>*</span>
-                </label>
-                <input
-                  type='text'
-                  value={formData.advisor || ""}
-                  onChange={(e) =>
-                    setFormData({ ...formData, advisor: e.target.value })
-                  }
-                  className='w-full rounded-lg px-3 py-2 transition-all'
-                  style={{
-                    border: `1px solid ${colors.tertiary}60`,
-                    backgroundColor: 'white',
-                    color: colors.primary,
-                  }}
-                  onFocus={(e) => {
-                    e.currentTarget.style.borderColor = colors.secondary;
-                    e.currentTarget.style.boxShadow = `0 0 0 3px ${colors.secondary}20`;
-                  }}
-                  onBlur={(e) => {
-                    e.currentTarget.style.borderColor = `${colors.tertiary}60`;
-                    e.currentTarget.style.boxShadow = 'none';
-                  }}
-                  required
-                />
-              </div>
-
-              <div>
-                <label 
-                  className='flex items-center gap-2 text-sm font-medium mb-2'
-                  style={{ color: colors.primary }}
-                >
-                  <Users className='w-4 h-4' style={{ color: colors.secondary }} />
-                  Student Count
-                </label>
-                <input
-                  type='number'
-                  min='0'
-                  value={formData.student_count || 0}
-                  onChange={(e) =>
-                    setFormData({
-                      ...formData,
-                      student_count: parseInt(e.target.value) || 0,
-                    })
-                  }
-                  className='w-full rounded-lg px-3 py-2 transition-all'
-                  style={{
-                    border: `1px solid ${colors.tertiary}60`,
-                    backgroundColor: 'white',
-                    color: colors.primary,
-                  }}
-                  onFocus={(e) => {
-                    e.currentTarget.style.borderColor = colors.secondary;
-                    e.currentTarget.style.boxShadow = `0 0 0 3px ${colors.secondary}20`;
-                  }}
-                  onBlur={(e) => {
-                    e.currentTarget.style.borderColor = `${colors.tertiary}60`;
-                    e.currentTarget.style.boxShadow = 'none';
-                  }}
-                />
-              </div>
-
-              <div>
-                <label 
-                  className='flex items-center gap-2 text-sm font-medium mb-2'
-                  style={{ color: colors.primary }}
-                >
-                  <CheckCircle2 className='w-4 h-4' style={{ color: colors.secondary }} />
-                  Status <span className='text-red-500'>*</span>
-                </label>
-                <select
-                  value={formData.status?.toString() || "1"}
-                  onChange={(e) =>
-                    setFormData({
-                      ...formData,
-                      status: parseInt(e.target.value),
-                    })
-                  }
-                  className='w-full rounded-lg px-3 py-2 transition-all'
-                  style={{
-                    border: `1px solid ${colors.tertiary}60`,
-                    backgroundColor: 'white',
-                    color: colors.primary,
-                  }}
-                  onFocus={(e) => {
-                    e.currentTarget.style.borderColor = colors.secondary;
-                    e.currentTarget.style.boxShadow = `0 0 0 3px ${colors.secondary}20`;
-                  }}
-                  onBlur={(e) => {
-                    e.currentTarget.style.borderColor = `${colors.tertiary}60`;
-                    e.currentTarget.style.boxShadow = 'none';
-                  }}
-                >
-                  <option value={1}>Active</option>
-                  <option value={0}>Inactive</option>
-                </select>
-              </div>
-            </div>
-
-            <div className='flex justify-end gap-3 pt-4 mt-6 border-t' style={{ borderColor: `${colors.accent}30` }}>
-              <button
-                type='button'
-                onClick={onCancel}
-                className='px-6 py-2.5 rounded-lg transition-colors font-medium flex items-center gap-2'
-                style={{ 
-                  color: colors.primary,
-                  border: `1px solid ${colors.tertiary}60`,
-                  backgroundColor: 'white',
-                }}
-                onMouseEnter={(e) => {
-                  e.currentTarget.style.backgroundColor = `${colors.accent}15`;
-                  e.currentTarget.style.borderColor = colors.tertiary;
-                }}
-                onMouseLeave={(e) => {
-                  e.currentTarget.style.backgroundColor = 'white';
-                  e.currentTarget.style.borderColor = `${colors.tertiary}60`;
-                }}
+              <div
+                className='flex justify-end gap-3 pt-4 mt-6 border-t'
+                style={{ borderColor: `${colors.accent}30` }}
               >
-                <X className='w-4 h-4' />
-                Cancel
-              </button>
-              <button
-                type='submit'
-                className='px-6 py-2.5 text-white rounded-lg transition-colors font-medium flex items-center gap-2'
-                style={{ backgroundColor: colors.secondary }}
-                onMouseEnter={(e) =>
-                  (e.currentTarget.style.backgroundColor = colors.primary)
-                }
-                onMouseLeave={(e) =>
-                  (e.currentTarget.style.backgroundColor = colors.secondary)
-                }
-              >
-                <CheckCircle2 className='w-4 h-4' />
-                {section ? "Update Section" : "Add Section"}
-              </button>
-            </div>
-          </form>
+                <button
+                  type='button'
+                  onClick={onCancel}
+                  className='px-6 py-2.5 rounded-lg transition-colors font-medium flex items-center gap-2'
+                  style={{
+                    color: colors.primary,
+                    border: `1px solid ${colors.tertiary}60`,
+                    backgroundColor: "white",
+                  }}
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.backgroundColor = `${colors.accent}15`;
+                    e.currentTarget.style.borderColor = colors.tertiary;
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.backgroundColor = "white";
+                    e.currentTarget.style.borderColor = `${colors.tertiary}60`;
+                  }}
+                >
+                  <X className='w-4 h-4' />
+                  Cancel
+                </button>
+                <button
+                  type='submit'
+                  className='px-6 py-2.5 text-white rounded-lg transition-colors font-medium flex items-center gap-2'
+                  style={{ backgroundColor: colors.secondary }}
+                  onMouseEnter={(e) =>
+                    (e.currentTarget.style.backgroundColor = colors.primary)
+                  }
+                  onMouseLeave={(e) =>
+                    (e.currentTarget.style.backgroundColor = colors.secondary)
+                  }
+                >
+                  <CheckCircle2 className='w-4 h-4' />
+                  {section ? "Update Section" : "Add Section"}
+                </button>
+              </div>
+            </form>
           </div>
         </div>
       </div>
@@ -457,7 +495,10 @@ const SectionManagement: React.FC = () => {
               <tbody className='bg-white divide-y divide-gray-200'>
                 {filteredSections.length === 0 ? (
                   <tr>
-                    <td colSpan={6} className='px-6 py-8 text-center text-gray-500'>
+                    <td
+                      colSpan={6}
+                      className='px-6 py-8 text-center text-gray-500'
+                    >
                       No sections found
                     </td>
                   </tr>
@@ -489,7 +530,7 @@ const SectionManagement: React.FC = () => {
                       </td>
                       <td className='px-6 py-4'>
                         <div className='text-sm text-gray-900'>
-                          {section.courseName || "N/A"}
+                          {section.course_id || "N/A"}
                         </div>
                       </td>
                       <td className='px-6 py-4 whitespace-nowrap'>
@@ -511,7 +552,7 @@ const SectionManagement: React.FC = () => {
                             section.status
                           )}`}
                         >
-                          {section.status === 1 ? "Active" : "Inactive"}
+                          {section.status === "active" ? "Active" : "Inactive"}
                         </span>
                       </td>
                       <td className='px-6 py-4 whitespace-nowrap text-right text-sm font-medium'>

@@ -1,18 +1,19 @@
+import axios from "axios";
+import { NextResponse, NextRequest } from "next/server";
 import { prisma } from "@/app/lib/prisma";
-import { NextRequest, NextResponse } from "next/server";
 
 export async function POST(request: NextRequest) {
   try {
     const data = await request.json();
-    const newDepartment = await prisma.department.create({
+    const newFaculty = await prisma.faculty.create({
       data: {
         ...data,
       },
     });
-    return NextResponse.json(newDepartment);
+    return NextResponse.json(newFaculty);
   } catch (error) {
     return NextResponse.json(
-      { error: "Failed to create department" },
+      { error: error instanceof Error ? error.message : String(error) },
       { status: 500 }
     );
   }

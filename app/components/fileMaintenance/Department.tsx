@@ -25,8 +25,8 @@ const DepartmentManagement: React.FC = () => {
   const [departments, setDepartments] = useState<Department[]>(
     mockDepartments.map((dept) => ({
       ...dept,
-      buildingName: dept.buildingId
-        ? mockBuildings.find((b) => b.id === dept.buildingId)?.name || ""
+      buildingName: dept.building_id
+        ? mockBuildings.find((b) => b.id === dept.building_id)?.name || ""
         : "",
     }))
   );
@@ -71,7 +71,7 @@ const DepartmentManagement: React.FC = () => {
         code: "",
         name: "",
         description: "",
-        buildingId: mockBuildings[0]?.id,
+        building_id: 1,
         head: "",
         status: "active",
       }
@@ -80,16 +80,12 @@ const DepartmentManagement: React.FC = () => {
     const handleSubmit = (e: React.FormEvent) => {
       e.preventDefault();
       if (formData.code && formData.name) {
-        const buildingName = formData.buildingId
-          ? mockBuildings.find((b) => b.id === formData.buildingId)?.name || ""
-          : "";
         const departmentData: Partial<Department> = {
           ...formData,
           code: formData.code.toUpperCase()!,
           name: formData.name!,
           description: formData.description || "",
-          buildingId: formData.buildingId,
-          buildingName,
+          building_id: formData.building_id,
           head: formData.head || "",
           status: (formData.status as "active" | "inactive") || "active",
         };
@@ -268,11 +264,11 @@ const DepartmentManagement: React.FC = () => {
                     Building
                   </label>
                   <select
-                    value={formData.buildingId || ""}
+                    value={formData.building_id || ""}
                     onChange={(e) =>
                       setFormData({
                         ...formData,
-                        buildingId: e.target.value
+                        building_id: e.target.value
                           ? parseInt(e.target.value)
                           : undefined,
                       })
