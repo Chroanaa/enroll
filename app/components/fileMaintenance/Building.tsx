@@ -1,5 +1,5 @@
 "use client";
-import React, { useState } from "react";
+import React, { useState, useRef } from "react";
 import {
   Search,
   Plus,
@@ -16,6 +16,7 @@ import {
 } from "lucide-react";
 import { Building, mockBuildings } from "../../data/mockData";
 import { colors } from "../../colors";
+import ConfirmationModal from "../common/ConfirmationModal";
 
 const BuildingManagement: React.FC = () => {
   const [buildings, setBuildings] = useState<Building[]>(mockBuildings);
@@ -25,6 +26,15 @@ const BuildingManagement: React.FC = () => {
   >("all");
   const [editingBuilding, setEditingBuilding] = useState<Building | null>(null);
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
+  const [deleteConfirmation, setDeleteConfirmation] = useState<{
+    isOpen: boolean;
+    buildingId: number | null;
+    buildingName: string;
+  }>({
+    isOpen: false,
+    buildingId: null,
+    buildingName: "",
+  });
 
   const filteredBuildings = buildings.filter((building) => {
     const matchesSearch =
@@ -65,7 +75,7 @@ const BuildingManagement: React.FC = () => {
     onSave: (building: Building) => void;
     onCancel: () => void;
   }> = ({ building, onSave, onCancel }) => {
-    const [formData, setFormData] = useState<Partial<Building>>(
+    const initialFormData = useRef<Partial<Building>>(
       building || {
         name: "",
         code: "",
@@ -76,8 +86,37 @@ const BuildingManagement: React.FC = () => {
       }
     );
 
+    const [formData, setFormData] = useState<Partial<Building>>(
+      initialFormData.current
+    );
+    const [showSaveConfirmation, setShowSaveConfirmation] = useState(false);
+    const [showCancelWarning, setShowCancelWarning] = useState(false);
+
+    // Check if form has been modified
+    const hasChanges = () => {
+      if (!building) return false; // New building, no changes to track
+      return (
+        formData.name !== initialFormData.current.name ||
+        formData.code !== initialFormData.current.code ||
+        formData.description !== initialFormData.current.description ||
+        formData.address !== initialFormData.current.address ||
+        formData.floor_count !== initialFormData.current.floor_count ||
+        formData.status !== initialFormData.current.status
+      );
+    };
+
     const handleSubmit = (e: React.FormEvent) => {
       e.preventDefault();
+      if (formData.name && formData.code) {
+        if (building && hasChanges()) {
+          setShowSaveConfirmation(true);
+        } else {
+          performSave();
+        }
+      }
+    };
+
+    const performSave = () => {
       if (formData.name && formData.code) {
         const buildingData: Partial<Building> = {
           ...formData,
@@ -96,14 +135,28 @@ const BuildingManagement: React.FC = () => {
           ...buildingData,
           id: building?.id || Math.random(),
         } as Building);
+        setShowSaveConfirmation(false);
       }
+    };
+
+    const handleCancel = () => {
+      if (hasChanges()) {
+        setShowCancelWarning(true);
+      } else {
+        onCancel();
+      }
+    };
+
+    const handleConfirmCancel = () => {
+      setShowCancelWarning(false);
+      onCancel();
     };
 
     return (
       <div
         className='fixed inset-0 flex items-center justify-center p-4 z-50 backdrop-blur-sm'
         style={{ backgroundColor: "rgba(0,0,0,0.4)" }}
-        onClick={onCancel}
+        onClick={handleCancel}
       >
         <div
           className='rounded-2xl shadow-2xl w-full max-w-2xl overflow-hidden flex flex-col max-h-[90vh] animate-in fade-in zoom-in duration-200'
@@ -144,7 +197,7 @@ const BuildingManagement: React.FC = () => {
               </div>
             </div>
             <button
-              onClick={onCancel}
+              onClick={handleCancel}
               className='p-2 rounded-full hover:bg-gray-100 transition-colors text-gray-400 hover:text-gray-600'
             >
               <X className='w-5 h-5' />
@@ -366,7 +419,7 @@ const BuildingManagement: React.FC = () => {
               >
                 <button
                   type='button'
-                  onClick={onCancel}
+                  onClick={handleCancel}
                   className='px-6 py-2.5 rounded-xl transition-all font-medium flex items-center gap-2 hover:bg-gray-100'
                   style={{
                     color: colors.primary,
@@ -393,6 +446,32 @@ const BuildingManagement: React.FC = () => {
             </form>
           </div>
         </div>
+
+        {/* Save Confirmation Modal (for edit mode) */}
+        <ConfirmationModal
+          isOpen={showSaveConfirmation}
+          onClose={() => setShowSaveConfirmation(false)}
+          onConfirm={performSave}
+          title='Save Changes'
+          message={`Are you sure you want to save changes to "${formData.name || building?.name}"?`}
+          description='The building information will be updated with the new details.'
+          confirmText='Save Changes'
+          cancelText='Cancel'
+          variant='info'
+        />
+
+        {/* Cancel Warning Modal (for unsaved changes) */}
+        <ConfirmationModal
+          isOpen={showCancelWarning}
+          onClose={() => setShowCancelWarning(false)}
+          onConfirm={handleConfirmCancel}
+          title='Unsaved Changes'
+          message='You have unsaved changes. Are you sure you want to leave?'
+          description='Your changes will be lost if you continue without saving.'
+          confirmText='Leave Without Saving'
+          cancelText='Stay and Edit'
+          variant='warning'
+        />
       </div>
     );
   };
@@ -410,8 +489,26 @@ const BuildingManagement: React.FC = () => {
   };
 
   const handleDeleteBuilding = (id: number) => {
-    if (confirm("Are you sure you want to delete this building?")) {
-      setBuildings((prev) => prev.filter((b) => b.id !== id));
+    const building = buildings.find((b) => b.id === id);
+    if (building) {
+      setDeleteConfirmation({
+        isOpen: true,
+        buildingId: id,
+        buildingName: building.name,
+      });
+    }
+  };
+
+  const confirmDeleteBuilding = () => {
+    if (deleteConfirmation.buildingId) {
+      setBuildings((prev) =>
+        prev.filter((b) => b.id !== deleteConfirmation.buildingId)
+      );
+      setDeleteConfirmation({
+        isOpen: false,
+        buildingId: null,
+        buildingName: "",
+      });
     }
   };
 
@@ -656,6 +753,25 @@ const BuildingManagement: React.FC = () => {
             }}
           />
         )}
+
+        {/* Delete Confirmation Modal */}
+        <ConfirmationModal
+          isOpen={deleteConfirmation.isOpen}
+          onClose={() =>
+            setDeleteConfirmation({
+              isOpen: false,
+              buildingId: null,
+              buildingName: "",
+            })
+          }
+          onConfirm={confirmDeleteBuilding}
+          title='Delete Building'
+          message={`Are you sure you want to delete "${deleteConfirmation.buildingName}"?`}
+          description='This action cannot be undone. All associated data will be permanently removed.'
+          confirmText='Delete Building'
+          cancelText='Cancel'
+          variant='danger'
+        />
       </div>
     </div>
   );
