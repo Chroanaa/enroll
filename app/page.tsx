@@ -4,7 +4,7 @@ import Navigation from "./components/Navigation";
 import Dashboard from "./components/Dashboard";
 import StudentManagement from "./components/StudentManagement";
 import CourseManagement from "./components/CourseManagement";
-import EnrollmentManagement from "./components/EnrollmentManagement";
+import EnrollmentManagement from "./components/enrollmentManagement";
 import EnrollmentForm from "./components/EnrollmentForm";
 import ForecastingAnalytics from "./components/ForecastingAnalytics";
 import AssessmentManagement from "./components/AssessmentManagement";

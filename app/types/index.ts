@@ -86,3 +86,104 @@ export interface Subject {
   prerequisites?: string;
   status: "active" | "inactive";
 }
+
+// Enrollment Management Types
+import { EnrollmentFormData } from "../hooks/useEnrollmentForm";
+
+export interface Enrollment extends EnrollmentFormData {
+  id: string;
+  studentId: string;
+  courseId: string;
+  enrollmentDate: string;
+  status: number;
+}
+
+export interface StatusColor {
+  bg: string;
+  text: string;
+  border: string;
+}
+
+export interface EnrollmentStats {
+  total: number;
+  enrolled: number;
+  completed: number;
+  pending: number;
+  dropped: number;
+}
+
+export interface DeleteConfirmationState {
+  isOpen: boolean;
+  enrollmentId: string | null;
+  enrollmentName: string;
+}
+
+// File Maintenance Types
+export interface Building {
+  id: number;
+  name: string;
+  code: string;
+  description?: string;
+  address?: string;
+  floor_count: number;
+  status: "active" | "inactive";
+}
+
+export interface Room {
+  id: number;
+  building_id: number;
+  room_number: string;
+  capacity: number;
+  room_type:
+    | "classroom"
+    | "laboratory"
+    | "office"
+    | "library"
+    | "auditorium"
+    | "other";
+  floor: number;
+  status: "available" | "occupied" | "maintenance";
+}
+
+export interface Department {
+  id: number;
+  code: string;
+  name: string;
+  description?: string;
+  building_id?: number;
+  buildingName?: string;
+  head?: string;
+  status: "active" | "inactive";
+}
+
+export interface Faculty {
+  id: number;
+  employee_id: string;
+  first_name: string;
+  last_name: string;
+  middle_name?: string;
+  email: string;
+  phone?: string;
+  department_id: number;
+  departmentName?: string;
+  position:
+    | "professor"
+    | "associate professor"
+    | "assistant professor"
+    | "instructor"
+    | "lecturer";
+  specialization?: string;
+  status: "active" | "inactive";
+}
+
+export interface Fee {
+  id: number;
+  code: string;
+  name: string;
+  description?: string;
+  amount: number;
+  category: "tuition" | "miscellaneous" | "laboratory" | "library" | "other";
+  academic_year: string;
+  semester?: string;
+  status: "active" | "inactive";
+}

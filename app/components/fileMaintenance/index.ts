@@ -1,10 +1,10 @@
-export { default as Building } from "./Building";
-export { default as Section } from "./Section";
-export { default as Room } from "./Room";
-export { default as Department } from "./Department";
-export { default as Faculty } from "./Faculty";
-export { default as Fees } from "./Fees";
-export { default as Subject } from "./Subject";
+export { default as Building } from "./building";
+export { default as Section } from "./section";
+export { default as Room } from "./room";
+export { default as Department } from "./department";
+export { default as Faculty } from "./faculty";
+export { default as Fees } from "./fees";
+export { default as Subject } from "./subject";
 
 
 
