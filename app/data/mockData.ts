@@ -5,6 +5,9 @@ import {
   ForecastData,
   Section,
   Subject,
+  Program,
+  Department,
+  Major,
 } from "../types";
 
 export const mockStudents: Student[] = [
@@ -531,17 +534,6 @@ export interface Room {
   status: "available" | "occupied" | "maintenance";
 }
 
-export interface Department {
-  id: number;
-  code: string;
-  name: string;
-  description?: string;
-  building_id?: number;
-  buildingName?: string;
-  head?: string;
-  status: "active" | "inactive";
-}
-
 export interface Faculty {
   id: number;
   employee_id: string;
@@ -853,6 +845,180 @@ export const mockFees: Fee[] = [
     amount: 1000,
     category: "miscellaneous",
     academic_year: "2024-2025",
+    status: "active",
+  },
+];
+
+export const mockPrograms: Program[] = [
+  {
+    id: 1,
+    code: "BSCS",
+    name: "Bachelor of Science in Computer Science",
+    description: "Comprehensive program covering computer science fundamentals, programming, algorithms, and software engineering",
+    department_id: 1,
+    duration: 4,
+    total_units: 120,
+    status: "active",
+  },
+  {
+    id: 2,
+    code: "BSIT",
+    name: "Bachelor of Science in Information Technology",
+    description: "Focus on information systems, network administration, and IT infrastructure",
+    department_id: 1,
+    duration: 4,
+    total_units: 120,
+    status: "active",
+  },
+  {
+    id: 3,
+    code: "BSA",
+    name: "Bachelor of Science in Accountancy",
+    description: "Professional accounting program preparing students for CPA licensure",
+    department_id: 2,
+    duration: 4,
+    total_units: 130,
+    status: "active",
+  },
+  {
+    id: 4,
+    code: "BSBA",
+    name: "Bachelor of Science in Business Administration",
+    description: "General business administration with focus on management and entrepreneurship",
+    department_id: 2,
+    duration: 4,
+    total_units: 120,
+    status: "active",
+  },
+  {
+    id: 5,
+    code: "BSN",
+    name: "Bachelor of Science in Nursing",
+    description: "Professional nursing program preparing students for nursing licensure and practice",
+    department_id: 3,
+    duration: 4,
+    total_units: 140,
+    status: "active",
+  },
+  {
+    id: 6,
+    code: "BSCE",
+    name: "Bachelor of Science in Civil Engineering",
+    description: "Engineering program focusing on infrastructure, construction, and structural design",
+    department_id: 4,
+    duration: 5,
+    total_units: 150,
+    status: "active",
+  },
+  {
+    id: 7,
+    code: "BSEE",
+    name: "Bachelor of Science in Electrical Engineering",
+    description: "Engineering program covering electrical systems, electronics, and power generation",
+    department_id: 4,
+    duration: 5,
+    total_units: 150,
+    status: "active",
+  },
+  {
+    id: 8,
+    code: "AB-PSYCH",
+    name: "Bachelor of Arts in Psychology",
+    description: "Liberal arts program focusing on human behavior and mental processes",
+    department_id: 5,
+    duration: 4,
+    total_units: 120,
+    status: "active",
+  },
+];
+
+export const mockMajors: Major[] = [
+  {
+    id: 1,
+    code: "CS-SE",
+    name: "Software Engineering",
+    description: "Specialization in software development, system design, and software project management",
+    program_id: 1,
+    status: "active",
+  },
+  {
+    id: 2,
+    code: "CS-DS",
+    name: "Data Science",
+    description: "Focus on data analysis, machine learning, and big data technologies",
+    program_id: 1,
+    status: "active",
+  },
+  {
+    id: 3,
+    code: "CS-CY",
+    name: "Cybersecurity",
+    description: "Specialization in network security, ethical hacking, and information security",
+    program_id: 1,
+    status: "active",
+  },
+  {
+    id: 4,
+    code: "IT-NET",
+    name: "Network Administration",
+    description: "Focus on network infrastructure, server management, and system administration",
+    program_id: 2,
+    status: "active",
+  },
+  {
+    id: 5,
+    code: "IT-WEB",
+    name: "Web Development",
+    description: "Specialization in web technologies, frontend and backend development",
+    program_id: 2,
+    status: "active",
+  },
+  {
+    id: 6,
+    code: "BA-MGT",
+    name: "Management",
+    description: "Business management specialization focusing on leadership and organizational management",
+    program_id: 4,
+    status: "active",
+  },
+  {
+    id: 7,
+    code: "BA-MKT",
+    name: "Marketing",
+    description: "Marketing specialization covering digital marketing, brand management, and market research",
+    program_id: 4,
+    status: "active",
+  },
+  {
+    id: 8,
+    code: "CE-STR",
+    name: "Structural Engineering",
+    description: "Specialization in building design, structural analysis, and construction management",
+    program_id: 6,
+    status: "active",
+  },
+  {
+    id: 9,
+    code: "CE-GEO",
+    name: "Geotechnical Engineering",
+    description: "Focus on soil mechanics, foundation design, and geotechnical analysis",
+    program_id: 6,
+    status: "active",
+  },
+  {
+    id: 10,
+    code: "EE-PWR",
+    name: "Power Systems",
+    description: "Specialization in electrical power generation, transmission, and distribution",
+    program_id: 7,
+    status: "active",
+  },
+  {
+    id: 11,
+    code: "EE-ELEC",
+    name: "Electronics",
+    description: "Focus on electronic circuits, embedded systems, and digital electronics",
+    program_id: 7,
     status: "active",
   },
 ];

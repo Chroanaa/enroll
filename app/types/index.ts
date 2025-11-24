@@ -69,11 +69,6 @@ export interface Section {
   student_count: number;
   status: string;
 }
-export interface Department {
-  id: string;
-  name: string;
-  description: string;
-}
 
 export interface Subject {
   id: number;
@@ -185,5 +180,52 @@ export interface Fee {
   category: "tuition" | "miscellaneous" | "laboratory" | "library" | "other";
   academic_year: string;
   semester?: string;
+  status: "active" | "inactive";
+}
+
+export interface Program {
+  id: number;
+  code: string;
+  name: string;
+  description?: string;
+  department_id?: number;
+  departmentName?: string;
+  duration?: number;
+  total_units?: number;
+  status: "active" | "inactive";
+}
+
+export interface Major {
+  id: number;
+  code: string;
+  name: string;
+  description?: string;
+  program_id: number;
+  programName?: string;
+  status: "active" | "inactive";
+}
+
+// Curriculum Management Types
+export interface CurriculumCourse {
+  id: number;
+  subject_id?: number;
+  course_code: string;
+  descriptive_title: string;
+  units_lec?: number;
+  units_lab?: number;
+  units_total: number;
+  prerequisite?: string;
+  year_level: number;
+  semester: 1 | 2;
+}
+
+export interface Curriculum {
+  id: number;
+  program_name: string;
+  program_code: string;
+  major?: string;
+  effective_year: string;
+  total_units: number;
+  courses: CurriculumCourse[];
   status: "active" | "inactive";
 }

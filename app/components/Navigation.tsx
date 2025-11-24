@@ -46,6 +46,8 @@ const Navigation: React.FC<NavigationProps> = ({
     { id: "file-maintenance-section", label: "Section", icon: FolderTree },
     { id: "file-maintenance-room", label: "Room", icon: DoorOpen },
     { id: "file-maintenance-department", label: "Department", icon: Network },
+    { id: "file-maintenance-program", label: "Program", icon: GraduationCap },
+    { id: "file-maintenance-major", label: "Major", icon: BookOpen },
     { id: "file-maintenance-faculty", label: "Faculty", icon: Users2 },
     { id: "file-maintenance-fees", label: "Fees", icon: DollarSign },
     { id: "file-maintenance-subject", label: "Subject", icon: BookOpen },

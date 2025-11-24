@@ -38,9 +38,12 @@ const SearchFilters: React.FC<SearchFiltersProps> = ({
           value={searchTerm}
           onChange={(e) => onSearchChange(e.target.value)}
           className='w-full pl-10 pr-4 py-2.5 border border-gray-200 rounded-xl focus:ring-2 focus:ring-offset-0 transition-all'
-          style={{ outline: "none" }}
+          style={{ 
+            outline: "none",
+            color: "var(--text-brown)"
+          }}
           onFocus={(e) => {
-            e.currentTarget.style.borderColor = colors.secondary;
+            e.currentTarget.style.borderColor = colors.tertiary;
             e.currentTarget.style.boxShadow = `0 0 0 3px ${colors.secondary}20`;
           }}
           onBlur={(e) => {
@@ -71,8 +74,11 @@ const SearchFilters: React.FC<SearchFiltersProps> = ({
                       : newValue;
                   filter.onChange(parsedValue);
                 }}
-                className='bg-transparent border-none text-sm font-medium text-gray-700 focus:ring-0 cursor-pointer'
-                style={{ outline: "none" }}
+                className='bg-transparent border-none text-sm font-medium focus:ring-0 cursor-pointer'
+                style={{ 
+                  outline: "none",
+                  color: "#6B5B4F"
+                }}
               >
                 {filter.placeholder && (
                   <option value={filter.placeholder}>
