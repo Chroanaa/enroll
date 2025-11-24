@@ -1,52 +1,59 @@
 "use client";
-import React, { useState } from "react";
+import React, { useState, useRef } from "react";
 import {
   Search,
   Plus,
   Edit2,
   Trash2,
-  Network,
+  BookOpen,
   Hash,
-  Building2,
-  User,
   FileText,
+  GraduationCap,
+  Building2,
   CheckCircle2,
   X,
   Filter,
 } from "lucide-react";
+import { Subject } from "../../types";
 import {
-  Department,
+  mockSubjects,
   mockDepartments,
-  mockBuildings,
 } from "../../data/mockData";
 import { colors } from "../../colors";
+import ConfirmationModal from "../common/ConfirmationModal";
 
-const DepartmentManagement: React.FC = () => {
-  const [departments, setDepartments] = useState<Department[]>(
-    mockDepartments.map((dept) => ({
-      ...dept,
-      buildingName: dept.building_id
-        ? mockBuildings.find((b) => b.id === dept.building_id)?.name || ""
-        : "",
+const SubjectManagement: React.FC = () => {
+  const [subjects, setSubjects] = useState<Subject[]>(
+    mockSubjects.map((subject) => ({
+      ...subject,
+      departmentName:
+        mockDepartments.find((d) => d.id === subject.department_id)?.name || "",
     }))
   );
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState<
     "all" | "active" | "inactive"
   >("all");
-  const [editingDepartment, setEditingDepartment] = useState<Department | null>(
-    null
-  );
+  const [editingSubject, setEditingSubject] = useState<Subject | null>(null);
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
+  const [deleteConfirmation, setDeleteConfirmation] = useState<{
+    isOpen: boolean;
+    subjectId: number | null;
+    subjectName: string;
+  }>({
+    isOpen: false,
+    subjectId: null,
+    subjectName: "",
+  });
 
-  const filteredDepartments = departments.filter((dept) => {
+  const filteredSubjects = subjects.filter((subject) => {
     const matchesSearch =
-      dept.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      dept.code.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      dept.description?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      dept.head?.toLowerCase().includes(searchTerm.toLowerCase());
+      subject.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      subject.code.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      subject.description?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      subject.departmentName?.toLowerCase().includes(searchTerm.toLowerCase());
     const matchesStatus =
-      statusFilter === "all" || dept.status === statusFilter;
+      statusFilter === "all" || subject.status === statusFilter;
     return matchesSearch && matchesStatus;
   });
 
@@ -73,54 +80,102 @@ const DepartmentManagement: React.FC = () => {
     }
   };
 
-  const DepartmentForm: React.FC<{
-    department: Department | null;
-    onSave: (department: Department) => void;
+  const SubjectForm: React.FC<{
+    subject: Subject | null;
+    onSave: (subject: Subject) => void;
     onCancel: () => void;
-  }> = ({ department, onSave, onCancel }) => {
-    const [formData, setFormData] = useState<Partial<Department>>(
-      department || {
+  }> = ({ subject, onSave, onCancel }) => {
+    const initialFormData = useRef<Partial<Subject>>(
+      subject || {
         code: "",
         name: "",
         description: "",
-        building_id: 1,
-        head: "",
+        units: 3,
+        department_id: mockDepartments[0]?.id || 1,
+        prerequisites: "",
         status: "active",
       }
     );
 
+    const [formData, setFormData] = useState<Partial<Subject>>(
+      initialFormData.current
+    );
+    const [showSaveConfirmation, setShowSaveConfirmation] = useState(false);
+    const [showCancelWarning, setShowCancelWarning] = useState(false);
+
+    const hasChanges = () => {
+      if (!subject) return false;
+      return (
+        formData.code !== initialFormData.current.code ||
+        formData.name !== initialFormData.current.name ||
+        formData.description !== initialFormData.current.description ||
+        formData.units !== initialFormData.current.units ||
+        formData.department_id !== initialFormData.current.department_id ||
+        formData.prerequisites !== initialFormData.current.prerequisites ||
+        formData.status !== initialFormData.current.status
+      );
+    };
+
     const handleSubmit = (e: React.FormEvent) => {
       e.preventDefault();
-      if (formData.code && formData.name) {
-        const departmentData: Partial<Department> = {
+      if (formData.code && formData.name && formData.units) {
+        if (subject && hasChanges()) {
+          setShowSaveConfirmation(true);
+        } else {
+          performSave();
+        }
+      }
+    };
+
+    const performSave = () => {
+      if (formData.code && formData.name && formData.units) {
+        const departmentName =
+          mockDepartments.find((d) => d.id === formData.department_id)?.name ||
+          "";
+        const subjectData: Partial<Subject> = {
           ...formData,
           code: formData.code.toUpperCase()!,
           name: formData.name!,
           description: formData.description || "",
-          building_id: formData.building_id,
-          head: formData.head || "",
+          units: formData.units!,
+          department_id: formData.department_id!,
+          prerequisites: formData.prerequisites || "",
           status: (formData.status as "active" | "inactive") || "active",
         };
-        fetch("/api/auth/department", {
+        fetch("/api/auth/subject", {
           method: "POST",
-          body: JSON.stringify(departmentData),
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify(subjectData),
         });
-        // In a real app, we'd wait for the response. For now, we update local state.
-        // We need to cast to Department because id is missing in Partial but required in onSave
-        // In a real scenario, the backend returns the ID. Here we simulate it or use existing.
         onSave({
-          ...departmentData,
-          id: department?.id || Math.random(), // Simulate ID if new
-          buildingName: mockBuildings.find(b => b.id === departmentData.building_id)?.name || ""
-        } as Department);
+          ...subjectData,
+          id: subject?.id || Math.random(),
+          departmentName: departmentName,
+        } as Subject);
+        setShowSaveConfirmation(false);
       }
+    };
+
+    const handleCancel = () => {
+      if (hasChanges()) {
+        setShowCancelWarning(true);
+      } else {
+        onCancel();
+      }
+    };
+
+    const handleConfirmCancel = () => {
+      setShowCancelWarning(false);
+      onCancel();
     };
 
     return (
       <div
         className='fixed inset-0 flex items-center justify-center p-4 z-50 backdrop-blur-sm'
         style={{ backgroundColor: "rgba(0,0,0,0.4)" }}
-        onClick={onCancel}
+        onClick={handleCancel}
       >
         <div
           className='rounded-2xl shadow-2xl w-full max-w-2xl overflow-hidden flex flex-col max-h-[90vh] animate-in fade-in zoom-in duration-200'
@@ -141,7 +196,7 @@ const DepartmentManagement: React.FC = () => {
                 className='p-2 rounded-lg'
                 style={{ backgroundColor: `${colors.secondary}20` }}
               >
-                <Network
+                <BookOpen
                   className='w-5 h-5'
                   style={{ color: colors.secondary }}
                 />
@@ -151,17 +206,17 @@ const DepartmentManagement: React.FC = () => {
                   className='text-xl font-bold'
                   style={{ color: colors.primary }}
                 >
-                  {department ? "Edit Department" : "Add New Department"}
+                  {subject ? "Edit Subject" : "Add New Subject"}
                 </h2>
                 <p className='text-sm text-gray-500'>
-                  {department
-                    ? "Update department details"
-                    : "Create a new department record"}
+                  {subject
+                    ? "Update subject details"
+                    : "Create a new subject record"}
                 </p>
               </div>
             </div>
             <button
-              onClick={onCancel}
+              onClick={handleCancel}
               className='p-2 rounded-full hover:bg-gray-100 transition-colors text-gray-400 hover:text-gray-600'
             >
               <X className='w-5 h-5' />
@@ -177,7 +232,7 @@ const DepartmentManagement: React.FC = () => {
                     style={{ color: colors.primary }}
                   >
                     <Hash className='w-4 h-4 text-gray-400' />
-                    Department Code <span className='text-red-500'>*</span>
+                    Subject Code <span className='text-red-500'>*</span>
                   </label>
                   <input
                     type='text'
@@ -202,7 +257,7 @@ const DepartmentManagement: React.FC = () => {
                       e.currentTarget.style.borderColor = "#E5E7EB";
                       e.currentTarget.style.boxShadow = "none";
                     }}
-                    placeholder="e.g. CS"
+                    placeholder="e.g. MATH101"
                     required
                   />
                 </div>
@@ -212,8 +267,8 @@ const DepartmentManagement: React.FC = () => {
                     className='flex items-center gap-2 text-sm font-semibold mb-2'
                     style={{ color: colors.primary }}
                   >
-                    <Network className='w-4 h-4 text-gray-400' />
-                    Department Name <span className='text-red-500'>*</span>
+                    <BookOpen className='w-4 h-4 text-gray-400' />
+                    Subject Name <span className='text-red-500'>*</span>
                   </label>
                   <input
                     type='text'
@@ -235,7 +290,7 @@ const DepartmentManagement: React.FC = () => {
                       e.currentTarget.style.borderColor = "#E5E7EB";
                       e.currentTarget.style.boxShadow = "none";
                     }}
-                    placeholder="e.g. Computer Science"
+                    placeholder="e.g. Calculus I"
                     required
                   />
                 </div>
@@ -268,7 +323,44 @@ const DepartmentManagement: React.FC = () => {
                       e.currentTarget.style.boxShadow = "none";
                     }}
                     rows={3}
-                    placeholder="Brief description of the department..."
+                    placeholder="Brief description of the subject..."
+                  />
+                </div>
+
+                <div>
+                  <label
+                    className='flex items-center gap-2 text-sm font-semibold mb-2'
+                    style={{ color: colors.primary }}
+                  >
+                    <GraduationCap className='w-4 h-4 text-gray-400' />
+                    Units <span className='text-red-500'>*</span>
+                  </label>
+                  <input
+                    type='number'
+                    min='1'
+                    max='6'
+                    value={formData.units || 3}
+                    onChange={(e) =>
+                      setFormData({
+                        ...formData,
+                        units: parseInt(e.target.value) || 3,
+                      })
+                    }
+                    className='w-full rounded-xl px-4 py-2.5 transition-all border-gray-200 focus:ring-2 focus:ring-offset-0'
+                    style={{
+                      border: "1px solid #E5E7EB",
+                      outline: "none",
+                      color: "#6B5B4F",
+                    }}
+                    onFocus={(e) => {
+                      e.currentTarget.style.borderColor = colors.secondary;
+                      e.currentTarget.style.boxShadow = `0 0 0 3px ${colors.secondary}20`;
+                    }}
+                    onBlur={(e) => {
+                      e.currentTarget.style.borderColor = "#E5E7EB";
+                      e.currentTarget.style.boxShadow = "none";
+                    }}
+                    required
                   />
                 </div>
 
@@ -278,16 +370,14 @@ const DepartmentManagement: React.FC = () => {
                     style={{ color: colors.primary }}
                   >
                     <Building2 className='w-4 h-4 text-gray-400' />
-                    Building
+                    Department <span className='text-red-500'>*</span>
                   </label>
                   <select
-                    value={formData.building_id || ""}
+                    value={formData.department_id || ""}
                     onChange={(e) =>
                       setFormData({
                         ...formData,
-                        building_id: e.target.value
-                          ? parseInt(e.target.value)
-                          : undefined,
+                        department_id: parseInt(e.target.value),
                       })
                     }
                     className='w-full rounded-xl px-4 py-2.5 transition-all border-gray-200 focus:ring-2 focus:ring-offset-0 bg-white'
@@ -304,11 +394,11 @@ const DepartmentManagement: React.FC = () => {
                       e.currentTarget.style.borderColor = "#E5E7EB";
                       e.currentTarget.style.boxShadow = "none";
                     }}
+                    required
                   >
-                    <option value=''>Select Building (Optional)</option>
-                    {mockBuildings.map((building) => (
-                      <option key={building.id} value={building.id}>
-                        {building.name} ({building.code})
+                    {mockDepartments.map((department) => (
+                      <option key={department.id} value={department.id}>
+                        {department.name} ({department.code})
                       </option>
                     ))}
                   </select>
@@ -319,14 +409,14 @@ const DepartmentManagement: React.FC = () => {
                     className='flex items-center gap-2 text-sm font-semibold mb-2'
                     style={{ color: colors.primary }}
                   >
-                    <User className='w-4 h-4 text-gray-400' />
-                    Department Head
+                    <FileText className='w-4 h-4 text-gray-400' />
+                    Prerequisites
                   </label>
                   <input
                     type='text'
-                    value={formData.head || ""}
+                    value={formData.prerequisites || ""}
                     onChange={(e) =>
-                      setFormData({ ...formData, head: e.target.value })
+                      setFormData({ ...formData, prerequisites: e.target.value })
                     }
                     className='w-full rounded-xl px-4 py-2.5 transition-all border-gray-200 focus:ring-2 focus:ring-offset-0'
                     style={{
@@ -342,7 +432,7 @@ const DepartmentManagement: React.FC = () => {
                       e.currentTarget.style.borderColor = "#E5E7EB";
                       e.currentTarget.style.boxShadow = "none";
                     }}
-                    placeholder="e.g. Dr. John Doe"
+                    placeholder="e.g. MATH101, CS101"
                   />
                 </div>
 
@@ -389,7 +479,7 @@ const DepartmentManagement: React.FC = () => {
               >
                 <button
                   type='button'
-                  onClick={onCancel}
+                  onClick={handleCancel}
                   className='px-6 py-2.5 rounded-xl transition-all font-medium flex items-center gap-2 hover:bg-gray-100'
                   style={{
                     color: colors.primary,
@@ -410,31 +500,75 @@ const DepartmentManagement: React.FC = () => {
                   }
                 >
                   <CheckCircle2 className='w-4 h-4' />
-                  {department ? "Save Changes" : "Add Department"}
+                  {subject ? "Save Changes" : "Add Subject"}
                 </button>
               </div>
             </form>
           </div>
+
+          {/* Save Confirmation Modal */}
+          <ConfirmationModal
+            isOpen={showSaveConfirmation}
+            onClose={() => setShowSaveConfirmation(false)}
+            onConfirm={performSave}
+            title='Save Changes'
+            message={`Are you sure you want to save changes to "${formData.name || subject?.name}"?`}
+            description='The subject information will be updated with the new details.'
+            confirmText='Save Changes'
+            cancelText='Cancel'
+            variant='info'
+          />
+
+          {/* Cancel Warning Modal */}
+          <ConfirmationModal
+            isOpen={showCancelWarning}
+            onClose={() => setShowCancelWarning(false)}
+            onConfirm={handleConfirmCancel}
+            title='Unsaved Changes'
+            message='You have unsaved changes. Are you sure you want to leave?'
+            description='Your changes will be lost if you continue without saving.'
+            confirmText='Leave Without Saving'
+            cancelText='Stay and Edit'
+            variant='warning'
+          />
         </div>
       </div>
     );
   };
 
-  const handleSaveDepartment = (departmentData: Department) => {
-    if (editingDepartment) {
-      setDepartments((prev) =>
-        prev.map((d) => (d.id === departmentData.id ? departmentData : d))
+  const handleSaveSubject = (subjectData: Subject) => {
+    if (editingSubject) {
+      setSubjects((prev) =>
+        prev.map((s) => (s.id === subjectData.id ? subjectData : s))
       );
-      setEditingDepartment(null);
+      setEditingSubject(null);
     } else {
-      setDepartments((prev) => [...prev, departmentData]);
+      setSubjects((prev) => [...prev, subjectData]);
       setIsAddModalOpen(false);
     }
   };
 
-  const handleDeleteDepartment = (id: number) => {
-    if (confirm("Are you sure you want to delete this department?")) {
-      setDepartments((prev) => prev.filter((d) => d.id !== id));
+  const handleDeleteSubject = (id: number) => {
+    const subject = subjects.find((s) => s.id === id);
+    if (subject) {
+      setDeleteConfirmation({
+        isOpen: true,
+        subjectId: id,
+        subjectName: subject.name,
+      });
+    }
+  };
+
+  const confirmDeleteSubject = () => {
+    if (deleteConfirmation.subjectId) {
+      setSubjects((prev) =>
+        prev.filter((s) => s.id !== deleteConfirmation.subjectId)
+      );
+      setDeleteConfirmation({
+        isOpen: false,
+        subjectId: null,
+        subjectName: "",
+      });
     }
   };
 
@@ -451,10 +585,10 @@ const DepartmentManagement: React.FC = () => {
               className='text-3xl font-bold tracking-tight'
               style={{ color: colors.primary }}
             >
-              Department Management
+              Subject Management
             </h1>
             <p className='text-gray-500 mt-1'>
-              Manage academic departments and their details
+              Manage academic subjects and their details
             </p>
           </div>
           <button
@@ -463,7 +597,7 @@ const DepartmentManagement: React.FC = () => {
             style={{ backgroundColor: colors.secondary }}
           >
             <Plus className='w-5 h-5' />
-            <span className='font-medium'>Add Department</span>
+            <span className='font-medium'>Add Subject</span>
           </button>
         </div>
 
@@ -473,7 +607,7 @@ const DepartmentManagement: React.FC = () => {
             <Search className='absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5' />
             <input
               type='text'
-              placeholder='Search departments...'
+              placeholder='Search subjects...'
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
               className='w-full pl-10 pr-4 py-2.5 border border-gray-200 rounded-xl focus:ring-2 focus:ring-offset-0 transition-all'
@@ -506,7 +640,7 @@ const DepartmentManagement: React.FC = () => {
           </div>
         </div>
 
-        {/* Departments Table */}
+        {/* Subjects Table */}
         <div className='bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden'>
           <div className='overflow-x-auto'>
             <table className='w-full min-w-[900px]'>
@@ -518,16 +652,19 @@ const DepartmentManagement: React.FC = () => {
                   }}
                 >
                   <th className='px-6 py-4 text-left text-xs font-bold uppercase tracking-wider text-gray-600'>
-                    Department
+                    Subject
                   </th>
                   <th className='px-6 py-4 text-left text-xs font-bold uppercase tracking-wider text-gray-600'>
                     Code
                   </th>
                   <th className='px-6 py-4 text-left text-xs font-bold uppercase tracking-wider text-gray-600'>
-                    Building
+                    Department
                   </th>
                   <th className='px-6 py-4 text-left text-xs font-bold uppercase tracking-wider text-gray-600'>
-                    Head
+                    Units
+                  </th>
+                  <th className='px-6 py-4 text-left text-xs font-bold uppercase tracking-wider text-gray-600'>
+                    Prerequisites
                   </th>
                   <th className='px-6 py-4 text-left text-xs font-bold uppercase tracking-wider text-gray-600'>
                     Status
@@ -538,10 +675,10 @@ const DepartmentManagement: React.FC = () => {
                 </tr>
               </thead>
               <tbody className='divide-y divide-gray-100'>
-                {filteredDepartments.length === 0 ? (
+                {filteredSubjects.length === 0 ? (
                   <tr>
                     <td
-                      colSpan={6}
+                      colSpan={7}
                       className='px-6 py-12 text-center text-gray-500'
                     >
                       <div className='flex flex-col items-center justify-center gap-3'>
@@ -549,12 +686,12 @@ const DepartmentManagement: React.FC = () => {
                           className='p-3 rounded-full'
                           style={{ backgroundColor: `${colors.primary}05` }}
                         >
-                          <Network
+                          <BookOpen
                             className='w-6 h-6'
                             style={{ color: colors.primary }}
                           />
                         </div>
-                        <p className='font-medium'>No departments found</p>
+                        <p className='font-medium'>No subjects found</p>
                         <p className='text-sm text-gray-400'>
                           Try adjusting your search or filters
                         </p>
@@ -562,11 +699,11 @@ const DepartmentManagement: React.FC = () => {
                     </td>
                   </tr>
                 ) : (
-                  filteredDepartments.map((dept) => {
-                    const statusStyles = getStatusColor(dept.status);
+                  filteredSubjects.map((subject) => {
+                    const statusStyles = getStatusColor(subject.status);
                     return (
                       <tr
-                        key={dept.id}
+                        key={subject.id}
                         className='group hover:bg-gray-50/50 transition-colors'
                       >
                         <td className='px-6 py-4 whitespace-nowrap'>
@@ -579,7 +716,7 @@ const DepartmentManagement: React.FC = () => {
                                   border: `1px solid ${colors.primary}10`,
                                 }}
                               >
-                                <Network
+                                <BookOpen
                                   className='h-5 w-5'
                                   style={{ color: colors.primary }}
                                 />
@@ -590,11 +727,11 @@ const DepartmentManagement: React.FC = () => {
                                 className='text-sm font-semibold'
                                 style={{ color: colors.primary }}
                               >
-                                {dept.name}
+                                {subject.name}
                               </div>
-                              {dept.description && (
+                              {subject.description && (
                                 <div className='text-xs text-gray-500 mt-0.5 truncate max-w-[200px]'>
-                                  {dept.description}
+                                  {subject.description}
                                 </div>
                               )}
                             </div>
@@ -604,7 +741,7 @@ const DepartmentManagement: React.FC = () => {
                           <div className='flex items-center gap-2'>
                             <Hash className='w-3.5 h-3.5 text-gray-400' />
                             <span className='text-sm font-medium text-gray-700'>
-                              {dept.code}
+                              {subject.code}
                             </span>
                           </div>
                         </td>
@@ -612,17 +749,22 @@ const DepartmentManagement: React.FC = () => {
                           <div className='flex items-center gap-2'>
                             <Building2 className='w-3.5 h-3.5 text-gray-400' />
                             <span className='text-sm text-gray-600'>
-                              {dept.buildingName || "N/A"}
+                              {subject.departmentName || "N/A"}
                             </span>
                           </div>
                         </td>
                         <td className='px-6 py-4 whitespace-nowrap'>
                           <div className='flex items-center gap-2'>
-                            <User className='w-3.5 h-3.5 text-gray-400' />
-                            <span className='text-sm text-gray-600'>
-                              {dept.head || "N/A"}
+                            <GraduationCap className='w-3.5 h-3.5 text-gray-400' />
+                            <span className='text-sm font-medium text-gray-700'>
+                              {subject.units}
                             </span>
                           </div>
+                        </td>
+                        <td className='px-6 py-4'>
+                          <span className='text-sm text-gray-600'>
+                            {subject.prerequisites || "None"}
+                          </span>
                         </td>
                         <td className='px-6 py-4 whitespace-nowrap'>
                           <span
@@ -637,21 +779,21 @@ const DepartmentManagement: React.FC = () => {
                               className='w-1.5 h-1.5 rounded-full mr-1.5'
                               style={{ backgroundColor: statusStyles.text }}
                             />
-                            {dept.status.charAt(0).toUpperCase() +
-                              dept.status.slice(1)}
+                            {subject.status.charAt(0).toUpperCase() +
+                              subject.status.slice(1)}
                           </span>
                         </td>
                         <td className='px-6 py-4 whitespace-nowrap text-right text-sm font-medium'>
                           <div className='flex justify-end gap-2'>
                             <button
-                              onClick={() => setEditingDepartment(dept)}
+                              onClick={() => setEditingSubject(subject)}
                               className='p-2 rounded-lg hover:bg-white hover:shadow-sm border border-transparent hover:border-gray-200 transition-all text-blue-600'
                               title='Edit'
                             >
                               <Edit2 className='w-4 h-4' />
                             </button>
                             <button
-                              onClick={() => handleDeleteDepartment(dept.id)}
+                              onClick={() => handleDeleteSubject(subject.id)}
                               className='p-2 rounded-lg hover:bg-white hover:shadow-sm border border-transparent hover:border-gray-200 transition-all text-red-600'
                               title='Delete'
                             >
@@ -668,20 +810,40 @@ const DepartmentManagement: React.FC = () => {
           </div>
         </div>
 
-        {/* Add/Edit Department Form */}
-        {(isAddModalOpen || editingDepartment) && (
-          <DepartmentForm
-            department={editingDepartment}
-            onSave={handleSaveDepartment}
+        {/* Add/Edit Subject Form */}
+        {(isAddModalOpen || editingSubject) && (
+          <SubjectForm
+            subject={editingSubject}
+            onSave={handleSaveSubject}
             onCancel={() => {
-              setEditingDepartment(null);
+              setEditingSubject(null);
               setIsAddModalOpen(false);
             }}
           />
         )}
+
+        {/* Delete Confirmation Modal */}
+        <ConfirmationModal
+          isOpen={deleteConfirmation.isOpen}
+          onClose={() =>
+            setDeleteConfirmation({
+              isOpen: false,
+              subjectId: null,
+              subjectName: "",
+            })
+          }
+          onConfirm={confirmDeleteSubject}
+          title='Delete Subject'
+          message={`Are you sure you want to delete "${deleteConfirmation.subjectName}"?`}
+          description='This action cannot be undone. All associated data will be permanently removed.'
+          confirmText='Delete Subject'
+          cancelText='Cancel'
+          variant='danger'
+        />
       </div>
     </div>
   );
 };
 
-export default DepartmentManagement;
+export default SubjectManagement;
+

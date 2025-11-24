@@ -42,3 +42,25 @@ body {
 .nav-scroll::-webkit-scrollbar-thumb:hover {
   background: rgba(255, 255, 255, 0.6);
 }
+
+/* Input, Textarea, and Select Text Colors - Light Brown for Better Visibility */
+input[type="text"],
+input[type="email"],
+input[type="tel"],
+input[type="number"],
+input[type="password"],
+textarea,
+select {
+  color: #6B5B4F !important;
+}
+
+input::placeholder,
+textarea::placeholder {
+  color: #9C8A7A !important;
+  opacity: 0.8;
+}
+
+/* Select option text color */
+select option {
+  color: #6B5B4F !important;
+}

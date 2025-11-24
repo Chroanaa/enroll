@@ -13,7 +13,7 @@ import SchedulingManagement from "../components/SchedulingManagement";
 import PaymentBillingManagement from "../components/PaymentBillingManagement";
 import CurriculumManagement from "../components/CurriculumManagement";
 import FileMaintenanceManagement from "../components/FileMaintenanceManagement";
-import { Building, Section, Room, Department, Faculty, Fees } from "../components/fileMaintenance";
+import { Building, Section, Room, Department, Faculty, Fees, Subject } from "../components/fileMaintenance";
 import ProtectedRoute from "../components/ProtectedRoute";
 
 export default function DashboardPage() {
@@ -57,6 +57,8 @@ export default function DashboardPage() {
         return <Faculty />;
       case "file-maintenance-fees":
         return <Fees />;
+      case "file-maintenance-subject":
+        return <Subject />;
       default:
         return <Dashboard />;
     }

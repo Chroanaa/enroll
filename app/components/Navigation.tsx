@@ -48,6 +48,7 @@ const Navigation: React.FC<NavigationProps> = ({
     { id: "file-maintenance-department", label: "Department", icon: Network },
     { id: "file-maintenance-faculty", label: "Faculty", icon: Users2 },
     { id: "file-maintenance-fees", label: "Fees", icon: DollarSign },
+    { id: "file-maintenance-subject", label: "Subject", icon: BookOpen },
   ];
 
   const navGroups = [
