@@ -4,16 +4,16 @@ import Navigation from "../components/Navigation";
 import Dashboard from "../components/Dashboard";
 import StudentManagement from "../components/StudentManagement";
 import CourseManagement from "../components/CourseManagement";
-import EnrollmentManagement from "../components/EnrollmentManagement";
+import EnrollmentManagement from "../components/enrollmentManagement";
 import EnrollmentForm from "../components/EnrollmentForm";
 import ForecastingAnalytics from "../components/ForecastingAnalytics";
 import AssessmentManagement from "../components/AssessmentManagement";
 import ReportManagement from "../components/ReportManagement";
 import SchedulingManagement from "../components/SchedulingManagement";
 import PaymentBillingManagement from "../components/PaymentBillingManagement";
-import CurriculumManagement from "../components/CurriculumManagement";
+import CurriculumManagement from "../components/curriculum";
 import FileMaintenanceManagement from "../components/FileMaintenanceManagement";
-import { Building, Section, Room, Department, Faculty, Fees, Subject } from "../components/fileMaintenance";
+import { Building, Section, Room, Department, Program, Major, Faculty, Fees, Subject } from "../components/fileMaintenance";
 import ProtectedRoute from "../components/ProtectedRoute";
 
 export default function DashboardPage() {
@@ -53,6 +53,10 @@ export default function DashboardPage() {
         return <Room />;
       case "file-maintenance-department":
         return <Department />;
+      case "file-maintenance-program":
+        return <Program />;
+      case "file-maintenance-major":
+        return <Major />;
       case "file-maintenance-faculty":
         return <Faculty />;
       case "file-maintenance-fees":
