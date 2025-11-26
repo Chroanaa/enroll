@@ -13,22 +13,34 @@ import Pagination from "../common/Pagination";
 import { BookOpen } from "lucide-react";
 import { mockCourses } from "../../data/mockData";
 import EnrollmentForm from "./EnrollmentForm";
-
+import { getCountOfEnrolleesStatus } from "@/app/utils/getCountStatusEnrollees";
 const EnrollmentManagement: React.FC = () => {
   const [enrollments, setEnrollments] = useState<Enrollment[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
-  const [statusFilter, setStatusFilter] = useState<"all" | 1 | 2 | 3 | 4>("all");
+  const [statusFilter, setStatusFilter] = useState<"all" | 1 | 2 | 3 | 4>(
+    "all"
+  );
   const [courseFilter, setCourseFilter] = useState<string>("all");
   const [isAddingEnrollment, setIsAddingEnrollment] = useState(false);
-  const [editingEnrollment, setEditingEnrollment] = useState<Enrollment | null>(null);
-  const [deleteConfirmation, setDeleteConfirmation] = useState<DeleteConfirmationState>({
-    isOpen: false,
-    enrollmentId: null,
-    enrollmentName: "",
-  });
+  const [editingEnrollment, setEditingEnrollment] = useState<Enrollment | null>(
+    null
+  );
+  const [deleteConfirmation, setDeleteConfirmation] =
+    useState<DeleteConfirmationState>({
+      isOpen: false,
+      enrollmentId: null,
+      enrollmentName: "",
+    });
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage, setItemsPerPage] = useState(10);
+  const [stats, setStats] = useState({
+    total: 0,
+    enrolled: 0,
+    completed: 0,
+    pending: 0,
+    dropped: 0,
+  });
 
   useEffect(() => {
     const fetchData = async () => {
@@ -51,10 +63,9 @@ const EnrollmentManagement: React.FC = () => {
     fetchData();
   }, []);
 
-  const stats = useMemo(() => calculateStats(enrollments), [enrollments]);
-
   const filteredEnrollments = useMemo(
-    () => filterEnrollments(enrollments, searchTerm, statusFilter, courseFilter),
+    () =>
+      filterEnrollments(enrollments, searchTerm, statusFilter, courseFilter),
     [enrollments, searchTerm, statusFilter, courseFilter]
   );
 
@@ -89,7 +100,9 @@ const EnrollmentManagement: React.FC = () => {
   const handleDeleteEnrollment = (enrollmentId: string) => {
     const enrollment = enrollments.find((e) => e.id === enrollmentId);
     if (enrollment) {
-      const studentName = `${enrollment.first_name || ""} ${enrollment.family_name || ""}`.trim();
+      const studentName = `${enrollment.first_name || ""} ${
+        enrollment.family_name || ""
+      }`.trim();
       setDeleteConfirmation({
         isOpen: true,
         enrollmentId: enrollmentId,
@@ -107,6 +120,10 @@ const EnrollmentManagement: React.FC = () => {
         isOpen: false,
         enrollmentId: null,
         enrollmentName: "",
+      });
+      fetch("/api/auth/enroll", {
+        method: "DELETE",
+        body: JSON.stringify(deleteConfirmation.enrollmentId),
       });
     }
   };
@@ -155,7 +172,7 @@ const EnrollmentManagement: React.FC = () => {
         </div>
 
         {/* Stats Cards */}
-        <StatsCards stats={stats} />
+        <StatsCards />
 
         {/* Search and Filters */}
         <SearchFilters
@@ -166,7 +183,9 @@ const EnrollmentManagement: React.FC = () => {
             {
               value: statusFilter,
               onChange: (value) =>
-                setStatusFilter(value === "all" ? "all" : (value as 1 | 2 | 3 | 4)),
+                setStatusFilter(
+                  value === "all" ? "all" : (value as 1 | 2 | 3 | 4)
+                ),
               options: [
                 { value: "all", label: "All Status" },
                 { value: 1, label: "Enrolled" },
@@ -246,4 +265,3 @@ const EnrollmentManagement: React.FC = () => {
 };
 
 export default EnrollmentManagement;
-

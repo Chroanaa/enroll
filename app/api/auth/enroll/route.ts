@@ -15,7 +15,7 @@ export async function POST(request: NextRequest) {
           : null,
         admission_status: formData.admission_status || null,
         term: formData.term || null,
-        department: formData.department ? parseInt(formData.department) : null,
+        department: formData.department,
         course_program: formData.course_program || null,
         requirements: formData.requirements || [],
         family_name: formData.family_name || null,
@@ -66,6 +66,24 @@ export async function GET() {
     return NextResponse.json({ data: enrollments }, { status: 200 });
   } catch (error) {
     console.error("Fetch enrollments error:", error);
+    return NextResponse.json(
+      { error: "Internal server error" },
+      { status: 500 }
+    );
+  }
+}
+export async function DELETE(request: NextRequest) {
+  try {
+    const id = await request.json();
+    await prisma.enrollment.delete({
+      where: { id },
+    });
+    return NextResponse.json(
+      { message: "All enrollments deleted successfully" },
+      { status: 200 }
+    );
+  } catch (error) {
+    console.error("Delete enrollments error:", error);
     return NextResponse.json(
       { error: "Internal server error" },
       { status: 500 }

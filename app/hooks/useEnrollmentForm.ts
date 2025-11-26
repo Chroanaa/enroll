@@ -74,6 +74,7 @@ const initialFormData: EnrollmentFormData = {
   school_year: "",
   program_shs: "",
   remarks: "",
+  status: 0,
 };
 
 export const useEnrollmentForm = () => {

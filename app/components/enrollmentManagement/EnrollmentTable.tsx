@@ -1,5 +1,12 @@
 import React from "react";
-import { User, BookOpen, Calendar, Edit2, Trash2, UserPlus } from "lucide-react";
+import {
+  User,
+  BookOpen,
+  Calendar,
+  Edit2,
+  Trash2,
+  UserPlus,
+} from "lucide-react";
 import { colors } from "../../colors";
 import { Enrollment } from "../../types";
 import { getStatusColor, getStatusLabel } from "./utils";
@@ -46,7 +53,10 @@ const EnrollmentTable: React.FC<EnrollmentTableProps> = ({
           <tbody className='divide-y divide-gray-100'>
             {enrollments.length === 0 ? (
               <tr>
-                <td colSpan={5} className='px-6 py-12 text-center text-gray-500'>
+                <td
+                  colSpan={5}
+                  className='px-6 py-12 text-center text-gray-500'
+                >
                   <div className='flex flex-col items-center justify-center gap-3'>
                     <div
                       className='p-3 rounded-full'
@@ -66,7 +76,9 @@ const EnrollmentTable: React.FC<EnrollmentTableProps> = ({
               </tr>
             ) : (
               enrollments.map((enrollment) => {
-                const statusStyles = getStatusColor(enrollment.status);
+                const statusStyles = getStatusColor(
+                  enrollment.admission_status
+                );
                 return (
                   <tr
                     key={enrollment.id}
@@ -120,14 +132,16 @@ const EnrollmentTable: React.FC<EnrollmentTableProps> = ({
                           className='w-1.5 h-1.5 rounded-full mr-1.5'
                           style={{ backgroundColor: statusStyles.text }}
                         />
-                        {getStatusLabel(enrollment.status)}
+                        {getStatusLabel(enrollment.admission_status)}
                       </span>
                     </td>
                     <td className='px-6 py-4 whitespace-nowrap'>
                       <div className='flex items-center gap-2'>
                         <Calendar className='w-3.5 h-3.5 text-gray-400' />
                         <span className='text-sm text-gray-600'>
-                          {enrollment.admission_date || "N/A"}
+                          {new Date(
+                            enrollment.admission_date
+                          ).toLocaleDateString() || "N/A"}
                         </span>
                       </div>
                     </td>
@@ -161,4 +175,3 @@ const EnrollmentTable: React.FC<EnrollmentTableProps> = ({
 };
 
 export default EnrollmentTable;
-

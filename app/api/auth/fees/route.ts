@@ -18,3 +18,28 @@ export async function POST(request: NextRequest) {
     );
   }
 }
+export async function GET() {
+  try {
+    const faculties = await prisma.fee.findMany();
+    return NextResponse.json(faculties);
+  } catch (error) {
+    return NextResponse.json(
+      { error: "Failed to fetch faculties" },
+      { status: 500 }
+    );
+  }
+}
+export async function DELETE(request: NextRequest) {
+  try {
+    const id = await request.json();
+    const deletedFaculty = await prisma.fee.delete({
+      where: { id },
+    });
+    return NextResponse.json(deletedFaculty);
+  } catch (error) {
+    return NextResponse.json(
+      { error: "Failed to delete faculty" },
+      { status: 500 }
+    );
+  }
+}

@@ -17,3 +17,28 @@ export async function POST(request: NextRequest) {
     );
   }
 }
+export async function GET() {
+  try {
+    const sections = await prisma.section.findMany();
+    return NextResponse.json(sections);
+  } catch (error) {
+    return NextResponse.json(
+      { error: "Failed to fetch sections" },
+      { status: 500 }
+    );
+  }
+}
+export async function DELETE(request: NextRequest) {
+  try {
+    const id = await request.json();
+    const deletedSection = await prisma.section.delete({
+      where: { id },
+    });
+    return NextResponse.json(deletedSection);
+  } catch (error) {
+    return NextResponse.json(
+      { error: "Failed to delete section" },
+      { status: 500 }
+    );
+  }
+}

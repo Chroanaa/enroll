@@ -17,4 +17,28 @@ export async function POST(request: NextRequest) {
     );
   }
 }
-
+export async function GET() {
+  try {
+    const majors = await prisma.major.findMany();
+    return NextResponse.json(majors);
+  } catch (error) {
+    return NextResponse.json(
+      { error: "Failed to fetch majors" },
+      { status: 500 }
+    );
+  }
+}
+export async function DELETE(request: NextRequest) {
+  try {
+    const id = await request.json();
+    const deletedMajor = await prisma.major.delete({
+      where: { id },
+    });
+    return NextResponse.json(deletedMajor);
+  } catch (error) {
+    return NextResponse.json(
+      { error: "Failed to delete major" },
+      { status: 500 }
+    );
+  }
+}

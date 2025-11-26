@@ -117,27 +117,24 @@ model enrollment {
 
 /// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
 model building {
-  id          Int          @id @default(autoincrement())
-  name        String       @db.VarChar(255)
-  code        String       @db.VarChar(100)
+  id          Int     @id @default(autoincrement())
+  name        String  @db.VarChar(255)
+  code        String  @db.VarChar(100)
   description String?
   address     String?
   floor_count Int
-  status      String       @db.VarChar(10)
-  department  department[]
-  room        room[]
+  status      String  @db.VarChar(10)
 }
 
 /// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
 model department {
-  id          Int       @id @default(autoincrement())
-  code        String    @db.VarChar(50)
-  name        String    @db.VarChar(255)
+  id          Int     @id @default(autoincrement())
+  code        String  @db.VarChar(50)
+  name        String  @db.VarChar(255)
   description String?
   building_id Int?
-  head        String?   @db.VarChar(255)
-  status      String    @db.VarChar(10)
-  building    building? @relation(fields: [building_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_department_building")
+  head        String? @db.VarChar(255)
+  status      String  @db.VarChar(10)
 }
 
 /// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
@@ -155,14 +152,13 @@ model fee {
 
 /// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
 model room {
-  id          Int      @id @default(autoincrement())
+  id          Int    @id @default(autoincrement())
   building_id Int
-  room_number String   @db.VarChar(100)
+  room_number String @db.VarChar(100)
   capacity    Int
-  room_type   String   @db.VarChar(20)
+  room_type   String @db.VarChar(20)
   floor       Int
-  status      String   @db.VarChar(20)
-  building    building @relation(fields: [building_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_building")
+  status      String @db.VarChar(20)
 }
 
 /// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
@@ -178,4 +174,28 @@ model faculty {
   position       String  @db.VarChar(50)
   specialization String? @db.VarChar(255)
   status         String  @db.VarChar(20)
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+model major {
+  id           Int     @id @default(autoincrement())
+  code         String  @db.VarChar(50)
+  name         String  @db.VarChar(255)
+  description  String?
+  program_id   Int
+  program_name String? @db.VarChar(255)
+  status       String  @db.VarChar(10)
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+model program {
+  id              Int     @id @default(autoincrement())
+  code            String  @db.VarChar(50)
+  name            String  @db.VarChar(255)
+  description     String?
+  department_id   Int?
+  department_name String? @db.VarChar(255)
+  duration        Int?
+  total_units     Int?
+  status          String  @db.VarChar(10)
 }
