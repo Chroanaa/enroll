@@ -18,3 +18,28 @@ export async function POST(request: NextRequest) {
     );
   }
 }
+export async function GET() {
+  try {
+    const rooms = await prisma.room.findMany();
+    return NextResponse.json(rooms);
+  } catch (error) {
+    return NextResponse.json(
+      { error: "Failed to fetch rooms" },
+      { status: 500 }
+    );
+  }
+}
+export async function DELETE(request: NextRequest) {
+  try {
+    const id = await request.json();
+    const deletedRoom = await prisma.room.delete({
+      where: { id },
+    });
+    return NextResponse.json(deletedRoom);
+  } catch (error) {
+    return NextResponse.json(
+      { error: "Failed to delete room" },
+      { status: 500 }
+    );
+  }
+}

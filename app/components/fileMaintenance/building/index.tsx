@@ -10,9 +10,16 @@ import Pagination from "../../common/Pagination";
 import BuildingTable from "./BuildingTable";
 import BuildingForm from "./BuildingForm";
 import { filterBuildings } from "./utils";
-
+import { getBuildings } from "@/app/utils/getBuildings";
 const BuildingManagement: React.FC = () => {
-  const [buildings, setBuildings] = useState<Building[]>(mockBuildings);
+  const [buildings, setBuildings] = useState<Building[]>();
+  React.useEffect(() => {
+    const fetchBuildings = async () => {
+      const data = await getBuildings();
+      setBuildings(Object.values(data));
+    };
+    fetchBuildings();
+  }, []);
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState<
     "all" | "active" | "inactive"
@@ -32,7 +39,7 @@ const BuildingManagement: React.FC = () => {
   const [itemsPerPage, setItemsPerPage] = useState(10);
 
   const filteredBuildings = useMemo(
-    () => filterBuildings(buildings, searchTerm, statusFilter),
+    () => filterBuildings(buildings || [], searchTerm, statusFilter),
     [buildings, searchTerm, statusFilter]
   );
 
@@ -55,17 +62,17 @@ const BuildingManagement: React.FC = () => {
   const handleSaveBuilding = (buildingData: Building) => {
     if (editingBuilding) {
       setBuildings((prev) =>
-        prev.map((b) => (b.id === buildingData.id ? buildingData : b))
+        prev?.map((b) => (b.id === buildingData.id ? buildingData : b))
       );
       setEditingBuilding(null);
     } else {
-      setBuildings((prev) => [...prev, buildingData]);
+      setBuildings((prev) => [...(prev || []), buildingData]);
       setIsAddModalOpen(false);
     }
   };
 
   const handleDeleteBuilding = (id: number) => {
-    const building = buildings.find((b) => b.id === id);
+    const building = buildings?.find((b) => b.id === id);
     if (building) {
       setDeleteConfirmation({
         isOpen: true,
@@ -78,12 +85,16 @@ const BuildingManagement: React.FC = () => {
   const confirmDeleteBuilding = () => {
     if (deleteConfirmation.buildingId) {
       setBuildings((prev) =>
-        prev.filter((b) => b.id !== deleteConfirmation.buildingId)
+        prev?.filter((b) => b.id !== deleteConfirmation.buildingId)
       );
       setDeleteConfirmation({
         isOpen: false,
         buildingId: null,
         buildingName: "",
+      });
+      fetch("/api/auth/building", {
+        method: "DELETE",
+        body: JSON.stringify(deleteConfirmation.buildingId),
       });
     }
   };
@@ -126,7 +137,9 @@ const BuildingManagement: React.FC = () => {
             {
               value: statusFilter,
               onChange: (value) =>
-                setStatusFilter(value === "all" ? "all" : (value as "active" | "inactive")),
+                setStatusFilter(
+                  value === "all" ? "all" : (value as "active" | "inactive")
+                ),
               options: [
                 { value: "all", label: "All Status" },
                 { value: "active", label: "Active" },
@@ -191,6 +204,3 @@ const BuildingManagement: React.FC = () => {
 };
 
 export default BuildingManagement;
-
-
-

@@ -97,6 +97,9 @@ const AdmissionInformation: React.FC<EnrollmentPageProps> = ({
                 <option value='new'>New Student</option>
                 <option value='transferee'>Transferee</option>
                 <option value='returning'>Returning Student</option>
+                <option value='completed'>Completed</option>
+                <option value='dropped'>Dropped</option>
+                <option value='pending'>Pending</option>
               </select>
             </div>
 

@@ -1,26 +1,26 @@
 import { StatusColor } from "../../types";
-
-export const getStatusColor = (status: number): StatusColor => {
+import { getCountOfEnrolleesStatus } from "@/app/utils/getCountStatusEnrollees";
+export const getStatusColor = (status: string): StatusColor => {
   switch (status) {
-    case 1: // Enrolled
+    case "new": // Enrolled
       return {
         bg: "#DBEAFE",
         text: "#1E40AF",
         border: "#93C5FD",
       };
-    case 2: // Completed
+    case "completed": // Completed
       return {
         bg: "#ECFDF5",
         text: "#047857",
         border: "#A7F3D0",
       };
-    case 3: // Dropped
+    case "dropped": // Dropped
       return {
         bg: "#FEE2E2",
         text: "#991B1B",
         border: "#FCA5A5",
       };
-    case 4: // Pending
+    case "pending": // Pending
       return {
         bg: "#FEF3C7",
         text: "#92400E",
@@ -35,15 +35,15 @@ export const getStatusColor = (status: number): StatusColor => {
   }
 };
 
-export const getStatusLabel = (status: number): string => {
+export const getStatusLabel = (status: string): string => {
   switch (status) {
-    case 1:
-      return "Enrolled";
-    case 2:
+    case "new":
+      return "New";
+    case "completed":
       return "Completed";
-    case 3:
+    case "dropped":
       return "Dropped";
-    case 4:
+    case "pending":
       return "Pending";
     default:
       return "Unknown";
@@ -57,7 +57,9 @@ export const filterEnrollments = (
   courseFilter: string
 ) => {
   return enrollments.filter((enrollment) => {
-    const studentName = `${enrollment.first_name || ""} ${enrollment.middle_name || ""} ${enrollment.family_name || ""}`.toLowerCase();
+    const studentName = `${enrollment.first_name || ""} ${
+      enrollment.middle_name || ""
+    } ${enrollment.family_name || ""}`.toLowerCase();
     const courseName = enrollment.course_program?.toLowerCase() || "";
     const matchesSearch =
       studentName.includes(searchTerm.toLowerCase()) ||
@@ -71,12 +73,5 @@ export const filterEnrollments = (
 };
 
 export const calculateStats = (enrollments: any[]) => {
-  const total = enrollments.length;
-  const enrolled = enrollments.filter((e) => e.status === 1).length;
-  const completed = enrollments.filter((e) => e.status === 2).length;
-  const pending = enrollments.filter((e) => e.status === 4).length;
-  const dropped = enrollments.filter((e) => e.status === 3).length;
-
-  return { total, enrolled, completed, pending, dropped };
+  return getCountOfEnrolleesStatus();
 };
-

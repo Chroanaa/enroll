@@ -28,3 +28,17 @@ export async function GET(request: NextRequest) {
     );
   }
 }
+export async function DELETE(request: NextRequest) {
+  try {
+    const id = await request.json();
+    const deletedBuilding = await prisma.building.delete({
+      where: { id },
+    });
+    return NextResponse.json(deletedBuilding);
+  } catch (error) {
+    return NextResponse.json(
+      { error: "Failed to delete building" },
+      { status: 500 }
+    );
+  }
+}
