@@ -10,23 +10,31 @@ import Pagination from "../../common/Pagination";
 import MajorTable from "./MajorTable";
 import MajorForm from "./MajorForm";
 import { filterMajors } from "./utils";
-
+import { getMajors } from "@/app/utils/majorUtils";
 const MajorManagement: React.FC = () => {
-  const [majors, setMajors] = useState<Major[]>(
-    mockMajors.map((major) => ({
-      ...major,
-      programName: major.program_id
-        ? mockPrograms.find((p) => p.id === major.program_id)?.name || ""
-        : "",
-    }))
-  );
+  const [majors, setMajors] = useState<Major[]>([]);
+  useEffect(() => {
+    const fetchMajors = async () => {
+      try {
+        const data = await getMajors();
+        const majorsWithProgramNames = data.map((major) => ({
+          ...major,
+          programName: major.program_id
+            ? mockPrograms.find((p) => p.id === major.program_id)?.name || ""
+            : "",
+        }));
+        setMajors(majorsWithProgramNames);
+      } catch (error) {
+        console.error("Error fetching majors:", error);
+      }
+    };
+    fetchMajors();
+  }, []);
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState<
     "all" | "active" | "inactive"
   >("all");
-  const [editingMajor, setEditingMajor] = useState<Major | null>(
-    null
-  );
+  const [editingMajor, setEditingMajor] = useState<Major | null>(null);
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [deleteConfirmation, setDeleteConfirmation] = useState<{
     isOpen: boolean;
@@ -94,6 +102,13 @@ const MajorManagement: React.FC = () => {
         majorId: null,
         majorName: "",
       });
+      fetch("/api/auth/major", {
+        method: "DELETE",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(deleteConfirmation.majorId),
+      });
     }
   };
 
@@ -135,7 +150,9 @@ const MajorManagement: React.FC = () => {
             {
               value: statusFilter,
               onChange: (value) =>
-                setStatusFilter(value === "all" ? "all" : (value as "active" | "inactive")),
+                setStatusFilter(
+                  value === "all" ? "all" : (value as "active" | "inactive")
+                ),
               options: [
                 { value: "all", label: "All Status" },
                 { value: "active", label: "Active" },
@@ -200,4 +217,3 @@ const MajorManagement: React.FC = () => {
 };
 
 export default MajorManagement;
-

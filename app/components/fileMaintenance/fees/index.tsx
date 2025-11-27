@@ -10,9 +10,20 @@ import Pagination from "../../common/Pagination";
 import FeesTable from "./FeesTable";
 import FeesForm from "./FeesForm";
 import { filterFees } from "./utils";
-
+import { getFees } from "@/app/utils/feesUtils";
 const FeesManagement: React.FC = () => {
-  const [fees, setFees] = useState<Fee[]>(mockFees);
+  const [fees, setFees] = useState<Fee[]>([]);
+  useEffect(() => {
+    const fetchFees = async () => {
+      try {
+        const data = await getFees();
+        setFees(data);
+      } catch (error) {
+        console.error("Error fetching fees:", error);
+      }
+    };
+    fetchFees();
+  }, []);
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState<
     "all" | "active" | "inactive"
@@ -55,9 +66,7 @@ const FeesManagement: React.FC = () => {
 
   const handleSaveFee = (feeData: Fee) => {
     if (editingFee) {
-      setFees((prev) =>
-        prev.map((f) => (f.id === feeData.id ? feeData : f))
-      );
+      setFees((prev) => prev.map((f) => (f.id === feeData.id ? feeData : f)));
       setEditingFee(null);
     } else {
       setFees((prev) => [...prev, feeData]);
@@ -78,13 +87,18 @@ const FeesManagement: React.FC = () => {
 
   const confirmDeleteFee = () => {
     if (deleteConfirmation.feeId) {
-      setFees((prev) =>
-        prev.filter((f) => f.id !== deleteConfirmation.feeId)
-      );
+      setFees((prev) => prev.filter((f) => f.id !== deleteConfirmation.feeId));
       setDeleteConfirmation({
         isOpen: false,
         feeId: null,
         feeName: "",
+      });
+      fetch("/api/auth/fees", {
+        method: "DELETE",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(deleteConfirmation.feeId),
       });
     }
   };
@@ -140,7 +154,9 @@ const FeesManagement: React.FC = () => {
             {
               value: statusFilter,
               onChange: (value) =>
-                setStatusFilter(value === "all" ? "all" : (value as "active" | "inactive")),
+                setStatusFilter(
+                  value === "all" ? "all" : (value as "active" | "inactive")
+                ),
               options: [
                 { value: "all", label: "All Status" },
                 { value: "active", label: "Active" },
@@ -205,6 +221,3 @@ const FeesManagement: React.FC = () => {
 };
 
 export default FeesManagement;
-
-
-
