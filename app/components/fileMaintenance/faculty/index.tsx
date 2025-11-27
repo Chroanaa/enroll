@@ -10,15 +10,25 @@ import Pagination from "../../common/Pagination";
 import FacultyTable from "./FacultyTable";
 import FacultyForm from "./FacultyForm";
 import { filterFaculty } from "./utils";
-
+import { getFaculties } from "@/app/utils/facultyUtils";
 const FacultyManagement: React.FC = () => {
-  const [faculty, setFaculty] = useState<Faculty[]>(
-    mockFaculty.map((fac) => ({
-      ...fac,
-      departmentName:
-        mockDepartments.find((d) => d.id === fac.department_id)?.name || "",
-    }))
-  );
+  const [faculty, setFaculty] = useState<Faculty[]>([]);
+  useEffect(() => {
+    const fetchFaculty = async () => {
+      try {
+        const data = await getFaculties();
+        const facultyWithDepartmentNames = data.map((fac) => ({
+          ...fac,
+          departmentName:
+            mockDepartments.find((d) => d.id === fac.department_id)?.name || "",
+        }));
+        setFaculty(facultyWithDepartmentNames);
+      } catch (error) {
+        console.error("Error fetching faculty:", error);
+      }
+    };
+    fetchFaculty();
+  }, []);
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState<
     "all" | "active" | "inactive"
@@ -92,6 +102,13 @@ const FacultyManagement: React.FC = () => {
         facultyId: null,
         facultyName: "",
       });
+      fetch("/api/auth/faculty", {
+        method: "DELETE",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(deleteConfirmation.facultyId),
+      });
     }
   };
 
@@ -146,7 +163,9 @@ const FacultyManagement: React.FC = () => {
             {
               value: statusFilter,
               onChange: (value) =>
-                setStatusFilter(value === "all" ? "all" : (value as "active" | "inactive")),
+                setStatusFilter(
+                  value === "all" ? "all" : (value as "active" | "inactive")
+                ),
               options: [
                 { value: "all", label: "All Status" },
                 { value: "active", label: "Active" },
@@ -211,6 +230,3 @@ const FacultyManagement: React.FC = () => {
 };
 
 export default FacultyManagement;
-
-
-

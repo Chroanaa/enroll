@@ -10,15 +10,22 @@ import Pagination from "../../common/Pagination";
 import RoomTable from "./RoomTable";
 import RoomForm from "./RoomForm";
 import { filterRooms } from "./utils";
-
+import { getRooms } from "@/app/utils/roomUtils";
 const RoomManagement: React.FC = () => {
-  const [rooms, setRooms] = useState<(Room & { buildingName?: string })[]>(
-    mockRooms.map((room) => ({
-      ...room,
-      buildingName:
-        mockBuildings.find((b) => b.id === room.building_id)?.name || "",
-    }))
-  );
+  const [rooms, setRooms] = useState<Room[]>([]);
+  React.useEffect(() => {
+    async function fetchData() {
+      const data = await getRooms();
+      setRooms(
+        Object.values(data).map((room) => ({
+          ...room,
+          buildingName:
+            mockBuildings.find((b) => b.id === room.building_id)?.name || "",
+        }))
+      );
+    }
+    fetchData();
+  }, []);
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState<
     "all" | "available" | "occupied" | "maintenance"
@@ -91,6 +98,13 @@ const RoomManagement: React.FC = () => {
         isOpen: false,
         roomId: null,
         roomNumber: "",
+      });
+      fetch("/api/auth/room", {
+        method: "DELETE",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(deleteConfirmation.roomId),
       });
     }
   };
@@ -217,6 +231,3 @@ const RoomManagement: React.FC = () => {
 };
 
 export default RoomManagement;
-
-
-

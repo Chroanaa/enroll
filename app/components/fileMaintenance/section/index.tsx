@@ -10,23 +10,16 @@ import Pagination from "../../common/Pagination";
 import SectionTable from "./SectionTable";
 import SectionForm from "./SectionForm";
 import { filterSections } from "./utils";
-
+import { getSections } from "../../../utils/getSection";
 const SectionManagement: React.FC = () => {
-  const [sections, setSections] = useState<(Section & { courseName?: string })[]>(
-    mockSections.map((section) => {
-      const courseId = (section as any).courseId || section.course_id;
-      return {
-        ...section,
-        course_id: courseId,
-        courseName:
-          mockCourses.find((c) => parseInt(c.id) === courseId)?.name ||
-          "",
-        status: typeof section.status === "number" 
-          ? (section.status === 1 ? "active" : "inactive")
-          : section.status || "active",
-      };
-    })
-  );
+  const [sections, setSections] = useState<Section[]>();
+  React.useEffect(() => {
+    async function fetchData() {
+      const data = await getSections();
+      setSections(Object.values(data));
+    }
+    fetchData();
+  }, []);
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState<
     "all" | "active" | "inactive"
@@ -46,7 +39,7 @@ const SectionManagement: React.FC = () => {
   const [itemsPerPage, setItemsPerPage] = useState(10);
 
   const filteredSections = useMemo(
-    () => filterSections(sections, searchTerm, statusFilter),
+    () => filterSections(sections || [], searchTerm, statusFilter),
     [sections, searchTerm, statusFilter]
   );
 
@@ -66,20 +59,22 @@ const SectionManagement: React.FC = () => {
     window.scrollTo({ top: 0, behavior: "smooth" });
   };
 
-  const handleSaveSection = (sectionData: Section & { courseName?: string }) => {
+  const handleSaveSection = (
+    sectionData: Section & { courseName?: string }
+  ) => {
     if (editingSection) {
       setSections((prev) =>
-        prev.map((s) => (s.id === sectionData.id ? sectionData : s))
+        prev?.map((s) => (s.id === sectionData.id ? sectionData : s))
       );
       setEditingSection(null);
     } else {
-      setSections((prev) => [...prev, sectionData]);
+      setSections((prev = []) => [...prev, sectionData]);
       setIsAddModalOpen(false);
     }
   };
 
   const handleDeleteSection = (id: number) => {
-    const section = sections.find((s) => s.id === id);
+    const section = sections?.find((s) => s.id === id);
     if (section) {
       setDeleteConfirmation({
         isOpen: true,
@@ -91,13 +86,20 @@ const SectionManagement: React.FC = () => {
 
   const confirmDeleteSection = () => {
     if (deleteConfirmation.sectionId) {
-      setSections((prev) =>
+      setSections((prev = []) =>
         prev.filter((s) => s.id !== deleteConfirmation.sectionId)
       );
       setDeleteConfirmation({
         isOpen: false,
         sectionId: null,
         sectionName: "",
+      });
+      fetch("/api/auth/section", {
+        method: "DELETE",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(deleteConfirmation.sectionId),
       });
     }
   };
@@ -140,7 +142,9 @@ const SectionManagement: React.FC = () => {
             {
               value: statusFilter,
               onChange: (value) =>
-                setStatusFilter(value === "all" ? "all" : (value as "active" | "inactive")),
+                setStatusFilter(
+                  value === "all" ? "all" : (value as "active" | "inactive")
+                ),
               options: [
                 { value: "all", label: "All Status" },
                 { value: "active", label: "Active" },
@@ -205,4 +209,3 @@ const SectionManagement: React.FC = () => {
 };
 
 export default SectionManagement;
-

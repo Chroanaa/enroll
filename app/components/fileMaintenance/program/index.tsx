@@ -10,23 +10,33 @@ import Pagination from "../../common/Pagination";
 import ProgramTable from "./ProgramTable";
 import ProgramForm from "./ProgramForm";
 import { filterPrograms } from "./utils";
+import { getPrograms } from "@/app/utils/programUtils";
 
 const ProgramManagement: React.FC = () => {
-  const [programs, setPrograms] = useState<Program[]>(
-    mockPrograms.map((program) => ({
-      ...program,
-      departmentName: program.department_id
-        ? mockDepartments.find((d) => d.id === program.department_id)?.name || ""
-        : "",
-    }))
-  );
+  const [programs, setPrograms] = useState<Program[]>([]);
+  useEffect(() => {
+    const fetchPrograms = async () => {
+      try {
+        const data = await getPrograms();
+        const programsWithDeptNames = data.map((program) => ({
+          ...program,
+          departmentName: program.department_id
+            ? mockDepartments.find((d) => d.id === program.department_id)
+                ?.name || ""
+            : "",
+        }));
+        setPrograms(programsWithDeptNames);
+      } catch (error) {
+        console.error("Error fetching programs:", error);
+      }
+    };
+    fetchPrograms();
+  }, []);
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState<
     "all" | "active" | "inactive"
   >("all");
-  const [editingProgram, setEditingProgram] = useState<Program | null>(
-    null
-  );
+  const [editingProgram, setEditingProgram] = useState<Program | null>(null);
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [deleteConfirmation, setDeleteConfirmation] = useState<{
     isOpen: boolean;
@@ -94,6 +104,10 @@ const ProgramManagement: React.FC = () => {
         programId: null,
         programName: "",
       });
+      fetch("/api/auth/program", {
+        method: "DELETE",
+        body: JSON.stringify(deleteConfirmation.programId),
+      });
     }
   };
 
@@ -135,7 +149,9 @@ const ProgramManagement: React.FC = () => {
             {
               value: statusFilter,
               onChange: (value) =>
-                setStatusFilter(value === "all" ? "all" : (value as "active" | "inactive")),
+                setStatusFilter(
+                  value === "all" ? "all" : (value as "active" | "inactive")
+                ),
               options: [
                 { value: "all", label: "All Status" },
                 { value: "active", label: "Active" },
@@ -200,4 +216,3 @@ const ProgramManagement: React.FC = () => {
 };
 
 export default ProgramManagement;
-

@@ -10,16 +10,23 @@ import Pagination from "../../common/Pagination";
 import DepartmentTable from "./DepartmentTable";
 import DepartmentForm from "./DepartmentForm";
 import { filterDepartments } from "./utils";
-
+import { getDepartments } from "@/app/utils/departmentUtils";
 const DepartmentManagement: React.FC = () => {
-  const [departments, setDepartments] = useState<Department[]>(
-    mockDepartments.map((dept) => ({
-      ...dept,
-      buildingName: dept.building_id
-        ? mockBuildings.find((b) => b.id === dept.building_id)?.name || ""
-        : "",
-    }))
-  );
+  const [departments, setDepartments] = useState<Department[]>([]);
+  React.useEffect(() => {
+    async function fetchData() {
+      const data = await getDepartments();
+      setDepartments(
+        Object.values(data).map((department) => ({
+          ...department,
+          buildingName:
+            mockBuildings.find((b) => b.id === department.building_id)?.name ||
+            "",
+        }))
+      );
+    }
+    fetchData();
+  }, []);
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState<
     "all" | "active" | "inactive"
@@ -94,6 +101,13 @@ const DepartmentManagement: React.FC = () => {
         departmentId: null,
         departmentName: "",
       });
+      fetch("/api/auth/department", {
+        method: "DELETE",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(deleteConfirmation.departmentId),
+      });
     }
   };
 
@@ -135,7 +149,9 @@ const DepartmentManagement: React.FC = () => {
             {
               value: statusFilter,
               onChange: (value) =>
-                setStatusFilter(value === "all" ? "all" : (value as "active" | "inactive")),
+                setStatusFilter(
+                  value === "all" ? "all" : (value as "active" | "inactive")
+                ),
               options: [
                 { value: "all", label: "All Status" },
                 { value: "active", label: "Active" },
@@ -200,6 +216,3 @@ const DepartmentManagement: React.FC = () => {
 };
 
 export default DepartmentManagement;
-
-
-

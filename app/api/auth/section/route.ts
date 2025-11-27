@@ -1,4 +1,3 @@
-import axios from "axios";
 import { NextResponse, NextRequest } from "next/server";
 import { prisma } from "@/app/lib/prisma";
 export async function POST(request: NextRequest) {
