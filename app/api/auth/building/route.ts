@@ -42,3 +42,20 @@ export async function DELETE(request: NextRequest) {
     );
   }
 }
+export async function PATCH(nextRequest: NextRequest) {
+  try {
+    const data: Building = await nextRequest.json();
+    const updatedBuilding = await prisma.building.update({
+      where: { id: data.id },
+      data: {
+        ...data,
+      },
+    });
+    return NextResponse.json(updatedBuilding);
+  } catch (error) {
+    return NextResponse.json(
+      { error: "Failed to update building" },
+      { status: 500 }
+    );
+  }
+}

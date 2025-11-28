@@ -91,6 +91,10 @@ const EnrollmentManagement: React.FC = () => {
         prev.map((e) => (e.id === enrollmentData.id ? enrollmentData : e))
       );
       setEditingEnrollment(null);
+      fetch("/api/auth/enroll", {
+        method: "PATCH",
+        body: JSON.stringify(enrollmentData),
+      });
     } else {
       setEnrollments((prev) => [...prev, enrollmentData]);
       setIsAddingEnrollment(false);

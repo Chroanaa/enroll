@@ -68,6 +68,10 @@ const FeesManagement: React.FC = () => {
     if (editingFee) {
       setFees((prev) => prev.map((f) => (f.id === feeData.id ? feeData : f)));
       setEditingFee(null);
+      fetch("/api/auth/fees", {
+        method: "PATCH",
+        body: JSON.stringify(feeData),
+      });
     } else {
       setFees((prev) => [...prev, feeData]);
       setIsAddModalOpen(false);

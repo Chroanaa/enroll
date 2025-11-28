@@ -77,6 +77,10 @@ const ProgramManagement: React.FC = () => {
         prev.map((p) => (p.id === programData.id ? programData : p))
       );
       setEditingProgram(null);
+      fetch("/api/auth/program", {
+        method: "PATCH",
+        body: JSON.stringify(programData),
+      });
     } else {
       setPrograms((prev) => [...prev, programData]);
       setIsAddModalOpen(false);

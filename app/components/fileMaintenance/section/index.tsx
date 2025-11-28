@@ -67,6 +67,10 @@ const SectionManagement: React.FC = () => {
         prev?.map((s) => (s.id === sectionData.id ? sectionData : s))
       );
       setEditingSection(null);
+      fetch("/api/auth/section", {
+        method: "PATCH",
+        body: JSON.stringify(sectionData),
+      });
     } else {
       setSections((prev = []) => [...prev, sectionData]);
       setIsAddModalOpen(false);

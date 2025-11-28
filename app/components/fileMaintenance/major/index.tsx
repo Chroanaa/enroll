@@ -75,6 +75,10 @@ const MajorManagement: React.FC = () => {
         prev.map((m) => (m.id === majorData.id ? majorData : m))
       );
       setEditingMajor(null);
+      fetch("/api/auth/major", {
+        method: "PATCH",
+        body: JSON.stringify(majorData),
+      });
     } else {
       setMajors((prev) => [...prev, majorData]);
       setIsAddModalOpen(false);

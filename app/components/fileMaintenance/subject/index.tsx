@@ -10,15 +10,30 @@ import Pagination from "../../common/Pagination";
 import SubjectTable from "./SubjectTable";
 import SubjectForm from "./SubjectForm";
 import { filterSubjects } from "./utils";
-
+import { getSubjects } from "@/app/utils/subjectUtils";
 const SubjectManagement: React.FC = () => {
-  const [subjects, setSubjects] = useState<Subject[]>(
-    mockSubjects.map((subject) => ({
-      ...subject,
-      departmentName:
-        mockDepartments.find((d) => d.id === subject.department_id)?.name || "",
-    }))
-  );
+  const [subjects, setSubjects] = useState<Subject[]>();
+
+  useEffect(() => {
+    const fetchSubjects = async () => {
+      try {
+        const subjectsData = await getSubjects();
+        setSubjects(
+          subjectsData.map((subject) => ({
+            ...subject,
+            departmentName:
+              mockDepartments.find((d) => d.id === subject.department_id)
+                ?.name || "",
+          }))
+        );
+      } catch (error) {
+        console.error("Failed to fetch subjects:", error);
+      }
+    };
+
+    fetchSubjects();
+  }, []);
+
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState<
     "all" | "active" | "inactive"
@@ -38,7 +53,7 @@ const SubjectManagement: React.FC = () => {
   const [itemsPerPage, setItemsPerPage] = useState(10);
 
   const filteredSubjects = useMemo(
-    () => filterSubjects(subjects, searchTerm, statusFilter),
+    () => filterSubjects(subjects || [], searchTerm, statusFilter),
     [subjects, searchTerm, statusFilter]
   );
 
@@ -61,17 +76,24 @@ const SubjectManagement: React.FC = () => {
   const handleSaveSubject = (subjectData: Subject) => {
     if (editingSubject) {
       setSubjects((prev) =>
-        prev.map((s) => (s.id === subjectData.id ? subjectData : s))
+        (prev || []).map((s) => (s.id === subjectData.id ? subjectData : s))
       );
+      fetch("/api/auth/subject", {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(subjectData),
+      });
       setEditingSubject(null);
     } else {
-      setSubjects((prev) => [...prev, subjectData]);
+      setSubjects((prev) => [...(prev || []), subjectData]);
       setIsAddModalOpen(false);
     }
   };
 
   const handleDeleteSubject = (id: number) => {
-    const subject = subjects.find((s) => s.id === id);
+    const subject = (subjects || []).find((s) => s.id === id);
     if (subject) {
       setDeleteConfirmation({
         isOpen: true,
@@ -84,12 +106,19 @@ const SubjectManagement: React.FC = () => {
   const confirmDeleteSubject = () => {
     if (deleteConfirmation.subjectId) {
       setSubjects((prev) =>
-        prev.filter((s) => s.id !== deleteConfirmation.subjectId)
+        (prev || []).filter((s) => s.id !== deleteConfirmation.subjectId)
       );
       setDeleteConfirmation({
         isOpen: false,
         subjectId: null,
         subjectName: "",
+      });
+      fetch("/api/auth/subject", {
+        method: "DELETE",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(deleteConfirmation.subjectId),
       });
     }
   };
@@ -132,7 +161,9 @@ const SubjectManagement: React.FC = () => {
             {
               value: statusFilter,
               onChange: (value) =>
-                setStatusFilter(value === "all" ? "all" : (value as "active" | "inactive")),
+                setStatusFilter(
+                  value === "all" ? "all" : (value as "active" | "inactive")
+                ),
               options: [
                 { value: "all", label: "All Status" },
                 { value: "active", label: "Active" },
@@ -197,5 +228,3 @@ const SubjectManagement: React.FC = () => {
 };
 
 export default SubjectManagement;
-
-

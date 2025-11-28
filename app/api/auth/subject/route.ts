@@ -1,30 +1,29 @@
-import axios from "axios";
-import { NextResponse, NextRequest } from "next/server";
 import { prisma } from "@/app/lib/prisma";
+import { NextRequest, NextResponse } from "next/server";
 
 export async function POST(request: NextRequest) {
   try {
     const data = await request.json();
-    const newFaculty = await prisma.faculty.create({
+    const newSubject = await prisma.subject.create({
       data: {
         ...data,
       },
     });
-    return NextResponse.json(newFaculty);
+    return NextResponse.json(newSubject);
   } catch (error) {
     return NextResponse.json(
-      { error: error instanceof Error ? error.message : String(error) },
+      { error: "Failed to create subject" },
       { status: 500 }
     );
   }
 }
 export async function GET() {
   try {
-    const faculties = await prisma.faculty.findMany();
-    return NextResponse.json(faculties);
+    const subjects = await prisma.subject.findMany();
+    return NextResponse.json(subjects);
   } catch (error) {
     return NextResponse.json(
-      { error: "Failed to fetch faculties" },
+      { error: "Failed to fetch subjects" },
       { status: 500 }
     );
   }
@@ -32,13 +31,13 @@ export async function GET() {
 export async function DELETE(request: NextRequest) {
   try {
     const id = await request.json();
-    const deletedFaculty = await prisma.faculty.delete({
-      where: { id },
+    const deletedSubject = await prisma.subject.delete({
+      where: { id: Number(id) },
     });
-    return NextResponse.json(deletedFaculty);
+    return NextResponse.json(deletedSubject);
   } catch (error) {
     return NextResponse.json(
-      { error: "Failed to delete faculty" },
+      { error: "Failed to delete subject" },
       { status: 500 }
     );
   }
@@ -47,23 +46,27 @@ export async function PATCH(nextRequest: NextRequest) {
   try {
     const data = await nextRequest.json();
     const { id, ...updateData } = data;
-    const validFields = ["name", "code", "description", "status"];
+    // Only include fields that exist in the subject schema
+    const validFields = [
+      "subject_code",
+      "subject_name",
+      "description",
+      "credits",
+    ];
     const cleanData = Object.keys(updateData)
       .filter((key) => validFields.includes(key))
       .reduce((obj: any, key) => {
         obj[key] = (updateData as any)[key];
         return obj;
       }, {});
-    const updatedFaculty = await prisma.faculty.update({
-      where: { id: data.id },
-      data: {
-        ...cleanData,
-      },
+    const updatedSubject = await prisma.subject.update({
+      where: { id: Number(id) },
+      data: cleanData,
     });
-    return NextResponse.json(updatedFaculty);
+    return NextResponse.json(updatedSubject);
   } catch (error) {
     return NextResponse.json(
-      { error: "Failed to update faculty" },
+      { error: "Failed to update subject" },
       { status: 500 }
     );
   }

@@ -46,13 +46,16 @@ model course {
   department   Int?
 }
 
+/// The underlying table does not contain a valid unique identifier and can therefore currently not be handled by Prisma Client.
 model section {
-  id            Int    @id @default(autoincrement())
+  id            Int    @default(autoincrement())
   course_id     Int
   section_name  String @db.VarChar(100)
   advisor       String @db.VarChar(150)
   student_count Int    @default(0)
   status        String @db.VarChar(20)
+
+  @@ignore
 }
 
 model students {
@@ -198,4 +201,16 @@ model program {
   duration        Int?
   total_units     Int?
   status          String  @db.VarChar(10)
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+model subject {
+  id            Int     @id @default(autoincrement())
+  code          String  @db.VarChar(50)
+  name          String  @db.VarChar(255)
+  description   String?
+  units         Int
+  department_id Int
+  prerequisites String?
+  status        String  @db.VarChar(10)
 }

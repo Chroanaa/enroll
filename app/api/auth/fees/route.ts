@@ -43,3 +43,28 @@ export async function DELETE(request: NextRequest) {
     );
   }
 }
+export async function PATCH(nextRequest: NextRequest) {
+  try {
+    const data = await nextRequest.json();
+    const { id, ...updateData } = data;
+    const validFields = ["name", "code", "description", "status"];
+    const cleanData = Object.keys(updateData)
+      .filter((key) => validFields.includes(key))
+      .reduce((obj: any, key) => {
+        obj[key] = (updateData as any)[key];
+        return obj;
+      }, {});
+    const updatedFaculty = await prisma.fee.update({
+      where: { id: data.id },
+      data: {
+        ...cleanData,
+      },
+    });
+    return NextResponse.json(updatedFaculty);
+  } catch (error) {
+    return NextResponse.json(
+      { error: "Failed to update faculty" },
+      { status: 500 }
+    );
+  }
+}
