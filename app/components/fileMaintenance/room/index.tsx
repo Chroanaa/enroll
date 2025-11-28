@@ -66,11 +66,15 @@ const RoomManagement: React.FC = () => {
     window.scrollTo({ top: 0, behavior: "smooth" });
   };
 
-  const handleSaveRoom = (roomData: Room & { buildingName?: string }) => {
+  const handleSaveRoom = (roomData: Room) => {
     if (editingRoom) {
       setRooms((prev) =>
         prev.map((r) => (r.id === roomData.id ? roomData : r))
       );
+      fetch("/api/auth/room", {
+        method: "PATCH",
+        body: JSON.stringify(roomData),
+      });
       setEditingRoom(null);
     } else {
       setRooms((prev) => [...prev, roomData]);

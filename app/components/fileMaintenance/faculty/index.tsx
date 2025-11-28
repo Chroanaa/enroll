@@ -75,6 +75,10 @@ const FacultyManagement: React.FC = () => {
         prev.map((f) => (f.id === facultyData.id ? facultyData : f))
       );
       setEditingFaculty(null);
+      fetch("/api/auth/faculty", {
+        method: "PATCH",
+        body: JSON.stringify(facultyData),
+      });
     } else {
       setFaculty((prev) => [...prev, facultyData]);
       setIsAddModalOpen(false);

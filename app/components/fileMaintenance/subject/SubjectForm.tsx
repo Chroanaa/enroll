@@ -63,6 +63,13 @@ const SubjectForm: React.FC<SubjectFormProps> = ({
         setShowSaveConfirmation(true);
       } else {
         performSave();
+        fetch("/api/auth/subject", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify(formData),
+        });
       }
     }
   };
@@ -197,7 +204,7 @@ const SubjectForm: React.FC<SubjectFormProps> = ({
                     e.currentTarget.style.borderColor = "#E5E7EB";
                     e.currentTarget.style.boxShadow = "none";
                   }}
-                  placeholder="e.g. MATH101"
+                  placeholder='e.g. MATH101'
                   required
                 />
               </div>
@@ -230,7 +237,7 @@ const SubjectForm: React.FC<SubjectFormProps> = ({
                     e.currentTarget.style.borderColor = "#E5E7EB";
                     e.currentTarget.style.boxShadow = "none";
                   }}
-                  placeholder="e.g. Calculus I"
+                  placeholder='e.g. Calculus I'
                   required
                 />
               </div>
@@ -263,7 +270,7 @@ const SubjectForm: React.FC<SubjectFormProps> = ({
                     e.currentTarget.style.boxShadow = "none";
                   }}
                   rows={3}
-                  placeholder="Brief description of the subject..."
+                  placeholder='Brief description of the subject...'
                 />
               </div>
 
@@ -372,7 +379,7 @@ const SubjectForm: React.FC<SubjectFormProps> = ({
                     e.currentTarget.style.borderColor = "#E5E7EB";
                     e.currentTarget.style.boxShadow = "none";
                   }}
-                  placeholder="e.g. MATH101, CS101"
+                  placeholder='e.g. MATH101, CS101'
                 />
               </div>
 
@@ -452,7 +459,9 @@ const SubjectForm: React.FC<SubjectFormProps> = ({
           onClose={() => setShowSaveConfirmation(false)}
           onConfirm={performSave}
           title='Save Changes'
-          message={`Are you sure you want to save changes to "${formData.name || subject?.name}"?`}
+          message={`Are you sure you want to save changes to "${
+            formData.name || subject?.name
+          }"?`}
           description='The subject information will be updated with the new details.'
           confirmText='Save Changes'
           cancelText='Cancel'
@@ -477,5 +486,3 @@ const SubjectForm: React.FC<SubjectFormProps> = ({
 };
 
 export default SubjectForm;
-
-

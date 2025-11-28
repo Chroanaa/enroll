@@ -65,6 +65,10 @@ const BuildingManagement: React.FC = () => {
         prev?.map((b) => (b.id === buildingData.id ? buildingData : b))
       );
       setEditingBuilding(null);
+      fetch("/api/auth/building", {
+        method: "PATCH",
+        body: JSON.stringify(buildingData),
+      });
     } else {
       setBuildings((prev) => [...(prev || []), buildingData]);
       setIsAddModalOpen(false);

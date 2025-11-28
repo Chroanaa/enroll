@@ -74,6 +74,10 @@ const DepartmentManagement: React.FC = () => {
         prev.map((d) => (d.id === departmentData.id ? departmentData : d))
       );
       setEditingDepartment(null);
+      fetch("/api/auth/department", {
+        method: "PATCH",
+        body: JSON.stringify(departmentData),
+      });
     } else {
       setDepartments((prev) => [...prev, departmentData]);
       setIsAddModalOpen(false);

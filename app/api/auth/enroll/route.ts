@@ -90,3 +90,45 @@ export async function DELETE(request: NextRequest) {
     );
   }
 }
+export async function PATCH(nextRequest: NextRequest) {
+  try {
+    const data = await nextRequest.json();
+    const updatedEnrollment = await prisma.enrollment.update({
+      where: { id: data.id },
+      data: {
+        admission_date: data.admission_date
+          ? new Date(data.admission_date)
+          : null,
+        admission_status: data.admission_status || null,
+        term: data.term || null,
+        department: data.department,
+        course_program: data.course_program || null,
+        requirements: data.requirements || [],
+        family_name: data.family_name || null,
+        first_name: data.first_name || null,
+        middle_name: data.middle_name || null,
+        sex: data.sex || null,
+        civil_status: data.civil_status || null,
+        birthdate: data.birthdate ? new Date(data.birthdate) : null,
+        birthplace: data.birthplace || null,
+        complete_address: data.complete_address || null,
+        contact_number: data.contact_number || null,
+        email_address: data.email_address || null,
+        emergency_contact_name: data.emergency_contact_name || null,
+        emergency_relationship: data.emergency_relationship || null,
+        emergency_contact_number: data.emergency_contact_number || null,
+        last_school_attended: data.last_school_attended || null,
+        school_year: data.school_year || null,
+        program_shs: data.program_shs || null,
+        remarks: data.remarks || null,
+      },
+    });
+    return NextResponse.json(updatedEnrollment);
+  } catch (error) {
+    console.error("Update enrollment error:", error);
+    return NextResponse.json(
+      { error: "Failed to update enrollment" },
+      { status: 500 }
+    );
+  }
+}
