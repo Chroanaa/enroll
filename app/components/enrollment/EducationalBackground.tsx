@@ -6,75 +6,107 @@ import { EnrollmentPageProps } from "./types";
 const EducationalBackground: React.FC<EnrollmentPageProps> = ({
   formData,
   handleInputChange,
+  fieldErrors = {},
 }) => {
+  const inputClasses =
+    "w-full px-4 py-3 rounded-xl border bg-white/50 transition-all duration-300 focus:ring-2 focus:ring-offset-0 outline-none";
+  
+  const getInputStyle = (fieldName: string) => ({
+    borderColor: fieldErrors[fieldName] ? "#ef4444" : colors.tertiary + "30",
+    color: colors.primary,
+  });
+  
+  const handleFocus = (e: React.FocusEvent<HTMLInputElement | HTMLTextAreaElement>, fieldName: string) => {
+    e.currentTarget.style.borderColor = fieldErrors[fieldName] ? "#ef4444" : colors.secondary;
+    e.currentTarget.style.boxShadow = `0 0 0 4px ${fieldErrors[fieldName] ? "#ef444410" : colors.secondary + "10"}`;
+  };
+  
+  const handleBlur = (e: React.FocusEvent<HTMLInputElement | HTMLTextAreaElement>, fieldName: string) => {
+    e.currentTarget.style.borderColor = fieldErrors[fieldName] ? "#ef4444" : colors.tertiary + "30";
+    e.currentTarget.style.boxShadow = "none";
+  };
+
   return (
-    <div className='space-y-6'>
+    <div className='space-y-6 animate-in slide-in-from-bottom-4 duration-500 delay-200'>
       <div
-        className='p-6 rounded-xl bg-white border shadow-sm'
+        className='p-8 rounded-2xl bg-white border shadow-lg shadow-gray-100/50'
         style={{
-          borderColor: colors.accent + "40",
-          background: `linear-gradient(to bottom, ${colors.paper}, white)`,
+          borderColor: colors.accent + "20",
+          background: `linear-gradient(to bottom right, #ffffff, ${colors.paper})`,
         }}
       >
-        <div className='flex items-center gap-3 mb-6'>
+        <div className='flex items-center gap-4 mb-8 pb-6 border-b' style={{ borderColor: colors.accent + "10" }}>
           <div
-            className='p-2 rounded-lg'
-            style={{ backgroundColor: colors.accent + "20" }}
+            className='p-3 rounded-2xl shadow-sm transform transition-transform hover:scale-105 duration-300'
+            style={{
+              backgroundColor: "white",
+              border: `1px solid ${colors.accent}20`
+            }}
           >
-            <School className='w-5 h-5' style={{ color: colors.secondary }} />
+            <School className='w-6 h-6' style={{ color: colors.secondary }} />
           </div>
           <div>
-            <h2 className='text-xl font-bold' style={{ color: colors.primary }}>
-              EDUCATIONAL BACKGROUND
+            <h2 className='text-2xl font-bold tracking-tight' style={{ color: colors.primary }}>
+              Educational Background
             </h2>
-            <p className='text-xs mt-0.5' style={{ color: colors.tertiary }}>
+            <p className='text-sm mt-1 font-medium' style={{ color: colors.tertiary }}>
               Previous educational information
             </p>
           </div>
         </div>
-        <div className='grid grid-cols-3 gap-4 mb-4'>
-          <div>
+
+        <div className='grid grid-cols-1 md:grid-cols-3 gap-6 mb-6'>
+          <div className="group">
             <label
-              className='block text-sm font-medium mb-1'
+              className='block text-sm font-semibold mb-2 ml-1 transition-colors'
               style={{ color: colors.primary }}
             >
               Last School Attended
             </label>
             <input
+              name="last_school_attended"
+              data-field="last_school_attended"
               type='text'
               value={formData.last_school_attended}
               onChange={(e) =>
                 handleInputChange("last_school_attended", e.target.value)
               }
-              className='w-full px-3 py-2 border rounded-lg custom-focus transition-all duration-200 text-sm'
-              style={{
-                borderColor: colors.tertiary + "60",
-                color: colors.primary,
-              }}
+              className={`${inputClasses} ${fieldErrors.last_school_attended ? "border-red-500" : ""}`}
+              style={getInputStyle("last_school_attended")}
+              onFocus={(e) => handleFocus(e, "last_school_attended")}
+              onBlur={(e) => handleBlur(e, "last_school_attended")}
+              placeholder="Name of School"
             />
+            {fieldErrors.last_school_attended && (
+              <p className="text-red-500 text-xs mt-1 ml-1">{fieldErrors.last_school_attended}</p>
+            )}
           </div>
-          <div>
+          <div className="group">
             <label
-              className='block text-sm font-medium mb-1'
+              className='block text-sm font-semibold mb-2 ml-1 transition-colors'
               style={{ color: colors.primary }}
             >
               School Year
             </label>
             <input
+              name="school_year"
+              data-field="school_year"
               type='text'
               value={formData.school_year}
               onChange={(e) => handleInputChange("school_year", e.target.value)}
               placeholder='e.g., 2023-2024'
-              className='w-full px-3 py-2 border rounded-lg custom-focus transition-all duration-200 text-sm'
-              style={{
-                borderColor: colors.tertiary + "60",
-                color: colors.primary,
-              }}
+              className={`${inputClasses} ${fieldErrors.school_year ? "border-red-500" : ""}`}
+              style={getInputStyle("school_year")}
+              onFocus={(e) => handleFocus(e, "school_year")}
+              onBlur={(e) => handleBlur(e, "school_year")}
             />
+            {fieldErrors.school_year && (
+              <p className="text-red-500 text-xs mt-1 ml-1">{fieldErrors.school_year}</p>
+            )}
           </div>
-          <div>
+          <div className="group">
             <label
-              className='block text-sm font-medium mb-1'
+              className='block text-sm font-semibold mb-2 ml-1 transition-colors'
               style={{ color: colors.primary }}
             >
               Program (SHS)
@@ -83,17 +115,27 @@ const EducationalBackground: React.FC<EnrollmentPageProps> = ({
               type='text'
               value={formData.program_shs}
               onChange={(e) => handleInputChange("program_shs", e.target.value)}
-              className='w-full px-3 py-2 border rounded-lg custom-focus transition-all duration-200 text-sm'
+              className={inputClasses}
               style={{
-                borderColor: colors.tertiary + "60",
+                borderColor: colors.tertiary + "30",
                 color: colors.primary,
               }}
+              onFocus={(e) => {
+                e.currentTarget.style.borderColor = colors.secondary;
+                e.currentTarget.style.boxShadow = `0 0 0 4px ${colors.secondary}10`;
+              }}
+              onBlur={(e) => {
+                e.currentTarget.style.borderColor = colors.tertiary + "30";
+                e.currentTarget.style.boxShadow = "none";
+              }}
+              placeholder="e.g. STEM, ABM"
             />
           </div>
         </div>
-        <div>
+
+        <div className="group">
           <label
-            className='block text-sm font-medium mb-1'
+            className='block text-sm font-semibold mb-2 ml-1 transition-colors'
             style={{ color: colors.primary }}
           >
             Remarks
@@ -102,11 +144,20 @@ const EducationalBackground: React.FC<EnrollmentPageProps> = ({
             value={formData.remarks}
             onChange={(e) => handleInputChange("remarks", e.target.value)}
             rows={4}
-            className='w-full px-3 py-2 border rounded-lg custom-focus transition-all duration-200 text-sm bg-white'
+            className={`${inputClasses} resize-none`}
             style={{
-              borderColor: colors.tertiary + "60",
+              borderColor: colors.tertiary + "30",
               color: colors.primary,
             }}
+            onFocus={(e) => {
+              e.currentTarget.style.borderColor = colors.secondary;
+              e.currentTarget.style.boxShadow = `0 0 0 4px ${colors.secondary}10`;
+            }}
+            onBlur={(e) => {
+              e.currentTarget.style.borderColor = colors.tertiary + "30";
+              e.currentTarget.style.boxShadow = "none";
+            }}
+            placeholder="Additional notes or comments..."
           />
         </div>
       </div>

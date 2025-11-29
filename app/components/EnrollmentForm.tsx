@@ -26,6 +26,9 @@ const EnrollmentForm: React.FC = () => {
     submitError,
     setSubmitSuccess,
     setSubmitError,
+    fieldErrors,
+    validationError,
+    setValidationError,
   } = form;
 
   // Memoize common props for all page components
@@ -42,6 +45,7 @@ const EnrollmentForm: React.FC = () => {
       removePhoto: form.removePhoto,
       handlePhotoError: form.handlePhotoError,
       getTodayDate: form.getTodayDate,
+      fieldErrors: fieldErrors,
     }),
     [
       form.formData,
@@ -55,6 +59,7 @@ const EnrollmentForm: React.FC = () => {
       form.removePhoto,
       form.handlePhotoError,
       form.getTodayDate,
+      fieldErrors,
     ]
   );
 
@@ -80,10 +85,9 @@ const EnrollmentForm: React.FC = () => {
             }}
           >
             <ProgressBar
-              currentPage={currentPage}
-              totalPages={TOTAL_PAGES}
-              progress={progress}
-              pageTitle={PAGE_TITLES[currentPage - 1]}
+              currentStep={currentPage}
+              totalSteps={TOTAL_PAGES}
+              title={PAGE_TITLES[currentPage - 1]}
             />
 
             <form onSubmit={handleSubmit}>
@@ -121,6 +125,15 @@ const EnrollmentForm: React.FC = () => {
         title="Submission Failed"
         message={submitError?.message || "An error occurred while submitting your enrollment."}
         details={submitError?.details}
+      />
+
+      {/* Validation Error Modal */}
+      <ErrorModal
+        isOpen={validationError.isOpen}
+        onClose={() => setValidationError({ isOpen: false, message: "" })}
+        title="Validation Error"
+        message={validationError.message}
+        details="Please review the highlighted fields and correct any errors before proceeding."
       />
     </div>
   );

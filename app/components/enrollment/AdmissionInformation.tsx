@@ -26,54 +26,68 @@ const AdmissionInformation: React.FC<EnrollmentPageProps> = ({
   removePhoto,
   handlePhotoError,
   getTodayDate,
+  fieldErrors = {},
 }) => {
   formData.admission_date = getTodayDate?.() || "";
+
+  const inputClasses =
+    "w-full px-4 py-3 rounded-xl border bg-white/50 transition-all duration-300 focus:ring-2 focus:ring-offset-0 outline-none";
+
   return (
-    <div className='space-y-6'>
+    <div className='space-y-6 animate-in slide-in-from-bottom-4 duration-500 delay-100'>
       <div
-        className='p-6 rounded-xl bg-white border shadow-sm'
+        className='p-8 rounded-2xl bg-white border shadow-lg shadow-gray-100/50'
         style={{
-          borderColor: colors.accent + "40",
-          background: `linear-gradient(to bottom, ${colors.paper}, white)`,
+          borderColor: colors.accent + "20",
+          background: `linear-gradient(to bottom right, #ffffff, ${colors.paper})`,
         }}
       >
-        <div className='flex items-center gap-3 mb-4'>
+        <div className='flex items-center gap-4 mb-8 pb-6 border-b' style={{ borderColor: colors.accent + "10" }}>
           <div
-            className='p-2 rounded-lg'
-            style={{ backgroundColor: colors.accent + "20" }}
+            className='p-3 rounded-2xl shadow-sm transform transition-transform hover:scale-105 duration-300'
+            style={{
+              backgroundColor: "white",
+              border: `1px solid ${colors.accent}20`
+            }}
           >
             <GraduationCap
-              className='w-5 h-5'
+              className='w-6 h-6'
               style={{ color: colors.secondary }}
             />
           </div>
           <div>
-            <h2 className='text-xl font-bold' style={{ color: colors.primary }}>
-              ADMISSION INFORMATION
+            <h2 className='text-2xl font-bold tracking-tight' style={{ color: colors.primary }}>
+              Admission Information
             </h2>
-            <p className='text-xs mt-0.5' style={{ color: colors.tertiary }}>
+            <p className='text-sm mt-1 font-medium' style={{ color: colors.tertiary }}>
               Complete your admission details
             </p>
           </div>
         </div>
+
         <div
-          className='flex items-center gap-2 px-3 py-2 rounded-lg mb-6'
-          style={{ backgroundColor: colors.accent + "10" }}
+          className='flex items-center gap-3 px-4 py-3 rounded-xl mb-8 border'
+          style={{
+            backgroundColor: colors.accent + "05",
+            borderColor: colors.accent + "10"
+          }}
         >
-          <Calendar className='w-4 h-4' style={{ color: colors.secondary }} />
+          <Calendar className='w-5 h-5' style={{ color: colors.secondary }} />
+          <span className="text-sm font-semibold" style={{ color: colors.primary }}>Date of Admission:</span>
           <p
-            className='text-sm font-medium'
+            className='text-sm font-bold'
             style={{ color: colors.secondary }}
           >
             {getTodayDate?.() || ""}
           </p>
         </div>
-        <div className='grid grid-cols-1 md:grid-cols-2 gap-4'>
-          {/* Left Column */}
-          <div className='space-y-4'>
-            <div>
+
+        <div className='grid grid-cols-1 lg:grid-cols-3 gap-8'>
+          {/* Left Column - Form Fields */}
+          <div className='lg:col-span-2 space-y-6'>
+            <div className="group">
               <label
-                className='flex items-center gap-2 text-sm font-semibold mb-2'
+                className='flex items-center gap-2 text-sm font-semibold mb-2 ml-1'
                 style={{ color: colors.primary }}
               >
                 <UserCircle
@@ -82,30 +96,47 @@ const AdmissionInformation: React.FC<EnrollmentPageProps> = ({
                 />
                 Admission Status
               </label>
-              <select
-                value={formData.admission_status}
-                onChange={(e) =>
-                  handleInputChange("admission_status", e.target.value)
-                }
-                className='w-full px-4 py-2.5 border rounded-lg custom-focus transition-all duration-200 text-sm bg-white hover:shadow-sm'
-                style={{
-                  borderColor: colors.tertiary + "60",
-                  color: colors.primary,
-                }}
-              >
-                <option value=''>Select Status</option>
-                <option value='new'>New Student</option>
-                <option value='transferee'>Transferee</option>
-                <option value='returning'>Returning Student</option>
-                <option value='completed'>Completed</option>
-                <option value='dropped'>Dropped</option>
-                <option value='pending'>Pending</option>
-              </select>
+              <div className="relative">
+                <select
+                  name="admission_status"
+                  data-field="admission_status"
+                  value={formData.admission_status}
+                  onChange={(e) =>
+                    handleInputChange("admission_status", e.target.value)
+                  }
+                  className={`${inputClasses} appearance-none cursor-pointer ${fieldErrors.admission_status ? "border-red-500" : ""}`}
+                  style={{
+                    borderColor: fieldErrors.admission_status ? "#ef4444" : colors.tertiary + "30",
+                    color: colors.primary,
+                  }}
+                  onFocus={(e) => {
+                    e.currentTarget.style.borderColor = fieldErrors.admission_status ? "#ef4444" : colors.secondary;
+                    e.currentTarget.style.boxShadow = `0 0 0 4px ${fieldErrors.admission_status ? "#ef444410" : colors.secondary + "10"}`;
+                  }}
+                  onBlur={(e) => {
+                    e.currentTarget.style.borderColor = fieldErrors.admission_status ? "#ef4444" : colors.tertiary + "30";
+                    e.currentTarget.style.boxShadow = "none";
+                  }}
+                >
+                  <option value=''>Select Status</option>
+                  <option value='new'>New Student</option>
+                  <option value='transferee'>Transferee</option>
+                  <option value='returning'>Returning Student</option>
+                  <option value='completed'>Completed</option>
+                  <option value='dropped'>Dropped</option>
+                  <option value='pending'>Pending</option>
+                </select>
+                <div className="absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none opacity-50">
+                  <svg width="12" height="12" viewBox="0 0 12 12" fill="none" xmlns="http://www.w3.org/2000/svg">
+                    <path d="M2.5 4.5L6 8L9.5 4.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+                  </svg>
+                </div>
+              </div>
             </div>
 
-            <div>
+            <div className="group">
               <label
-                className='flex items-center gap-2 text-sm font-semibold mb-2'
+                className='flex items-center gap-2 text-sm font-semibold mb-2 ml-1'
                 style={{ color: colors.primary }}
               >
                 <Building2
@@ -114,28 +145,49 @@ const AdmissionInformation: React.FC<EnrollmentPageProps> = ({
                 />
                 Department
               </label>
-              <select
-                value={formData.department}
-                onChange={(e) =>
-                  handleDepartmentChange?.(Number(e.target.value))
-                }
-                className='w-full px-4 py-2.5 border rounded-lg custom-focus transition-all duration-200 text-sm bg-white hover:shadow-sm'
-                style={{
-                  borderColor: colors.tertiary + "60",
-                  color: colors.primary,
-                }}
-              >
-                <option value=''>Select Department</option>
-                {mockDepartmentsForEnrollment.map((dept) => (
-                  <option key={dept.id} value={dept.id}>
-                    {dept.name}
-                  </option>
-                ))}
-              </select>
+              <div className="relative">
+                <select
+                  name="department"
+                  data-field="department"
+                  value={formData.department}
+                  onChange={(e) =>
+                    handleDepartmentChange?.(Number(e.target.value))
+                  }
+                  className={`${inputClasses} appearance-none cursor-pointer ${fieldErrors.department ? "border-red-500" : ""}`}
+                  style={{
+                    borderColor: fieldErrors.department ? "#ef4444" : colors.tertiary + "30",
+                    color: colors.primary,
+                  }}
+                  onFocus={(e) => {
+                    e.currentTarget.style.borderColor = fieldErrors.department ? "#ef4444" : colors.secondary;
+                    e.currentTarget.style.boxShadow = `0 0 0 4px ${fieldErrors.department ? "#ef444410" : colors.secondary + "10"}`;
+                  }}
+                  onBlur={(e) => {
+                    e.currentTarget.style.borderColor = fieldErrors.department ? "#ef4444" : colors.tertiary + "30";
+                    e.currentTarget.style.boxShadow = "none";
+                  }}
+                >
+                  <option value=''>Select Department</option>
+                  {mockDepartmentsForEnrollment.map((dept) => (
+                    <option key={dept.id} value={dept.id}>
+                      {dept.name}
+                    </option>
+                  ))}
+                </select>
+                <div className="absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none opacity-50">
+                  <svg width="12" height="12" viewBox="0 0 12 12" fill="none" xmlns="http://www.w3.org/2000/svg">
+                    <path d="M2.5 4.5L6 8L9.5 4.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+                  </svg>
+                </div>
+              </div>
+              {fieldErrors.department && (
+                <p className="text-red-500 text-xs mt-1 ml-1">{fieldErrors.department}</p>
+              )}
             </div>
-            <div>
+
+            <div className="group">
               <label
-                className='flex items-center gap-2 text-sm font-semibold mb-2'
+                className='flex items-center gap-2 text-sm font-semibold mb-2 ml-1'
                 style={{ color: colors.primary }}
               >
                 <BookOpen
@@ -144,33 +196,56 @@ const AdmissionInformation: React.FC<EnrollmentPageProps> = ({
                 />
                 Course/Program
               </label>
-              <select
-                value={formData.course_program}
-                onChange={(e) =>
-                  handleInputChange("course_program", e.target.value)
-                }
-                disabled={!formData.department}
-                className='w-full px-4 py-2.5 border rounded-lg custom-focus transition-all duration-200 text-sm disabled:opacity-50 disabled:cursor-not-allowed bg-white hover:shadow-sm'
-                style={{
-                  borderColor: colors.tertiary + "60",
-                  color: colors.primary,
-                }}
-              >
-                <option value=''>
-                  {formData.department
-                    ? "Select Course/Program"
-                    : "Please select a department first"}
-                </option>
-                {filteredCoursePrograms?.map((program) => (
-                  <option key={program.id} value={program.id}>
-                    {program.name}
+              <div className="relative">
+                <select
+                  name="course_program"
+                  data-field="course_program"
+                  value={formData.course_program}
+                  onChange={(e) =>
+                    handleInputChange("course_program", e.target.value)
+                  }
+                  disabled={!formData.department}
+                  className={`${inputClasses} appearance-none cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed ${fieldErrors.course_program ? "border-red-500" : ""}`}
+                  style={{
+                    borderColor: fieldErrors.course_program ? "#ef4444" : colors.tertiary + "30",
+                    color: colors.primary,
+                  }}
+                  onFocus={(e) => {
+                    if (!formData.department) return;
+                    e.currentTarget.style.borderColor = fieldErrors.course_program ? "#ef4444" : colors.secondary;
+                    e.currentTarget.style.boxShadow = `0 0 0 4px ${fieldErrors.course_program ? "#ef444410" : colors.secondary + "10"}`;
+                  }}
+                  onBlur={(e) => {
+                    if (!formData.department) return;
+                    e.currentTarget.style.borderColor = fieldErrors.course_program ? "#ef4444" : colors.tertiary + "30";
+                    e.currentTarget.style.boxShadow = "none";
+                  }}
+                >
+                  <option value=''>
+                    {formData.department
+                      ? "Select Course/Program"
+                      : "Please select a department first"}
                   </option>
-                ))}
-              </select>
+                  {filteredCoursePrograms?.map((program) => (
+                    <option key={program.id} value={program.id}>
+                      {program.name}
+                    </option>
+                  ))}
+                </select>
+                <div className="absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none opacity-50">
+                  <svg width="12" height="12" viewBox="0 0 12 12" fill="none" xmlns="http://www.w3.org/2000/svg">
+                    <path d="M2.5 4.5L6 8L9.5 4.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+                  </svg>
+                </div>
+              </div>
+              {fieldErrors.course_program && (
+                <p className="text-red-500 text-xs mt-1 ml-1">{fieldErrors.course_program}</p>
+              )}
             </div>
-            <div>
+
+            <div className="group">
               <label
-                className='flex items-center gap-2 text-sm font-semibold mb-3'
+                className='flex items-center gap-2 text-sm font-semibold mb-3 ml-1'
                 style={{ color: colors.primary }}
               >
                 <Calendar
@@ -179,20 +254,20 @@ const AdmissionInformation: React.FC<EnrollmentPageProps> = ({
                 />
                 Term
               </label>
-              <div className='flex gap-4'>
+              <div className='flex flex-wrap gap-4'>
                 {["First", "Second", "Summer"].map((term) => (
                   <label
                     key={term}
-                    className='flex items-center gap-2 px-4 py-2 rounded-lg border cursor-pointer transition-all hover:shadow-sm'
+                    className='flex items-center gap-3 px-5 py-3 rounded-xl border cursor-pointer transition-all duration-300 hover:shadow-md relative overflow-hidden group/radio'
                     style={{
                       borderColor:
                         formData.term === term.toLowerCase()
                           ? colors.secondary
-                          : colors.tertiary + "40",
+                          : colors.tertiary + "30",
                       backgroundColor:
                         formData.term === term.toLowerCase()
-                          ? colors.accent + "15"
-                          : "transparent",
+                          ? colors.accent + "10"
+                          : "white",
                     }}
                   >
                     <input
@@ -217,60 +292,63 @@ const AdmissionInformation: React.FC<EnrollmentPageProps> = ({
                     >
                       {term}
                     </span>
+                    {formData.term === term.toLowerCase() && (
+                      <div
+                        className="absolute inset-0 opacity-10 pointer-events-none"
+                        style={{ backgroundColor: colors.secondary }}
+                      />
+                    )}
                   </label>
                 ))}
               </div>
+              {fieldErrors.term && (
+                <p className="text-red-500 text-xs mt-1 ml-1">{fieldErrors.term}</p>
+              )}
             </div>
           </div>
 
-          {/* Right Column */}
-          <div className='space-y-4'>
-            {/* Photo Section */}
-            <div>
+          {/* Right Column - Photo Upload */}
+          <div className='lg:col-span-1'>
+            <div className="sticky top-6">
               <label
-                className='flex items-center gap-2 text-sm font-semibold mb-3'
+                className='flex items-center gap-2 text-sm font-semibold mb-3 ml-1'
                 style={{ color: colors.primary }}
               >
                 <ImageIcon
                   className='w-4 h-4'
                   style={{ color: colors.secondary }}
                 />
-                Photo
+                Student Photo
               </label>
               <div
-                className='rounded-xl shadow-sm border p-3 flex flex-col items-center'
+                className='rounded-2xl shadow-sm border p-6 flex flex-col items-center justify-center bg-white transition-all duration-300 hover:shadow-md'
                 style={{
-                  borderColor: colors.accent + "40",
-                  backgroundColor: colors.paper,
+                  borderColor: colors.accent + "20",
                 }}
               >
                 <div
-                  className={`w-32 h-40 sm:w-36 sm:h-44 border-2 border-dashed rounded-lg relative overflow-hidden cursor-pointer transition-all duration-200 group ${
-                    photoPreview
-                      ? ""
-                      : "flex flex-col items-center justify-center"
-                  }`}
+                  className={`w-40 h-48 border-2 border-dashed rounded-xl relative overflow-hidden cursor-pointer transition-all duration-300 group ${photoPreview
+                      ? "border-transparent shadow-md"
+                      : "flex flex-col items-center justify-center hover:border-solid"
+                    }`}
                   style={{
                     borderColor: photoPreview
-                      ? colors.tertiary + "60"
-                      : colors.accent + "60",
+                      ? "transparent"
+                      : colors.accent + "40",
                     backgroundColor: photoPreview
-                      ? "#ffffff"
-                      : colors.accent + "05",
+                      ? "white"
+                      : colors.paper,
                   }}
                   onMouseEnter={(e) => {
                     if (!photoPreview) {
-                      e.currentTarget.style.borderColor =
-                        colors.secondary + "80";
-                      e.currentTarget.style.backgroundColor =
-                        colors.accent + "15";
+                      e.currentTarget.style.borderColor = colors.secondary;
+                      e.currentTarget.style.backgroundColor = colors.accent + "10";
                     }
                   }}
                   onMouseLeave={(e) => {
                     if (!photoPreview) {
-                      e.currentTarget.style.borderColor = colors.accent + "60";
-                      e.currentTarget.style.backgroundColor =
-                        colors.accent + "05";
+                      e.currentTarget.style.borderColor = colors.accent + "40";
+                      e.currentTarget.style.backgroundColor = colors.paper;
                     }
                   }}
                   onClick={() => fileInputRef?.current?.click()}
@@ -289,7 +367,7 @@ const AdmissionInformation: React.FC<EnrollmentPageProps> = ({
                         key={photoPreview}
                         src={photoPreview}
                         alt='Student photo preview'
-                        className='absolute inset-0 w-full h-full object-cover'
+                        className='absolute inset-0 w-full h-full object-cover transition-transform duration-500 group-hover:scale-110'
                         style={{ zIndex: 1 }}
                         onError={() => handlePhotoError?.()}
                       />
@@ -299,26 +377,39 @@ const AdmissionInformation: React.FC<EnrollmentPageProps> = ({
                           e.stopPropagation();
                           removePhoto?.();
                         }}
-                        className='absolute top-0.5 right-0.5 bg-red-500 text-white rounded-full w-5 h-5 flex items-center justify-center text-xs hover:bg-red-600 transition-colors shadow-sm z-30'
+                        className='absolute top-2 right-2 bg-white/90 text-red-500 rounded-full w-8 h-8 flex items-center justify-center hover:bg-red-500 hover:text-white transition-all shadow-md z-30 backdrop-blur-sm'
                         aria-label='Remove photo'
                       >
                         ×
                       </button>
-                      <div className='absolute inset-0 bg-black opacity-0 group-hover:opacity-30 transition-opacity duration-200 flex items-center justify-center pointer-events-none z-20'>
-                        <Upload className='w-5 h-5 text-white opacity-0 group-hover:opacity-100 transition-opacity duration-200' />
+                      <div className='absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex items-center justify-center pointer-events-none z-20 backdrop-blur-[2px]'>
+                        <div className="bg-white/20 p-3 rounded-full backdrop-blur-md">
+                          <Upload className='w-6 h-6 text-white' />
+                        </div>
                       </div>
                     </>
                   ) : (
-                    <div className='text-center p-2'>
-                      <ImageIcon
-                        className='w-6 h-6 mx-auto mb-1 group-hover:scale-110 transition-transform duration-200'
-                        style={{ color: "#9CA3AF" }}
-                      />
-                      <span
-                        className='text-xs block'
-                        style={{ color: "#6B7280" }}
+                    <div className='text-center p-4'>
+                      <div
+                        className="w-12 h-12 rounded-full flex items-center justify-center mx-auto mb-3 transition-transform duration-300 group-hover:scale-110"
+                        style={{ backgroundColor: colors.accent + "20" }}
                       >
-                        Click to upload photo
+                        <ImageIcon
+                          className='w-6 h-6'
+                          style={{ color: colors.secondary }}
+                        />
+                      </div>
+                      <span
+                        className='text-sm font-medium block mb-1'
+                        style={{ color: colors.primary }}
+                      >
+                        Upload Photo
+                      </span>
+                      <span
+                        className='text-xs block opacity-70'
+                        style={{ color: colors.tertiary }}
+                      >
+                        Click to browse
                       </span>
                     </div>
                   )}
@@ -331,6 +422,12 @@ const AdmissionInformation: React.FC<EnrollmentPageProps> = ({
                   className='hidden'
                   id='photo-upload'
                 />
+                <p className="text-xs text-center mt-4 max-w-[200px]" style={{ color: colors.tertiary }}>
+                  Supported formats: JPG, PNG. Max size: 5MB.
+                </p>
+                {fieldErrors.photo && (
+                  <p className="text-red-500 text-xs text-center mt-2">{fieldErrors.photo}</p>
+                )}
               </div>
             </div>
           </div>

@@ -12,4 +12,5 @@ export interface EnrollmentPageProps {
   removePhoto?: () => void;
   handlePhotoError?: () => void;
   getTodayDate?: () => string;
+  fieldErrors?: Record<string, string>;
 }
