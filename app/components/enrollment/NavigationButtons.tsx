@@ -8,6 +8,7 @@ interface NavigationButtonsProps {
   onPrevious: () => void;
   onNext: () => void;
   onSubmit: (e: React.FormEvent) => void;
+  isSubmitting?: boolean;
 }
 
 export const NavigationButtons: React.FC<NavigationButtonsProps> = ({
@@ -16,6 +17,7 @@ export const NavigationButtons: React.FC<NavigationButtonsProps> = ({
   onPrevious,
   onNext,
   onSubmit,
+  isSubmitting = false,
 }) => {
   return (
     <div
@@ -66,19 +68,29 @@ export const NavigationButtons: React.FC<NavigationButtonsProps> = ({
           </button>
         ) : (
           <button
-            type='submit'
-            onClick={onSubmit}
-            className='flex items-center gap-1.5 px-5 py-2 rounded-lg text-sm font-medium transition-all duration-200 text-white'
+            type='button'
+            onClick={(e) => {
+              e.preventDefault();
+              if (!isSubmitting) {
+                onSubmit(e);
+              }
+            }}
+            disabled={isSubmitting}
+            className='flex items-center gap-1.5 px-5 py-2 rounded-lg text-sm font-medium transition-all duration-200 text-white disabled:opacity-50 disabled:cursor-not-allowed'
             style={{ backgroundColor: colors.secondary }}
             onMouseEnter={(e) => {
-              e.currentTarget.style.backgroundColor = colors.primary;
+              if (!e.currentTarget.disabled) {
+                e.currentTarget.style.backgroundColor = colors.primary;
+              }
             }}
             onMouseLeave={(e) => {
-              e.currentTarget.style.backgroundColor = colors.secondary;
+              if (!e.currentTarget.disabled) {
+                e.currentTarget.style.backgroundColor = colors.secondary;
+              }
             }}
           >
             <CheckCircle2 className='w-4 h-4' />
-            Submit Enrollment
+            {isSubmitting ? "Submitting..." : "Submit Enrollment"}
           </button>
         )}
       </div>

@@ -79,6 +79,7 @@ const initialFormData: EnrollmentFormData = {
 
 export const useEnrollmentForm = () => {
   const [currentPage, setCurrentPage] = useState(1);
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const [formData, setFormData] = useState<EnrollmentFormData>(initialFormData);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [photoPreview, setPhotoPreview] = useState<string | null>(null);
@@ -238,12 +239,21 @@ export const useEnrollmentForm = () => {
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    
+    // Prevent multiple submissions
+    if (isSubmitting) {
+      return;
+    }
+    
+    setIsSubmitting(true);
     Axios.post("/api/auth/enroll", { formData })
       .then((response) => {
         console.log("Enrollment submitted successfully:", response.data);
+        setIsSubmitting(false);
       })
       .catch((error) => {
         console.error("Error submitting enrollment:", error);
+        setIsSubmitting(false);
       });
   };
 
@@ -302,6 +312,7 @@ export const useEnrollmentForm = () => {
     progress,
     TOTAL_PAGES,
     filteredCoursePrograms,
+    isSubmitting,
 
     // Functions
     getTodayDate,

@@ -19,6 +19,7 @@ const EnrollmentForm: React.FC = () => {
     nextPage,
     prevPage,
     goToPage,
+    isSubmitting,
   } = form;
 
   // Memoize common props for all page components
@@ -90,6 +91,7 @@ const EnrollmentForm: React.FC = () => {
                 onPrevious={prevPage}
                 onNext={nextPage}
                 onSubmit={handleSubmit}
+                isSubmitting={isSubmitting}
               />
             </form>
           </div>
