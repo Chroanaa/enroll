@@ -80,6 +80,11 @@ const initialFormData: EnrollmentFormData = {
 export const useEnrollmentForm = () => {
   const [currentPage, setCurrentPage] = useState(1);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [submitSuccess, setSubmitSuccess] = useState(false);
+  const [submitError, setSubmitError] = useState<{
+    message: string;
+    details?: string;
+  } | null>(null);
   const [formData, setFormData] = useState<EnrollmentFormData>(initialFormData);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [photoPreview, setPhotoPreview] = useState<string | null>(null);
@@ -246,14 +251,30 @@ export const useEnrollmentForm = () => {
     }
     
     setIsSubmitting(true);
+    setSubmitError(null);
+    setSubmitSuccess(false);
+    
     Axios.post("/api/auth/enroll", { formData })
       .then((response) => {
         console.log("Enrollment submitted successfully:", response.data);
         setIsSubmitting(false);
+        setSubmitSuccess(true);
+        // Reset form after successful submission
+        setTimeout(() => {
+          setFormData(initialFormData);
+          setPhotoPreview(null);
+          if (fileInputRef.current) {
+            fileInputRef.current.value = "";
+          }
+        }, 2000);
       })
       .catch((error) => {
         console.error("Error submitting enrollment:", error);
         setIsSubmitting(false);
+        setSubmitError({
+          message: error.response?.data?.error || "Failed to submit enrollment form.",
+          details: error.response?.data?.message || "Please check your information and try again.",
+        });
       });
   };
 
@@ -313,6 +334,8 @@ export const useEnrollmentForm = () => {
     TOTAL_PAGES,
     filteredCoursePrograms,
     isSubmitting,
+    submitSuccess,
+    submitError,
 
     // Functions
     getTodayDate,
@@ -326,5 +349,7 @@ export const useEnrollmentForm = () => {
     goToPage,
     removePhoto,
     handlePhotoError,
+    setSubmitSuccess,
+    setSubmitError,
   };
 };
