@@ -5,6 +5,8 @@ import { Department } from "../../../types";
 import { mockDepartments, mockBuildings } from "../../../data/mockData";
 import { colors } from "../../../colors";
 import ConfirmationModal from "../../common/ConfirmationModal";
+import SuccessModal from "../../common/SuccessModal";
+import ErrorModal from "../../common/ErrorModal";
 import SearchFilters from "../../common/SearchFilters";
 import Pagination from "../../common/Pagination";
 import DepartmentTable from "./DepartmentTable";
@@ -44,6 +46,22 @@ const DepartmentManagement: React.FC = () => {
     departmentId: null,
     departmentName: "",
   });
+  const [successModal, setSuccessModal] = useState<{
+    isOpen: boolean;
+    message: string;
+  }>({
+    isOpen: false,
+    message: "",
+  });
+  const [errorModal, setErrorModal] = useState<{
+    isOpen: boolean;
+    message: string;
+    details?: string;
+  }>({
+    isOpen: false,
+    message: "",
+    details: "",
+  });
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage, setItemsPerPage] = useState(10);
 
@@ -68,19 +86,58 @@ const DepartmentManagement: React.FC = () => {
     window.scrollTo({ top: 0, behavior: "smooth" });
   };
 
-  const handleSaveDepartment = (departmentData: Department) => {
-    if (editingDepartment) {
-      setDepartments((prev) =>
-        prev.map((d) => (d.id === departmentData.id ? departmentData : d))
-      );
-      setEditingDepartment(null);
-      fetch("/api/auth/department", {
-        method: "PATCH",
-        body: JSON.stringify(departmentData),
+  const handleSaveDepartment = async (departmentData: Department) => {
+    try {
+      if (editingDepartment) {
+        const response = await fetch("/api/auth/department", {
+          method: "PATCH",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify(departmentData),
+        });
+
+        if (!response.ok) {
+          const errorData = await response.json();
+          throw new Error(errorData.error || "Failed to update department");
+        }
+
+        setDepartments((prev) =>
+          prev.map((d) => (d.id === departmentData.id ? departmentData : d))
+        );
+        setEditingDepartment(null);
+        setSuccessModal({
+          isOpen: true,
+          message: `Department "${departmentData.name}" has been updated successfully.`,
+        });
+      } else {
+        const response = await fetch("/api/auth/department", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify(departmentData),
+        });
+
+        if (!response.ok) {
+          const errorData = await response.json();
+          throw new Error(errorData.error || "Failed to create department");
+        }
+
+        const newDepartment = await response.json();
+        setDepartments((prev) => [...prev, { ...departmentData, id: newDepartment.id }]);
+        setIsAddModalOpen(false);
+        setSuccessModal({
+          isOpen: true,
+          message: `Department "${departmentData.name}" has been created successfully.`,
+        });
+      }
+    } catch (error: any) {
+      setErrorModal({
+        isOpen: true,
+        message: error.message || "An error occurred while saving the department.",
+        details: "Please check your input and try again.",
       });
-    } else {
-      setDepartments((prev) => [...prev, departmentData]);
-      setIsAddModalOpen(false);
     }
   };
 
@@ -95,23 +152,46 @@ const DepartmentManagement: React.FC = () => {
     }
   };
 
-  const confirmDeleteDepartment = () => {
+  const confirmDeleteDepartment = async () => {
     if (deleteConfirmation.departmentId) {
-      setDepartments((prev) =>
-        prev.filter((d) => d.id !== deleteConfirmation.departmentId)
-      );
-      setDeleteConfirmation({
-        isOpen: false,
-        departmentId: null,
-        departmentName: "",
-      });
-      fetch("/api/auth/department", {
-        method: "DELETE",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify(deleteConfirmation.departmentId),
-      });
+      try {
+        const response = await fetch("/api/auth/department", {
+          method: "DELETE",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify(deleteConfirmation.departmentId),
+        });
+
+        if (!response.ok) {
+          const errorData = await response.json();
+          throw new Error(errorData.error || "Failed to delete department");
+        }
+
+        setDepartments((prev) =>
+          prev.filter((d) => d.id !== deleteConfirmation.departmentId)
+        );
+        setDeleteConfirmation({
+          isOpen: false,
+          departmentId: null,
+          departmentName: "",
+        });
+        setSuccessModal({
+          isOpen: true,
+          message: `Department "${deleteConfirmation.departmentName}" has been deleted successfully.`,
+        });
+      } catch (error: any) {
+        setErrorModal({
+          isOpen: true,
+          message: error.message || "An error occurred while deleting the department.",
+          details: "Please try again.",
+        });
+        setDeleteConfirmation({
+          isOpen: false,
+          departmentId: null,
+          departmentName: "",
+        });
+      }
     }
   };
 
@@ -213,6 +293,23 @@ const DepartmentManagement: React.FC = () => {
           confirmText='Delete Department'
           cancelText='Cancel'
           variant='danger'
+        />
+
+        {/* Success Modal */}
+        <SuccessModal
+          isOpen={successModal.isOpen}
+          onClose={() => setSuccessModal({ isOpen: false, message: "" })}
+          message={successModal.message}
+          autoClose={true}
+          autoCloseDelay={3000}
+        />
+
+        {/* Error Modal */}
+        <ErrorModal
+          isOpen={errorModal.isOpen}
+          onClose={() => setErrorModal({ isOpen: false, message: "", details: "" })}
+          message={errorModal.message}
+          details={errorModal.details}
         />
       </div>
     </div>

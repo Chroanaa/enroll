@@ -5,6 +5,8 @@ import { Building } from "../../../types";
 import { mockBuildings } from "../../../data/mockData";
 import { colors } from "../../../colors";
 import ConfirmationModal from "../../common/ConfirmationModal";
+import SuccessModal from "../../common/SuccessModal";
+import ErrorModal from "../../common/ErrorModal";
 import SearchFilters from "../../common/SearchFilters";
 import Pagination from "../../common/Pagination";
 import BuildingTable from "./BuildingTable";
@@ -35,6 +37,22 @@ const BuildingManagement: React.FC = () => {
     buildingId: null,
     buildingName: "",
   });
+  const [successModal, setSuccessModal] = useState<{
+    isOpen: boolean;
+    message: string;
+  }>({
+    isOpen: false,
+    message: "",
+  });
+  const [errorModal, setErrorModal] = useState<{
+    isOpen: boolean;
+    message: string;
+    details?: string;
+  }>({
+    isOpen: false,
+    message: "",
+    details: "",
+  });
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage, setItemsPerPage] = useState(10);
 
@@ -59,19 +77,58 @@ const BuildingManagement: React.FC = () => {
     window.scrollTo({ top: 0, behavior: "smooth" });
   };
 
-  const handleSaveBuilding = (buildingData: Building) => {
-    if (editingBuilding) {
-      setBuildings((prev) =>
-        prev?.map((b) => (b.id === buildingData.id ? buildingData : b))
-      );
-      setEditingBuilding(null);
-      fetch("/api/auth/building", {
-        method: "PATCH",
-        body: JSON.stringify(buildingData),
+  const handleSaveBuilding = async (buildingData: Building) => {
+    try {
+      if (editingBuilding) {
+        const response = await fetch("/api/auth/building", {
+          method: "PATCH",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify(buildingData),
+        });
+
+        if (!response.ok) {
+          const errorData = await response.json();
+          throw new Error(errorData.error || "Failed to update building");
+        }
+
+        setBuildings((prev) =>
+          prev?.map((b) => (b.id === buildingData.id ? buildingData : b))
+        );
+        setEditingBuilding(null);
+        setSuccessModal({
+          isOpen: true,
+          message: `Building "${buildingData.name}" has been updated successfully.`,
+        });
+      } else {
+        const response = await fetch("/api/auth/building", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify(buildingData),
+        });
+
+        if (!response.ok) {
+          const errorData = await response.json();
+          throw new Error(errorData.error || "Failed to create building");
+        }
+
+        const newBuilding = await response.json();
+        setBuildings((prev) => [...(prev || []), { ...buildingData, id: newBuilding.id }]);
+        setIsAddModalOpen(false);
+        setSuccessModal({
+          isOpen: true,
+          message: `Building "${buildingData.name}" has been created successfully.`,
+        });
+      }
+    } catch (error: any) {
+      setErrorModal({
+        isOpen: true,
+        message: error.message || "An error occurred while saving the building.",
+        details: "Please check your input and try again.",
       });
-    } else {
-      setBuildings((prev) => [...(prev || []), buildingData]);
-      setIsAddModalOpen(false);
     }
   };
 
@@ -86,20 +143,46 @@ const BuildingManagement: React.FC = () => {
     }
   };
 
-  const confirmDeleteBuilding = () => {
+  const confirmDeleteBuilding = async () => {
     if (deleteConfirmation.buildingId) {
-      setBuildings((prev) =>
-        prev?.filter((b) => b.id !== deleteConfirmation.buildingId)
-      );
-      setDeleteConfirmation({
-        isOpen: false,
-        buildingId: null,
-        buildingName: "",
-      });
-      fetch("/api/auth/building", {
-        method: "DELETE",
-        body: JSON.stringify(deleteConfirmation.buildingId),
-      });
+      try {
+        const response = await fetch("/api/auth/building", {
+          method: "DELETE",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify(deleteConfirmation.buildingId),
+        });
+
+        if (!response.ok) {
+          const errorData = await response.json();
+          throw new Error(errorData.error || "Failed to delete building");
+        }
+
+        setBuildings((prev) =>
+          prev?.filter((b) => b.id !== deleteConfirmation.buildingId)
+        );
+        setDeleteConfirmation({
+          isOpen: false,
+          buildingId: null,
+          buildingName: "",
+        });
+        setSuccessModal({
+          isOpen: true,
+          message: `Building "${deleteConfirmation.buildingName}" has been deleted successfully.`,
+        });
+      } catch (error: any) {
+        setErrorModal({
+          isOpen: true,
+          message: error.message || "An error occurred while deleting the building.",
+          details: "Please try again.",
+        });
+        setDeleteConfirmation({
+          isOpen: false,
+          buildingId: null,
+          buildingName: "",
+        });
+      }
     }
   };
 
@@ -201,6 +284,23 @@ const BuildingManagement: React.FC = () => {
           confirmText='Delete Building'
           cancelText='Cancel'
           variant='danger'
+        />
+
+        {/* Success Modal */}
+        <SuccessModal
+          isOpen={successModal.isOpen}
+          onClose={() => setSuccessModal({ isOpen: false, message: "" })}
+          message={successModal.message}
+          autoClose={true}
+          autoCloseDelay={3000}
+        />
+
+        {/* Error Modal */}
+        <ErrorModal
+          isOpen={errorModal.isOpen}
+          onClose={() => setErrorModal({ isOpen: false, message: "", details: "" })}
+          message={errorModal.message}
+          details={errorModal.details}
         />
       </div>
     </div>
