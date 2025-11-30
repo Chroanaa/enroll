@@ -5,6 +5,8 @@ import { Subject } from "../../../types";
 import { mockSubjects, mockDepartments } from "../../../data/mockData";
 import { colors } from "../../../colors";
 import ConfirmationModal from "../../common/ConfirmationModal";
+import SuccessModal from "../../common/SuccessModal";
+import ErrorModal from "../../common/ErrorModal";
 import SearchFilters from "../../common/SearchFilters";
 import Pagination from "../../common/Pagination";
 import SubjectTable from "./SubjectTable";
@@ -49,6 +51,22 @@ const SubjectManagement: React.FC = () => {
     subjectId: null,
     subjectName: "",
   });
+  const [successModal, setSuccessModal] = useState<{
+    isOpen: boolean;
+    message: string;
+  }>({
+    isOpen: false,
+    message: "",
+  });
+  const [errorModal, setErrorModal] = useState<{
+    isOpen: boolean;
+    message: string;
+    details?: string;
+  }>({
+    isOpen: false,
+    message: "",
+    details: "",
+  });
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage, setItemsPerPage] = useState(10);
 
@@ -73,22 +91,58 @@ const SubjectManagement: React.FC = () => {
     window.scrollTo({ top: 0, behavior: "smooth" });
   };
 
-  const handleSaveSubject = (subjectData: Subject) => {
-    if (editingSubject) {
-      setSubjects((prev) =>
-        (prev || []).map((s) => (s.id === subjectData.id ? subjectData : s))
-      );
-      fetch("/api/auth/subject", {
-        method: "PATCH",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify(subjectData),
+  const handleSaveSubject = async (subjectData: Subject) => {
+    try {
+      if (editingSubject) {
+        const response = await fetch("/api/auth/subject", {
+          method: "PATCH",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify(subjectData),
+        });
+
+        if (!response.ok) {
+          const errorData = await response.json();
+          throw new Error(errorData.error || "Failed to update subject");
+        }
+
+        setSubjects((prev) =>
+          (prev || []).map((s) => (s.id === subjectData.id ? subjectData : s))
+        );
+        setEditingSubject(null);
+        setSuccessModal({
+          isOpen: true,
+          message: `Subject "${subjectData.name}" has been updated successfully.`,
+        });
+      } else {
+        const response = await fetch("/api/auth/subject", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify(subjectData),
+        });
+
+        if (!response.ok) {
+          const errorData = await response.json();
+          throw new Error(errorData.error || "Failed to create subject");
+        }
+
+        const newSubject = await response.json();
+        setSubjects((prev) => [...(prev || []), { ...subjectData, id: newSubject.id }]);
+        setIsAddModalOpen(false);
+        setSuccessModal({
+          isOpen: true,
+          message: `Subject "${subjectData.name}" has been created successfully.`,
+        });
+      }
+    } catch (error: any) {
+      setErrorModal({
+        isOpen: true,
+        message: error.message || "An error occurred while saving the subject.",
+        details: "Please check your input and try again.",
       });
-      setEditingSubject(null);
-    } else {
-      setSubjects((prev) => [...(prev || []), subjectData]);
-      setIsAddModalOpen(false);
     }
   };
 
@@ -103,23 +157,46 @@ const SubjectManagement: React.FC = () => {
     }
   };
 
-  const confirmDeleteSubject = () => {
+  const confirmDeleteSubject = async () => {
     if (deleteConfirmation.subjectId) {
-      setSubjects((prev) =>
-        (prev || []).filter((s) => s.id !== deleteConfirmation.subjectId)
-      );
-      setDeleteConfirmation({
-        isOpen: false,
-        subjectId: null,
-        subjectName: "",
-      });
-      fetch("/api/auth/subject", {
-        method: "DELETE",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify(deleteConfirmation.subjectId),
-      });
+      try {
+        const response = await fetch("/api/auth/subject", {
+          method: "DELETE",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify(deleteConfirmation.subjectId),
+        });
+
+        if (!response.ok) {
+          const errorData = await response.json();
+          throw new Error(errorData.error || "Failed to delete subject");
+        }
+
+        setSubjects((prev) =>
+          (prev || []).filter((s) => s.id !== deleteConfirmation.subjectId)
+        );
+        setDeleteConfirmation({
+          isOpen: false,
+          subjectId: null,
+          subjectName: "",
+        });
+        setSuccessModal({
+          isOpen: true,
+          message: `Subject "${deleteConfirmation.subjectName}" has been deleted successfully.`,
+        });
+      } catch (error: any) {
+        setErrorModal({
+          isOpen: true,
+          message: error.message || "An error occurred while deleting the subject.",
+          details: "Please try again.",
+        });
+        setDeleteConfirmation({
+          isOpen: false,
+          subjectId: null,
+          subjectName: "",
+        });
+      }
     }
   };
 
@@ -221,6 +298,23 @@ const SubjectManagement: React.FC = () => {
           confirmText='Delete Subject'
           cancelText='Cancel'
           variant='danger'
+        />
+
+        {/* Success Modal */}
+        <SuccessModal
+          isOpen={successModal.isOpen}
+          onClose={() => setSuccessModal({ isOpen: false, message: "" })}
+          message={successModal.message}
+          autoClose={true}
+          autoCloseDelay={3000}
+        />
+
+        {/* Error Modal */}
+        <ErrorModal
+          isOpen={errorModal.isOpen}
+          onClose={() => setErrorModal({ isOpen: false, message: "", details: "" })}
+          message={errorModal.message}
+          details={errorModal.details}
         />
       </div>
     </div>

@@ -4,6 +4,8 @@ import { Plus } from "lucide-react";
 import { colors } from "../../colors";
 import { getEnrollments } from "@/app/utils/getEnrollments";
 import ConfirmationModal from "../common/ConfirmationModal";
+import SuccessModal from "../common/SuccessModal";
+import ErrorModal from "../common/ErrorModal";
 import { Enrollment, DeleteConfirmationState } from "../../types";
 import { filterEnrollments, calculateStats } from "./utils";
 import StatsCards from "./StatsCards";
@@ -32,6 +34,22 @@ const EnrollmentManagement: React.FC = () => {
       enrollmentId: null,
       enrollmentName: "",
     });
+  const [successModal, setSuccessModal] = useState<{
+    isOpen: boolean;
+    message: string;
+  }>({
+    isOpen: false,
+    message: "",
+  });
+  const [errorModal, setErrorModal] = useState<{
+    isOpen: boolean;
+    message: string;
+    details?: string;
+  }>({
+    isOpen: false,
+    message: "",
+    details: "",
+  });
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage, setItemsPerPage] = useState(10);
   const [stats, setStats] = useState({
@@ -85,19 +103,62 @@ const EnrollmentManagement: React.FC = () => {
     window.scrollTo({ top: 0, behavior: "smooth" });
   };
 
-  const handleSaveEnrollment = (enrollmentData: Enrollment) => {
-    if (editingEnrollment) {
-      setEnrollments((prev) =>
-        prev.map((e) => (e.id === enrollmentData.id ? enrollmentData : e))
-      );
-      setEditingEnrollment(null);
-      fetch("/api/auth/enroll", {
-        method: "PATCH",
-        body: JSON.stringify(enrollmentData),
+  const handleSaveEnrollment = async (enrollmentData: Enrollment) => {
+    try {
+      if (editingEnrollment) {
+        const response = await fetch("/api/auth/enroll", {
+          method: "PATCH",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify(enrollmentData),
+        });
+
+        if (!response.ok) {
+          const errorData = await response.json();
+          throw new Error(errorData.error || "Failed to update enrollment");
+        }
+
+        setEnrollments((prev) =>
+          prev.map((e) => (e.id === enrollmentData.id ? enrollmentData : e))
+        );
+        setEditingEnrollment(null);
+        
+        const studentName = `${enrollmentData.first_name || ""} ${enrollmentData.family_name || ""}`.trim();
+        setSuccessModal({
+          isOpen: true,
+          message: `Enrollment for "${studentName || "student"}" has been updated successfully.`,
+        });
+      } else {
+        const response = await fetch("/api/auth/enroll", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify(enrollmentData),
+        });
+
+        if (!response.ok) {
+          const errorData = await response.json();
+          throw new Error(errorData.error || "Failed to create enrollment");
+        }
+
+        const newEnrollment = await response.json();
+        setEnrollments((prev) => [...prev, { ...enrollmentData, id: newEnrollment.id || enrollmentData.id }]);
+        setIsAddingEnrollment(false);
+        
+        const studentName = `${enrollmentData.first_name || ""} ${enrollmentData.family_name || ""}`.trim();
+        setSuccessModal({
+          isOpen: true,
+          message: `Enrollment for "${studentName || "student"}" has been created successfully.`,
+        });
+      }
+    } catch (error: any) {
+      setErrorModal({
+        isOpen: true,
+        message: error.message || "An error occurred while saving the enrollment.",
+        details: "Please check your input and try again.",
       });
-    } else {
-      setEnrollments((prev) => [...prev, enrollmentData]);
-      setIsAddingEnrollment(false);
     }
   };
 
@@ -115,20 +176,46 @@ const EnrollmentManagement: React.FC = () => {
     }
   };
 
-  const confirmDeleteEnrollment = () => {
+  const confirmDeleteEnrollment = async () => {
     if (deleteConfirmation.enrollmentId) {
-      setEnrollments((prev) =>
-        prev.filter((e) => e.id !== deleteConfirmation.enrollmentId)
-      );
-      setDeleteConfirmation({
-        isOpen: false,
-        enrollmentId: null,
-        enrollmentName: "",
-      });
-      fetch("/api/auth/enroll", {
-        method: "DELETE",
-        body: JSON.stringify(deleteConfirmation.enrollmentId),
-      });
+      try {
+        const response = await fetch("/api/auth/enroll", {
+          method: "DELETE",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify(deleteConfirmation.enrollmentId),
+        });
+
+        if (!response.ok) {
+          const errorData = await response.json();
+          throw new Error(errorData.error || "Failed to delete enrollment");
+        }
+
+        setEnrollments((prev) =>
+          prev.filter((e) => e.id !== deleteConfirmation.enrollmentId)
+        );
+        setDeleteConfirmation({
+          isOpen: false,
+          enrollmentId: null,
+          enrollmentName: "",
+        });
+        setSuccessModal({
+          isOpen: true,
+          message: `Enrollment for "${deleteConfirmation.enrollmentName}" has been deleted successfully.`,
+        });
+      } catch (error: any) {
+        setErrorModal({
+          isOpen: true,
+          message: error.message || "An error occurred while deleting the enrollment.",
+          details: "Please try again.",
+        });
+        setDeleteConfirmation({
+          isOpen: false,
+          enrollmentId: null,
+          enrollmentName: "",
+        });
+      }
     }
   };
 
@@ -262,6 +349,23 @@ const EnrollmentManagement: React.FC = () => {
           confirmText='Delete Enrollment'
           cancelText='Cancel'
           variant='danger'
+        />
+
+        {/* Success Modal */}
+        <SuccessModal
+          isOpen={successModal.isOpen}
+          onClose={() => setSuccessModal({ isOpen: false, message: "" })}
+          message={successModal.message}
+          autoClose={true}
+          autoCloseDelay={3000}
+        />
+
+        {/* Error Modal */}
+        <ErrorModal
+          isOpen={errorModal.isOpen}
+          onClose={() => setErrorModal({ isOpen: false, message: "", details: "" })}
+          message={errorModal.message}
+          details={errorModal.details}
         />
       </div>
     </div>

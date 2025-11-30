@@ -5,6 +5,8 @@ import { Faculty } from "../../../types";
 import { mockFaculty, mockDepartments } from "../../../data/mockData";
 import { colors } from "../../../colors";
 import ConfirmationModal from "../../common/ConfirmationModal";
+import SuccessModal from "../../common/SuccessModal";
+import ErrorModal from "../../common/ErrorModal";
 import SearchFilters from "../../common/SearchFilters";
 import Pagination from "../../common/Pagination";
 import FacultyTable from "./FacultyTable";
@@ -45,6 +47,22 @@ const FacultyManagement: React.FC = () => {
     facultyId: null,
     facultyName: "",
   });
+  const [successModal, setSuccessModal] = useState<{
+    isOpen: boolean;
+    message: string;
+  }>({
+    isOpen: false,
+    message: "",
+  });
+  const [errorModal, setErrorModal] = useState<{
+    isOpen: boolean;
+    message: string;
+    details?: string;
+  }>({
+    isOpen: false,
+    message: "",
+    details: "",
+  });
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage, setItemsPerPage] = useState(10);
 
@@ -69,19 +87,58 @@ const FacultyManagement: React.FC = () => {
     window.scrollTo({ top: 0, behavior: "smooth" });
   };
 
-  const handleSaveFaculty = (facultyData: Faculty) => {
-    if (editingFaculty) {
-      setFaculty((prev) =>
-        prev.map((f) => (f.id === facultyData.id ? facultyData : f))
-      );
-      setEditingFaculty(null);
-      fetch("/api/auth/faculty", {
-        method: "PATCH",
-        body: JSON.stringify(facultyData),
+  const handleSaveFaculty = async (facultyData: Faculty) => {
+    try {
+      if (editingFaculty) {
+        const response = await fetch("/api/auth/faculty", {
+          method: "PATCH",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify(facultyData),
+        });
+
+        if (!response.ok) {
+          const errorData = await response.json();
+          throw new Error(errorData.error || "Failed to update faculty");
+        }
+
+        setFaculty((prev) =>
+          prev.map((f) => (f.id === facultyData.id ? facultyData : f))
+        );
+        setEditingFaculty(null);
+        setSuccessModal({
+          isOpen: true,
+          message: `Faculty "${facultyData.first_name} ${facultyData.last_name}" has been updated successfully.`,
+        });
+      } else {
+        const response = await fetch("/api/auth/faculty", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify(facultyData),
+        });
+
+        if (!response.ok) {
+          const errorData = await response.json();
+          throw new Error(errorData.error || "Failed to create faculty");
+        }
+
+        const newFaculty = await response.json();
+        setFaculty((prev) => [...prev, { ...facultyData, id: newFaculty.id }]);
+        setIsAddModalOpen(false);
+        setSuccessModal({
+          isOpen: true,
+          message: `Faculty "${facultyData.first_name} ${facultyData.last_name}" has been created successfully.`,
+        });
+      }
+    } catch (error: any) {
+      setErrorModal({
+        isOpen: true,
+        message: error.message || "An error occurred while saving the faculty.",
+        details: "Please check your input and try again.",
       });
-    } else {
-      setFaculty((prev) => [...prev, facultyData]);
-      setIsAddModalOpen(false);
     }
   };
 
@@ -96,23 +153,46 @@ const FacultyManagement: React.FC = () => {
     }
   };
 
-  const confirmDeleteFaculty = () => {
+  const confirmDeleteFaculty = async () => {
     if (deleteConfirmation.facultyId) {
-      setFaculty((prev) =>
-        prev.filter((f) => f.id !== deleteConfirmation.facultyId)
-      );
-      setDeleteConfirmation({
-        isOpen: false,
-        facultyId: null,
-        facultyName: "",
-      });
-      fetch("/api/auth/faculty", {
-        method: "DELETE",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify(deleteConfirmation.facultyId),
-      });
+      try {
+        const response = await fetch("/api/auth/faculty", {
+          method: "DELETE",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify(deleteConfirmation.facultyId),
+        });
+
+        if (!response.ok) {
+          const errorData = await response.json();
+          throw new Error(errorData.error || "Failed to delete faculty");
+        }
+
+        setFaculty((prev) =>
+          prev.filter((f) => f.id !== deleteConfirmation.facultyId)
+        );
+        setDeleteConfirmation({
+          isOpen: false,
+          facultyId: null,
+          facultyName: "",
+        });
+        setSuccessModal({
+          isOpen: true,
+          message: `Faculty "${deleteConfirmation.facultyName}" has been deleted successfully.`,
+        });
+      } catch (error: any) {
+        setErrorModal({
+          isOpen: true,
+          message: error.message || "An error occurred while deleting the faculty.",
+          details: "Please try again.",
+        });
+        setDeleteConfirmation({
+          isOpen: false,
+          facultyId: null,
+          facultyName: "",
+        });
+      }
     }
   };
 
@@ -227,6 +307,23 @@ const FacultyManagement: React.FC = () => {
           confirmText='Delete Faculty'
           cancelText='Cancel'
           variant='danger'
+        />
+
+        {/* Success Modal */}
+        <SuccessModal
+          isOpen={successModal.isOpen}
+          onClose={() => setSuccessModal({ isOpen: false, message: "" })}
+          message={successModal.message}
+          autoClose={true}
+          autoCloseDelay={3000}
+        />
+
+        {/* Error Modal */}
+        <ErrorModal
+          isOpen={errorModal.isOpen}
+          onClose={() => setErrorModal({ isOpen: false, message: "", details: "" })}
+          message={errorModal.message}
+          details={errorModal.details}
         />
       </div>
     </div>

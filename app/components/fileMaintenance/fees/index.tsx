@@ -5,6 +5,8 @@ import { Fee } from "../../../types";
 import { mockFees } from "../../../data/mockData";
 import { colors } from "../../../colors";
 import ConfirmationModal from "../../common/ConfirmationModal";
+import SuccessModal from "../../common/SuccessModal";
+import ErrorModal from "../../common/ErrorModal";
 import SearchFilters from "../../common/SearchFilters";
 import Pagination from "../../common/Pagination";
 import FeesTable from "./FeesTable";
@@ -40,6 +42,22 @@ const FeesManagement: React.FC = () => {
     feeId: null,
     feeName: "",
   });
+  const [successModal, setSuccessModal] = useState<{
+    isOpen: boolean;
+    message: string;
+  }>({
+    isOpen: false,
+    message: "",
+  });
+  const [errorModal, setErrorModal] = useState<{
+    isOpen: boolean;
+    message: string;
+    details?: string;
+  }>({
+    isOpen: false,
+    message: "",
+    details: "",
+  });
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage, setItemsPerPage] = useState(10);
 
@@ -64,17 +82,56 @@ const FeesManagement: React.FC = () => {
     window.scrollTo({ top: 0, behavior: "smooth" });
   };
 
-  const handleSaveFee = (feeData: Fee) => {
-    if (editingFee) {
-      setFees((prev) => prev.map((f) => (f.id === feeData.id ? feeData : f)));
-      setEditingFee(null);
-      fetch("/api/auth/fees", {
-        method: "PATCH",
-        body: JSON.stringify(feeData),
+  const handleSaveFee = async (feeData: Fee) => {
+    try {
+      if (editingFee) {
+        const response = await fetch("/api/auth/fees", {
+          method: "PATCH",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify(feeData),
+        });
+
+        if (!response.ok) {
+          const errorData = await response.json();
+          throw new Error(errorData.error || "Failed to update fee");
+        }
+
+        setFees((prev) => prev.map((f) => (f.id === feeData.id ? feeData : f)));
+        setEditingFee(null);
+        setSuccessModal({
+          isOpen: true,
+          message: `Fee "${feeData.name}" has been updated successfully.`,
+        });
+      } else {
+        const response = await fetch("/api/auth/fees", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify(feeData),
+        });
+
+        if (!response.ok) {
+          const errorData = await response.json();
+          throw new Error(errorData.error || "Failed to create fee");
+        }
+
+        const newFee = await response.json();
+        setFees((prev) => [...prev, { ...feeData, id: newFee.id }]);
+        setIsAddModalOpen(false);
+        setSuccessModal({
+          isOpen: true,
+          message: `Fee "${feeData.name}" has been created successfully.`,
+        });
+      }
+    } catch (error: any) {
+      setErrorModal({
+        isOpen: true,
+        message: error.message || "An error occurred while saving the fee.",
+        details: "Please check your input and try again.",
       });
-    } else {
-      setFees((prev) => [...prev, feeData]);
-      setIsAddModalOpen(false);
     }
   };
 
@@ -89,21 +146,44 @@ const FeesManagement: React.FC = () => {
     }
   };
 
-  const confirmDeleteFee = () => {
+  const confirmDeleteFee = async () => {
     if (deleteConfirmation.feeId) {
-      setFees((prev) => prev.filter((f) => f.id !== deleteConfirmation.feeId));
-      setDeleteConfirmation({
-        isOpen: false,
-        feeId: null,
-        feeName: "",
-      });
-      fetch("/api/auth/fees", {
-        method: "DELETE",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify(deleteConfirmation.feeId),
-      });
+      try {
+        const response = await fetch("/api/auth/fees", {
+          method: "DELETE",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify(deleteConfirmation.feeId),
+        });
+
+        if (!response.ok) {
+          const errorData = await response.json();
+          throw new Error(errorData.error || "Failed to delete fee");
+        }
+
+        setFees((prev) => prev.filter((f) => f.id !== deleteConfirmation.feeId));
+        setDeleteConfirmation({
+          isOpen: false,
+          feeId: null,
+          feeName: "",
+        });
+        setSuccessModal({
+          isOpen: true,
+          message: `Fee "${deleteConfirmation.feeName}" has been deleted successfully.`,
+        });
+      } catch (error: any) {
+        setErrorModal({
+          isOpen: true,
+          message: error.message || "An error occurred while deleting the fee.",
+          details: "Please try again.",
+        });
+        setDeleteConfirmation({
+          isOpen: false,
+          feeId: null,
+          feeName: "",
+        });
+      }
     }
   };
 
@@ -219,9 +299,27 @@ const FeesManagement: React.FC = () => {
           cancelText='Cancel'
           variant='danger'
         />
+
+        {/* Success Modal */}
+        <SuccessModal
+          isOpen={successModal.isOpen}
+          onClose={() => setSuccessModal({ isOpen: false, message: "" })}
+          message={successModal.message}
+          autoClose={true}
+          autoCloseDelay={3000}
+        />
+
+        {/* Error Modal */}
+        <ErrorModal
+          isOpen={errorModal.isOpen}
+          onClose={() => setErrorModal({ isOpen: false, message: "", details: "" })}
+          message={errorModal.message}
+          details={errorModal.details}
+        />
       </div>
     </div>
   );
 };
 
 export default FeesManagement;
+  

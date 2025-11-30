@@ -78,10 +78,6 @@ const FeesForm: React.FC<FeesFormProps> = ({ fee, onSave, onCancel }) => {
         semester: formData.semester || "1st",
         status: (formData.status as "active" | "inactive") || "active",
       };
-      fetch("/api/auth/fees", {
-        method: "POST",
-        body: JSON.stringify(feeData),
-      });
       onSave({
         ...feeData,
         id: fee?.id || Math.random(),

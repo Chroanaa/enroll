@@ -1,5 +1,5 @@
 "use client";
-import React, { useState, useMemo } from "react";
+import React, { useState, useMemo, useEffect } from "react";
 import { Plus, GraduationCap, FileText, Edit2, Trash2 } from "lucide-react";
 import { Curriculum } from "../../types";
 import { colors } from "../../colors";
@@ -7,9 +7,15 @@ import CurriculumTable from "./CurriculumTable";
 import CurriculumForm from "./CurriculumForm";
 import SearchFilters from "../common/SearchFilters";
 import ConfirmationModal from "../common/ConfirmationModal";
+import { mockBSITCurriculum } from "../../data/mockData";
 
 const CurriculumManagement: React.FC = () => {
   const [curriculumList, setCurriculumList] = useState<Curriculum[]>([]);
+
+  // Initialize with mock BSIT curriculum data
+  useEffect(() => {
+    setCurriculumList([mockBSITCurriculum]);
+  }, []);
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState<
     "all" | "active" | "inactive"

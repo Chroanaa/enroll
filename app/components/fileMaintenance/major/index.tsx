@@ -5,6 +5,8 @@ import { Major } from "../../../types";
 import { mockMajors, mockPrograms } from "../../../data/mockData";
 import { colors } from "../../../colors";
 import ConfirmationModal from "../../common/ConfirmationModal";
+import SuccessModal from "../../common/SuccessModal";
+import ErrorModal from "../../common/ErrorModal";
 import SearchFilters from "../../common/SearchFilters";
 import Pagination from "../../common/Pagination";
 import MajorTable from "./MajorTable";
@@ -45,6 +47,22 @@ const MajorManagement: React.FC = () => {
     majorId: null,
     majorName: "",
   });
+  const [successModal, setSuccessModal] = useState<{
+    isOpen: boolean;
+    message: string;
+  }>({
+    isOpen: false,
+    message: "",
+  });
+  const [errorModal, setErrorModal] = useState<{
+    isOpen: boolean;
+    message: string;
+    details?: string;
+  }>({
+    isOpen: false,
+    message: "",
+    details: "",
+  });
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage, setItemsPerPage] = useState(10);
 
@@ -69,19 +87,58 @@ const MajorManagement: React.FC = () => {
     window.scrollTo({ top: 0, behavior: "smooth" });
   };
 
-  const handleSaveMajor = (majorData: Major) => {
-    if (editingMajor) {
-      setMajors((prev) =>
-        prev.map((m) => (m.id === majorData.id ? majorData : m))
-      );
-      setEditingMajor(null);
-      fetch("/api/auth/major", {
-        method: "PATCH",
-        body: JSON.stringify(majorData),
+  const handleSaveMajor = async (majorData: Major) => {
+    try {
+      if (editingMajor) {
+        const response = await fetch("/api/auth/major", {
+          method: "PATCH",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify(majorData),
+        });
+
+        if (!response.ok) {
+          const errorData = await response.json();
+          throw new Error(errorData.error || "Failed to update major");
+        }
+
+        setMajors((prev) =>
+          prev.map((m) => (m.id === majorData.id ? majorData : m))
+        );
+        setEditingMajor(null);
+        setSuccessModal({
+          isOpen: true,
+          message: `Major "${majorData.name}" has been updated successfully.`,
+        });
+      } else {
+        const response = await fetch("/api/auth/major", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify(majorData),
+        });
+
+        if (!response.ok) {
+          const errorData = await response.json();
+          throw new Error(errorData.error || "Failed to create major");
+        }
+
+        const newMajor = await response.json();
+        setMajors((prev) => [...prev, { ...majorData, id: newMajor.id }]);
+        setIsAddModalOpen(false);
+        setSuccessModal({
+          isOpen: true,
+          message: `Major "${majorData.name}" has been created successfully.`,
+        });
+      }
+    } catch (error: any) {
+      setErrorModal({
+        isOpen: true,
+        message: error.message || "An error occurred while saving the major.",
+        details: "Please check your input and try again.",
       });
-    } else {
-      setMajors((prev) => [...prev, majorData]);
-      setIsAddModalOpen(false);
     }
   };
 
@@ -96,23 +153,46 @@ const MajorManagement: React.FC = () => {
     }
   };
 
-  const confirmDeleteMajor = () => {
+  const confirmDeleteMajor = async () => {
     if (deleteConfirmation.majorId) {
-      setMajors((prev) =>
-        prev.filter((m) => m.id !== deleteConfirmation.majorId)
-      );
-      setDeleteConfirmation({
-        isOpen: false,
-        majorId: null,
-        majorName: "",
-      });
-      fetch("/api/auth/major", {
-        method: "DELETE",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify(deleteConfirmation.majorId),
-      });
+      try {
+        const response = await fetch("/api/auth/major", {
+          method: "DELETE",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify(deleteConfirmation.majorId),
+        });
+
+        if (!response.ok) {
+          const errorData = await response.json();
+          throw new Error(errorData.error || "Failed to delete major");
+        }
+
+        setMajors((prev) =>
+          prev.filter((m) => m.id !== deleteConfirmation.majorId)
+        );
+        setDeleteConfirmation({
+          isOpen: false,
+          majorId: null,
+          majorName: "",
+        });
+        setSuccessModal({
+          isOpen: true,
+          message: `Major "${deleteConfirmation.majorName}" has been deleted successfully.`,
+        });
+      } catch (error: any) {
+        setErrorModal({
+          isOpen: true,
+          message: error.message || "An error occurred while deleting the major.",
+          details: "Please try again.",
+        });
+        setDeleteConfirmation({
+          isOpen: false,
+          majorId: null,
+          majorName: "",
+        });
+      }
     }
   };
 
@@ -214,6 +294,23 @@ const MajorManagement: React.FC = () => {
           confirmText='Delete Major'
           cancelText='Cancel'
           variant='danger'
+        />
+
+        {/* Success Modal */}
+        <SuccessModal
+          isOpen={successModal.isOpen}
+          onClose={() => setSuccessModal({ isOpen: false, message: "" })}
+          message={successModal.message}
+          autoClose={true}
+          autoCloseDelay={3000}
+        />
+
+        {/* Error Modal */}
+        <ErrorModal
+          isOpen={errorModal.isOpen}
+          onClose={() => setErrorModal({ isOpen: false, message: "", details: "" })}
+          message={errorModal.message}
+          details={errorModal.details}
         />
       </div>
     </div>

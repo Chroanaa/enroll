@@ -8,6 +8,8 @@ import { ProgressBar } from "./enrollment/ProgressBar";
 import { NavigationButtons } from "./enrollment/NavigationButtons";
 import { FormHeader } from "./enrollment/FormHeader";
 import { EnrollmentPageProps } from "./enrollment/types";
+import SuccessModal from "./common/SuccessModal";
+import ErrorModal from "./common/ErrorModal";
 
 const EnrollmentForm: React.FC = () => {
   const form = useEnrollmentForm();
@@ -19,6 +21,14 @@ const EnrollmentForm: React.FC = () => {
     nextPage,
     prevPage,
     goToPage,
+    isSubmitting,
+    submitSuccess,
+    submitError,
+    setSubmitSuccess,
+    setSubmitError,
+    fieldErrors,
+    validationError,
+    setValidationError,
   } = form;
 
   // Memoize common props for all page components
@@ -35,6 +45,7 @@ const EnrollmentForm: React.FC = () => {
       removePhoto: form.removePhoto,
       handlePhotoError: form.handlePhotoError,
       getTodayDate: form.getTodayDate,
+      fieldErrors: fieldErrors,
     }),
     [
       form.formData,
@@ -48,6 +59,7 @@ const EnrollmentForm: React.FC = () => {
       form.removePhoto,
       form.handlePhotoError,
       form.getTodayDate,
+      fieldErrors,
     ]
   );
 
@@ -73,10 +85,9 @@ const EnrollmentForm: React.FC = () => {
             }}
           >
             <ProgressBar
-              currentPage={currentPage}
-              totalPages={TOTAL_PAGES}
-              progress={progress}
-              pageTitle={PAGE_TITLES[currentPage - 1]}
+              currentStep={currentPage}
+              totalSteps={TOTAL_PAGES}
+              title={PAGE_TITLES[currentPage - 1]}
             />
 
             <form onSubmit={handleSubmit}>
@@ -90,11 +101,40 @@ const EnrollmentForm: React.FC = () => {
                 onPrevious={prevPage}
                 onNext={nextPage}
                 onSubmit={handleSubmit}
+                isSubmitting={isSubmitting}
               />
             </form>
           </div>
         </div>
       </div>
+
+      {/* Success Modal */}
+      <SuccessModal
+        isOpen={submitSuccess}
+        onClose={() => setSubmitSuccess(false)}
+        title="Enrollment Submitted Successfully"
+        message="Your enrollment form has been submitted successfully. We will review your application and contact you soon."
+        autoClose={true}
+        autoCloseDelay={5000}
+      />
+
+      {/* Error Modal */}
+      <ErrorModal
+        isOpen={submitError !== null}
+        onClose={() => setSubmitError(null)}
+        title="Submission Failed"
+        message={submitError?.message || "An error occurred while submitting your enrollment."}
+        details={submitError?.details}
+      />
+
+      {/* Validation Error Modal */}
+      <ErrorModal
+        isOpen={validationError.isOpen}
+        onClose={() => setValidationError({ isOpen: false, message: "" })}
+        title="Validation Error"
+        message={validationError.message}
+        details="Please review the highlighted fields and correct any errors before proceeding."
+      />
     </div>
   );
 };

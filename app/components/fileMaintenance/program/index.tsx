@@ -5,6 +5,8 @@ import { Program } from "../../../types";
 import { mockPrograms, mockDepartments } from "../../../data/mockData";
 import { colors } from "../../../colors";
 import ConfirmationModal from "../../common/ConfirmationModal";
+import SuccessModal from "../../common/SuccessModal";
+import ErrorModal from "../../common/ErrorModal";
 import SearchFilters from "../../common/SearchFilters";
 import Pagination from "../../common/Pagination";
 import ProgramTable from "./ProgramTable";
@@ -47,6 +49,22 @@ const ProgramManagement: React.FC = () => {
     programId: null,
     programName: "",
   });
+  const [successModal, setSuccessModal] = useState<{
+    isOpen: boolean;
+    message: string;
+  }>({
+    isOpen: false,
+    message: "",
+  });
+  const [errorModal, setErrorModal] = useState<{
+    isOpen: boolean;
+    message: string;
+    details?: string;
+  }>({
+    isOpen: false,
+    message: "",
+    details: "",
+  });
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage, setItemsPerPage] = useState(10);
 
@@ -71,19 +89,58 @@ const ProgramManagement: React.FC = () => {
     window.scrollTo({ top: 0, behavior: "smooth" });
   };
 
-  const handleSaveProgram = (programData: Program) => {
-    if (editingProgram) {
-      setPrograms((prev) =>
-        prev.map((p) => (p.id === programData.id ? programData : p))
-      );
-      setEditingProgram(null);
-      fetch("/api/auth/program", {
-        method: "PATCH",
-        body: JSON.stringify(programData),
+  const handleSaveProgram = async (programData: Program) => {
+    try {
+      if (editingProgram) {
+        const response = await fetch("/api/auth/program", {
+          method: "PATCH",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify(programData),
+        });
+
+        if (!response.ok) {
+          const errorData = await response.json();
+          throw new Error(errorData.error || "Failed to update program");
+        }
+
+        setPrograms((prev) =>
+          prev.map((p) => (p.id === programData.id ? programData : p))
+        );
+        setEditingProgram(null);
+        setSuccessModal({
+          isOpen: true,
+          message: `Program "${programData.name}" has been updated successfully.`,
+        });
+      } else {
+        const response = await fetch("/api/auth/program", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify(programData),
+        });
+
+        if (!response.ok) {
+          const errorData = await response.json();
+          throw new Error(errorData.error || "Failed to create program");
+        }
+
+        const newProgram = await response.json();
+        setPrograms((prev) => [...prev, { ...programData, id: newProgram.id }]);
+        setIsAddModalOpen(false);
+        setSuccessModal({
+          isOpen: true,
+          message: `Program "${programData.name}" has been created successfully.`,
+        });
+      }
+    } catch (error: any) {
+      setErrorModal({
+        isOpen: true,
+        message: error.message || "An error occurred while saving the program.",
+        details: "Please check your input and try again.",
       });
-    } else {
-      setPrograms((prev) => [...prev, programData]);
-      setIsAddModalOpen(false);
     }
   };
 
@@ -98,20 +155,46 @@ const ProgramManagement: React.FC = () => {
     }
   };
 
-  const confirmDeleteProgram = () => {
+  const confirmDeleteProgram = async () => {
     if (deleteConfirmation.programId) {
-      setPrograms((prev) =>
-        prev.filter((p) => p.id !== deleteConfirmation.programId)
-      );
-      setDeleteConfirmation({
-        isOpen: false,
-        programId: null,
-        programName: "",
-      });
-      fetch("/api/auth/program", {
-        method: "DELETE",
-        body: JSON.stringify(deleteConfirmation.programId),
-      });
+      try {
+        const response = await fetch("/api/auth/program", {
+          method: "DELETE",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify(deleteConfirmation.programId),
+        });
+
+        if (!response.ok) {
+          const errorData = await response.json();
+          throw new Error(errorData.error || "Failed to delete program");
+        }
+
+        setPrograms((prev) =>
+          prev.filter((p) => p.id !== deleteConfirmation.programId)
+        );
+        setDeleteConfirmation({
+          isOpen: false,
+          programId: null,
+          programName: "",
+        });
+        setSuccessModal({
+          isOpen: true,
+          message: `Program "${deleteConfirmation.programName}" has been deleted successfully.`,
+        });
+      } catch (error: any) {
+        setErrorModal({
+          isOpen: true,
+          message: error.message || "An error occurred while deleting the program.",
+          details: "Please try again.",
+        });
+        setDeleteConfirmation({
+          isOpen: false,
+          programId: null,
+          programName: "",
+        });
+      }
     }
   };
 
@@ -213,6 +296,23 @@ const ProgramManagement: React.FC = () => {
           confirmText='Delete Program'
           cancelText='Cancel'
           variant='danger'
+        />
+
+        {/* Success Modal */}
+        <SuccessModal
+          isOpen={successModal.isOpen}
+          onClose={() => setSuccessModal({ isOpen: false, message: "" })}
+          message={successModal.message}
+          autoClose={true}
+          autoCloseDelay={3000}
+        />
+
+        {/* Error Modal */}
+        <ErrorModal
+          isOpen={errorModal.isOpen}
+          onClose={() => setErrorModal({ isOpen: false, message: "", details: "" })}
+          message={errorModal.message}
+          details={errorModal.details}
         />
       </div>
     </div>

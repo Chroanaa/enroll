@@ -1,53 +1,67 @@
 import React from "react";
-import { Award } from "lucide-react";
 import { colors } from "../../colors";
 
 interface ProgressBarProps {
-  currentPage: number;
-  totalPages: number;
-  progress: number;
-  pageTitle: string;
+  currentStep: number;
+  totalSteps: number;
+  title: string;
 }
 
 export const ProgressBar: React.FC<ProgressBarProps> = ({
-  currentPage,
-  totalPages,
-  progress,
-  pageTitle,
+  currentStep,
+  totalSteps,
+  title,
 }) => {
+  const progress = (currentStep / totalSteps) * 100;
+
   return (
-    <div className="mb-8">
-      <div className="flex justify-between items-center mb-3">
-        <div className="flex items-center gap-2">
-          <div 
-            className="px-3 py-1.5 rounded-lg"
-            style={{ backgroundColor: colors.accent + "20" }}
+    <div className='mb-8 animate-in fade-in slide-in-from-top-4 duration-700'>
+      <div className='flex justify-between items-end mb-3'>
+        <div>
+          <span
+            className='text-xs font-bold uppercase tracking-wider mb-1 block'
+            style={{ color: colors.secondary }}
           >
-            <span className="text-sm font-bold" style={{ color: colors.secondary }}>
-              Step {currentPage} of {totalPages}
-            </span>
-          </div>
-          <span className="text-base font-semibold" style={{ color: colors.primary }}>
-            {pageTitle}
+            Step {currentStep} of {totalSteps}
           </span>
+          <h2
+            className='text-xl font-bold tracking-tight'
+            style={{ color: colors.primary }}
+          >
+            {title}
+          </h2>
         </div>
-        <div className="flex items-center gap-2">
-          <Award className="w-4 h-4" style={{ color: colors.secondary }} />
-          <span className="text-base font-bold" style={{ color: colors.secondary }}>
-            {Math.round(progress)}%
-          </span>
+        <div
+          className='text-sm font-bold px-3 py-1 rounded-full'
+          style={{
+            color: colors.secondary,
+            backgroundColor: colors.accent + "15",
+            border: `1px solid ${colors.accent}30`
+          }}
+        >
+          {Math.round(progress)}% Complete
         </div>
       </div>
-      <div className="w-full h-3 rounded-full shadow-inner" style={{ backgroundColor: `${colors.tertiary}20` }}>
+      <div
+        className='h-3 w-full rounded-full overflow-hidden shadow-inner'
+        style={{ backgroundColor: colors.accent + "15" }}
+      >
         <div
-          className="h-3 rounded-full transition-all duration-500 shadow-sm"
+          className='h-full rounded-full transition-all duration-700 ease-out relative overflow-hidden'
           style={{
             width: `${progress}%`,
-            background: `linear-gradient(90deg, ${colors.secondary}, ${colors.tertiary})`,
+            background: `linear-gradient(90deg, ${colors.secondary}, ${colors.primary})`,
+            boxShadow: `0 0 10px ${colors.secondary}40`
           }}
-        />
+        >
+          <div className="absolute inset-0 bg-white/20 animate-[shimmer_2s_infinite] skew-x-12" style={{ transform: 'skewX(-20deg) translateX(-150%)' }} />
+        </div>
       </div>
+      <style>{`
+        @keyframes shimmer {
+          100% { transform: skewX(-20deg) translateX(200%); }
+        }
+      `}</style>
     </div>
   );
 };
-

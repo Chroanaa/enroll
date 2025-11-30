@@ -4,7 +4,8 @@ EDIT FOR EACH FILE MAINTENANCE
 BUG input TYPE = NUMBER cant get rid of 0
 FILTERS
 SEARCHING
-WHEN AT THE LAST PAGE OF ADMISSION FORM it automatically submits the form therefore having 2 submissions
+WHEN AT THE LAST PAGE OF ADMISSION FORM it automatically submits the form therefore having 2 submissions - Done
+add the success and error modal - done
 
 MODULES PENDING:
 ADD STUDENT
