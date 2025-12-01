@@ -9,10 +9,6 @@ import {
   Image as ImageIcon,
 } from "lucide-react";
 import { colors } from "../../colors";
-import {
-  mockDepartmentsForEnrollment,
-  mockCoursePrograms,
-} from "../../data/mockData";
 import { EnrollmentPageProps } from "./types";
 
 const AdmissionInformation: React.FC<EnrollmentPageProps> = ({
@@ -20,6 +16,7 @@ const AdmissionInformation: React.FC<EnrollmentPageProps> = ({
   handleInputChange,
   handleDepartmentChange,
   filteredCoursePrograms,
+  departments = [],
   photoPreview,
   fileInputRef,
   handlePhotoUpload,
@@ -168,9 +165,9 @@ const AdmissionInformation: React.FC<EnrollmentPageProps> = ({
                   }}
                 >
                   <option value=''>Select Department</option>
-                  {mockDepartmentsForEnrollment.map((dept) => (
+                  {departments.map((dept) => (
                     <option key={dept.id} value={dept.id}>
-                      {dept.name}
+                      {dept.name} ({dept.code})
                     </option>
                   ))}
                 </select>
@@ -227,7 +224,7 @@ const AdmissionInformation: React.FC<EnrollmentPageProps> = ({
                       : "Please select a department first"}
                   </option>
                   {filteredCoursePrograms?.map((program) => (
-                    <option key={program.id} value={program.id}>
+                    <option key={program.id} value={String(program.id)}>
                       {program.name}
                     </option>
                   ))}

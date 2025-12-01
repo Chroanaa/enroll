@@ -1,6 +1,8 @@
 import { useState, useMemo, useRef, useEffect } from "react";
-import { mockCoursePrograms } from "../data/mockData";
 import Axios from "axios";
+import { Department, Program } from "../types";
+import { getDepartments } from "../utils/departmentUtils";
+import { getPrograms } from "../utils/programUtils";
 export interface EnrollmentFormData {
   // Page 1: Admission Information
   admission_date: string;
@@ -97,6 +99,8 @@ export const useEnrollmentForm = () => {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [photoPreview, setPhotoPreview] = useState<string | null>(null);
   const photoPreviewRef = useRef<string | null>(null);
+  const [departments, setDepartments] = useState<Department[]>([]);
+  const [programs, setPrograms] = useState<Program[]>([]);
 
   // Get today's date
   const getTodayDate = () => {
@@ -130,6 +134,29 @@ export const useEnrollmentForm = () => {
         photoPreviewRef.current = null;
       }
     };
+  }, []);
+
+  // Fetch departments and programs on mount
+  useEffect(() => {
+    const fetchData = async () => {
+      try {
+        const [departmentsData, programsData] = await Promise.all([
+          getDepartments(),
+          getPrograms(),
+        ]);
+        const departmentsArray: Department[] = Array.isArray(departmentsData) 
+          ? departmentsData 
+          : Object.values(departmentsData);
+        const programsArray: Program[] = Array.isArray(programsData) 
+          ? programsData 
+          : Object.values(programsData);
+        setDepartments(departmentsArray);
+        setPrograms(programsArray);
+      } catch (error) {
+        console.error("Error fetching departments and programs:", error);
+      }
+    };
+    fetchData();
   }, []);
 
   // Reset course program when department changes
@@ -503,10 +530,14 @@ export const useEnrollmentForm = () => {
   // Progress calculation
   const progress = (currentPage / TOTAL_PAGES) * 100;
   const filteredCoursePrograms = useMemo(() => {
-    return mockCoursePrograms.filter(
-      (program) => program.departmentId === formData.department
-    );
-  }, [formData.department]);
+    if (!formData.department) return [];
+    return programs
+      .filter((program) => program.department_id === formData.department)
+      .map((program) => ({
+        id: program.id,
+        name: program.name,
+      }));
+  }, [formData.department, programs]);
   return {
     // State
     currentPage,
@@ -516,6 +547,7 @@ export const useEnrollmentForm = () => {
     progress,
     TOTAL_PAGES,
     filteredCoursePrograms,
+    departments,
     isSubmitting,
     submitSuccess,
     submitError,
