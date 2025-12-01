@@ -5,7 +5,7 @@ import { colors } from "../../../colors";
 import { getStatusColor } from "../utils";
 
 interface SectionTableProps {
-  sections: (Section & { courseName?: string })[];
+  sections: (Section & { programName?: string })[];
   onEdit: (section: Section) => void;
   onDelete: (id: number) => void;
 }
@@ -30,7 +30,7 @@ const SectionTable: React.FC<SectionTableProps> = ({
                 Section
               </th>
               <th className='px-6 py-4 text-left text-xs font-bold uppercase tracking-wider text-gray-600'>
-                Course
+                Program
               </th>
               <th className='px-6 py-4 text-left text-xs font-bold uppercase tracking-wider text-gray-600'>
                 Advisor
@@ -108,7 +108,7 @@ const SectionTable: React.FC<SectionTableProps> = ({
                       <div className='flex items-center gap-2'>
                         <BookOpen className='w-3.5 h-3.5 text-gray-400' />
                         <span className='text-sm text-gray-600'>
-                          {section.courseName || "N/A"}
+                          {section.programName || "N/A"}
                         </span>
                       </div>
                     </td>

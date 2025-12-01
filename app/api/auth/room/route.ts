@@ -6,13 +6,13 @@ export async function POST(request: NextRequest) {
   try {
     const data = await request.json();
     const { id, ...roomData } = data;
-    const newFaculty = await prisma.room.create({
+    const newRoom = await prisma.room.create({
       data: roomData,
     });
-    return NextResponse.json(newFaculty);
+    return NextResponse.json(newRoom);
   } catch (error) {
     return NextResponse.json(
-      { error: "Failed to create faculty" },
+      { error: "Failed to create room" },
       { status: 500 }
     );
   }

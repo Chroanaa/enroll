@@ -1,8 +1,7 @@
 "use client";
 import React, { useState, useMemo, useEffect } from "react";
 import { Plus } from "lucide-react";
-import { Faculty } from "../../../types";
-import { mockFaculty, mockDepartments } from "../../../data/mockData";
+import { Faculty, Department } from "../../../types";
 import { colors } from "../../../colors";
 import ConfirmationModal from "../../common/ConfirmationModal";
 import SuccessModal from "../../common/SuccessModal";
@@ -13,23 +12,33 @@ import FacultyTable from "./FacultyTable";
 import FacultyForm from "./FacultyForm";
 import { filterFaculty } from "./utils";
 import { getFaculties } from "@/app/utils/facultyUtils";
+import { getDepartments } from "@/app/utils/departmentUtils";
+
 const FacultyManagement: React.FC = () => {
   const [faculty, setFaculty] = useState<Faculty[]>([]);
+  const [departments, setDepartments] = useState<Department[]>([]);
+  
   useEffect(() => {
-    const fetchFaculty = async () => {
+    const fetchData = async () => {
       try {
-        const data = await getFaculties();
-        const facultyWithDepartmentNames = data.map((fac) => ({
+        const [facultyData, departmentsData] = await Promise.all([
+          getFaculties(),
+          getDepartments(),
+        ]);
+        const departmentsArray: Department[] = Array.isArray(departmentsData) ? departmentsData : Object.values(departmentsData);
+        setDepartments(departmentsArray);
+        const facultyArray: Faculty[] = Array.isArray(facultyData) ? facultyData : Object.values(facultyData);
+        const facultyWithDepartmentNames = facultyArray.map((fac) => ({
           ...fac,
           departmentName:
-            mockDepartments.find((d) => d.id === fac.department_id)?.name || "",
+            departmentsArray.find((d) => d.id === fac.department_id)?.name || "",
         }));
         setFaculty(facultyWithDepartmentNames);
       } catch (error) {
-        console.error("Error fetching faculty:", error);
+        console.error("Error fetching data:", error);
       }
     };
-    fetchFaculty();
+    fetchData();
   }, []);
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState<
@@ -103,8 +112,9 @@ const FacultyManagement: React.FC = () => {
           throw new Error(errorData.error || "Failed to update faculty");
         }
 
+        const departmentName = departments.find((d) => d.id === facultyData.department_id)?.name || "";
         setFaculty((prev) =>
-          prev.map((f) => (f.id === facultyData.id ? facultyData : f))
+          prev.map((f) => (f.id === facultyData.id ? { ...facultyData, departmentName } : f))
         );
         setEditingFaculty(null);
         setSuccessModal({
@@ -126,7 +136,8 @@ const FacultyManagement: React.FC = () => {
         }
 
         const newFaculty = await response.json();
-        setFaculty((prev) => [...prev, { ...facultyData, id: newFaculty.id }]);
+        const departmentName = departments.find((d) => d.id === facultyData.department_id)?.name || "";
+        setFaculty((prev) => [...prev, { ...facultyData, id: newFaculty.id, departmentName }]);
         setIsAddModalOpen(false);
         setSuccessModal({
           isOpen: true,

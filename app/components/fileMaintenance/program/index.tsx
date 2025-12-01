@@ -1,8 +1,8 @@
 "use client";
 import React, { useState, useMemo, useEffect } from "react";
 import { Plus } from "lucide-react";
-import { Program } from "../../../types";
-import { mockPrograms, mockDepartments } from "../../../data/mockData";
+import { Program, Department } from "../../../types";
+import { mockPrograms } from "../../../data/mockData";
 import { colors } from "../../../colors";
 import ConfirmationModal from "../../common/ConfirmationModal";
 import SuccessModal from "../../common/SuccessModal";
@@ -13,26 +13,35 @@ import ProgramTable from "./ProgramTable";
 import ProgramForm from "./ProgramForm";
 import { filterPrograms } from "./utils";
 import { getPrograms } from "@/app/utils/programUtils";
+import { getDepartments } from "@/app/utils/departmentUtils";
 
 const ProgramManagement: React.FC = () => {
   const [programs, setPrograms] = useState<Program[]>([]);
+  const [departments, setDepartments] = useState<Department[]>([]);
+  
   useEffect(() => {
-    const fetchPrograms = async () => {
+    const fetchData = async () => {
       try {
-        const data = await getPrograms();
-        const programsWithDeptNames = data.map((program) => ({
+        const [programsData, departmentsData] = await Promise.all([
+          getPrograms(),
+          getDepartments(),
+        ]);
+        const departmentsArray: Department[] = Array.isArray(departmentsData) ? departmentsData : (Object.values(departmentsData) as Department[]);
+        setDepartments(departmentsArray);
+        const programsArray: Program[] = Array.isArray(programsData) ? programsData : (Object.values(programsData) as Program[]);
+        const programsWithDeptNames = programsArray.map((program) => ({
           ...program,
           departmentName: program.department_id
-            ? mockDepartments.find((d) => d.id === program.department_id)
+            ? departmentsArray.find((d) => d.id === program.department_id)
                 ?.name || ""
             : "",
         }));
         setPrograms(programsWithDeptNames);
       } catch (error) {
-        console.error("Error fetching programs:", error);
+        console.error("Error fetching data:", error);
       }
     };
-    fetchPrograms();
+    fetchData();
   }, []);
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState<
@@ -105,8 +114,9 @@ const ProgramManagement: React.FC = () => {
           throw new Error(errorData.error || "Failed to update program");
         }
 
+        const departmentName = departments.find((d) => d.id === programData.department_id)?.name || "";
         setPrograms((prev) =>
-          prev.map((p) => (p.id === programData.id ? programData : p))
+          prev.map((p) => (p.id === programData.id ? { ...programData, departmentName } : p))
         );
         setEditingProgram(null);
         setSuccessModal({
@@ -128,7 +138,8 @@ const ProgramManagement: React.FC = () => {
         }
 
         const newProgram = await response.json();
-        setPrograms((prev) => [...prev, { ...programData, id: newProgram.id }]);
+        const departmentName = departments.find((d) => d.id === programData.department_id)?.name || "";
+        setPrograms((prev) => [...prev, { ...programData, id: newProgram.id, departmentName }]);
         setIsAddModalOpen(false);
         setSuccessModal({
           isOpen: true,

@@ -1,28 +1,48 @@
 import { NextResponse, NextRequest } from "next/server";
 import { prisma } from "@/app/lib/prisma";
+
 export async function POST(request: NextRequest) {
   try {
     const data = await request.json();
+    const { id, programName, ...sectionData } = data;
+    
+    // Ensure required fields are present
+    if (!sectionData.section_name || !sectionData.program_id) {
+      return NextResponse.json(
+        { error: "Missing required fields: section_name and program_id are required" },
+        { status: 400 }
+      );
+    }
+    
+    // Set default values if not provided
+    if (sectionData.student_count === undefined) {
+      sectionData.student_count = 0;
+    }
+    if (!sectionData.status) {
+      sectionData.status = "active";
+    }
+    
     const newSection = await prisma.section.create({
-      data: {
-        ...data,
-      },
+      data: sectionData,
     });
     return NextResponse.json(newSection);
-  } catch (error) {
+  } catch (error: any) {
+    console.error("Error creating section:", error);
     return NextResponse.json(
-      { error: "Failed to create section" },
+      { error: error?.message || "Failed to create section", details: error?.code || error },
       { status: 500 }
     );
   }
 }
+
 export async function GET() {
   try {
     const sections = await prisma.section.findMany();
     return NextResponse.json(sections);
-  } catch (error) {
+  } catch (error: any) {
+    console.error("Error fetching sections:", error);
     return NextResponse.json(
-      { error: "Failed to fetch sections" },
+      { error: error?.message || "Failed to fetch sections", details: error?.code || error },
       { status: 500 }
     );
   }
@@ -31,37 +51,32 @@ export async function DELETE(request: NextRequest) {
   try {
     const id = await request.json();
     const deletedSection = await prisma.section.delete({
-      where: { id },
+      where: { id: Number(id) },
     });
     return NextResponse.json(deletedSection);
-  } catch (error) {
+  } catch (error: any) {
+    console.error("Error deleting section:", error);
     return NextResponse.json(
-      { error: "Failed to delete section" },
+      { error: error?.message || "Failed to delete section", details: error?.code || error },
       { status: 500 }
     );
   }
 }
+
 export async function PATCH(nextRequest: NextRequest) {
   try {
     const data = await nextRequest.json();
-    const { id, ...updateData } = data;
-    const validFields = ["name", "code", "description", "status"];
-    const cleanData = Object.keys(updateData)
-      .filter((key) => validFields.includes(key))
-      .reduce((obj: any, key) => {
-        obj[key] = (updateData as any)[key];
-        return obj;
-      }, {});
+    const { id, programName, ...updateData } = data;
+    
     const updatedSection = await prisma.section.update({
-      where: { id: data.id },
-      data: {
-        ...cleanData,
-      },
+      where: { id: Number(id) },
+      data: updateData,
     });
     return NextResponse.json(updatedSection);
-  } catch (error) {
+  } catch (error: any) {
+    console.error("Error updating section:", error);
     return NextResponse.json(
-      { error: "Failed to update section" },
+      { error: error?.message || "Failed to update section", details: error?.code || error },
       { status: 500 }
     );
   }

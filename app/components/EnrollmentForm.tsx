@@ -29,6 +29,7 @@ const EnrollmentForm: React.FC = () => {
     fieldErrors,
     validationError,
     setValidationError,
+    departments,
   } = form;
 
   // Memoize common props for all page components
@@ -39,6 +40,11 @@ const EnrollmentForm: React.FC = () => {
       handleDepartmentChange: form.handleDepartmentChange,
       handleCheckboxChange: form.handleCheckboxChange,
       filteredCoursePrograms: form.filteredCoursePrograms,
+      departments: departments?.map((dept) => ({
+        id: dept.id,
+        name: dept.name,
+        code: dept.code || "",
+      })),
       photoPreview: form.photoPreview,
       fileInputRef: form.fileInputRef,
       handlePhotoUpload: form.handlePhotoUpload,
@@ -53,6 +59,7 @@ const EnrollmentForm: React.FC = () => {
       form.handleDepartmentChange,
       form.handleCheckboxChange,
       form.filteredCoursePrograms,
+      departments,
       form.photoPreview,
       form.fileInputRef,
       form.handlePhotoUpload,

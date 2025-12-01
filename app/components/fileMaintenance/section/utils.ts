@@ -1,7 +1,7 @@
 import { Section } from "../../../types";
 
 export const filterSections = (
-  sections: (Section & { courseName?: string })[],
+  sections: (Section & { programName?: string })[],
   searchTerm: string,
   statusFilter: "all" | "active" | "inactive"
 ) => {
@@ -9,7 +9,7 @@ export const filterSections = (
     const matchesSearch =
       section.section_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
       section.advisor?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      section.courseName?.toLowerCase().includes(searchTerm.toLowerCase());
+      section.programName?.toLowerCase().includes(searchTerm.toLowerCase());
     
     const statusString = typeof section.status === "string" 
       ? section.status 

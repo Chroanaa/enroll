@@ -1,5 +1,5 @@
 "use client";
-import React, { useState, useRef } from "react";
+import React, { useState, useRef, useEffect } from "react";
 import {
   BookOpen,
   Hash,
@@ -8,8 +8,8 @@ import {
   CheckCircle2,
   X,
 } from "lucide-react";
-import { Major } from "../../../types";
-import { mockPrograms } from "../../../data/mockData";
+import { Major, Program } from "../../../types";
+import { getPrograms } from "@/app/utils/programUtils";
 import { colors } from "../../../colors";
 import ConfirmationModal from "../../common/ConfirmationModal";
 
@@ -37,8 +37,22 @@ const MajorForm: React.FC<MajorFormProps> = ({
   const [formData, setFormData] = useState<Partial<Major>>(
     initialFormData.current
   );
+  const [programs, setPrograms] = useState<Program[]>([]);
   const [showSaveConfirmation, setShowSaveConfirmation] = useState(false);
   const [showCancelWarning, setShowCancelWarning] = useState(false);
+
+  useEffect(() => {
+    const fetchPrograms = async () => {
+      try {
+        const data = await getPrograms();
+        setPrograms(Array.isArray(data) ? data : Object.values(data));
+      } catch (error) {
+        console.error("Error fetching programs:", error);
+        setPrograms([]);
+      }
+    };
+    fetchPrograms();
+  }, []);
 
   const hasChanges = () => {
     if (!major) return false;
@@ -64,6 +78,9 @@ const MajorForm: React.FC<MajorFormProps> = ({
 
   const performSave = () => {
     if (formData.code && formData.name && formData.program_id) {
+      const programName = programs.find(
+        (p) => p.id === formData.program_id
+      )?.name || "";
       const majorData: Partial<Major> = {
         ...formData,
         code: formData.code.toUpperCase()!,
@@ -71,17 +88,11 @@ const MajorForm: React.FC<MajorFormProps> = ({
         description: formData.description || "",
         program_id: formData.program_id!,
         status: (formData.status as "active" | "inactive") || "active",
+        programName: programName,
       };
-      fetch("/api/auth/major", {
-        method: "POST",
-        body: JSON.stringify(majorData),
-      });
       onSave({
         ...majorData,
         id: major?.id || Math.random(),
-        programName: mockPrograms.find(
-          (p) => p.id === majorData.program_id
-        )?.name || "",
       } as Major);
       setShowSaveConfirmation(false);
     }
@@ -291,7 +302,7 @@ const MajorForm: React.FC<MajorFormProps> = ({
                   required
                 >
                   <option value=''>Select Program</option>
-                  {mockPrograms.map((program) => (
+                  {programs.map((program) => (
                     <option key={program.id} value={program.id}>
                       {program.name} ({program.code})
                     </option>

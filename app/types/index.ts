@@ -63,7 +63,7 @@ export interface User {
 }
 export interface Section {
   id: number;
-  course_id: number;
+  program_id: number;
   section_name: string;
   advisor: string;
   student_count: number;

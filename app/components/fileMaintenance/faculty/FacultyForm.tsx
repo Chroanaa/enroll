@@ -1,5 +1,5 @@
 "use client";
-import React, { useState, useRef } from "react";
+import React, { useState, useRef, useEffect } from "react";
 import {
   Users2,
   Hash,
@@ -12,8 +12,8 @@ import {
   CheckCircle2,
   X,
 } from "lucide-react";
-import { Faculty } from "../../../types";
-import { mockDepartments } from "../../../data/mockData";
+import { Faculty, Department } from "../../../types";
+import { getDepartments } from "@/app/utils/departmentUtils";
 import { colors } from "../../../colors";
 import ConfirmationModal from "../../common/ConfirmationModal";
 
@@ -36,7 +36,7 @@ const FacultyForm: React.FC<FacultyFormProps> = ({
       middle_name: "",
       email: "",
       phone: "",
-      department_id: (mockDepartments[0]?.id as number) || 1,
+      department_id: 1,
       position: "instructor",
       specialization: "",
       status: "active",
@@ -46,8 +46,22 @@ const FacultyForm: React.FC<FacultyFormProps> = ({
   const [formData, setFormData] = useState<Partial<Faculty>>(
     initialFormData.current
   );
+  const [departments, setDepartments] = useState<Department[]>([]);
   const [showSaveConfirmation, setShowSaveConfirmation] = useState(false);
   const [showCancelWarning, setShowCancelWarning] = useState(false);
+
+  useEffect(() => {
+    const fetchDepartments = async () => {
+      try {
+        const data = await getDepartments();
+        setDepartments(Array.isArray(data) ? data : Object.values(data));
+      } catch (error) {
+        console.error("Error fetching departments:", error);
+        setDepartments([]);
+      }
+    };
+    fetchDepartments();
+  }, []);
 
   const hasChanges = () => {
     if (!faculty) return false;
@@ -91,7 +105,6 @@ const FacultyForm: React.FC<FacultyFormProps> = ({
       formData.department_id
     ) {
       const facultyData: Partial<Faculty> = {
-        ...formData,
         employee_id: formData.employee_id!,
         first_name: formData.first_name!,
         last_name: formData.last_name!,
@@ -103,14 +116,10 @@ const FacultyForm: React.FC<FacultyFormProps> = ({
         specialization: formData.specialization || "",
         status: (formData.status as "active" | "inactive") || "active",
       };
-      fetch("/api/auth/faculty", {
-        method: "POST",
-        body: JSON.stringify(facultyData),
-      });
+      // Let the parent component handle the API call
       onSave({
         ...facultyData,
         id: faculty?.id || Math.random(),
-        departmentName: mockDepartments.find((d) => d.id === facultyData.department_id)?.name || "",
       } as Faculty);
       setShowSaveConfirmation(false);
     }
@@ -403,9 +412,10 @@ const FacultyForm: React.FC<FacultyFormProps> = ({
                   }}
                   required
                 >
-                  {mockDepartments.map((dept) => (
-                    <option key={dept.id} value={dept.id as number}>
-                      {dept.name}
+                  <option value=''>Select Department</option>
+                  {departments.map((dept) => (
+                    <option key={dept.id} value={dept.id}>
+                      {dept.name} ({dept.code})
                     </option>
                   ))}
                 </select>

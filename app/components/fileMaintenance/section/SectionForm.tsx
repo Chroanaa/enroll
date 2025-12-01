@@ -9,14 +9,14 @@ import {
   CheckCircle2,
   X,
 } from "lucide-react";
-import { Section } from "../../../types";
-import { mockCourses } from "../../../data/mockData";
+import { Section, Program } from "../../../types";
+import { getPrograms } from "@/app/utils/programUtils";
 import { colors } from "../../../colors";
 import ConfirmationModal from "../../common/ConfirmationModal";
 
 interface SectionFormProps {
   section: Section | null;
-  onSave: (section: Section & { courseName?: string }) => void;
+  onSave: (section: Section & { programName?: string }) => void;
   onCancel: () => void;
 }
 
@@ -28,7 +28,7 @@ const SectionForm: React.FC<SectionFormProps> = ({
   const initialFormData = useRef<Partial<Section>>(
     section || {
       section_name: "",
-      course_id: parseInt(mockCourses[0]?.id || "1"),
+      program_id: 1,
       advisor: "",
       student_count: 0,
       status: "active",
@@ -38,14 +38,28 @@ const SectionForm: React.FC<SectionFormProps> = ({
   const [formData, setFormData] = useState<Partial<Section>>(
     initialFormData.current
   );
+  const [programs, setPrograms] = useState<Program[]>([]);
   const [showSaveConfirmation, setShowSaveConfirmation] = useState(false);
   const [showCancelWarning, setShowCancelWarning] = useState(false);
+
+  React.useEffect(() => {
+    const fetchPrograms = async () => {
+      try {
+        const data = await getPrograms();
+        setPrograms(Array.isArray(data) ? data : Object.values(data));
+      } catch (error) {
+        console.error("Error fetching programs:", error);
+        setPrograms([]);
+      }
+    };
+    fetchPrograms();
+  }, []);
 
   const hasChanges = () => {
     if (!section) return false;
     return (
       formData.section_name !== initialFormData.current.section_name ||
-      formData.course_id !== initialFormData.current.course_id ||
+      formData.program_id !== initialFormData.current.program_id ||
       formData.advisor !== initialFormData.current.advisor ||
       formData.student_count !== initialFormData.current.student_count ||
       formData.status !== initialFormData.current.status
@@ -56,7 +70,7 @@ const SectionForm: React.FC<SectionFormProps> = ({
     e.preventDefault();
     if (
       formData.section_name &&
-      formData.course_id &&
+      formData.program_id &&
       formData.advisor !== undefined
     ) {
       if (section && hasChanges()) {
@@ -70,32 +84,24 @@ const SectionForm: React.FC<SectionFormProps> = ({
   const performSave = () => {
     if (
       formData.section_name &&
-      formData.course_id &&
+      formData.program_id &&
       formData.advisor !== undefined
     ) {
-      const courseName =
-        mockCourses.find((c) => parseInt(c.id) === formData.course_id)
-          ?.name || "";
-      const sectionData: Partial<Section> & { courseName?: string } = {
-        ...formData,
+      const programName =
+        programs.find((p) => p.id === formData.program_id)?.name || "";
+      const sectionData: Partial<Section> = {
         section_name: formData.section_name!,
-        course_id: formData.course_id!,
+        program_id: formData.program_id!,
         advisor: formData.advisor || "",
         student_count: formData.student_count || 0,
         status: (formData.status as "active" | "inactive") || "active",
       };
-      fetch("/api/auth/section", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify(sectionData),
-      });
+
       onSave({
         ...sectionData,
         id: section?.id || Math.random(),
-        courseName: courseName,
-      } as Section & { courseName?: string });
+        programName: programName,
+      } as Section & { programName?: string });
       setShowSaveConfirmation(false);
     }
   };
@@ -210,14 +216,14 @@ const SectionForm: React.FC<SectionFormProps> = ({
                   style={{ color: colors.primary }}
                 >
                   <BookOpen className='w-4 h-4 text-gray-400' />
-                  Course <span className='text-red-500'>*</span>
+                  Program <span className='text-red-500'>*</span>
                 </label>
                 <select
-                  value={formData.course_id?.toString() || ""}
+                  value={formData.program_id?.toString() || ""}
                   onChange={(e) =>
                     setFormData({
                       ...formData,
-                      course_id: parseInt(e.target.value),
+                      program_id: parseInt(e.target.value),
                     })
                   }
                   className='w-full rounded-xl px-4 py-2.5 transition-all border-gray-200 focus:ring-2 focus:ring-offset-0 bg-white'
@@ -236,9 +242,10 @@ const SectionForm: React.FC<SectionFormProps> = ({
                   }}
                   required
                 >
-                  {mockCourses.map((course) => (
-                    <option key={course.id} value={course.id}>
-                      {course.code} - {course.name}
+                  <option value=''>Select Program</option>
+                  {programs.map((program) => (
+                    <option key={program.id} value={program.id}>
+                      {program.code} - {program.name}
                     </option>
                   ))}
                 </select>

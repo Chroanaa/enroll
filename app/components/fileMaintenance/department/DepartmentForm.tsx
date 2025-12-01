@@ -1,5 +1,5 @@
 "use client";
-import React, { useState, useRef } from "react";
+import React, { useState, useRef, useEffect } from "react";
 import {
   Network,
   Hash,
@@ -9,8 +9,8 @@ import {
   CheckCircle2,
   X,
 } from "lucide-react";
-import { Department } from "../../../types";
-import { mockBuildings } from "../../../data/mockData";
+import { Department, Building } from "../../../types";
+import { getBuildings } from "@/app/utils/getBuildings";
 import { colors } from "../../../colors";
 import ConfirmationModal from "../../common/ConfirmationModal";
 
@@ -39,8 +39,22 @@ const DepartmentForm: React.FC<DepartmentFormProps> = ({
   const [formData, setFormData] = useState<Partial<Department>>(
     initialFormData.current
   );
+  const [buildings, setBuildings] = useState<Building[]>([]);
   const [showSaveConfirmation, setShowSaveConfirmation] = useState(false);
   const [showCancelWarning, setShowCancelWarning] = useState(false);
+
+  useEffect(() => {
+    const fetchBuildings = async () => {
+      try {
+        const data = await getBuildings();
+        setBuildings(Array.isArray(data) ? data : Object.values(data));
+      } catch (error) {
+        console.error("Error fetching buildings:", error);
+        setBuildings([]);
+      }
+    };
+    fetchBuildings();
+  }, []);
 
   const hasChanges = () => {
     if (!department) return false;
@@ -67,8 +81,8 @@ const DepartmentForm: React.FC<DepartmentFormProps> = ({
 
   const performSave = () => {
     if (formData.code && formData.name) {
+      // Only send fields that exist in the database schema
       const departmentData: Partial<Department> = {
-        ...formData,
         code: formData.code.toUpperCase()!,
         name: formData.name!,
         description: formData.description || "",
@@ -76,14 +90,9 @@ const DepartmentForm: React.FC<DepartmentFormProps> = ({
         head: formData.head || "",
         status: (formData.status as "active" | "inactive") || "active",
       };
-      fetch("/api/auth/department", {
-        method: "POST",
-        body: JSON.stringify(departmentData),
-      });
       onSave({
         ...departmentData,
         id: department?.id || Math.random(),
-        buildingName: mockBuildings.find((b) => b.id === departmentData.building_id)?.name || "",
       } as Department);
       setShowSaveConfirmation(false);
     }
@@ -292,7 +301,7 @@ const DepartmentForm: React.FC<DepartmentFormProps> = ({
                   }}
                 >
                   <option value=''>Select Building (Optional)</option>
-                  {mockBuildings.map((building) => (
+                  {buildings.map((building) => (
                     <option key={building.id} value={building.id}>
                       {building.name} ({building.code})
                     </option>

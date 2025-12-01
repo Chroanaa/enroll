@@ -1,5 +1,5 @@
 "use client";
-import React, { useState, useRef } from "react";
+import React, { useState, useRef, useEffect } from "react";
 import {
   GraduationCap,
   Hash,
@@ -10,8 +10,8 @@ import {
   CheckCircle2,
   X,
 } from "lucide-react";
-import { Program } from "../../../types";
-import { mockDepartments } from "../../../data/mockData";
+import { Program, Department } from "../../../types";
+import { getDepartments } from "@/app/utils/departmentUtils";
 import { colors } from "../../../colors";
 import ConfirmationModal from "../../common/ConfirmationModal";
 
@@ -41,8 +41,22 @@ const ProgramForm: React.FC<ProgramFormProps> = ({
   const [formData, setFormData] = useState<Partial<Program>>(
     initialFormData.current
   );
+  const [departments, setDepartments] = useState<Department[]>([]);
   const [showSaveConfirmation, setShowSaveConfirmation] = useState(false);
   const [showCancelWarning, setShowCancelWarning] = useState(false);
+
+  useEffect(() => {
+    const fetchDepartments = async () => {
+      try {
+        const data = await getDepartments();
+        setDepartments(Array.isArray(data) ? data : Object.values(data));
+      } catch (error) {
+        console.error("Error fetching departments:", error);
+        setDepartments([]);
+      }
+    };
+    fetchDepartments();
+  }, []);
 
   const hasChanges = () => {
     if (!program) return false;
@@ -70,6 +84,9 @@ const ProgramForm: React.FC<ProgramFormProps> = ({
 
   const performSave = () => {
     if (formData.code && formData.name) {
+      const departmentName = departments.find(
+        (d) => d.id === formData.department_id
+      )?.name || "";
       const programData: Partial<Program> = {
         ...formData,
         code: formData.code.toUpperCase()!,
@@ -79,17 +96,11 @@ const ProgramForm: React.FC<ProgramFormProps> = ({
         duration: formData.duration || 4,
         total_units: formData.total_units || 0,
         status: (formData.status as "active" | "inactive") || "active",
+        departmentName: departmentName,
       };
-      fetch("/api/auth/program", {
-        method: "POST",
-        body: JSON.stringify(programData),
-      });
       onSave({
         ...programData,
         id: program?.id || Math.random(),
-        departmentName: mockDepartments.find(
-          (d) => d.id === programData.department_id
-        )?.name || "",
       } as Program);
       setShowSaveConfirmation(false);
     }
@@ -298,7 +309,7 @@ const ProgramForm: React.FC<ProgramFormProps> = ({
                   }}
                 >
                   <option value=''>Select Department (Optional)</option>
-                  {mockDepartments.map((department) => (
+                  {departments.map((department) => (
                     <option key={department.id} value={department.id}>
                       {department.name} ({department.code})
                     </option>

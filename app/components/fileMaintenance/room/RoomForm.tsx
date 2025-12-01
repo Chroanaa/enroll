@@ -1,5 +1,5 @@
 "use client";
-import React, { useState, useRef } from "react";
+import React, { useState, useRef, useEffect } from "react";
 import {
   DoorOpen,
   Hash,
@@ -9,8 +9,8 @@ import {
   CheckCircle2,
   X,
 } from "lucide-react";
-import { Room } from "../../../types";
-import { mockBuildings } from "../../../data/mockData";
+import { Room, Building } from "../../../types";
+import { getBuildings } from "@/app/utils/getBuildings";
 import { colors } from "../../../colors";
 import ConfirmationModal from "../../common/ConfirmationModal";
 
@@ -24,7 +24,7 @@ const RoomForm: React.FC<RoomFormProps> = ({ room, onSave, onCancel }) => {
   const initialFormData = useRef<Partial<Room>>(
     room || {
       room_number: "",
-      building_id: mockBuildings[0]?.id || 1,
+      building_id: 1,
       capacity: 30,
       room_type: "classroom",
       floor: 1,
@@ -35,8 +35,22 @@ const RoomForm: React.FC<RoomFormProps> = ({ room, onSave, onCancel }) => {
   const [formData, setFormData] = useState<Partial<Room>>(
     initialFormData.current
   );
+  const [buildings, setBuildings] = useState<Building[]>([]);
   const [showSaveConfirmation, setShowSaveConfirmation] = useState(false);
   const [showCancelWarning, setShowCancelWarning] = useState(false);
+
+  useEffect(() => {
+    const fetchBuildings = async () => {
+      try {
+        const data = await getBuildings();
+        setBuildings(Array.isArray(data) ? data : Object.values(data));
+      } catch (error) {
+        console.error("Error fetching buildings:", error);
+        setBuildings([]);
+      }
+    };
+    fetchBuildings();
+  }, []);
 
   const hasChanges = () => {
     if (!room) return false;
@@ -64,9 +78,8 @@ const RoomForm: React.FC<RoomFormProps> = ({ room, onSave, onCancel }) => {
   const performSave = () => {
     if (formData.room_number && formData.building_id) {
       const buildingName =
-        mockBuildings.find((b) => b.id === formData.building_id)?.name || "";
+        buildings.find((b) => b.id === formData.building_id)?.name || "";
       const roomData: Partial<Room> = {
-        ...formData,
         room_number: formData.room_number!,
         building_id: formData.building_id!,
         capacity: formData.capacity || 30,
@@ -74,13 +87,7 @@ const RoomForm: React.FC<RoomFormProps> = ({ room, onSave, onCancel }) => {
         floor: formData.floor || 1,
         status: (formData.status as Room["status"]) || "available",
       };
-      fetch("/api/auth/room", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify(roomData),
-      });
+      // Let the parent component handle the API call
       onSave({
         ...roomData,
         id: room?.id || Math.random(),
@@ -224,7 +231,8 @@ const RoomForm: React.FC<RoomFormProps> = ({ room, onSave, onCancel }) => {
                   }}
                   required
                 >
-                  {mockBuildings.map((building) => (
+                  <option value=''>Select Building</option>
+                  {buildings.map((building) => (
                     <option key={building.id} value={building.id}>
                       {building.name} ({building.code})
                     </option>

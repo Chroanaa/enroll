@@ -4,15 +4,29 @@ import { NextRequest, NextResponse } from "next/server";
 export async function POST(request: NextRequest) {
   try {
     const data = await request.json();
+    const { id, buildingName, ...departmentData } = data;
+    
+    // Ensure required fields are present
+    if (!departmentData.code || !departmentData.name) {
+      return NextResponse.json(
+        { error: "Missing required fields: code and name are required" },
+        { status: 400 }
+      );
+    }
+    
+    // Set default status if not provided
+    if (!departmentData.status) {
+      departmentData.status = "active";
+    }
+    
     const newDepartment = await prisma.department.create({
-      data: {
-        ...data,
-      },
+      data: departmentData,
     });
     return NextResponse.json(newDepartment);
-  } catch (error) {
+  } catch (error: any) {
+    console.error("Error creating department:", error);
     return NextResponse.json(
-      { error: "Failed to create department" },
+      { error: error?.message || "Failed to create department", details: error?.code || error },
       { status: 500 }
     );
   }
@@ -45,25 +59,17 @@ export async function DELETE(request: NextRequest) {
 export async function PATCH(nextRequest: NextRequest) {
   try {
     const data = await nextRequest.json();
-    const { id, ...updateData } = data;
-    const validFields = ["name", "code", "description", "status"];
-    const cleanData = Object.keys(updateData)
-      .filter((key) => validFields.includes(key))
-      .reduce((obj: any, key) => {
-        obj[key] = (updateData as any)[key];
-        return obj;
-      }, {});
+    const { id, buildingName, ...updateData } = data;
 
     const updatedDepartment = await prisma.department.update({
-      where: { id: data.id },
-      data: {
-        ...cleanData,
-      },
+      where: { id: Number(id) },
+      data: updateData,
     });
     return NextResponse.json(updatedDepartment);
-  } catch (error) {
+  } catch (error: any) {
+    console.error("Error updating department:", error);
     return NextResponse.json(
-      { error: "Failed to update department" },
+      { error: error?.message || "Failed to update department", details: error?.code || error },
       { status: 500 }
     );
   }
