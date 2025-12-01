@@ -1,11 +1,10 @@
 "use client";
 import React, { useState, useMemo, useEffect } from "react";
 import { Plus } from "lucide-react";
-import { Room } from "../../../types";
-import { mockRooms, mockBuildings } from "../../../data/mockData";
+import { Room, Building } from "../../../types";
 import { colors } from "../../../colors";
 import ConfirmationModal from "../../common/ConfirmationModal";
-  import SuccessModal from "../../common/SuccessModal";
+import SuccessModal from "../../common/SuccessModal";
 import ErrorModal from "../../common/ErrorModal";
 import SearchFilters from "../../common/SearchFilters";
 import Pagination from "../../common/Pagination";
@@ -13,18 +12,32 @@ import RoomTable from "./RoomTable";
 import RoomForm from "./RoomForm";
 import { filterRooms } from "./utils";
 import { getRooms } from "@/app/utils/roomUtils";
+import { getBuildings } from "@/app/utils/getBuildings";
+
 const RoomManagement: React.FC = () => {
   const [rooms, setRooms] = useState<Room[]>([]);
+  const [buildings, setBuildings] = useState<Building[]>([]);
+  
   React.useEffect(() => {
     async function fetchData() {
-      const data = await getRooms();
-      setRooms(
-        Object.values(data).map((room) => ({
-          ...room,
-          buildingName:
-            mockBuildings.find((b) => b.id === room.building_id)?.name || "",
-        }))
-      );
+      try {
+        const [roomsData, buildingsData] = await Promise.all([
+          getRooms(),
+          getBuildings(),
+        ]);
+        const buildingsArray: Building[] = Array.isArray(buildingsData) ? buildingsData : Object.values(buildingsData);
+        setBuildings(buildingsArray);
+        const roomsArray: Room[] = Array.isArray(roomsData) ? roomsData : Object.values(roomsData);
+        setRooms(
+          roomsArray.map((room) => ({
+            ...room,
+            buildingName:
+              buildingsArray.find((b) => b.id === room.building_id)?.name || "",
+          }))
+        );
+      } catch (error) {
+        console.error("Error fetching data:", error);
+      }
     }
     fetchData();
   }, []);
@@ -100,8 +113,9 @@ const RoomManagement: React.FC = () => {
           throw new Error(errorData.error || "Failed to update room");
         }
 
+        const buildingName = buildings.find((b) => b.id === roomData.building_id)?.name || "";
         setRooms((prev) =>
-          prev.map((r) => (r.id === roomData.id ? roomData : r))
+          prev.map((r) => (r.id === roomData.id ? { ...roomData, buildingName } : r))
         );
         setEditingRoom(null);
         setSuccessModal({
@@ -123,7 +137,8 @@ const RoomManagement: React.FC = () => {
         }
 
         const newRoom = await response.json();
-        setRooms((prev) => [...prev, { ...roomData, id: newRoom.id }]);
+        const buildingName = buildings.find((b) => b.id === roomData.building_id)?.name || "";
+        setRooms((prev) => [...prev, { ...roomData, id: newRoom.id, buildingName }]);
         setIsAddModalOpen(false);
         setSuccessModal({
           isOpen: true,

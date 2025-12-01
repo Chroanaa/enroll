@@ -1,8 +1,8 @@
 "use client";
 import React, { useState, useMemo, useEffect } from "react";
 import { Plus } from "lucide-react";
-import { Subject } from "../../../types";
-import { mockSubjects, mockDepartments } from "../../../data/mockData";
+import { Subject, Department } from "../../../types";
+import { mockSubjects } from "../../../data/mockData";
 import { colors } from "../../../colors";
 import ConfirmationModal from "../../common/ConfirmationModal";
 import SuccessModal from "../../common/SuccessModal";
@@ -13,27 +13,35 @@ import SubjectTable from "./SubjectTable";
 import SubjectForm from "./SubjectForm";
 import { filterSubjects } from "./utils";
 import { getSubjects } from "@/app/utils/subjectUtils";
+import { getDepartments } from "@/app/utils/departmentUtils";
 const SubjectManagement: React.FC = () => {
   const [subjects, setSubjects] = useState<Subject[]>();
+  const [departments, setDepartments] = useState<Department[]>([]);
 
   useEffect(() => {
-    const fetchSubjects = async () => {
+    const fetchData = async () => {
       try {
-        const subjectsData = await getSubjects();
+        const [subjectsData, departmentsData] = await Promise.all([
+          getSubjects(),
+          getDepartments(),
+        ]);
+        const departmentsArray: Department[] = Array.isArray(departmentsData) ? departmentsData : (Object.values(departmentsData) as Department[]);
+        setDepartments(departmentsArray);
+        const subjectsArray: Subject[] = Array.isArray(subjectsData) ? subjectsData : (Object.values(subjectsData) as Subject[]);
         setSubjects(
-          subjectsData.map((subject) => ({
+          subjectsArray.map((subject) => ({
             ...subject,
             departmentName:
-              mockDepartments.find((d) => d.id === subject.department_id)
+              departmentsArray.find((d) => d.id === subject.department_id)
                 ?.name || "",
           }))
         );
       } catch (error) {
-        console.error("Failed to fetch subjects:", error);
+        console.error("Failed to fetch data:", error);
       }
     };
 
-    fetchSubjects();
+    fetchData();
   }, []);
 
   const [searchTerm, setSearchTerm] = useState("");
@@ -107,8 +115,9 @@ const SubjectManagement: React.FC = () => {
           throw new Error(errorData.error || "Failed to update subject");
         }
 
+        const departmentName = departments.find((d) => d.id === subjectData.department_id)?.name || "";
         setSubjects((prev) =>
-          (prev || []).map((s) => (s.id === subjectData.id ? subjectData : s))
+          (prev || []).map((s) => (s.id === subjectData.id ? { ...subjectData, departmentName } : s))
         );
         setEditingSubject(null);
         setSuccessModal({
@@ -130,7 +139,8 @@ const SubjectManagement: React.FC = () => {
         }
 
         const newSubject = await response.json();
-        setSubjects((prev) => [...(prev || []), { ...subjectData, id: newSubject.id }]);
+        const departmentName = departments.find((d) => d.id === subjectData.department_id)?.name || "";
+        setSubjects((prev) => [...(prev || []), { ...subjectData, id: newSubject.id, departmentName }]);
         setIsAddModalOpen(false);
         setSuccessModal({
           isOpen: true,

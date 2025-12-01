@@ -46,16 +46,13 @@ model course {
   department   Int?
 }
 
-/// The underlying table does not contain a valid unique identifier and can therefore currently not be handled by Prisma Client.
 model section {
-  id            Int    @default(autoincrement())
-  course_id     Int
+  id            Int    @id @default(autoincrement())
+  program_id    Int
   section_name  String @db.VarChar(100)
   advisor       String @db.VarChar(150)
   student_count Int    @default(0)
   status        String @db.VarChar(20)
-
-  @@ignore
 }
 
 model students {

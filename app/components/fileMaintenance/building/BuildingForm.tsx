@@ -67,7 +67,6 @@ const BuildingForm: React.FC<BuildingFormProps> = ({
   const performSave = () => {
     if (formData.name && formData.code) {
       const buildingData: Partial<Building> = {
-        ...formData,
         name: formData.name!,
         code: formData.code!,
         description: formData.description || "",
@@ -75,10 +74,7 @@ const BuildingForm: React.FC<BuildingFormProps> = ({
         floor_count: formData.floor_count || 1,
         status: (formData.status as "active" | "inactive") || "active",
       };
-      fetch("/api/auth/building", {
-        method: "POST",
-        body: JSON.stringify(buildingData),
-      });
+      // Let the parent component handle the API call
       onSave({
         ...buildingData,
         id: building?.id || Math.random(),

@@ -4,10 +4,9 @@ import { Building } from "@/app/data/mockData";
 export async function POST(request: NextRequest) {
   try {
     const data: Building = await request.json();
+    const { id, ...buildingData } = data;
     const newBuilding = await prisma.building.create({
-      data: {
-        ...data,
-      },
+      data: buildingData,
     });
     return NextResponse.json(newBuilding);
   } catch (error) {

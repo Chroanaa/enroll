@@ -4,15 +4,29 @@ import { NextRequest, NextResponse } from "next/server";
 export async function POST(request: NextRequest) {
   try {
     const data = await request.json();
+    const { id, departmentName, ...subjectData } = data;
+    
+    // Ensure required fields are present
+    if (!subjectData.code || !subjectData.name || !subjectData.units || !subjectData.department_id) {
+      return NextResponse.json(
+        { error: "Missing required fields: code, name, units, and department_id are required" },
+        { status: 400 }
+      );
+    }
+    
+    // Set default status if not provided
+    if (!subjectData.status) {
+      subjectData.status = "active";
+    }
+    
     const newSubject = await prisma.subject.create({
-      data: {
-        ...data,
-      },
+      data: subjectData,
     });
     return NextResponse.json(newSubject);
-  } catch (error) {
+  } catch (error: any) {
+    console.error("Error creating subject:", error);
     return NextResponse.json(
-      { error: "Failed to create subject" },
+      { error: error?.message || "Failed to create subject", details: error?.code || error },
       { status: 500 }
     );
   }
@@ -21,9 +35,10 @@ export async function GET() {
   try {
     const subjects = await prisma.subject.findMany();
     return NextResponse.json(subjects);
-  } catch (error) {
+    } catch (error: any) {
+    console.error("Error fetching subjects:", error);
     return NextResponse.json(
-      { error: "Failed to fetch subjects" },
+      { error: error?.message || "Failed to fetch subjects", details: error?.code || error },
       { status: 500 }
     );
   }
@@ -45,28 +60,17 @@ export async function DELETE(request: NextRequest) {
 export async function PATCH(nextRequest: NextRequest) {
   try {
     const data = await nextRequest.json();
-    const { id, ...updateData } = data;
-    // Only include fields that exist in the subject schema
-    const validFields = [
-      "subject_code",
-      "subject_name",
-      "description",
-      "credits",
-    ];
-    const cleanData = Object.keys(updateData)
-      .filter((key) => validFields.includes(key))
-      .reduce((obj: any, key) => {
-        obj[key] = (updateData as any)[key];
-        return obj;
-      }, {});
+    const { id, departmentName, ...updateData } = data;
+    
     const updatedSubject = await prisma.subject.update({
       where: { id: Number(id) },
-      data: cleanData,
+      data: updateData,
     });
     return NextResponse.json(updatedSubject);
-  } catch (error) {
+  } catch (error: any) {
+    console.error("Error updating subject:", error);
     return NextResponse.json(
-      { error: "Failed to update subject" },
+      { error: error?.message || "Failed to update subject", details: error?.code || error },
       { status: 500 }
     );
   }

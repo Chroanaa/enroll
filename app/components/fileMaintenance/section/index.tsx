@@ -1,22 +1,44 @@
 "use client";
 import React, { useState, useMemo, useEffect } from "react";
 import { Plus } from "lucide-react";
-import { Section } from "../../../types";
-import { mockSections, mockCourses } from "../../../data/mockData";
+import { Section, Program } from "../../../types";
 import { colors } from "../../../colors";
 import ConfirmationModal from "../../common/ConfirmationModal";
+import SuccessModal from "../../common/SuccessModal";
+import ErrorModal from "../../common/ErrorModal";
 import SearchFilters from "../../common/SearchFilters";
 import Pagination from "../../common/Pagination";
 import SectionTable from "./SectionTable";
 import SectionForm from "./SectionForm";
 import { filterSections } from "./utils";
 import { getSections } from "../../../utils/getSection";
+import { getPrograms } from "@/app/utils/programUtils";
+
 const SectionManagement: React.FC = () => {
   const [sections, setSections] = useState<Section[]>();
+  const [programs, setPrograms] = useState<Program[]>([]);
+  
   React.useEffect(() => {
     async function fetchData() {
-      const data = await getSections();
-      setSections(Object.values(data));
+      try {
+        const [sectionsData, programsData] = await Promise.all([
+          getSections(),
+          getPrograms(),
+        ]);
+        const programsArray: Program[] = Array.isArray(programsData) ? programsData : Object.values(programsData);
+        setPrograms(programsArray);
+        const sectionsArray: Section[] = Array.isArray(sectionsData) ? sectionsData : Object.values(sectionsData);
+        setSections(
+          sectionsArray.map((section) => ({
+            ...section,
+            programName:
+              programsArray.find((p) => p.id === section.program_id)?.name ||
+              "",
+          }))
+        );
+      } catch (error) {
+        console.error("Error fetching data:", error);
+      }
     }
     fetchData();
   }, []);
@@ -34,6 +56,22 @@ const SectionManagement: React.FC = () => {
     isOpen: false,
     sectionId: null,
     sectionName: "",
+  });
+  const [successModal, setSuccessModal] = useState<{
+    isOpen: boolean;
+    message: string;
+  }>({
+    isOpen: false,
+    message: "",
+  });
+  const [errorModal, setErrorModal] = useState<{
+    isOpen: boolean;
+    message: string;
+    details?: string;
+  }>({
+    isOpen: false,
+    message: "",
+    details: "",
   });
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage, setItemsPerPage] = useState(10);
@@ -59,21 +97,62 @@ const SectionManagement: React.FC = () => {
     window.scrollTo({ top: 0, behavior: "smooth" });
   };
 
-  const handleSaveSection = (
-    sectionData: Section & { courseName?: string }
+  const handleSaveSection = async (
+    sectionData: Section & { programName?: string }
   ) => {
-    if (editingSection) {
-      setSections((prev) =>
-        prev?.map((s) => (s.id === sectionData.id ? sectionData : s))
-      );
-      setEditingSection(null);
-      fetch("/api/auth/section", {
-        method: "PATCH",
-        body: JSON.stringify(sectionData),
+    try {
+      if (editingSection) {
+        const response = await fetch("/api/auth/section", {
+          method: "PATCH",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify(sectionData),
+        });
+
+        if (!response.ok) {
+          const errorData = await response.json();
+          throw new Error(errorData.error || "Failed to update section");
+        }
+
+        const programName = programs.find((p) => p.id === sectionData.program_id)?.name || "";
+        setSections((prev) =>
+          prev?.map((s) => (s.id === sectionData.id ? { ...sectionData, programName } : s))
+        );
+        setEditingSection(null);
+        setSuccessModal({
+          isOpen: true,
+          message: `Section "${sectionData.section_name}" has been updated successfully.`,
+        });
+      } else {
+        const response = await fetch("/api/auth/section", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify(sectionData),
+        });
+
+        if (!response.ok) {
+          const errorData = await response.json();
+          throw new Error(errorData.error || "Failed to create section");
+        }
+
+        const newSection = await response.json();
+        const programName = programs.find((p) => p.id === sectionData.program_id)?.name || "";
+        setSections((prev = []) => [...prev, { ...sectionData, id: newSection.id, programName }]);
+        setIsAddModalOpen(false);
+        setSuccessModal({
+          isOpen: true,
+          message: `Section "${sectionData.section_name}" has been created successfully.`,
+        });
+      }
+    } catch (error: any) {
+      setErrorModal({
+        isOpen: true,
+        message: error.message || "An error occurred while saving the section.",
+        details: "Please check your input and try again.",
       });
-    } else {
-      setSections((prev = []) => [...prev, sectionData]);
-      setIsAddModalOpen(false);
     }
   };
 
@@ -88,23 +167,46 @@ const SectionManagement: React.FC = () => {
     }
   };
 
-  const confirmDeleteSection = () => {
+  const confirmDeleteSection = async () => {
     if (deleteConfirmation.sectionId) {
-      setSections((prev = []) =>
-        prev.filter((s) => s.id !== deleteConfirmation.sectionId)
-      );
-      setDeleteConfirmation({
-        isOpen: false,
-        sectionId: null,
-        sectionName: "",
-      });
-      fetch("/api/auth/section", {
-        method: "DELETE",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify(deleteConfirmation.sectionId),
-      });
+      try {
+        const response = await fetch("/api/auth/section", {
+          method: "DELETE",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify(deleteConfirmation.sectionId),
+        });
+
+        if (!response.ok) {
+          const errorData = await response.json();
+          throw new Error(errorData.error || "Failed to delete section");
+        }
+
+        setSections((prev = []) =>
+          prev.filter((s) => s.id !== deleteConfirmation.sectionId)
+        );
+        setDeleteConfirmation({
+          isOpen: false,
+          sectionId: null,
+          sectionName: "",
+        });
+        setSuccessModal({
+          isOpen: true,
+          message: `Section "${deleteConfirmation.sectionName}" has been deleted successfully.`,
+        });
+      } catch (error: any) {
+        setErrorModal({
+          isOpen: true,
+          message: error.message || "An error occurred while deleting the section.",
+          details: "Please try again.",
+        });
+        setDeleteConfirmation({
+          isOpen: false,
+          sectionId: null,
+          sectionName: "",
+        });
+      }
     }
   };
 
@@ -206,6 +308,23 @@ const SectionManagement: React.FC = () => {
           confirmText='Delete Section'
           cancelText='Cancel'
           variant='danger'
+        />
+
+        {/* Success Modal */}
+        <SuccessModal
+          isOpen={successModal.isOpen}
+          onClose={() => setSuccessModal({ isOpen: false, message: "" })}
+          message={successModal.message}
+          autoClose={true}
+          autoCloseDelay={3000}
+        />
+
+        {/* Error Modal */}
+        <ErrorModal
+          isOpen={errorModal.isOpen}
+          onClose={() => setErrorModal({ isOpen: false, message: "", details: "" })}
+          message={errorModal.message}
+          details={errorModal.details}
         />
       </div>
     </div>

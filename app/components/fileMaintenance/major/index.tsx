@@ -1,8 +1,8 @@
 "use client";
 import React, { useState, useMemo, useEffect } from "react";
 import { Plus } from "lucide-react";
-import { Major } from "../../../types";
-import { mockMajors, mockPrograms } from "../../../data/mockData";
+import { Major, Program } from "../../../types";
+import { mockMajors } from "../../../data/mockData";
 import { colors } from "../../../colors";
 import ConfirmationModal from "../../common/ConfirmationModal";
 import SuccessModal from "../../common/SuccessModal";
@@ -13,24 +13,33 @@ import MajorTable from "./MajorTable";
 import MajorForm from "./MajorForm";
 import { filterMajors } from "./utils";
 import { getMajors } from "@/app/utils/majorUtils";
+import { getPrograms } from "@/app/utils/programUtils";
 const MajorManagement: React.FC = () => {
   const [majors, setMajors] = useState<Major[]>([]);
+  const [programs, setPrograms] = useState<Program[]>([]);
+  
   useEffect(() => {
-    const fetchMajors = async () => {
+    const fetchData = async () => {
       try {
-        const data = await getMajors();
-        const majorsWithProgramNames = data.map((major) => ({
+        const [majorsData, programsData] = await Promise.all([
+          getMajors(),
+          getPrograms(),
+        ]);
+        const programsArray: Program[] = Array.isArray(programsData) ? programsData : (Object.values(programsData) as Program[]);
+        setPrograms(programsArray);
+        const majorsArray: Major[] = Array.isArray(majorsData) ? majorsData : (Object.values(majorsData) as Major[]);
+        const majorsWithProgramNames = majorsArray.map((major) => ({
           ...major,
           programName: major.program_id
-            ? mockPrograms.find((p) => p.id === major.program_id)?.name || ""
+            ? programsArray.find((p) => p.id === major.program_id)?.name || ""
             : "",
         }));
         setMajors(majorsWithProgramNames);
       } catch (error) {
-        console.error("Error fetching majors:", error);
+        console.error("Error fetching data:", error);
       }
     };
-    fetchMajors();
+    fetchData();
   }, []);
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState<
@@ -103,8 +112,9 @@ const MajorManagement: React.FC = () => {
           throw new Error(errorData.error || "Failed to update major");
         }
 
+        const programName = programs.find((p) => p.id === majorData.program_id)?.name || "";
         setMajors((prev) =>
-          prev.map((m) => (m.id === majorData.id ? majorData : m))
+          prev.map((m) => (m.id === majorData.id ? { ...majorData, programName } : m))
         );
         setEditingMajor(null);
         setSuccessModal({
@@ -126,7 +136,8 @@ const MajorManagement: React.FC = () => {
         }
 
         const newMajor = await response.json();
-        setMajors((prev) => [...prev, { ...majorData, id: newMajor.id }]);
+        const programName = programs.find((p) => p.id === majorData.program_id)?.name || "";
+        setMajors((prev) => [...prev, { ...majorData, id: newMajor.id, programName }]);
         setIsAddModalOpen(false);
         setSuccessModal({
           isOpen: true,
