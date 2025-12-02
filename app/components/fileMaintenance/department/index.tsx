@@ -2,7 +2,6 @@
 import React, { useState, useMemo, useEffect } from "react";
 import { Plus } from "lucide-react";
 import { Department, Building } from "../../../types";
-import { mockDepartments } from "../../../data/mockData";
 import { colors } from "../../../colors";
 import ConfirmationModal from "../../common/ConfirmationModal";
 import SuccessModal from "../../common/SuccessModal";
@@ -17,7 +16,7 @@ import { getBuildings } from "@/app/utils/getBuildings";
 const DepartmentManagement: React.FC = () => {
   const [departments, setDepartments] = useState<Department[]>([]);
   const [buildings, setBuildings] = useState<Building[]>([]);
-  
+
   React.useEffect(() => {
     async function fetchData() {
       try {
@@ -25,15 +24,19 @@ const DepartmentManagement: React.FC = () => {
           getDepartments(),
           getBuildings(),
         ]);
-        const buildingsArray: Building[] = Array.isArray(buildingsData) ? buildingsData : Object.values(buildingsData);
+        const buildingsArray: Building[] = Array.isArray(buildingsData)
+          ? buildingsData
+          : Object.values(buildingsData);
         setBuildings(buildingsArray);
-        const departmentsArray: Department[] = Array.isArray(departmentsData) ? departmentsData : Object.values(departmentsData);
+        const departmentsArray: Department[] = Array.isArray(departmentsData)
+          ? departmentsData
+          : Object.values(departmentsData);
         setDepartments(
           departmentsArray.map((department) => ({
             ...department,
             buildingName:
-              buildingsArray.find((b) => b.id === department.building_id)?.name ||
-              "",
+              buildingsArray.find((b) => b.id === department.building_id)
+                ?.name || "",
           }))
         );
       } catch (error) {
@@ -115,9 +118,13 @@ const DepartmentManagement: React.FC = () => {
           throw new Error(errorData.error || "Failed to update department");
         }
 
-        const buildingName = buildings.find((b) => b.id === departmentData.building_id)?.name || "";
+        const buildingName =
+          buildings.find((b) => b.id === departmentData.building_id)?.name ||
+          "";
         setDepartments((prev) =>
-          prev.map((d) => (d.id === departmentData.id ? { ...departmentData, buildingName } : d))
+          prev.map((d) =>
+            d.id === departmentData.id ? { ...departmentData, buildingName } : d
+          )
         );
         setEditingDepartment(null);
         setSuccessModal({
@@ -139,8 +146,13 @@ const DepartmentManagement: React.FC = () => {
         }
 
         const newDepartment = await response.json();
-        const buildingName = buildings.find((b) => b.id === departmentData.building_id)?.name || "";
-        setDepartments((prev) => [...prev, { ...departmentData, id: newDepartment.id, buildingName }]);
+        const buildingName =
+          buildings.find((b) => b.id === departmentData.building_id)?.name ||
+          "";
+        setDepartments((prev) => [
+          ...prev,
+          { ...departmentData, id: newDepartment.id, buildingName },
+        ]);
         setIsAddModalOpen(false);
         setSuccessModal({
           isOpen: true,
@@ -150,7 +162,8 @@ const DepartmentManagement: React.FC = () => {
     } catch (error: any) {
       setErrorModal({
         isOpen: true,
-        message: error.message || "An error occurred while saving the department.",
+        message:
+          error.message || "An error occurred while saving the department.",
         details: "Please check your input and try again.",
       });
     }
@@ -198,7 +211,8 @@ const DepartmentManagement: React.FC = () => {
       } catch (error: any) {
         setErrorModal({
           isOpen: true,
-          message: error.message || "An error occurred while deleting the department.",
+          message:
+            error.message || "An error occurred while deleting the department.",
           details: "Please try again.",
         });
         setDeleteConfirmation({
@@ -322,7 +336,9 @@ const DepartmentManagement: React.FC = () => {
         {/* Error Modal */}
         <ErrorModal
           isOpen={errorModal.isOpen}
-          onClose={() => setErrorModal({ isOpen: false, message: "", details: "" })}
+          onClose={() =>
+            setErrorModal({ isOpen: false, message: "", details: "" })
+          }
           message={errorModal.message}
           details={errorModal.details}
         />

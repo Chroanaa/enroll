@@ -2,7 +2,6 @@
 import React, { useState, useMemo, useEffect } from "react";
 import { Plus } from "lucide-react";
 import { Program, Department } from "../../../types";
-import { mockPrograms } from "../../../data/mockData";
 import { colors } from "../../../colors";
 import ConfirmationModal from "../../common/ConfirmationModal";
 import SuccessModal from "../../common/SuccessModal";
@@ -18,7 +17,7 @@ import { getDepartments } from "@/app/utils/departmentUtils";
 const ProgramManagement: React.FC = () => {
   const [programs, setPrograms] = useState<Program[]>([]);
   const [departments, setDepartments] = useState<Department[]>([]);
-  
+
   useEffect(() => {
     const fetchData = async () => {
       try {
@@ -26,9 +25,13 @@ const ProgramManagement: React.FC = () => {
           getPrograms(),
           getDepartments(),
         ]);
-        const departmentsArray: Department[] = Array.isArray(departmentsData) ? departmentsData : (Object.values(departmentsData) as Department[]);
+        const departmentsArray: Department[] = Array.isArray(departmentsData)
+          ? departmentsData
+          : (Object.values(departmentsData) as Department[]);
         setDepartments(departmentsArray);
-        const programsArray: Program[] = Array.isArray(programsData) ? programsData : (Object.values(programsData) as Program[]);
+        const programsArray: Program[] = Array.isArray(programsData)
+          ? programsData
+          : (Object.values(programsData) as Program[]);
         const programsWithDeptNames = programsArray.map((program) => ({
           ...program,
           departmentName: program.department_id
@@ -114,9 +117,13 @@ const ProgramManagement: React.FC = () => {
           throw new Error(errorData.error || "Failed to update program");
         }
 
-        const departmentName = departments.find((d) => d.id === programData.department_id)?.name || "";
+        const departmentName =
+          departments.find((d) => d.id === programData.department_id)?.name ||
+          "";
         setPrograms((prev) =>
-          prev.map((p) => (p.id === programData.id ? { ...programData, departmentName } : p))
+          prev.map((p) =>
+            p.id === programData.id ? { ...programData, departmentName } : p
+          )
         );
         setEditingProgram(null);
         setSuccessModal({
@@ -138,8 +145,13 @@ const ProgramManagement: React.FC = () => {
         }
 
         const newProgram = await response.json();
-        const departmentName = departments.find((d) => d.id === programData.department_id)?.name || "";
-        setPrograms((prev) => [...prev, { ...programData, id: newProgram.id, departmentName }]);
+        const departmentName =
+          departments.find((d) => d.id === programData.department_id)?.name ||
+          "";
+        setPrograms((prev) => [
+          ...prev,
+          { ...programData, id: newProgram.id, departmentName },
+        ]);
         setIsAddModalOpen(false);
         setSuccessModal({
           isOpen: true,
@@ -197,7 +209,8 @@ const ProgramManagement: React.FC = () => {
       } catch (error: any) {
         setErrorModal({
           isOpen: true,
-          message: error.message || "An error occurred while deleting the program.",
+          message:
+            error.message || "An error occurred while deleting the program.",
           details: "Please try again.",
         });
         setDeleteConfirmation({
@@ -321,7 +334,9 @@ const ProgramManagement: React.FC = () => {
         {/* Error Modal */}
         <ErrorModal
           isOpen={errorModal.isOpen}
-          onClose={() => setErrorModal({ isOpen: false, message: "", details: "" })}
+          onClose={() =>
+            setErrorModal({ isOpen: false, message: "", details: "" })
+          }
           message={errorModal.message}
           details={errorModal.details}
         />

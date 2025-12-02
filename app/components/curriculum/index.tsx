@@ -7,7 +7,6 @@ import CurriculumTable from "./CurriculumTable";
 import CurriculumForm from "./CurriculumForm";
 import SearchFilters from "../common/SearchFilters";
 import ConfirmationModal from "../common/ConfirmationModal";
-import { mockBSITCurriculum } from "../../data/mockData";
 import { getCurriculums } from "@/app/utils/curriculumUtils";
 const CurriculumManagement: React.FC = () => {
   const [curriculumList, setCurriculumList] = useState<Curriculum[]>([]);

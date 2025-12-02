@@ -2,7 +2,6 @@
 import React, { useState, useMemo, useEffect } from "react";
 import { Plus } from "lucide-react";
 import { Building } from "../../../types";
-import { mockBuildings } from "../../../data/mockData";
 import { colors } from "../../../colors";
 import ConfirmationModal from "../../common/ConfirmationModal";
 import SuccessModal from "../../common/SuccessModal";
@@ -116,7 +115,10 @@ const BuildingManagement: React.FC = () => {
         }
 
         const newBuilding = await response.json();
-        setBuildings((prev) => [...(prev || []), { ...buildingData, id: newBuilding.id }]);
+        setBuildings((prev) => [
+          ...(prev || []),
+          { ...buildingData, id: newBuilding.id },
+        ]);
         setIsAddModalOpen(false);
         setSuccessModal({
           isOpen: true,
@@ -126,7 +128,8 @@ const BuildingManagement: React.FC = () => {
     } catch (error: any) {
       setErrorModal({
         isOpen: true,
-        message: error.message || "An error occurred while saving the building.",
+        message:
+          error.message || "An error occurred while saving the building.",
         details: "Please check your input and try again.",
       });
     }
@@ -174,7 +177,8 @@ const BuildingManagement: React.FC = () => {
       } catch (error: any) {
         setErrorModal({
           isOpen: true,
-          message: error.message || "An error occurred while deleting the building.",
+          message:
+            error.message || "An error occurred while deleting the building.",
           details: "Please try again.",
         });
         setDeleteConfirmation({
@@ -298,7 +302,9 @@ const BuildingManagement: React.FC = () => {
         {/* Error Modal */}
         <ErrorModal
           isOpen={errorModal.isOpen}
-          onClose={() => setErrorModal({ isOpen: false, message: "", details: "" })}
+          onClose={() =>
+            setErrorModal({ isOpen: false, message: "", details: "" })
+          }
           message={errorModal.message}
           details={errorModal.details}
         />

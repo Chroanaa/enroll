@@ -2,7 +2,6 @@
 import React, { useState, useMemo, useEffect } from "react";
 import { Plus } from "lucide-react";
 import { Major, Program } from "../../../types";
-import { mockMajors } from "../../../data/mockData";
 import { colors } from "../../../colors";
 import ConfirmationModal from "../../common/ConfirmationModal";
 import SuccessModal from "../../common/SuccessModal";
@@ -17,7 +16,7 @@ import { getPrograms } from "@/app/utils/programUtils";
 const MajorManagement: React.FC = () => {
   const [majors, setMajors] = useState<Major[]>([]);
   const [programs, setPrograms] = useState<Program[]>([]);
-  
+
   useEffect(() => {
     const fetchData = async () => {
       try {
@@ -25,9 +24,13 @@ const MajorManagement: React.FC = () => {
           getMajors(),
           getPrograms(),
         ]);
-        const programsArray: Program[] = Array.isArray(programsData) ? programsData : (Object.values(programsData) as Program[]);
+        const programsArray: Program[] = Array.isArray(programsData)
+          ? programsData
+          : (Object.values(programsData) as Program[]);
         setPrograms(programsArray);
-        const majorsArray: Major[] = Array.isArray(majorsData) ? majorsData : (Object.values(majorsData) as Major[]);
+        const majorsArray: Major[] = Array.isArray(majorsData)
+          ? majorsData
+          : (Object.values(majorsData) as Major[]);
         const majorsWithProgramNames = majorsArray.map((major) => ({
           ...major,
           programName: major.program_id
@@ -112,9 +115,12 @@ const MajorManagement: React.FC = () => {
           throw new Error(errorData.error || "Failed to update major");
         }
 
-        const programName = programs.find((p) => p.id === majorData.program_id)?.name || "";
+        const programName =
+          programs.find((p) => p.id === majorData.program_id)?.name || "";
         setMajors((prev) =>
-          prev.map((m) => (m.id === majorData.id ? { ...majorData, programName } : m))
+          prev.map((m) =>
+            m.id === majorData.id ? { ...majorData, programName } : m
+          )
         );
         setEditingMajor(null);
         setSuccessModal({
@@ -136,8 +142,12 @@ const MajorManagement: React.FC = () => {
         }
 
         const newMajor = await response.json();
-        const programName = programs.find((p) => p.id === majorData.program_id)?.name || "";
-        setMajors((prev) => [...prev, { ...majorData, id: newMajor.id, programName }]);
+        const programName =
+          programs.find((p) => p.id === majorData.program_id)?.name || "";
+        setMajors((prev) => [
+          ...prev,
+          { ...majorData, id: newMajor.id, programName },
+        ]);
         setIsAddModalOpen(false);
         setSuccessModal({
           isOpen: true,
@@ -195,7 +205,8 @@ const MajorManagement: React.FC = () => {
       } catch (error: any) {
         setErrorModal({
           isOpen: true,
-          message: error.message || "An error occurred while deleting the major.",
+          message:
+            error.message || "An error occurred while deleting the major.",
           details: "Please try again.",
         });
         setDeleteConfirmation({
@@ -319,7 +330,9 @@ const MajorManagement: React.FC = () => {
         {/* Error Modal */}
         <ErrorModal
           isOpen={errorModal.isOpen}
-          onClose={() => setErrorModal({ isOpen: false, message: "", details: "" })}
+          onClose={() =>
+            setErrorModal({ isOpen: false, message: "", details: "" })
+          }
           message={errorModal.message}
           details={errorModal.details}
         />

@@ -10,7 +10,6 @@ import {
   User,
 } from "lucide-react";
 import { Student } from "../types";
-import { mockStudents } from "../data/mockData";
 import { colors } from "../colors";
 
 interface StudentManagementProps {
@@ -20,7 +19,7 @@ interface StudentManagementProps {
 const StudentManagement: React.FC<StudentManagementProps> = ({
   onViewChange,
 }) => {
-  const [students, setStudents] = useState<Student[]>(mockStudents);
+  const [students, setStudents] = useState<Student[]>([]);
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState<
     "all" | "active" | "inactive" | "graduated"

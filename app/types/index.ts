@@ -229,3 +229,12 @@ export interface Curriculum {
   courses: CurriculumCourse[];
   status: "active" | "inactive";
 }
+export interface Building {
+  id: number;
+  name: string;
+  code: string;
+  description?: string;
+  address?: string;
+  floor_count: number;
+  status: "active" | "inactive";
+}

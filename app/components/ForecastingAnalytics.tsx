@@ -14,7 +14,6 @@ import {
   Settings,
   Download,
 } from "lucide-react";
-import { mockEnrollmentTrends, mockCourses } from "../data/mockData";
 import {
   generateForecast,
   calculateGrowthRate,
@@ -24,135 +23,6 @@ import ForecastChart from "./ForecastChart";
 import EnrollmentChart from "./EnrollmentChart";
 
 const ForecastingAnalytics: React.FC = () => {
-  const [forecastPeriods, setForecastPeriods] = useState(6);
-  const [selectedMetric, setSelectedMetric] = useState<
-    "enrollments" | "students" | "courses"
-  >("enrollments");
-  const [confidenceThreshold, setConfidenceThreshold] = useState(70);
-
-  const forecast = useMemo(
-    () => generateForecast(mockEnrollmentTrends, forecastPeriods),
-    [forecastPeriods]
-  );
-  const peakEnrollmentMonth = useMemo(
-    () => getSeasonalPattern(mockEnrollmentTrends),
-    []
-  );
-
-  const analytics = useMemo(() => {
-    const currentTrend = mockEnrollmentTrends[mockEnrollmentTrends.length - 1];
-    const previousTrend = mockEnrollmentTrends[mockEnrollmentTrends.length - 2];
-    const growthRate = calculateGrowthRate(
-      currentTrend.totalEnrollments,
-      previousTrend.totalEnrollments
-    );
-
-    // Calculate trend direction over last 3 months
-    const recentTrends = mockEnrollmentTrends.slice(-3);
-    const trendDirection =
-      recentTrends[2].totalEnrollments > recentTrends[0].totalEnrollments
-        ? "increasing"
-        : "decreasing";
-
-    // Calculate average monthly growth
-    const monthlyGrowthRates = mockEnrollmentTrends
-      .slice(1)
-      .map((trend, index) =>
-        calculateGrowthRate(
-          trend.totalEnrollments,
-          mockEnrollmentTrends[index].totalEnrollments
-        )
-      );
-    const avgMonthlyGrowth =
-      monthlyGrowthRates.reduce((sum, rate) => sum + rate, 0) /
-      monthlyGrowthRates.length;
-
-    // Predict next semester enrollment
-    const nextSemesterPrediction = Math.round(
-      currentTrend.totalEnrollments * (1 + (avgMonthlyGrowth / 100) * 4)
-    );
-
-    // Calculate capacity utilization forecast
-    const totalCapacity = mockCourses.reduce(
-      (sum, course) => sum + course.maxCapacity,
-      0
-    );
-    const currentUtilization =
-      (currentTrend.totalEnrollments / totalCapacity) * 100;
-    const forecastUtilization = (nextSemesterPrediction / totalCapacity) * 100;
-
-    return {
-      growthRate,
-      trendDirection,
-      avgMonthlyGrowth,
-      nextSemesterPrediction,
-      currentUtilization,
-      forecastUtilization,
-      totalCapacity,
-    };
-  }, []);
-
-  const insights = useMemo(() => {
-    const insights = [];
-
-    // Growth trend insights
-    if (analytics.growthRate > 5) {
-      insights.push({
-        type: "success",
-        title: "Strong Growth Detected",
-        description: `Enrollment is growing at ${analytics.growthRate.toFixed(
-          1
-        )}% this period, indicating healthy demand.`,
-        icon: <TrendingUp className='w-5 h-5' />,
-      });
-    } else if (analytics.growthRate < -5) {
-      insights.push({
-        type: "warning",
-        title: "Declining Enrollment",
-        description: `Enrollment has decreased by ${Math.abs(
-          analytics.growthRate
-        ).toFixed(1)}% this period. Consider intervention strategies.`,
-        icon: <TrendingDown className='w-5 h-5' />,
-      });
-    }
-
-    // Capacity insights
-    if (analytics.forecastUtilization > 90) {
-      insights.push({
-        type: "alert",
-        title: "Capacity Constraint Risk",
-        description: `Forecasted utilization of ${analytics.forecastUtilization.toFixed(
-          1
-        )}% may exceed capacity limits.`,
-        icon: <AlertTriangle className='w-5 h-5' />,
-      });
-    }
-
-    // Seasonal insights
-    insights.push({
-      type: "info",
-      title: "Seasonal Pattern",
-      description: `Historical data shows ${peakEnrollmentMonth} typically has the highest enrollment rates.`,
-      icon: <Calendar className='w-5 h-5' />,
-    });
-
-    // Forecast confidence
-    const avgConfidence =
-      forecast.reduce((sum, f) => sum + f.confidence, 0) / forecast.length;
-    if (avgConfidence < confidenceThreshold) {
-      insights.push({
-        type: "warning",
-        title: "Low Forecast Confidence",
-        description: `Average forecast confidence is ${avgConfidence.toFixed(
-          1
-        )}%, below the ${confidenceThreshold}% threshold.`,
-        icon: <Info className='w-5 h-5' />,
-      });
-    }
-
-    return insights;
-  }, [analytics, forecast, peakEnrollmentMonth, confidenceThreshold]);
-
   const getInsightColor = (type: string) => {
     switch (type) {
       case "success":
@@ -254,11 +124,7 @@ const ForecastingAnalytics: React.FC = () => {
               <label className='block text-sm font-medium text-gray-700 mb-2'>
                 Forecast Periods (Months)
               </label>
-              <select
-                value={forecastPeriods}
-                onChange={(e) => setForecastPeriods(parseInt(e.target.value))}
-                className='w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:border-transparent'
-              >
+              <select className='w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:border-transparent'>
                 <option value={3}>3 Months</option>
                 <option value={6}>6 Months</option>
                 <option value={12}>12 Months</option>
@@ -269,29 +135,14 @@ const ForecastingAnalytics: React.FC = () => {
               <label className='block text-sm font-medium text-gray-700 mb-2'>
                 Confidence Threshold (%)
               </label>
-              <input
-                type='range'
-                min='50'
-                max='95'
-                value={confidenceThreshold}
-                onChange={(e) =>
-                  setConfidenceThreshold(parseInt(e.target.value))
-                }
-                className='w-full'
-              />
-              <div className='text-sm text-gray-600 mt-1'>
-                {confidenceThreshold}%
-              </div>
+              <input type='range' min='50' max='95' className='w-full' />
+              <div className='text-sm text-gray-600 mt-1'></div>
             </div>
             <div>
               <label className='block text-sm font-medium text-gray-700 mb-2'>
                 Analysis Metric
               </label>
-              <select
-                value={selectedMetric}
-                onChange={(e) => setSelectedMetric(e.target.value as any)}
-                className='w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:border-transparent'
-              >
+              <select className='w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:border-transparent'>
                 <option value='enrollments'>Total Enrollments</option>
                 <option value='students'>New Students</option>
                 <option value='courses'>Course Completions</option>
@@ -300,37 +151,7 @@ const ForecastingAnalytics: React.FC = () => {
           </div>
         </div>
 
-        <div className='grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8'>
-          <StatCard
-            title='Current Growth Rate'
-            value={`${analytics.growthRate.toFixed(1)}%`}
-            subtitle='vs. previous period'
-            icon={<TrendingUp className='w-6 h-6 text-white' />}
-            color='bg-blue-500'
-            trend={analytics.growthRate}
-          />
-          <StatCard
-            title='Avg Monthly Growth'
-            value={`${analytics.avgMonthlyGrowth.toFixed(1)}%`}
-            subtitle='historical average'
-            icon={<BarChart3 className='w-6 h-6 text-white' />}
-            color='bg-emerald-500'
-          />
-          <StatCard
-            title='Next Semester Forecast'
-            value={analytics.nextSemesterPrediction.toLocaleString()}
-            subtitle='predicted enrollments'
-            icon={<Target className='w-6 h-6 text-white' />}
-            color='bg-purple-500'
-          />
-          <StatCard
-            title='Capacity Utilization'
-            value={`${analytics.currentUtilization.toFixed(1)}%`}
-            subtitle={`forecast: ${analytics.forecastUtilization.toFixed(1)}%`}
-            icon={<PieChart className='w-6 h-6 text-white' />}
-            color='bg-orange-500'
-          />
-        </div>
+        <div className='grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8'></div>
 
         <div className='grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8'>
           <div className='bg-white rounded-xl shadow-sm border border-gray-100 p-6'>
@@ -338,36 +159,14 @@ const ForecastingAnalytics: React.FC = () => {
               <h2 className='text-xl font-bold text-gray-900'>
                 Historical Trends
               </h2>
-              <div className='flex gap-2'>
-                {["enrollments", "students", "courses"].map((metric) => (
-                  <button
-                    key={metric}
-                    onClick={() => setSelectedMetric(metric as any)}
-                    className={`px-3 py-1 rounded-lg text-sm font-medium transition-colors ${
-                      selectedMetric === metric
-                        ? "bg-blue-100 text-blue-700"
-                        : "text-gray-600 hover:bg-gray-100"
-                    }`}
-                  >
-                    {metric.charAt(0).toUpperCase() + metric.slice(1)}
-                  </button>
-                ))}
-              </div>
+              <div className='flex gap-2'></div>
             </div>
-            <EnrollmentChart
-              data={mockEnrollmentTrends}
-              metric={selectedMetric}
-            />
           </div>
 
           <div className='bg-white rounded-xl shadow-sm border border-gray-100 p-6'>
             <h2 className='text-xl font-bold text-gray-900 mb-6'>
-              {forecastPeriods}-Month Forecast Projection
+              Month Forecast Projection
             </h2>
-            <ForecastChart
-              historicalData={mockEnrollmentTrends}
-              forecastData={forecast}
-            />
           </div>
         </div>
 
@@ -395,55 +194,16 @@ const ForecastingAnalytics: React.FC = () => {
                   </tr>
                 </thead>
                 <tbody>
-                  {forecast.map((item, index) => (
-                    <tr key={index} className='border-b border-gray-100'>
-                      <td className='py-3 text-sm text-gray-900'>
-                        {new Date(item.period + "-01").toLocaleDateString(
-                          "en-US",
-                          {
-                            month: "short",
-                            year: "numeric",
-                          }
-                        )}
-                      </td>
-                      <td className='py-3 text-sm font-medium text-gray-900 text-right'>
-                        {item.predicted.toLocaleString()}
-                      </td>
-                      <td className='py-3 text-right'>
-                        <span
-                          className={`text-sm font-medium ${
-                            item.confidence >= confidenceThreshold
-                              ? "text-emerald-600"
-                              : "text-yellow-600"
-                          }`}
-                        >
-                          {item.confidence}%
-                        </span>
-                      </td>
-                      <td className='py-3 text-center'>
-                        <div
-                          className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${
-                            item.trend === "increasing"
-                              ? "bg-emerald-100 text-emerald-800"
-                              : item.trend === "decreasing"
-                              ? "bg-red-100 text-red-800"
-                              : "bg-gray-100 text-gray-800"
-                          }`}
-                        >
-                          {item.trend === "increasing" && (
-                            <TrendingUp className='w-3 h-3 mr-1' />
-                          )}
-                          {item.trend === "decreasing" && (
-                            <TrendingDown className='w-3 h-3 mr-1' />
-                          )}
-                          {item.trend === "stable" && (
-                            <Activity className='w-3 h-3 mr-1' />
-                          )}
-                          {item.trend}
-                        </div>
-                      </td>
-                    </tr>
-                  ))}
+                  <tr className='border-b border-gray-100'>
+                    <td className='py-3 text-sm text-gray-900'></td>
+                    <td className='py-3 text-sm font-medium text-gray-900 text-right'></td>
+                    <td className='py-3 text-right'>
+                      <span></span>
+                    </td>
+                    <td className='py-3 text-center'>
+                      <div className='inline-flex items-center px-2 py-1 rounded-full text-xs font-medium'></div>
+                    </td>
+                  </tr>
                 </tbody>
               </table>
             </div>
@@ -458,43 +218,25 @@ const ForecastingAnalytics: React.FC = () => {
                 <span className='text-sm font-medium text-gray-700'>
                   Average Confidence
                 </span>
-                <span className='text-sm font-bold text-gray-900'>
-                  {(
-                    forecast.reduce((sum, f) => sum + f.confidence, 0) /
-                    forecast.length
-                  ).toFixed(1)}
-                  %
-                </span>
+                <span className='text-sm font-bold text-gray-900'>%</span>
               </div>
               <div className='flex justify-between items-center p-3 bg-gray-50 rounded-lg'>
                 <span className='text-sm font-medium text-gray-700'>
                   Trend Direction
                 </span>
-                <span
-                  className={`text-sm font-bold ${
-                    analytics.trendDirection === "increasing"
-                      ? "text-emerald-600"
-                      : "text-red-600"
-                  }`}
-                >
-                  {analytics.trendDirection}
-                </span>
+                <span></span>
               </div>
               <div className='flex justify-between items-center p-3 bg-gray-50 rounded-lg'>
                 <span className='text-sm font-medium text-gray-700'>
                   Peak Season
                 </span>
-                <span className='text-sm font-bold text-gray-900'>
-                  {peakEnrollmentMonth}
-                </span>
+                <span className='text-sm font-bold text-gray-900'></span>
               </div>
               <div className='flex justify-between items-center p-3 bg-gray-50 rounded-lg'>
                 <span className='text-sm font-medium text-gray-700'>
                   Data Points
                 </span>
-                <span className='text-sm font-bold text-gray-900'>
-                  {mockEnrollmentTrends.length}
-                </span>
+                <span className='text-sm font-bold text-gray-900'></span>
               </div>
             </div>
           </div>
@@ -505,26 +247,11 @@ const ForecastingAnalytics: React.FC = () => {
             AI-Powered Insights & Recommendations
           </h2>
           <div className='grid grid-cols-1 md:grid-cols-2 gap-4'>
-            {insights.map((insight, index) => (
-              <div
-                key={index}
-                className={`p-4 rounded-lg border ${getInsightColor(
-                  insight.type
-                )}`}
-              >
-                <div className='flex items-start gap-3'>
-                  <div className={getInsightIconColor(insight.type)}>
-                    {insight.icon}
-                  </div>
-                  <div>
-                    <h3 className='font-semibold text-sm mb-1'>
-                      {insight.title}
-                    </h3>
-                    <p className='text-sm opacity-90'>{insight.description}</p>
-                  </div>
-                </div>
-              </div>
-            ))}
+            <div className='flex items-start gap-3'></div>
+            <div>
+              <h3 className='font-semibold text-sm mb-1'></h3>
+              <p className='text-sm opacity-90'></p>
+            </div>
           </div>
         </div>
       </div>

@@ -12,12 +12,6 @@ import {
   Clock,
 } from "lucide-react";
 import {
-  mockStudents,
-  mockCourses,
-  mockEnrollments,
-  mockEnrollmentTrends,
-} from "../data/mockData";
-import {
   generateForecast,
   calculateGrowthRate,
   getSeasonalPattern,
@@ -30,48 +24,6 @@ const Dashboard: React.FC = () => {
   const [selectedMetric, setSelectedMetric] = useState<
     "enrollments" | "students" | "courses"
   >("enrollments");
-
-  const stats = useMemo(() => {
-    const activeStudents = mockStudents.filter(
-      (s) => s.status === "active"
-    ).length;
-    const totalCourses = mockCourses.length;
-    const totalEnrollments = mockEnrollments.filter(
-      (e) => e.status === "enrolled"
-    ).length;
-    const completedCourses = mockEnrollments.filter(
-      (e) => e.status === "completed"
-    ).length;
-
-    const currentTrend = mockEnrollmentTrends[mockEnrollmentTrends.length - 1];
-    const previousTrend = mockEnrollmentTrends[mockEnrollmentTrends.length - 2];
-    const growthRate = calculateGrowthRate(
-      currentTrend.totalEnrollments,
-      previousTrend.totalEnrollments
-    );
-
-    return {
-      activeStudents,
-      totalCourses,
-      totalEnrollments,
-      completedCourses,
-      growthRate,
-      averageCapacity: Math.round(
-        (mockCourses.reduce(
-          (sum, course) => sum + course.currentEnrollment / course.maxCapacity,
-          0
-        ) /
-          mockCourses.length) *
-          100
-      ),
-    };
-  }, []);
-
-  const forecast = useMemo(() => generateForecast(mockEnrollmentTrends, 6), []);
-  const peakEnrollmentMonth = useMemo(
-    () => getSeasonalPattern(mockEnrollmentTrends),
-    []
-  );
 
   const StatCard: React.FC<{
     title: string;
@@ -138,33 +90,7 @@ const Dashboard: React.FC = () => {
         </div>
 
         {/* Stats Grid */}
-        <div className='grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 mb-8'>
-          <StatCard
-            title='Active Students'
-            value={stats.activeStudents}
-            icon={<Users className='w-6 h-6 text-white' />}
-            color={colors.secondary}
-          />
-          <StatCard
-            title='Total Courses'
-            value={stats.totalCourses}
-            icon={<BookOpen className='w-6 h-6 text-white' />}
-            color='bg-emerald-500'
-          />
-          <StatCard
-            title='Current Enrollments'
-            value={stats.totalEnrollments}
-            icon={<GraduationCap className='w-6 h-6 text-white' />}
-            trend={stats.growthRate}
-            color='bg-purple-500'
-          />
-          <StatCard
-            title='Average Capacity'
-            value={`${stats.averageCapacity}%`}
-            icon={<TrendingUp className='w-6 h-6 text-white' />}
-            color='bg-orange-500'
-          />
-        </div>
+        <div className='grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 mb-8'></div>
 
         {/* Charts Section */}
         <div className='grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-2 gap-6 mb-8'>
@@ -207,10 +133,6 @@ const Dashboard: React.FC = () => {
                 ))}
               </div>
             </div>
-            <EnrollmentChart
-              data={mockEnrollmentTrends}
-              metric={selectedMetric}
-            />
           </div>
 
           {/* Forecast */}
@@ -221,10 +143,6 @@ const Dashboard: React.FC = () => {
             >
               6-Month Forecast
             </h2>
-            <ForecastChart
-              historicalData={mockEnrollmentTrends}
-              forecastData={forecast}
-            />
           </div>
         </div>
 
@@ -246,8 +164,7 @@ const Dashboard: React.FC = () => {
                     Peak Enrollment Period
                   </p>
                   <p className='text-sm' style={{ color: colors.primary }}>
-                    Historical data shows {peakEnrollmentMonth} has the highest
-                    enrollment rates
+                    Historical data shows has the highest enrollment rates
                   </p>
                 </div>
               </div>
@@ -257,10 +174,7 @@ const Dashboard: React.FC = () => {
                   <p className='font-medium' style={{ color: colors.primary }}>
                     Growth Trajectory
                   </p>
-                  <p className='text-sm' style={{ color: colors.primary }}>
-                    {stats.growthRate > 0 ? "Positive" : "Negative"} growth of{" "}
-                    {Math.abs(stats.growthRate).toFixed(1)}% this period
-                  </p>
+                  <p className='text-sm' style={{ color: colors.primary }}></p>
                 </div>
               </div>
               <div className='flex items-start gap-3'>
@@ -269,15 +183,11 @@ const Dashboard: React.FC = () => {
                   <p className='font-medium' style={{ color: colors.primary }}>
                     Forecast Confidence
                   </p>
-                  <p className='text-sm' style={{ color: colors.primary }}>
-                    Next month prediction: {forecast[0]?.predicted} enrollments
-                    ({forecast[0]?.confidence}% confidence)
-                  </p>
+                  <p className='text-sm' style={{ color: colors.primary }}></p>
                 </div>
               </div>
             </div>
           </div>
-
           {/* Alerts */}
           <div className='bg-white rounded-xl shadow-sm border border-gray-100 p-6'>
             <h2
@@ -286,48 +196,7 @@ const Dashboard: React.FC = () => {
             >
               Alerts
             </h2>
-            <div className='space-y-3'>
-              {mockCourses
-                .filter(
-                  (course) =>
-                    course.currentEnrollment / course.maxCapacity > 0.9
-                )
-                .map((course) => (
-                  <div
-                    key={course.id}
-                    className='flex items-start gap-3 p-3 bg-orange-50 rounded-lg'
-                  >
-                    <AlertTriangle className='w-4 h-4 text-orange-500 mt-0.5' />
-                    <div>
-                      <p className='text-sm font-medium text-orange-900'>
-                        {course.code} Near Capacity
-                      </p>
-                      <p className='text-xs text-orange-700'>
-                        {course.currentEnrollment}/{course.maxCapacity} enrolled
-                      </p>
-                    </div>
-                  </div>
-                ))}
-
-              {mockEnrollments.filter((e) => e.status === "pending").length >
-                0 && (
-                <div className='flex items-start gap-3 p-3 bg-blue-50 rounded-lg'>
-                  <Clock className='w-4 h-4 text-blue-500 mt-0.5' />
-                  <div>
-                    <p className='text-sm font-medium text-blue-900'>
-                      Pending Enrollments
-                    </p>
-                    <p className='text-xs text-blue-700'>
-                      {
-                        mockEnrollments.filter((e) => e.status === "pending")
-                          .length
-                      }{" "}
-                      awaiting approval
-                    </p>
-                  </div>
-                </div>
-              )}
-            </div>
+            <div className='space-y-3'></div>
           </div>
         </div>
       </div>

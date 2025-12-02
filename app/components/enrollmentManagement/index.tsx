@@ -13,7 +13,6 @@ import SearchFilters from "../common/SearchFilters";
 import EnrollmentTable from "./EnrollmentTable";
 import Pagination from "../common/Pagination";
 import { BookOpen } from "lucide-react";
-import { mockCourses } from "../../data/mockData";
 import EnrollmentForm from "./EnrollmentForm";
 import { getCountOfEnrolleesStatus } from "@/app/utils/getCountStatusEnrollees";
 const EnrollmentManagement: React.FC = () => {
@@ -123,11 +122,15 @@ const EnrollmentManagement: React.FC = () => {
           prev.map((e) => (e.id === enrollmentData.id ? enrollmentData : e))
         );
         setEditingEnrollment(null);
-        
-        const studentName = `${enrollmentData.first_name || ""} ${enrollmentData.family_name || ""}`.trim();
+
+        const studentName = `${enrollmentData.first_name || ""} ${
+          enrollmentData.family_name || ""
+        }`.trim();
         setSuccessModal({
           isOpen: true,
-          message: `Enrollment for "${studentName || "student"}" has been updated successfully.`,
+          message: `Enrollment for "${
+            studentName || "student"
+          }" has been updated successfully.`,
         });
       } else {
         const response = await fetch("/api/auth/enroll", {
@@ -144,19 +147,27 @@ const EnrollmentManagement: React.FC = () => {
         }
 
         const newEnrollment = await response.json();
-        setEnrollments((prev) => [...prev, { ...enrollmentData, id: newEnrollment.id || enrollmentData.id }]);
+        setEnrollments((prev) => [
+          ...prev,
+          { ...enrollmentData, id: newEnrollment.id || enrollmentData.id },
+        ]);
         setIsAddingEnrollment(false);
-        
-        const studentName = `${enrollmentData.first_name || ""} ${enrollmentData.family_name || ""}`.trim();
+
+        const studentName = `${enrollmentData.first_name || ""} ${
+          enrollmentData.family_name || ""
+        }`.trim();
         setSuccessModal({
           isOpen: true,
-          message: `Enrollment for "${studentName || "student"}" has been created successfully.`,
+          message: `Enrollment for "${
+            studentName || "student"
+          }" has been created successfully.`,
         });
       }
     } catch (error: any) {
       setErrorModal({
         isOpen: true,
-        message: error.message || "An error occurred while saving the enrollment.",
+        message:
+          error.message || "An error occurred while saving the enrollment.",
         details: "Please check your input and try again.",
       });
     }
@@ -207,7 +218,8 @@ const EnrollmentManagement: React.FC = () => {
       } catch (error: any) {
         setErrorModal({
           isOpen: true,
-          message: error.message || "An error occurred while deleting the enrollment.",
+          message:
+            error.message || "An error occurred while deleting the enrollment.",
           details: "Please try again.",
         });
         setDeleteConfirmation({
@@ -286,19 +298,6 @@ const EnrollmentManagement: React.FC = () => {
               ],
               placeholder: "All Status",
             },
-            {
-              value: courseFilter,
-              onChange: (value) => setCourseFilter(String(value)),
-              options: [
-                { value: "all", label: "All Courses" },
-                ...mockCourses.map((course) => ({
-                  value: course.id,
-                  label: `${course.code} - ${course.name}`,
-                })),
-              ],
-              placeholder: "All Courses",
-              icon: <BookOpen className='w-4 h-4 text-gray-500' />,
-            },
           ]}
         />
 
@@ -363,7 +362,9 @@ const EnrollmentManagement: React.FC = () => {
         {/* Error Modal */}
         <ErrorModal
           isOpen={errorModal.isOpen}
-          onClose={() => setErrorModal({ isOpen: false, message: "", details: "" })}
+          onClose={() =>
+            setErrorModal({ isOpen: false, message: "", details: "" })
+          }
           message={errorModal.message}
           details={errorModal.details}
         />

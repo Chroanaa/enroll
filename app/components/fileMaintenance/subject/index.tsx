@@ -2,7 +2,6 @@
 import React, { useState, useMemo, useEffect } from "react";
 import { Plus } from "lucide-react";
 import { Subject, Department } from "../../../types";
-import { mockSubjects } from "../../../data/mockData";
 import { colors } from "../../../colors";
 import ConfirmationModal from "../../common/ConfirmationModal";
 import SuccessModal from "../../common/SuccessModal";
@@ -25,9 +24,13 @@ const SubjectManagement: React.FC = () => {
           getSubjects(),
           getDepartments(),
         ]);
-        const departmentsArray: Department[] = Array.isArray(departmentsData) ? departmentsData : (Object.values(departmentsData) as Department[]);
+        const departmentsArray: Department[] = Array.isArray(departmentsData)
+          ? departmentsData
+          : (Object.values(departmentsData) as Department[]);
         setDepartments(departmentsArray);
-        const subjectsArray: Subject[] = Array.isArray(subjectsData) ? subjectsData : (Object.values(subjectsData) as Subject[]);
+        const subjectsArray: Subject[] = Array.isArray(subjectsData)
+          ? subjectsData
+          : (Object.values(subjectsData) as Subject[]);
         setSubjects(
           subjectsArray.map((subject) => ({
             ...subject,
@@ -115,9 +118,13 @@ const SubjectManagement: React.FC = () => {
           throw new Error(errorData.error || "Failed to update subject");
         }
 
-        const departmentName = departments.find((d) => d.id === subjectData.department_id)?.name || "";
+        const departmentName =
+          departments.find((d) => d.id === subjectData.department_id)?.name ||
+          "";
         setSubjects((prev) =>
-          (prev || []).map((s) => (s.id === subjectData.id ? { ...subjectData, departmentName } : s))
+          (prev || []).map((s) =>
+            s.id === subjectData.id ? { ...subjectData, departmentName } : s
+          )
         );
         setEditingSubject(null);
         setSuccessModal({
@@ -139,8 +146,13 @@ const SubjectManagement: React.FC = () => {
         }
 
         const newSubject = await response.json();
-        const departmentName = departments.find((d) => d.id === subjectData.department_id)?.name || "";
-        setSubjects((prev) => [...(prev || []), { ...subjectData, id: newSubject.id, departmentName }]);
+        const departmentName =
+          departments.find((d) => d.id === subjectData.department_id)?.name ||
+          "";
+        setSubjects((prev) => [
+          ...(prev || []),
+          { ...subjectData, id: newSubject.id, departmentName },
+        ]);
         setIsAddModalOpen(false);
         setSuccessModal({
           isOpen: true,
@@ -198,7 +210,8 @@ const SubjectManagement: React.FC = () => {
       } catch (error: any) {
         setErrorModal({
           isOpen: true,
-          message: error.message || "An error occurred while deleting the subject.",
+          message:
+            error.message || "An error occurred while deleting the subject.",
           details: "Please try again.",
         });
         setDeleteConfirmation({
@@ -322,7 +335,9 @@ const SubjectManagement: React.FC = () => {
         {/* Error Modal */}
         <ErrorModal
           isOpen={errorModal.isOpen}
-          onClose={() => setErrorModal({ isOpen: false, message: "", details: "" })}
+          onClose={() =>
+            setErrorModal({ isOpen: false, message: "", details: "" })
+          }
           message={errorModal.message}
           details={errorModal.details}
         />
