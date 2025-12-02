@@ -66,13 +66,9 @@ const CurriculumForm: React.FC<CurriculumFormProps> = ({
     initialFormData.current
   );
 
-  const [selectedProgramId, setSelectedProgramId] = useState<
-    number | undefined
-  >(getInitialProgramId(curriculum));
+  const [selectedProgramId, setSelectedProgramId] = useState();
 
-  const [selectedMajorId, setSelectedMajorId] = useState<number | undefined>(
-    getInitialMajorId(curriculum)
-  );
+  const [selectedMajorId, setSelectedMajorId] = useState();
 
   // Year states for effective year
 
@@ -257,12 +253,8 @@ const CurriculumForm: React.FC<CurriculumFormProps> = ({
               startYear={startYear}
               endYear={endYear}
               currentYear={currentYear}
-              onProgramChange={(programId) => {
-                setSelectedProgramId(programId);
-              }}
-              onMajorChange={(majorId) => {
-                setSelectedMajorId(majorId);
-              }}
+              onProgramChange={() => {}}
+              onMajorChange={() => {}}
               onStartYearChange={(year) => {
                 setStartYear(year);
                 setEndYear(year + 1);

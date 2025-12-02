@@ -1,5 +1,4 @@
 import { Curriculum, CurriculumCourse } from "../../types";
-import { mockPrograms, mockMajors } from "../../data/mockData";
 
 export const parseAcademicYear = (
   academicYear: string
@@ -15,7 +14,7 @@ export const parseAcademicYear = (
       endYear: parseInt(match[2]),
     };
   }
- 
+
   const parts = academicYear.split("-");
   if (parts.length === 2) {
     const start = parseInt(parts[0].replace(/\D/g, ""));
@@ -28,7 +27,6 @@ export const parseAcademicYear = (
   return { startYear: currentYear, endYear: currentYear + 1 };
 };
 
-
 export const formatAcademicYear = (
   startYear: number,
   endYear: number
@@ -36,38 +34,11 @@ export const formatAcademicYear = (
   return `AY ${startYear}-${endYear}`;
 };
 
+export const getInitialProgramId = () => {};
 
-export const getInitialProgramId = (
-  curriculum: Curriculum | null
-): number | undefined => {
-  if (curriculum) {
-    const foundProgram = mockPrograms.find(
-      (p: { name: string; code: string; id: number }) =>
-        p.name === curriculum.program_name &&
-        p.code === curriculum.program_code
-    );
-    return foundProgram?.id;
-  }
-  return undefined;
-};
+export const getInitialMajorId = () => {};
 
-
-export const getInitialMajorId = (
-  curriculum: Curriculum | null
-): number | undefined => {
-  if (curriculum && curriculum.major) {
-    const foundMajor = mockMajors.find(
-      (m: { name: string; id: number }) => m.name === curriculum.major
-    );
-    return foundMajor?.id;
-  }
-  return undefined;
-};
-
-
-export const calculateTotalUnits = (
-  courses: CurriculumCourse[]
-): number => {
+export const calculateTotalUnits = (courses: CurriculumCourse[]): number => {
   return courses.reduce((total, course) => total + course.units_total, 0);
 };
 
@@ -89,7 +60,9 @@ export const createCourseFromForm = (
   };
 };
 
-export const getInitialCourseForm = (): Partial<CurriculumCourse> & { selectedSubjectId?: number } => {
+export const getInitialCourseForm = (): Partial<CurriculumCourse> & {
+  selectedSubjectId?: number;
+} => {
   return {
     selectedSubjectId: undefined,
     course_code: "",
@@ -125,4 +98,3 @@ export const createCurriculumData = (
     status: (formData.status as "active" | "inactive") || "active",
   } as Curriculum;
 };
-

@@ -2,7 +2,6 @@
 
 import React from "react";
 import { CurriculumCourse, Subject } from "../../types";
-import { mockSubjects } from "../../data/mockData";
 import { colors } from "../../colors";
 
 interface CourseFormSectionProps {
@@ -38,13 +37,6 @@ const CourseFormSection: React.FC<CourseFormSectionProps> = ({
           style={{ color: "#6B5B4F" }}
         >
           <option value=''>Select Subject</option>
-          {mockSubjects
-            .filter((subject) => subject.status === "active")
-            .map((subject) => (
-              <option key={subject.id} value={subject.id}>
-                {subject.code} - {subject.name} ({subject.units} units)
-              </option>
-            ))}
         </select>
       </div>
 
@@ -52,13 +44,19 @@ const CourseFormSection: React.FC<CourseFormSectionProps> = ({
         <div className='grid grid-cols-1 md:grid-cols-2 gap-3 p-3 bg-white rounded-lg border border-gray-200'>
           <div>
             <span className='text-xs text-gray-500'>Course Code:</span>
-            <p className='text-sm font-medium' style={{ color: colors.primary }}>
+            <p
+              className='text-sm font-medium'
+              style={{ color: colors.primary }}
+            >
               {courseForm.course_code}
             </p>
           </div>
           <div>
             <span className='text-xs text-gray-500'>Descriptive Title:</span>
-            <p className='text-sm font-medium' style={{ color: colors.primary }}>
+            <p
+              className='text-sm font-medium'
+              style={{ color: colors.primary }}
+            >
               {courseForm.descriptive_title}
             </p>
           </div>
@@ -129,4 +127,3 @@ const CourseFormSection: React.FC<CourseFormSectionProps> = ({
 };
 
 export default CourseFormSection;
-
