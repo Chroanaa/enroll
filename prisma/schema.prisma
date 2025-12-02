@@ -14,13 +14,6 @@ model users {
   role     Int
 }
 
-model module_access {
-  id          Int    @id @default(autoincrement())
-  module      String @db.VarChar(255)
-  module_code String @db.VarChar(255)
-  status      Int
-}
-
 model payment {
   id          Int     @id @default(autoincrement())
   description String? @db.VarChar(255)
@@ -44,15 +37,6 @@ model course {
   semester     String? @db.VarChar(50)
   max_capacity Int?
   department   Int?
-}
-
-model section {
-  id            Int    @id @default(autoincrement())
-  program_id    Int
-  section_name  String @db.VarChar(100)
-  advisor       String @db.VarChar(150)
-  student_count Int    @default(0)
-  status        String @db.VarChar(20)
 }
 
 model students {
@@ -82,7 +66,7 @@ model students {
   course_id               Int?
   year_level              String?   @db.VarChar(50)
   section_id              Int?
-  enrollment_status       String?   @default("pending") @db.VarChar(50)
+  enrollment_id           String?   @default("pending") @db.VarChar
   academic_year           String?   @db.VarChar(20)
 }
 
@@ -210,4 +194,50 @@ model subject {
   department_id Int
   prerequisites String?
   status        String  @db.VarChar(10)
+}
+
+model sections {
+  id            Int    @id @default(autoincrement())
+  program_id    Int
+  section_name  String @db.VarChar(100)
+  advisor       String @db.VarChar(150)
+  student_count Int?   @default(0)
+  status        String @db.VarChar(50)
+}
+
+model billing {
+  id          Int       @id @default(autoincrement())
+  enrollee_id Int?
+  term        String?   @db.VarChar(10)
+  is_paid     Int?
+  date_paid   DateTime? @db.Date
+  user_id     Int?
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+model curriculum {
+  id                Int                 @id @default(autoincrement())
+  program_name      String              @db.VarChar(255)
+  program_code      String              @db.VarChar(100)
+  major             String?             @db.VarChar(255)
+  effective_year    String              @db.VarChar(20)
+  total_units       Int
+  status            String              @db.VarChar(10)
+  curriculum_course curriculum_course[]
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+model curriculum_course {
+  id                Int        @id @default(autoincrement())
+  curriculum_id     Int
+  subject_id        Int?
+  course_code       String     @db.VarChar(100)
+  descriptive_title String
+  units_lec         Int?
+  units_lab         Int?
+  units_total       Int
+  prerequisite      String?
+  year_level        Int
+  semester          Int
+  curriculum        curriculum @relation(fields: [curriculum_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
 }
