@@ -1,5 +1,5 @@
 import axios from "axios";
-import { Building } from "../data/mockData";
+import { Building } from "../types";
 export async function getBuildings(): Promise<Building[]> {
   return axios
     .get("/api/auth/building")

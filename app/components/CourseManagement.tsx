@@ -11,26 +11,15 @@ import {
   User,
 } from "lucide-react";
 import { Course } from "../types";
-import { mockCourses } from "../data/mockData";
+
 import { colors } from "../colors";
 
 const CourseManagement: React.FC = () => {
-  const [courses, setCourses] = useState<Course[]>(mockCourses);
+  const [courses, setCourses] = useState<Course[]>();
   const [searchTerm, setSearchTerm] = useState("");
   const [departmentFilter, setDepartmentFilter] = useState<string>("all");
   const [isAddingCourse, setIsAddingCourse] = useState(false);
   const [editingCourse, setEditingCourse] = useState<Course | null>(null);
-
-  const departments = Array.from(
-    new Set(courses.map((course) => course.department))
-  );
-
-  const filteredCourses = courses.filter((course) => {
-    const matchesSearch =
-      course.code.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      course.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      course.instructor.toLowerCase().includes(searchTerm.toLowerCase());
-  });
 
   const getCapacityColor = (current: number, max: number) => {
     const percentage = (current / max) * 100;
@@ -247,18 +236,18 @@ const CourseManagement: React.FC = () => {
   const handleSaveCourse = (courseData: Course) => {
     if (editingCourse) {
       setCourses((prev) =>
-        prev.map((c) => (c.id === courseData.id ? courseData : c))
+        prev?.map((c) => (c.id === courseData.id ? courseData : c))
       );
       setEditingCourse(null);
     } else {
-      setCourses((prev) => [...prev, courseData]);
+      setCourses((prev) => [...(prev ?? []), courseData]);
       setIsAddingCourse(false);
     }
   };
 
   const handleDeleteCourse = (courseId: string) => {
     if (window.confirm("Are you sure you want to delete this course?")) {
-      setCourses((prev) => prev.filter((c) => c.id !== courseId));
+      setCourses((prev) => prev?.filter((c) => c.id !== courseId));
     }
   };
 
@@ -301,11 +290,6 @@ const CourseManagement: React.FC = () => {
                 className='px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent'
               >
                 <option value='all'>All Departments</option>
-                {departments.map((dept) => (
-                  <option key={dept} value={dept}>
-                    {dept}
-                  </option>
-                ))}
               </select>
 
               <button
@@ -325,124 +309,6 @@ const CourseManagement: React.FC = () => {
             </div>
           </div>
         </div>
-
-        {/* Courses Grid */}
-        <div className='grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6'>
-          {filteredCourses.map((course) => {
-            const capacityPercentage =
-              (course.currentEnrollment / course.maxCapacity) * 100;
-
-            return (
-              <div
-                key={course.id}
-                className='bg-white rounded-lg shadow-sm border border-gray-100 p-6 hover:shadow-md transition-all duration-200'
-              >
-                <div className='flex justify-between items-start mb-4'>
-                  <div>
-                    <h3 className='font-bold text-gray-900 text-lg mb-1'>
-                      {course.code}
-                    </h3>
-                    <p className='text-gray-600 text-sm font-medium mb-2'>
-                      {course.name}
-                    </p>
-                    <div className='flex items-center text-sm text-gray-500'>
-                      <User className='w-4 h-4 mr-1' />
-                      {course.instructor}
-                    </div>
-                  </div>
-                  <div className='flex gap-1'>
-                    <button
-                      onClick={() => setEditingCourse(course)}
-                      className='p-1.5 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded transition-colors'
-                    >
-                      <Edit className='w-4 h-4' />
-                    </button>
-                    <button
-                      onClick={() => handleDeleteCourse(course.id)}
-                      className='p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded transition-colors'
-                    >
-                      <Trash2 className='w-4 h-4' />
-                    </button>
-                  </div>
-                </div>
-
-                <div className='space-y-3'>
-                  <div className='flex items-center justify-between text-sm'>
-                    <div className='flex items-center text-gray-600'>
-                      <BookOpen className='w-4 h-4 mr-1' />
-                      {course.credits} Credits
-                    </div>
-                    <span className='text-gray-500'>{course.semester}</span>
-                  </div>
-
-                  <div className='flex items-center justify-between text-sm'>
-                    <div className='flex items-center text-gray-600'>
-                      <GraduationCap className='w-4 h-4 mr-1' />
-                      {course.department}
-                    </div>
-                  </div>
-
-                  <div>
-                    <div className='flex items-center justify-between text-sm mb-2'>
-                      <div className='flex items-center text-gray-600'>
-                        <Users className='w-4 h-4 mr-1' />
-                        Enrollment
-                      </div>
-                      <span
-                        className={`font-medium ${getCapacityColor(
-                          course.currentEnrollment,
-                          course.maxCapacity
-                        )}`}
-                      >
-                        {course.currentEnrollment}/{course.maxCapacity}
-                      </span>
-                    </div>
-
-                    <div className='w-full bg-gray-200 rounded-full h-2'>
-                      <div
-                        className={`h-2 rounded-full transition-all duration-300 ${
-                          capacityPercentage >= 90
-                            ? "bg-red-500"
-                            : capacityPercentage >= 75
-                            ? "bg-yellow-500"
-                            : "bg-emerald-500"
-                        }`}
-                        style={{
-                          width: `${Math.min(capacityPercentage, 100)}%`,
-                        }}
-                      />
-                    </div>
-
-                    <div className='flex items-center justify-between mt-1'>
-                      <span className='text-xs text-gray-500'>
-                        {Math.round(capacityPercentage)}% full
-                      </span>
-                      {capacityPercentage >= 90 && (
-                        <span className='text-xs text-red-600 font-medium'>
-                          Near Capacity
-                        </span>
-                      )}
-                    </div>
-                  </div>
-                </div>
-              </div>
-            );
-          })}
-        </div>
-
-        {filteredCourses.length === 0 && (
-          <div className='bg-white rounded-lg shadow-sm border border-gray-100 p-8 sm:p-12 text-center'>
-            <BookOpen className='mx-auto h-12 w-12 text-gray-400' />
-            <h3 className='mt-2 text-sm font-medium text-gray-900'>
-              No courses found
-            </h3>
-            <p className='mt-1 text-sm text-gray-500'>
-              {searchTerm || departmentFilter !== "all"
-                ? "Try adjusting your search or filters."
-                : "Get started by adding a new course."}
-            </p>
-          </div>
-        )}
 
         {/* Add/Edit Course Form */}
         {isAddingCourse && (

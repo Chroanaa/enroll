@@ -9,7 +9,6 @@ import {
   X,
 } from "lucide-react";
 import { colors } from "../../colors";
-import { mockStudents, mockCourses } from "../../data/mockData";
 import ConfirmationModal from "../common/ConfirmationModal";
 import { Enrollment } from "../../types";
 
@@ -166,16 +165,7 @@ const EnrollmentForm: React.FC<EnrollmentFormProps> = ({
                     e.currentTarget.style.boxShadow = "none";
                   }}
                   required
-                >
-                  <option value=''>Select a student</option>
-                  {mockStudents
-                    .filter((s) => s.status === "enrolled")
-                    .map((student) => (
-                      <option key={student.id} value={student.id}>
-                        {student.firstName} {student.lastName}
-                      </option>
-                    ))}
-                </select>
+                ></select>
               </div>
 
               <div className='md:col-span-2'>
@@ -208,11 +198,6 @@ const EnrollmentForm: React.FC<EnrollmentFormProps> = ({
                   required
                 >
                   <option value=''>Select a course</option>
-                  {mockCourses.map((course) => (
-                    <option key={course.id} value={course.id}>
-                      {course.code} - {course.name}
-                    </option>
-                  ))}
                 </select>
               </div>
 
@@ -355,4 +340,3 @@ const EnrollmentForm: React.FC<EnrollmentFormProps> = ({
 };
 
 export default EnrollmentForm;
-

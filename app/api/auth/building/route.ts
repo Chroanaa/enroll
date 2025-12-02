@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "../../../lib/prisma";
-import { Building } from "@/app/data/mockData";
+import { Building } from "../../../types";
 export async function POST(request: NextRequest) {
   try {
     const data: Building = await request.json();

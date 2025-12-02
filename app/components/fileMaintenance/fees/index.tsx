@@ -2,7 +2,6 @@
 import React, { useState, useMemo, useEffect } from "react";
 import { Plus } from "lucide-react";
 import { Fee } from "../../../types";
-import { mockFees } from "../../../data/mockData";
 import { colors } from "../../../colors";
 import ConfirmationModal from "../../common/ConfirmationModal";
 import SuccessModal from "../../common/SuccessModal";
@@ -162,7 +161,9 @@ const FeesManagement: React.FC = () => {
           throw new Error(errorData.error || "Failed to delete fee");
         }
 
-        setFees((prev) => prev.filter((f) => f.id !== deleteConfirmation.feeId));
+        setFees((prev) =>
+          prev.filter((f) => f.id !== deleteConfirmation.feeId)
+        );
         setDeleteConfirmation({
           isOpen: false,
           feeId: null,
@@ -312,7 +313,9 @@ const FeesManagement: React.FC = () => {
         {/* Error Modal */}
         <ErrorModal
           isOpen={errorModal.isOpen}
-          onClose={() => setErrorModal({ isOpen: false, message: "", details: "" })}
+          onClose={() =>
+            setErrorModal({ isOpen: false, message: "", details: "" })
+          }
           message={errorModal.message}
           details={errorModal.details}
         />
@@ -322,4 +325,3 @@ const FeesManagement: React.FC = () => {
 };
 
 export default FeesManagement;
-  
