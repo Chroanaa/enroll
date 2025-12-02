@@ -8,13 +8,21 @@ import CurriculumForm from "./CurriculumForm";
 import SearchFilters from "../common/SearchFilters";
 import ConfirmationModal from "../common/ConfirmationModal";
 import { mockBSITCurriculum } from "../../data/mockData";
-
+import { getCurriculums } from "@/app/utils/curriculumUtils";
 const CurriculumManagement: React.FC = () => {
   const [curriculumList, setCurriculumList] = useState<Curriculum[]>([]);
 
   // Initialize with mock BSIT curriculum data
   useEffect(() => {
-    setCurriculumList([mockBSITCurriculum]);
+    const fetchCurriculums = async () => {
+      try {
+        const data = await getCurriculums();
+        setCurriculumList(data);
+      } catch (error) {
+        console.error("Failed to fetch curriculums:", error);
+      }
+    };
+    fetchCurriculums();
   }, []);
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState<
@@ -24,7 +32,8 @@ const CurriculumManagement: React.FC = () => {
     null
   );
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
-  const [selectedCurriculum, setSelectedCurriculum] = useState<Curriculum | null>(null);
+  const [selectedCurriculum, setSelectedCurriculum] =
+    useState<Curriculum | null>(null);
   const [deleteConfirmation, setDeleteConfirmation] = useState<{
     isOpen: boolean;
     curriculumId: number | null;
@@ -35,30 +44,59 @@ const CurriculumManagement: React.FC = () => {
     curriculumName: "",
   });
 
-  const filteredCurriculum = useMemo(
-    () => {
-      return curriculumList.filter((curriculum) => {
-        const matchesSearch =
-          curriculum.program_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-          curriculum.program_code.toLowerCase().includes(searchTerm.toLowerCase()) ||
-          curriculum.major?.toLowerCase().includes(searchTerm.toLowerCase());
-        const matchesStatus =
-          statusFilter === "all" || curriculum.status === statusFilter;
-        return matchesSearch && matchesStatus;
-      });
-    },
-    [curriculumList, searchTerm, statusFilter]
-  );
+  const filteredCurriculum = useMemo(() => {
+    return curriculumList.filter((curriculum) => {
+      const matchesSearch =
+        curriculum.program_name
+          .toLowerCase()
+          .includes(searchTerm.toLowerCase()) ||
+        curriculum.program_code
+          .toLowerCase()
+          .includes(searchTerm.toLowerCase()) ||
+        curriculum.major?.toLowerCase().includes(searchTerm.toLowerCase());
+      const matchesStatus =
+        statusFilter === "all" || curriculum.status === statusFilter;
+      return matchesSearch && matchesStatus;
+    });
+  }, [curriculumList, searchTerm, statusFilter]);
 
-  const handleSaveCurriculum = (curriculumData: Curriculum) => {
-    if (editingCurriculum) {
-      setCurriculumList((prev) =>
-        prev.map((c) => (c.id === curriculumData.id ? curriculumData : c))
-      );
-      setEditingCurriculum(null);
-    } else {
-      setCurriculumList((prev) => [...prev, curriculumData]);
-      setIsAddModalOpen(false);
+  const handleSaveCurriculum = async (curriculumData: Curriculum) => {
+    try {
+      if (editingCurriculum) {
+        const response = await fetch("/api/auth/curriculum", {
+          method: "PATCH",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify(curriculumData),
+        });
+
+        if (response.ok) {
+          const updatedCurriculum = await response.json();
+          setCurriculumList((prev) =>
+            prev.map((c) =>
+              c.id === updatedCurriculum.id ? updatedCurriculum : c
+            )
+          );
+        }
+        setEditingCurriculum(null);
+      } else {
+        const response = await fetch("/api/auth/curriculum", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify(curriculumData),
+        });
+
+        if (response.ok) {
+          const newCurriculum = await response.json();
+          setCurriculumList((prev) => [...prev, newCurriculum]);
+        }
+        setIsAddModalOpen(false);
+      }
+    } catch (error) {
+      console.error("Failed to save curriculum:", error);
     }
   };
 
@@ -73,16 +111,31 @@ const CurriculumManagement: React.FC = () => {
     }
   };
 
-  const confirmDeleteCurriculum = () => {
+  const confirmDeleteCurriculum = async () => {
     if (deleteConfirmation.curriculumId) {
-      setCurriculumList((prev) =>
-        prev.filter((c) => c.id !== deleteConfirmation.curriculumId)
-      );
-      setDeleteConfirmation({
-        isOpen: false,
-        curriculumId: null,
-        curriculumName: "",
-      });
+      try {
+        const response = await fetch("/api/auth/curriculum", {
+          method: "DELETE",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify(deleteConfirmation.curriculumId),
+        });
+
+        if (response.ok) {
+          setCurriculumList((prev) =>
+            prev.filter((c) => c.id !== deleteConfirmation.curriculumId)
+          );
+        }
+      } catch (error) {
+        console.error("Failed to delete curriculum:", error);
+      } finally {
+        setDeleteConfirmation({
+          isOpen: false,
+          curriculumId: null,
+          curriculumName: "",
+        });
+      }
     }
   };
 
@@ -106,7 +159,8 @@ const CurriculumManagement: React.FC = () => {
               Curriculum Management
             </h1>
             <p className='text-gray-500 mt-1'>
-              Define and maintain academic programs, course offerings, credit units, and prerequisite subjects
+              Define and maintain academic programs, course offerings, credit
+              units, and prerequisite subjects
             </p>
           </div>
           <button
@@ -128,7 +182,9 @@ const CurriculumManagement: React.FC = () => {
             {
               value: statusFilter,
               onChange: (value) =>
-                setStatusFilter(value === "all" ? "all" : (value as "active" | "inactive")),
+                setStatusFilter(
+                  value === "all" ? "all" : (value as "active" | "inactive")
+                ),
               options: [
                 { value: "all", label: "All Status" },
                 { value: "active", label: "Active" },
@@ -196,7 +252,8 @@ const CurriculumManagement: React.FC = () => {
                           </span>
                         )}
                         <span>
-                          <strong>Effective:</strong> {curriculum.effective_year}
+                          <strong>Effective:</strong>{" "}
+                          {curriculum.effective_year}
                         </span>
                         <span>
                           <strong>Total Units:</strong> {curriculum.total_units}
@@ -237,7 +294,8 @@ const CurriculumManagement: React.FC = () => {
                     style={{
                       backgroundColor:
                         curriculum.status === "active" ? "#ECFDF5" : "#F3F4F6",
-                      color: curriculum.status === "active" ? "#047857" : "#374151",
+                      color:
+                        curriculum.status === "active" ? "#047857" : "#374151",
                       borderColor:
                         curriculum.status === "active" ? "#A7F3D0" : "#E5E7EB",
                     }}
@@ -295,4 +353,3 @@ const CurriculumManagement: React.FC = () => {
 };
 
 export default CurriculumManagement;
-
