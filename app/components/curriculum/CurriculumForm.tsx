@@ -9,6 +9,7 @@ import { Curriculum, CurriculumCourse } from "../../types";
 import { colors } from "../../colors";
 
 import ConfirmationModal from "../common/ConfirmationModal";
+import ErrorModal from "../common/ErrorModal";
 import BasicInfoForm from "./BasicInfoForm";
 import CourseFormSection from "./CourseFormSection";
 import CourseList from "./CourseList";
@@ -22,6 +23,7 @@ import {
   getInitialCourseForm,
   createCurriculumData,
 } from "./utils";
+import { getSubjects } from "../../utils/subjectUtils";
 
 interface CurriculumFormProps {
   curriculum: Curriculum | null;
@@ -66,9 +68,13 @@ const CurriculumForm: React.FC<CurriculumFormProps> = ({
     initialFormData.current
   );
 
-  const [selectedProgramId, setSelectedProgramId] = useState();
+  const [selectedProgramId, setSelectedProgramId] = useState<number | undefined>(
+    undefined
+  );
 
-  const [selectedMajorId, setSelectedMajorId] = useState();
+  const [selectedMajorId, setSelectedMajorId] = useState<number | undefined>(
+    undefined
+  );
 
   // Year states for effective year
 
@@ -83,6 +89,16 @@ const CurriculumForm: React.FC<CurriculumFormProps> = ({
   const [showSaveConfirmation, setShowSaveConfirmation] = useState(false);
 
   const [showCancelWarning, setShowCancelWarning] = useState(false);
+
+  const [errorModal, setErrorModal] = useState<{
+    isOpen: boolean;
+    message: string;
+    details?: string;
+  }>({
+    isOpen: false,
+    message: "",
+    details: "",
+  });
 
   const [editingCourseIndex, setEditingCourseIndex] = useState<number | null>(
     null
@@ -107,7 +123,30 @@ const CurriculumForm: React.FC<CurriculumFormProps> = ({
     );
   };
 
-  const handleSubjectChange = (subjectId: number) => {};
+  const handleSubjectChange = async (subjectId: number) => {
+    try {
+      const subjectsData = await getSubjects();
+      const subjectsArray: any[] = Array.isArray(subjectsData)
+        ? subjectsData
+        : Object.values(subjectsData);
+      const selectedSubject = subjectsArray.find((s) => s.id === subjectId);
+      
+      if (selectedSubject) {
+        setCourseForm({
+          ...courseForm,
+          selectedSubjectId: subjectId,
+          course_code: selectedSubject.code,
+          descriptive_title: selectedSubject.name,
+          units_total: selectedSubject.units,
+          units_lec: selectedSubject.units,
+          units_lab: 0,
+          prerequisite: selectedSubject.prerequisites || "",
+        });
+      }
+    } catch (error) {
+      console.error("Error fetching subject details:", error);
+    }
+  };
 
   const handleAddCourse = () => {
     if (courseForm.course_code && courseForm.descriptive_title) {
@@ -152,28 +191,66 @@ const CurriculumForm: React.FC<CurriculumFormProps> = ({
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
 
-    if (formData.program_name && formData.program_code) {
-      if (curriculum && hasChanges()) {
-        setShowSaveConfirmation(true);
-      } else {
-        performSave();
-      }
+    // Validate required fields
+    if (!formData.program_name || !formData.program_code) {
+      setErrorModal({
+        isOpen: true,
+        message: "Please fill in all required fields (Program Name and Program Code)",
+        details: "Program and Program Code are required to create a curriculum.",
+      });
+      return;
+    }
+
+    // Validate that at least one course is added
+    if (!courses || courses.length === 0) {
+      setErrorModal({
+        isOpen: true,
+        message: "No courses added to curriculum",
+        details: "Please add at least one course/subject to the curriculum before saving.",
+      });
+      return;
+    }
+
+    if (curriculum && hasChanges()) {
+      setShowSaveConfirmation(true);
+    } else {
+      performSave();
     }
   };
 
   const performSave = () => {
-    if (formData.program_name && formData.program_code) {
-      const curriculumData = createCurriculumData(
-        formData,
-        courses,
-        startYear,
-        endYear,
-        curriculum?.id
-      );
-
-      onSave(curriculumData);
+    // Validate required fields
+    if (!formData.program_name || !formData.program_code) {
+      setErrorModal({
+        isOpen: true,
+        message: "Please fill in all required fields (Program Name and Program Code)",
+        details: "Program and Program Code are required to create a curriculum.",
+      });
       setShowSaveConfirmation(false);
+      return;
     }
+
+    // Validate that at least one course is added
+    if (!courses || courses.length === 0) {
+      setErrorModal({
+        isOpen: true,
+        message: "No courses added to curriculum",
+        details: "Please add at least one course/subject to the curriculum before saving.",
+      });
+      setShowSaveConfirmation(false);
+      return;
+    }
+
+    const curriculumData = createCurriculumData(
+      formData,
+      courses,
+      startYear,
+      endYear,
+      curriculum?.id
+    );
+
+    onSave(curriculumData);
+    setShowSaveConfirmation(false);
   };
 
   const handleCancel = () => {
@@ -253,8 +330,12 @@ const CurriculumForm: React.FC<CurriculumFormProps> = ({
               startYear={startYear}
               endYear={endYear}
               currentYear={currentYear}
-              onProgramChange={() => {}}
-              onMajorChange={() => {}}
+              onProgramChange={(programId) => {
+                setSelectedProgramId(programId);
+              }}
+              onMajorChange={(majorId) => {
+                setSelectedMajorId(majorId);
+              }}
               onStartYearChange={(year) => {
                 setStartYear(year);
                 setEndYear(year + 1);
@@ -385,6 +466,16 @@ const CurriculumForm: React.FC<CurriculumFormProps> = ({
           confirmText='Leave Without Saving'
           cancelText='Stay and Edit'
           variant='warning'
+        />
+
+        {/* Error Modal */}
+        <ErrorModal
+          isOpen={errorModal.isOpen}
+          onClose={() =>
+            setErrorModal({ isOpen: false, message: "", details: "" })
+          }
+          message={errorModal.message}
+          details={errorModal.details}
         />
       </div>
     </div>

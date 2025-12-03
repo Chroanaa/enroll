@@ -7,6 +7,8 @@ import CurriculumTable from "./CurriculumTable";
 import CurriculumForm from "./CurriculumForm";
 import SearchFilters from "../common/SearchFilters";
 import ConfirmationModal from "../common/ConfirmationModal";
+import SuccessModal from "../common/SuccessModal";
+import ErrorModal from "../common/ErrorModal";
 import { getCurriculums } from "@/app/utils/curriculumUtils";
 const CurriculumManagement: React.FC = () => {
   const [curriculumList, setCurriculumList] = useState<Curriculum[]>([]);
@@ -41,6 +43,22 @@ const CurriculumManagement: React.FC = () => {
     isOpen: false,
     curriculumId: null,
     curriculumName: "",
+  });
+  const [successModal, setSuccessModal] = useState<{
+    isOpen: boolean;
+    message: string;
+  }>({
+    isOpen: false,
+    message: "",
+  });
+  const [errorModal, setErrorModal] = useState<{
+    isOpen: boolean;
+    message: string;
+    details?: string;
+  }>({
+    isOpen: false,
+    message: "",
+    details: "",
   });
 
   const filteredCurriculum = useMemo(() => {
@@ -77,8 +95,19 @@ const CurriculumManagement: React.FC = () => {
               c.id === updatedCurriculum.id ? updatedCurriculum : c
             )
           );
+          setEditingCurriculum(null);
+          setSuccessModal({
+            isOpen: true,
+            message: `Curriculum "${curriculumData.program_name}" has been updated successfully.`,
+          });
+        } else {
+          const errorData = await response.json();
+          setErrorModal({
+            isOpen: true,
+            message: `Failed to update curriculum: ${errorData.error || "Unknown error"}`,
+            details: "Please check your input and try again.",
+          });
         }
-        setEditingCurriculum(null);
       } else {
         const response = await fetch("/api/auth/curriculum", {
           method: "POST",
@@ -91,11 +120,27 @@ const CurriculumManagement: React.FC = () => {
         if (response.ok) {
           const newCurriculum = await response.json();
           setCurriculumList((prev) => [...prev, newCurriculum]);
+          setIsAddModalOpen(false);
+          setSuccessModal({
+            isOpen: true,
+            message: `Curriculum "${curriculumData.program_name}" has been created successfully.`,
+          });
+        } else {
+          const errorData = await response.json();
+          setErrorModal({
+            isOpen: true,
+            message: `Failed to create curriculum: ${errorData.error || "Unknown error"}`,
+            details: "Please check your input and try again.",
+          });
         }
-        setIsAddModalOpen(false);
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error("Failed to save curriculum:", error);
+      setErrorModal({
+        isOpen: true,
+        message: `Failed to save curriculum: ${error.message || "Network error"}`,
+        details: "Please check your connection and try again.",
+      });
     }
   };
 
@@ -112,6 +157,7 @@ const CurriculumManagement: React.FC = () => {
 
   const confirmDeleteCurriculum = async () => {
     if (deleteConfirmation.curriculumId) {
+      const curriculumName = deleteConfirmation.curriculumName;
       try {
         const response = await fetch("/api/auth/curriculum", {
           method: "DELETE",
@@ -125,10 +171,35 @@ const CurriculumManagement: React.FC = () => {
           setCurriculumList((prev) =>
             prev.filter((c) => c.id !== deleteConfirmation.curriculumId)
           );
+          setDeleteConfirmation({
+            isOpen: false,
+            curriculumId: null,
+            curriculumName: "",
+          });
+          setSuccessModal({
+            isOpen: true,
+            message: `Curriculum "${curriculumName}" has been deleted successfully.`,
+          });
+        } else {
+          const errorData = await response.json();
+          setErrorModal({
+            isOpen: true,
+            message: `Failed to delete curriculum: ${errorData.error || "Unknown error"}`,
+            details: "Please try again.",
+          });
+          setDeleteConfirmation({
+            isOpen: false,
+            curriculumId: null,
+            curriculumName: "",
+          });
         }
-      } catch (error) {
+      } catch (error: any) {
         console.error("Failed to delete curriculum:", error);
-      } finally {
+        setErrorModal({
+          isOpen: true,
+          message: `Failed to delete curriculum: ${error.message || "Network error"}`,
+          details: "Please check your connection and try again.",
+        });
         setDeleteConfirmation({
           isOpen: false,
           curriculumId: null,
@@ -345,6 +416,25 @@ const CurriculumManagement: React.FC = () => {
           confirmText='Delete Curriculum'
           cancelText='Cancel'
           variant='danger'
+        />
+
+        {/* Success Modal */}
+        <SuccessModal
+          isOpen={successModal.isOpen}
+          onClose={() => setSuccessModal({ isOpen: false, message: "" })}
+          message={successModal.message}
+          autoClose={true}
+          autoCloseDelay={3000}
+        />
+
+        {/* Error Modal */}
+        <ErrorModal
+          isOpen={errorModal.isOpen}
+          onClose={() =>
+            setErrorModal({ isOpen: false, message: "", details: "" })
+          }
+          message={errorModal.message}
+          details={errorModal.details}
         />
       </div>
     </div>
