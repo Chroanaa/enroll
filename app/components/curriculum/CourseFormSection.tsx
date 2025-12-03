@@ -1,8 +1,9 @@
 "use client";
 
-import React from "react";
+import React, { useState, useEffect } from "react";
 import { CurriculumCourse, Subject } from "../../types";
 import { colors } from "../../colors";
+import { getSubjects } from "../../utils/subjectUtils";
 
 interface CourseFormSectionProps {
   courseForm: Partial<CurriculumCourse> & { selectedSubjectId?: number };
@@ -27,16 +28,50 @@ const CourseFormSection: React.FC<CourseFormSectionProps> = ({
   onAddCourse,
   onCancelEdit,
 }) => {
+  const [subjects, setSubjects] = useState<Subject[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const fetchSubjects = async () => {
+      try {
+        setLoading(true);
+        const subjectsData = await getSubjects();
+        const subjectsArray: Subject[] = Array.isArray(subjectsData)
+          ? subjectsData
+          : (Object.values(subjectsData) as Subject[]);
+        // Filter only active subjects
+        setSubjects(subjectsArray.filter((s) => s.status === "active"));
+      } catch (error) {
+        console.error("Error fetching subjects:", error);
+        setSubjects([]);
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchSubjects();
+  }, []);
+
   return (
     <div className='bg-gray-50 p-4 rounded-xl mb-4 space-y-4'>
       <div className='grid grid-cols-1 md:grid-cols-3 gap-3'>
         <select
           value={courseForm.selectedSubjectId || ""}
-          onChange={(e) => onSubjectChange(parseInt(e.target.value))}
+          onChange={(e) => {
+            const subjectId = e.target.value ? parseInt(e.target.value) : 0;
+            if (subjectId > 0) {
+              onSubjectChange(subjectId);
+            }
+          }}
           className='rounded-lg px-3 py-2 border border-gray-200 text-sm bg-white md:col-span-3'
           style={{ color: "#6B5B4F" }}
+          disabled={loading}
         >
-          <option value=''>Select Subject</option>
+          <option value=''>{loading ? "Loading subjects..." : "Select Subject"}</option>
+          {subjects.map((subject) => (
+            <option key={subject.id} value={subject.id}>
+              {subject.name} ({subject.code}) - {subject.units} units
+            </option>
+          ))}
         </select>
       </div>
 
