@@ -8,7 +8,7 @@ export interface EnrollmentPageProps {
   filteredCoursePrograms?: Array<{ id: number; name: string }>;
   departments?: Array<{ id: number; name: string; code: string }>;
   photoPreview?: string | null;
-  fileInputRef?: React.RefObject<HTMLInputElement | null>;
+  fileInputRef?: React.RefObject<HTMLInputElement>;
   handlePhotoUpload?: (e: React.ChangeEvent<HTMLInputElement>) => void;
   removePhoto?: () => void;
   handlePhotoError?: () => void;
