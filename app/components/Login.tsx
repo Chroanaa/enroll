@@ -118,7 +118,7 @@ const Login: React.FC = () => {
                   letterSpacing: "0.1em",
                 }}
               >
-                ITERISIAN
+                ITERESIAN
               </h1>
               <h2
                 className='text-xl font-semibold mb-8 tracking-wider'

@@ -57,10 +57,10 @@ const Navigation: React.FC<NavigationProps> = ({
     {
       category: "Academic",
       items: [
-    { id: "students", label: "Students", icon: Users },
-    { id: "courses", label: "Courses", icon: BookOpen },
-    { id: "enrollments", label: "Enrollments", icon: UserPlus },
-    { id: "enrollment-form", label: "Enrollment Form", icon: FileText },
+        { id: "students", label: "Students", icon: Users },
+        { id: "courses", label: "Courses", icon: BookOpen },
+        { id: "enrollments", label: "Enrollments", icon: UserPlus },
+        { id: "enrollment-form", label: "Enrollment Form", icon: FileText },
         { id: "curriculum", label: "Curriculum", icon: GraduationCap },
         { id: "scheduling", label: "Scheduling", icon: CalendarClock },
       ],
@@ -69,31 +69,46 @@ const Navigation: React.FC<NavigationProps> = ({
       category: "System",
       items: [
         { id: "dashboard", label: "Dashboard", icon: BarChart3 },
-        { id: "file-maintenance", label: "File Maintenance", icon: Settings, hasSubmenu: true },
+        {
+          id: "file-maintenance",
+          label: "File Maintenance",
+          icon: Settings,
+          hasSubmenu: true,
+        },
         { id: "reports", label: "Reports", icon: FileBarChart },
-    { id: "forecast", label: "Forecasting", icon: Calendar },
+        { id: "forecast", label: "Forecasting", icon: Calendar },
       ],
     },
     {
       category: "Payment",
       items: [
-    { id: "assessment", label: "Assessment", icon: Calculator },
-    { id: "payment-billing", label: "Payment & Billing", icon: CreditCard },
+        { id: "assessment", label: "Assessment", icon: Calculator },
+        { id: "payment-billing", label: "Payment & Billing", icon: CreditCard },
       ],
     },
   ];
 
   // Check if current view is a file maintenance sub-item
   const isFileMaintenanceActive = currentView.startsWith("file-maintenance");
-  const prevWasFileMaintenance = prevViewRef.current.startsWith("file-maintenance");
-  
+  const prevWasFileMaintenance =
+    prevViewRef.current.startsWith("file-maintenance");
+
   // Auto-expand file maintenance only when navigating TO a sub-item from a non-file-maintenance view
   useEffect(() => {
-    if (isFileMaintenanceActive && !prevWasFileMaintenance && !isFileMaintenanceOpen) {
+    if (
+      isFileMaintenanceActive &&
+      !prevWasFileMaintenance &&
+      !isFileMaintenanceOpen
+    ) {
       setIsFileMaintenanceOpen(true);
     }
     prevViewRef.current = currentView;
-  }, [currentView, isFileMaintenanceActive, prevWasFileMaintenance, isFileMaintenanceOpen]);
+  }, [
+    currentView,
+    isFileMaintenanceActive,
+    prevWasFileMaintenance,
+    isFileMaintenanceOpen,
+  ]);
   return (
     <nav
       className='border-r w-16 md:w-64 h-screen p-2 md:p-4 flex flex-col overflow-hidden'
@@ -116,7 +131,7 @@ const Navigation: React.FC<NavigationProps> = ({
         </div>
         <div className='hidden md:block'>
           <h1 className='font-bold' style={{ color: colors.paper }}>
-            ITERISIAN
+            ITERESIAN
           </h1>
           <p className='text-xs' style={{ color: colors.paper, opacity: 0.9 }}>
             Enrollment System
@@ -125,11 +140,11 @@ const Navigation: React.FC<NavigationProps> = ({
       </div>
 
       {/* Nav Items with Scrollbar */}
-      <div 
-        className='flex-1 overflow-y-auto overflow-x-hidden pr-1 nav-scroll' 
-        style={{ 
-          scrollbarWidth: 'thin',
-          scrollbarColor: `${colors.paper}40 transparent`
+      <div
+        className='flex-1 overflow-y-auto overflow-x-hidden pr-1 nav-scroll'
+        style={{
+          scrollbarWidth: "thin",
+          scrollbarColor: `${colors.paper}40 transparent`,
         }}
       >
         <ul className='space-y-4'>
@@ -144,19 +159,19 @@ const Navigation: React.FC<NavigationProps> = ({
                   {group.category}
                 </h3>
               </div>
-              
+
               {/* Group Items */}
               <ul className='space-y-1'>
                 {group.items.map((item) => {
-          const Icon = item.icon;
+                  const Icon = item.icon;
                   const isFileMaintenance = item.id === "file-maintenance";
-                  const isActive = isFileMaintenance 
-                    ? isFileMaintenanceActive 
+                  const isActive = isFileMaintenance
+                    ? isFileMaintenanceActive
                     : currentView === item.id;
 
-          return (
-            <li key={item.id}>
-              <button
+                  return (
+                    <li key={item.id}>
+                      <button
                         onClick={(e) => {
                           e.preventDefault();
                           if (isFileMaintenance && item.hasSubmenu) {
@@ -165,36 +180,39 @@ const Navigation: React.FC<NavigationProps> = ({
                             onViewChange(item.id);
                           }
                         }}
-                className='w-full flex items-center justify-center md:justify-start gap-0 md:gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all duration-200'
-                style={
+                        className='w-full flex items-center justify-center md:justify-start gap-0 md:gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all duration-200'
+                        style={
                           isActive
-                    ? {
-                        backgroundColor: `${colors.secondary}30`,
-                        color: colors.paper,
-                        border: `1px solid ${colors.secondary}`,
-                      }
-                    : {
-                        color: colors.paper,
-                        backgroundColor: "transparent",
-                        border: "1px solid transparent",
-                        opacity: 0.8,
-                      }
-                }
-                onMouseEnter={(e) => {
+                            ? {
+                                backgroundColor: `${colors.secondary}30`,
+                                color: colors.paper,
+                                border: `1px solid ${colors.secondary}`,
+                              }
+                            : {
+                                color: colors.paper,
+                                backgroundColor: "transparent",
+                                border: "1px solid transparent",
+                                opacity: 0.8,
+                              }
+                        }
+                        onMouseEnter={(e) => {
                           if (!isActive) {
-                    e.currentTarget.style.backgroundColor = `${colors.paper}20`;
-                    e.currentTarget.style.opacity = "1";
-                  }
-                }}
-                onMouseLeave={(e) => {
+                            e.currentTarget.style.backgroundColor = `${colors.paper}20`;
+                            e.currentTarget.style.opacity = "1";
+                          }
+                        }}
+                        onMouseLeave={(e) => {
                           if (!isActive) {
-                    e.currentTarget.style.backgroundColor = "transparent";
-                    e.currentTarget.style.opacity = "0.8";
-                  }
-                }}
-              >
-                <Icon className='w-5 h-5' />
-                        <span className='hidden md:inline flex-1 text-left'>{item.label}</span>
+                            e.currentTarget.style.backgroundColor =
+                              "transparent";
+                            e.currentTarget.style.opacity = "0.8";
+                          }
+                        }}
+                      >
+                        <Icon className='w-5 h-5' />
+                        <span className='hidden md:inline flex-1 text-left'>
+                          {item.label}
+                        </span>
                         {isFileMaintenance && item.hasSubmenu && (
                           <span className='hidden md:inline'>
                             {isFileMaintenanceOpen ? (
@@ -205,57 +223,62 @@ const Navigation: React.FC<NavigationProps> = ({
                           </span>
                         )}
                       </button>
-                      
+
                       {/* File Maintenance Submenu */}
-                      {isFileMaintenance && item.hasSubmenu && isFileMaintenanceOpen && (
-                        <ul className='ml-0 md:ml-4 mt-1 space-y-1'>
-                          {fileMaintenanceSubItems.map((subItem) => {
-                            const SubIcon = subItem.icon;
-                            const isSubActive = currentView === subItem.id;
-                            return (
-                              <li key={subItem.id}>
-                                <button
-                                  onClick={(e) => {
-                                    e.preventDefault();
-                                    e.stopPropagation();
-                                    onViewChange(subItem.id);
-                                  }}
-                                  className='w-full flex items-center justify-center md:justify-start gap-0 md:gap-3 px-3 py-2 rounded-lg text-xs md:text-sm font-medium transition-all duration-200'
-                                  style={
-                                    isSubActive
-                                      ? {
-                                          backgroundColor: `${colors.secondary}40`,
-                                          color: colors.paper,
-                                          border: `1px solid ${colors.secondary}`,
-                                        }
-                                      : {
-                                          color: colors.paper,
-                                          backgroundColor: "transparent",
-                                          border: "1px solid transparent",
-                                          opacity: 0.7,
-                                        }
-                                  }
-                                  onMouseEnter={(e) => {
-                                    if (!isSubActive) {
-                                      e.currentTarget.style.backgroundColor = `${colors.paper}20`;
-                                      e.currentTarget.style.opacity = "1";
+                      {isFileMaintenance &&
+                        item.hasSubmenu &&
+                        isFileMaintenanceOpen && (
+                          <ul className='ml-0 md:ml-4 mt-1 space-y-1'>
+                            {fileMaintenanceSubItems.map((subItem) => {
+                              const SubIcon = subItem.icon;
+                              const isSubActive = currentView === subItem.id;
+                              return (
+                                <li key={subItem.id}>
+                                  <button
+                                    onClick={(e) => {
+                                      e.preventDefault();
+                                      e.stopPropagation();
+                                      onViewChange(subItem.id);
+                                    }}
+                                    className='w-full flex items-center justify-center md:justify-start gap-0 md:gap-3 px-3 py-2 rounded-lg text-xs md:text-sm font-medium transition-all duration-200'
+                                    style={
+                                      isSubActive
+                                        ? {
+                                            backgroundColor: `${colors.secondary}40`,
+                                            color: colors.paper,
+                                            border: `1px solid ${colors.secondary}`,
+                                          }
+                                        : {
+                                            color: colors.paper,
+                                            backgroundColor: "transparent",
+                                            border: "1px solid transparent",
+                                            opacity: 0.7,
+                                          }
                                     }
-                                  }}
-                                  onMouseLeave={(e) => {
-                                    if (!isSubActive) {
-                                      e.currentTarget.style.backgroundColor = "transparent";
-                                      e.currentTarget.style.opacity = "0.7";
-                                    }
-                                  }}
-                                >
-                                  <SubIcon className='w-4 h-4' />
-                                  <span className='hidden md:inline'>{subItem.label}</span>
-              </button>
-            </li>
-          );
-        })}
-      </ul>
-                      )}
+                                    onMouseEnter={(e) => {
+                                      if (!isSubActive) {
+                                        e.currentTarget.style.backgroundColor = `${colors.paper}20`;
+                                        e.currentTarget.style.opacity = "1";
+                                      }
+                                    }}
+                                    onMouseLeave={(e) => {
+                                      if (!isSubActive) {
+                                        e.currentTarget.style.backgroundColor =
+                                          "transparent";
+                                        e.currentTarget.style.opacity = "0.7";
+                                      }
+                                    }}
+                                  >
+                                    <SubIcon className='w-4 h-4' />
+                                    <span className='hidden md:inline'>
+                                      {subItem.label}
+                                    </span>
+                                  </button>
+                                </li>
+                              );
+                            })}
+                          </ul>
+                        )}
                     </li>
                   );
                 })}
