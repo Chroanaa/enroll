@@ -77,7 +77,7 @@ const SubjectForm: React.FC<SubjectFormProps> = ({
       };
       onSave({
         ...subjectData,
-        id: subject?.id || Math.random(),
+        id: subject?.id || Date.now(),
       } as Subject);
       setShowSaveConfirmation(false);
     }
