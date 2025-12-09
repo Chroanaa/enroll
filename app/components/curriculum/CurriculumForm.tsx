@@ -137,9 +137,9 @@ const CurriculumForm: React.FC<CurriculumFormProps> = ({
           selectedSubjectId: subjectId,
           course_code: selectedSubject.code,
           descriptive_title: selectedSubject.name,
-          units_total: selectedSubject.units,
-          units_lec: selectedSubject.units,
-          units_lab: 0,
+          units_total: (selectedSubject.units_lec || 0) + (selectedSubject.units_lab || 0),
+          units_lec: selectedSubject.units_lec || 0,
+          units_lab: selectedSubject.units_lab || 0,
           prerequisite: "",
         });
       }

@@ -28,7 +28,8 @@ const SubjectForm: React.FC<SubjectFormProps> = ({
       code: "",
       name: "",
       description: "",
-      units: 3,
+      units_lec: 3,
+      units_lab: 0,
       status: "active",
     }
   );
@@ -46,14 +47,15 @@ const SubjectForm: React.FC<SubjectFormProps> = ({
       formData.code !== initialFormData.current.code ||
       formData.name !== initialFormData.current.name ||
       formData.description !== initialFormData.current.description ||
-      formData.units !== initialFormData.current.units ||
+      formData.units_lec !== initialFormData.current.units_lec ||
+      formData.units_lab !== initialFormData.current.units_lab ||
       formData.status !== initialFormData.current.status
     );
   };
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (formData.code && formData.name && formData.units) {
+    if (formData.code && formData.name && (formData.units_lec || formData.units_lab)) {
       if (subject && hasChanges()) {
         setShowSaveConfirmation(true);
       } else {
@@ -63,13 +65,14 @@ const SubjectForm: React.FC<SubjectFormProps> = ({
   };
 
   const performSave = () => {
-    if (formData.code && formData.name && formData.units) {
+    if (formData.code && formData.name && (formData.units_lec || formData.units_lab)) {
       // Only send fields that exist in the database schema
       const subjectData: Partial<Subject> = {
         code: formData.code.toUpperCase()!,
         name: formData.name!,
         description: formData.description || "",
-        units: formData.units!,
+        units_lec: formData.units_lec || 0,
+        units_lab: formData.units_lab || 0,
         status: (formData.status as "active" | "inactive") || "active",
       };
       onSave({
@@ -100,19 +103,20 @@ const SubjectForm: React.FC<SubjectFormProps> = ({
       onClick={handleCancel}
     >
       <div
-        className='rounded-2xl shadow-2xl w-full max-w-2xl overflow-hidden flex flex-col max-h-[90vh] animate-in fade-in zoom-in duration-200'
+        className='rounded-2xl shadow-2xl w-full max-w-2xl overflow-hidden flex flex-col animate-in fade-in zoom-in duration-200'
         style={{
           backgroundColor: "white",
         }}
         onClick={(e) => e.stopPropagation()}
       >
         <div
-          className='px-6 py-4 flex items-center justify-between border-b'
+          className='px-5 py-2.5 flex items-center justify-between border-b'
           style={{
             backgroundColor: `${colors.primary}08`,
             borderColor: `${colors.primary}15`,
           }}
         >
+          
           <div className='flex items-center gap-3'>
             <div
               className='p-2 rounded-lg'
@@ -125,12 +129,12 @@ const SubjectForm: React.FC<SubjectFormProps> = ({
             </div>
             <div>
               <h2
-                className='text-xl font-bold'
+                className='text-lg font-bold'
                 style={{ color: colors.primary }}
               >
                 {subject ? "Edit Subject" : "Add New Subject"}
               </h2>
-              <p className='text-sm text-gray-500'>
+              <p className='text-xs text-gray-500'>
                 {subject
                   ? "Update subject details"
                   : "Create a new subject record"}
@@ -145,12 +149,12 @@ const SubjectForm: React.FC<SubjectFormProps> = ({
           </button>
         </div>
 
-        <div className='p-6 overflow-y-auto custom-scrollbar'>
-          <form onSubmit={handleSubmit} className='space-y-5'>
-            <div className='grid grid-cols-1 md:grid-cols-2 gap-5'>
+        <div className='p-4'>
+          <form onSubmit={handleSubmit} className='space-y-3'>
+            <div className='grid grid-cols-1 md:grid-cols-2 gap-3'>
               <div>
                 <label
-                  className='flex items-center gap-2 text-sm font-semibold mb-2'
+                  className='flex items-center gap-2 text-xs font-semibold mb-1.5'
                   style={{ color: colors.primary }}
                 >
                   <Hash className='w-4 h-4 text-gray-400' />
@@ -165,7 +169,7 @@ const SubjectForm: React.FC<SubjectFormProps> = ({
                       code: e.target.value.toUpperCase(),
                     })
                   }
-                  className='w-full rounded-xl px-4 py-2.5 transition-all border-gray-200 focus:ring-2 focus:ring-offset-0'
+                  className='w-full rounded-lg px-3 py-2 text-sm transition-all border-gray-200 focus:ring-2 focus:ring-offset-0'
                   style={{
                     border: "1px solid #E5E7EB",
                     outline: "none",
@@ -186,7 +190,7 @@ const SubjectForm: React.FC<SubjectFormProps> = ({
 
               <div>
                 <label
-                  className='flex items-center gap-2 text-sm font-semibold mb-2'
+                  className='flex items-center gap-2 text-xs font-semibold mb-1.5'
                   style={{ color: colors.primary }}
                 >
                   <BookOpen className='w-4 h-4 text-gray-400' />
@@ -198,7 +202,7 @@ const SubjectForm: React.FC<SubjectFormProps> = ({
                   onChange={(e) =>
                     setFormData({ ...formData, name: e.target.value })
                   }
-                  className='w-full rounded-xl px-4 py-2.5 transition-all border-gray-200 focus:ring-2 focus:ring-offset-0'
+                  className='w-full rounded-lg px-3 py-2 text-sm transition-all border-gray-200 focus:ring-2 focus:ring-offset-0'
                   style={{
                     border: "1px solid #E5E7EB",
                     outline: "none",
@@ -219,7 +223,7 @@ const SubjectForm: React.FC<SubjectFormProps> = ({
 
               <div className='md:col-span-2'>
                 <label
-                  className='flex items-center gap-2 text-sm font-semibold mb-2'
+                  className='flex items-center gap-2 text-xs font-semibold mb-1.5'
                   style={{ color: colors.primary }}
                 >
                   <FileText className='w-4 h-4 text-gray-400' />
@@ -230,7 +234,7 @@ const SubjectForm: React.FC<SubjectFormProps> = ({
                   onChange={(e) =>
                     setFormData({ ...formData, description: e.target.value })
                   }
-                  className='w-full rounded-xl px-4 py-2.5 transition-all border-gray-200 focus:ring-2 focus:ring-offset-0'
+                  className='w-full rounded-lg px-3 py-2 text-sm transition-all border-gray-200 focus:ring-2 focus:ring-offset-0'
                   style={{
                     border: "1px solid #E5E7EB",
                     outline: "none",
@@ -244,31 +248,31 @@ const SubjectForm: React.FC<SubjectFormProps> = ({
                     e.currentTarget.style.borderColor = "#E5E7EB";
                     e.currentTarget.style.boxShadow = "none";
                   }}
-                  rows={3}
+                  rows={2}
                   placeholder='Brief description of the subject...'
                 />
               </div>
 
               <div>
                 <label
-                  className='flex items-center gap-2 text-sm font-semibold mb-2'
+                  className='flex items-center gap-2 text-xs font-semibold mb-1.5'
                   style={{ color: colors.primary }}
                 >
                   <GraduationCap className='w-4 h-4 text-gray-400' />
-                  Units <span className='text-red-500'>*</span>
+                  Units Lecture
                 </label>
                 <input
                   type='number'
-                  min='1'
+                  min='0'
                   max='6'
-                  value={formData.units || 3}
+                  value={formData.units_lec || ""}
                   onChange={(e) =>
                     setFormData({
                       ...formData,
-                      units: parseInt(e.target.value) || 3,
+                      units_lec: e.target.value ? parseInt(e.target.value) : undefined,
                     })
                   }
-                  className='w-full rounded-xl px-4 py-2.5 transition-all border-gray-200 focus:ring-2 focus:ring-offset-0'
+                  className='w-full rounded-lg px-3 py-2 text-sm transition-all border-gray-200 focus:ring-2 focus:ring-offset-0'
                   style={{
                     border: "1px solid #E5E7EB",
                     outline: "none",
@@ -282,13 +286,50 @@ const SubjectForm: React.FC<SubjectFormProps> = ({
                     e.currentTarget.style.borderColor = "#E5E7EB";
                     e.currentTarget.style.boxShadow = "none";
                   }}
-                  required
+                  placeholder='0'
                 />
               </div>
 
               <div>
                 <label
-                  className='flex items-center gap-2 text-sm font-semibold mb-2'
+                  className='flex items-center gap-2 text-xs font-semibold mb-1.5'
+                  style={{ color: colors.primary }}
+                >
+                  <GraduationCap className='w-4 h-4 text-gray-400' />
+                  Units Lab
+                </label>
+                <input
+                  type='number'
+                  min='0'
+                  max='6'
+                  value={formData.units_lab || ""}
+                  onChange={(e) =>
+                    setFormData({
+                      ...formData,
+                      units_lab: e.target.value ? parseInt(e.target.value) : undefined,
+                    })
+                  }
+                  className='w-full rounded-lg px-3 py-2 text-sm transition-all border-gray-200 focus:ring-2 focus:ring-offset-0'
+                  style={{
+                    border: "1px solid #E5E7EB",
+                    outline: "none",
+                    color: "#6B5B4F",
+                  }}
+                  onFocus={(e) => {
+                    e.currentTarget.style.borderColor = colors.secondary;
+                    e.currentTarget.style.boxShadow = `0 0 0 3px ${colors.secondary}20`;
+                  }}
+                  onBlur={(e) => {
+                    e.currentTarget.style.borderColor = "#E5E7EB";
+                    e.currentTarget.style.boxShadow = "none";
+                  }}
+                  placeholder='0'
+                />
+              </div>
+
+              <div>
+                <label
+                  className='flex items-center gap-2 text-xs font-semibold mb-1.5'
                   style={{ color: colors.primary }}
                 >
                   <CheckCircle2 className='w-4 h-4 text-gray-400' />
@@ -302,7 +343,7 @@ const SubjectForm: React.FC<SubjectFormProps> = ({
                       status: e.target.value as "active" | "inactive",
                     })
                   }
-                  className='w-full rounded-xl px-4 py-2.5 transition-all border-gray-200 focus:ring-2 focus:ring-offset-0 bg-white'
+                  className='w-full rounded-lg px-3 py-2 text-sm transition-all border-gray-200 focus:ring-2 focus:ring-offset-0 bg-white'
                   style={{
                     border: "1px solid #E5E7EB",
                     outline: "none",
@@ -324,13 +365,13 @@ const SubjectForm: React.FC<SubjectFormProps> = ({
             </div>
 
             <div
-              className='flex justify-end gap-3 pt-6 mt-6 border-t'
+              className='flex justify-end gap-2 pt-3 mt-3 border-t'
               style={{ borderColor: `${colors.primary}10` }}
             >
               <button
                 type='button'
                 onClick={handleCancel}
-                className='px-6 py-2.5 rounded-xl transition-all font-medium flex items-center gap-2 hover:bg-gray-100'
+                className='px-4 py-2 rounded-lg transition-all text-sm font-medium flex items-center gap-2 hover:bg-gray-100'
                 style={{
                   color: colors.primary,
                   border: "1px solid #E5E7EB",
@@ -340,7 +381,7 @@ const SubjectForm: React.FC<SubjectFormProps> = ({
               </button>
               <button
                 type='submit'
-                className='px-6 py-2.5 text-white rounded-xl transition-all font-medium flex items-center gap-2 shadow-lg shadow-blue-900/20'
+                className='px-4 py-2 text-white rounded-lg transition-all text-sm font-medium flex items-center gap-2 shadow-md'
                 style={{ backgroundColor: colors.secondary }}
                 onMouseEnter={(e) =>
                   (e.currentTarget.style.backgroundColor = colors.primary)

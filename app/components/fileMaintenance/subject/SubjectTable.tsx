@@ -33,7 +33,7 @@ const SubjectTable: React.FC<SubjectTableProps> = ({
                 Code
               </th>
               <th className='px-6 py-4 text-left text-xs font-bold uppercase tracking-wider text-gray-600'>
-                Units
+                Units (Lec/Lab)
               </th>
               <th className='px-6 py-4 text-left text-xs font-bold uppercase tracking-wider text-gray-600'>
                 Status
@@ -115,7 +115,7 @@ const SubjectTable: React.FC<SubjectTableProps> = ({
                       <div className='flex items-center gap-2'>
                         <GraduationCap className='w-3.5 h-3.5 text-gray-400' />
                         <span className='text-sm font-medium text-gray-700'>
-                          {subject.units}
+                          {subject.units_lec || 0}/{subject.units_lab || 0}
                         </span>
                       </div>
                     </td>

@@ -75,7 +75,8 @@ export interface Subject {
   code: string;
   name: string;
   description?: string;
-  units: number;
+  units_lec?: number;
+  units_lab?: number;
   status: "active" | "inactive";
 }
 

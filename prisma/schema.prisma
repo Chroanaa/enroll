@@ -190,7 +190,8 @@ model subject {
   code        String  @db.VarChar(50)
   name        String  @db.VarChar(255)
   description String?
-  units       Int
+  units_lec   Int?
+  units_lab   Int?
   status      String  @db.VarChar(10)
 }
 

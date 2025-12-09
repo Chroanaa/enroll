@@ -7,9 +7,9 @@ export async function POST(request: NextRequest) {
     const { id, ...subjectData } = data;
     
     // Ensure required fields are present
-    if (!subjectData.code || !subjectData.name || !subjectData.units) {
+    if (!subjectData.code || !subjectData.name || (!subjectData.units_lec && !subjectData.units_lab)) {
       return NextResponse.json(
-        { error: "Missing required fields: code, name, and units are required" },
+        { error: "Missing required fields: code, name, and at least one unit (lecture or lab) are required" },
         { status: 400 }
       );
     }
