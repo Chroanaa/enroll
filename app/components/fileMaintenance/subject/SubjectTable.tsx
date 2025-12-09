@@ -1,5 +1,5 @@
 import React from "react";
-import { BookOpen, Hash, Building2, GraduationCap, Edit2, Trash2 } from "lucide-react";
+import { BookOpen, Hash, GraduationCap, Edit2, Trash2 } from "lucide-react";
 import { Subject } from "../../../types";
 import { colors } from "../../../colors";
 import { getStatusColor } from "../utils";
@@ -33,13 +33,7 @@ const SubjectTable: React.FC<SubjectTableProps> = ({
                 Code
               </th>
               <th className='px-6 py-4 text-left text-xs font-bold uppercase tracking-wider text-gray-600'>
-                Department
-              </th>
-              <th className='px-6 py-4 text-left text-xs font-bold uppercase tracking-wider text-gray-600'>
                 Units
-              </th>
-              <th className='px-6 py-4 text-left text-xs font-bold uppercase tracking-wider text-gray-600'>
-                Prerequisites
               </th>
               <th className='px-6 py-4 text-left text-xs font-bold uppercase tracking-wider text-gray-600'>
                 Status
@@ -52,7 +46,7 @@ const SubjectTable: React.FC<SubjectTableProps> = ({
           <tbody className='divide-y divide-gray-100'>
             {subjects.length === 0 ? (
               <tr>
-                <td colSpan={7} className='px-6 py-12 text-center text-gray-500'>
+                <td colSpan={5} className='px-6 py-12 text-center text-gray-500'>
                   <div className='flex flex-col items-center justify-center gap-3'>
                     <div
                       className='p-3 rounded-full'
@@ -119,24 +113,11 @@ const SubjectTable: React.FC<SubjectTableProps> = ({
                     </td>
                     <td className='px-6 py-4 whitespace-nowrap'>
                       <div className='flex items-center gap-2'>
-                        <Building2 className='w-3.5 h-3.5 text-gray-400' />
-                        <span className='text-sm text-gray-600'>
-                          {subject.departmentName || "N/A"}
-                        </span>
-                      </div>
-                    </td>
-                    <td className='px-6 py-4 whitespace-nowrap'>
-                      <div className='flex items-center gap-2'>
                         <GraduationCap className='w-3.5 h-3.5 text-gray-400' />
                         <span className='text-sm font-medium text-gray-700'>
                           {subject.units}
                         </span>
                       </div>
-                    </td>
-                    <td className='px-6 py-4'>
-                      <span className='text-sm text-gray-600'>
-                        {subject.prerequisites || "None"}
-                      </span>
                     </td>
                     <td className='px-6 py-4 whitespace-nowrap'>
                       <span

@@ -76,9 +76,6 @@ export interface Subject {
   name: string;
   description?: string;
   units: number;
-  department_id: number;
-  departmentName?: string;
-  prerequisites?: string;
   status: "active" | "inactive";
 }
 

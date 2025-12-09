@@ -140,7 +140,7 @@ const CurriculumForm: React.FC<CurriculumFormProps> = ({
           units_total: selectedSubject.units,
           units_lec: selectedSubject.units,
           units_lab: 0,
-          prerequisite: selectedSubject.prerequisites || "",
+          prerequisite: "",
         });
       }
     } catch (error) {

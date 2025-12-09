@@ -1,17 +1,14 @@
 "use client";
-import React, { useState, useRef, useEffect } from "react";
+import React, { useState, useRef } from "react";
 import {
   BookOpen,
   Hash,
   FileText,
   GraduationCap,
-  Building2,
   CheckCircle2,
   X,
 } from "lucide-react";
-import { Subject, Department } from "../../../types";
-import { getDepartments } from "@/app/utils/departmentUtils";
-import { getSubjects } from "@/app/utils/subjectUtils";
+import { Subject } from "../../../types";
 import { colors } from "../../../colors";
 import ConfirmationModal from "../../common/ConfirmationModal";
 
@@ -32,8 +29,6 @@ const SubjectForm: React.FC<SubjectFormProps> = ({
       name: "",
       description: "",
       units: 3,
-      department_id: undefined,
-      prerequisites: "",
       status: "active",
     }
   );
@@ -41,33 +36,9 @@ const SubjectForm: React.FC<SubjectFormProps> = ({
   const [formData, setFormData] = useState<Partial<Subject>>(
     initialFormData.current
   );
-  const [departments, setDepartments] = useState<Department[]>([]);
-  const [subjects, setSubjects] = useState<Subject[]>([]);
   const [showSaveConfirmation, setShowSaveConfirmation] = useState(false);
   const [showCancelWarning, setShowCancelWarning] = useState(false);
 
-  useEffect(() => {
-    const fetchData = async () => {
-      try {
-        const [departmentsData, subjectsData] = await Promise.all([
-          getDepartments(),
-          getSubjects(),
-        ]);
-        setDepartments(Array.isArray(departmentsData) ? departmentsData : Object.values(departmentsData));
-        const subjectsArray: Subject[] = Array.isArray(subjectsData) ? subjectsData : (Object.values(subjectsData) as Subject[]);
-        // Exclude current subject from prerequisites list if editing
-        const filteredSubjects = subject 
-          ? subjectsArray.filter((s) => s.id !== subject.id)
-          : subjectsArray;
-        setSubjects(filteredSubjects);
-      } catch (error) {
-        console.error("Error fetching data:", error);
-        setDepartments([]);
-        setSubjects([]);
-      }
-    };
-    fetchData();
-  }, [subject]);
 
   const hasChanges = () => {
     if (!subject) return false;
@@ -76,8 +47,6 @@ const SubjectForm: React.FC<SubjectFormProps> = ({
       formData.name !== initialFormData.current.name ||
       formData.description !== initialFormData.current.description ||
       formData.units !== initialFormData.current.units ||
-      formData.department_id !== initialFormData.current.department_id ||
-      formData.prerequisites !== initialFormData.current.prerequisites ||
       formData.status !== initialFormData.current.status
     );
   };
@@ -101,8 +70,6 @@ const SubjectForm: React.FC<SubjectFormProps> = ({
         name: formData.name!,
         description: formData.description || "",
         units: formData.units!,
-        department_id: formData.department_id!,
-        prerequisites: formData.prerequisites || "",
         status: (formData.status as "active" | "inactive") || "active",
       };
       onSave({
@@ -317,84 +284,6 @@ const SubjectForm: React.FC<SubjectFormProps> = ({
                   }}
                   required
                 />
-              </div>
-
-              <div>
-                <label
-                  className='flex items-center gap-2 text-sm font-semibold mb-2'
-                  style={{ color: colors.primary }}
-                >
-                  <Building2 className='w-4 h-4 text-gray-400' />
-                  Department <span className='text-red-500'>*</span>
-                </label>
-                <select
-                  value={formData.department_id || ""}
-                  onChange={(e) =>
-                    setFormData({
-                      ...formData,
-                      department_id: parseInt(e.target.value),
-                    })
-                  }
-                  className='w-full rounded-xl px-4 py-2.5 transition-all border-gray-200 focus:ring-2 focus:ring-offset-0 bg-white'
-                  style={{
-                    border: "1px solid #E5E7EB",
-                    outline: "none",
-                    color: "#6B5B4F",
-                  }}
-                  onFocus={(e) => {
-                    e.currentTarget.style.borderColor = colors.secondary;
-                    e.currentTarget.style.boxShadow = `0 0 0 3px ${colors.secondary}20`;
-                  }}
-                  onBlur={(e) => {
-                    e.currentTarget.style.borderColor = "#E5E7EB";
-                    e.currentTarget.style.boxShadow = "none";
-                  }}
-                  required
-                >
-                  <option value=''>Select Department</option>
-                  {departments.map((department) => (
-                    <option key={department.id} value={department.id}>
-                      {department.name} ({department.code})
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              <div>
-                <label
-                  className='flex items-center gap-2 text-sm font-semibold mb-2'
-                  style={{ color: colors.primary }}
-                >
-                  <FileText className='w-4 h-4 text-gray-400' />
-                  Prerequisites
-                </label>
-                <select
-                  value={formData.prerequisites || ""}
-                  onChange={(e) =>
-                    setFormData({ ...formData, prerequisites: e.target.value || "" })
-                  }
-                  className='w-full rounded-xl px-4 py-2.5 transition-all border-gray-200 focus:ring-2 focus:ring-offset-0 bg-white'
-                  style={{
-                    border: "1px solid #E5E7EB",
-                    outline: "none",
-                    color: "#6B5B4F",
-                  }}
-                  onFocus={(e) => {
-                    e.currentTarget.style.borderColor = colors.secondary;
-                    e.currentTarget.style.boxShadow = `0 0 0 3px ${colors.secondary}20`;
-                  }}
-                  onBlur={(e) => {
-                    e.currentTarget.style.borderColor = "#E5E7EB";
-                    e.currentTarget.style.boxShadow = "none";
-                  }}
-                >
-                  <option value=''>None</option>
-                  {subjects.map((subject) => (
-                    <option key={subject.id} value={subject.code}>
-                      {subject.name} ({subject.code})
-                    </option>
-                  ))}
-                </select>
               </div>
 
               <div>

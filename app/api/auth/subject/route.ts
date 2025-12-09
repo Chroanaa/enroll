@@ -4,12 +4,12 @@ import { NextRequest, NextResponse } from "next/server";
 export async function POST(request: NextRequest) {
   try {
     const data = await request.json();
-    const { id, departmentName, ...subjectData } = data;
+    const { id, ...subjectData } = data;
     
     // Ensure required fields are present
-    if (!subjectData.code || !subjectData.name || !subjectData.units || !subjectData.department_id) {
+    if (!subjectData.code || !subjectData.name || !subjectData.units) {
       return NextResponse.json(
-        { error: "Missing required fields: code, name, units, and department_id are required" },
+        { error: "Missing required fields: code, name, and units are required" },
         { status: 400 }
       );
     }
@@ -60,7 +60,7 @@ export async function DELETE(request: NextRequest) {
 export async function PATCH(nextRequest: NextRequest) {
   try {
     const data = await nextRequest.json();
-    const { id, departmentName, ...updateData } = data;
+    const { id, ...updateData } = data;
     
     const updatedSubject = await prisma.subject.update({
       where: { id: Number(id) },

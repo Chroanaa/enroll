@@ -186,14 +186,12 @@ model program {
 
 /// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
 model subject {
-  id            Int     @id @default(autoincrement())
-  code          String  @db.VarChar(50)
-  name          String  @db.VarChar(255)
-  description   String?
-  units         Int
-  department_id Int
-  prerequisites String?
-  status        String  @db.VarChar(10)
+  id          Int     @id @default(autoincrement())
+  code        String  @db.VarChar(50)
+  name        String  @db.VarChar(255)
+  description String?
+  units       Int
+  status      String  @db.VarChar(10)
 }
 
 model sections {

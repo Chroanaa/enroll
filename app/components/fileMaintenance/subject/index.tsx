@@ -1,7 +1,7 @@
 "use client";
 import React, { useState, useMemo, useEffect } from "react";
 import { Plus } from "lucide-react";
-import { Subject, Department } from "../../../types";
+import { Subject } from "../../../types";
 import { colors } from "../../../colors";
 import ConfirmationModal from "../../common/ConfirmationModal";
 import SuccessModal from "../../common/SuccessModal";
@@ -12,33 +12,17 @@ import SubjectTable from "./SubjectTable";
 import SubjectForm from "./SubjectForm";
 import { filterSubjects } from "./utils";
 import { getSubjects } from "@/app/utils/subjectUtils";
-import { getDepartments } from "@/app/utils/departmentUtils";
 const SubjectManagement: React.FC = () => {
   const [subjects, setSubjects] = useState<Subject[]>();
-  const [departments, setDepartments] = useState<Department[]>([]);
 
   useEffect(() => {
     const fetchData = async () => {
       try {
-        const [subjectsData, departmentsData] = await Promise.all([
-          getSubjects(),
-          getDepartments(),
-        ]);
-        const departmentsArray: Department[] = Array.isArray(departmentsData)
-          ? departmentsData
-          : (Object.values(departmentsData) as Department[]);
-        setDepartments(departmentsArray);
+        const subjectsData = await getSubjects();
         const subjectsArray: Subject[] = Array.isArray(subjectsData)
           ? subjectsData
           : (Object.values(subjectsData) as Subject[]);
-        setSubjects(
-          subjectsArray.map((subject) => ({
-            ...subject,
-            departmentName:
-              departmentsArray.find((d) => d.id === subject.department_id)
-                ?.name || "",
-          }))
-        );
+        setSubjects(subjectsArray);
       } catch (error) {
         console.error("Failed to fetch data:", error);
       }
@@ -118,12 +102,9 @@ const SubjectManagement: React.FC = () => {
           throw new Error(errorData.error || "Failed to update subject");
         }
 
-        const departmentName =
-          departments.find((d) => d.id === subjectData.department_id)?.name ||
-          "";
         setSubjects((prev) =>
           (prev || []).map((s) =>
-            s.id === subjectData.id ? { ...subjectData, departmentName } : s
+            s.id === subjectData.id ? subjectData : s
           )
         );
         setEditingSubject(null);
@@ -146,12 +127,9 @@ const SubjectManagement: React.FC = () => {
         }
 
         const newSubject = await response.json();
-        const departmentName =
-          departments.find((d) => d.id === subjectData.department_id)?.name ||
-          "";
         setSubjects((prev) => [
           ...(prev || []),
-          { ...subjectData, id: newSubject.id, departmentName },
+          { ...subjectData, id: newSubject.id },
         ]);
         setIsAddModalOpen(false);
         setSuccessModal({
