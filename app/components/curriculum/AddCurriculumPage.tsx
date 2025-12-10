@@ -95,12 +95,12 @@ const AddCurriculumPage: React.FC<AddCurriculumPageProps> = ({
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    // Prevent double submission
+  
     if (isSubmitting || showSaveConfirmation) {
       return;
     }
 
-    // Validate required fields
+  
     if (!formData.program_name || !formData.program_code) {
       setErrorModal({
         isOpen: true,
@@ -110,7 +110,7 @@ const AddCurriculumPage: React.FC<AddCurriculumPageProps> = ({
       return;
     }
 
-    // Validate that at least one course is added
+  
     if (!courses || courses.length === 0) {
       setErrorModal({
         isOpen: true,
@@ -146,7 +146,7 @@ const AddCurriculumPage: React.FC<AddCurriculumPageProps> = ({
         message: `Curriculum "${curriculumData.program_name}" has been created successfully.`,
       });
 
-      // Redirect after a short delay
+   
       setTimeout(() => {
         onCancel();
       }, 2000);
@@ -184,32 +184,26 @@ const AddCurriculumPage: React.FC<AddCurriculumPageProps> = ({
 
   const handleSubjectsSelected = (selectedSubjects: any[], yearLevel: number, semester: 1 | 2) => {
     // Create courses from selected subjects
-    const newCourses: CurriculumCourse[] = selectedSubjects.map((subject) => {
-      // Check for duplicates
-      const isDuplicate = courses.some(
-        (c) =>
-          c.subject_id === subject.id &&
-          c.year_level === yearLevel &&
-          c.semester === semester
-      );
-
-      if (isDuplicate) {
-        return null;
-      }
-
-      return {
-        id: Date.now() + Math.random(),
-        subject_id: subject.id,
-        course_code: subject.code,
-        descriptive_title: subject.name,
-        units_lec: subject.units_lec || 0,
-        units_lab: subject.units_lab || 0,
-        units_total: (subject.units_lec || 0) + (subject.units_lab || 0),
-        prerequisite: "",
-        year_level: yearLevel,
-        semester: semester,
-      };
-    }).filter((course): course is CurriculumCourse => course !== null);
+  
+    const newCourses: CurriculumCourse[] = selectedSubjects
+      .filter((subject) => {
+      
+        return !courses.some((c) => c.subject_id === subject.id);
+      })
+      .map((subject) => {
+        return {
+          id: Date.now() + Math.random(),
+          subject_id: subject.id,
+          course_code: subject.code,
+          descriptive_title: subject.name,
+          units_lec: subject.units_lec || 0,
+          units_lab: subject.units_lab || 0,
+          units_total: (subject.units_lec || 0) + (subject.units_lab || 0),
+          prerequisite: "",
+          year_level: yearLevel,
+          semester: semester,
+        };
+      });
 
     setCourses([...courses, ...newCourses]);
     setSubjectModal({ isOpen: false, yearLevel: 1, semester: 1 });

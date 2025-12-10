@@ -102,15 +102,13 @@ const SubjectSelectionModal: React.FC<SubjectSelectionModalProps> = ({
     return sorted;
   }, [filteredSubjects, sortField, sortDirection]);
 
-  // Get already added subjects for the selected year/semester to prevent duplicates
+  // Get already added subjects from ALL courses in the curriculum to prevent duplicates
+  // This prevents showing subjects that are already in the curriculum, regardless of year/semester
   const existingSubjectIds = useMemo(() => {
     return existingCourses
-      .filter(
-        (c) => c.year_level === selectedYear && c.semester === selectedSemester
-      )
       .map((c) => c.subject_id)
       .filter((id): id is number => id !== undefined);
-  }, [existingCourses, selectedYear, selectedSemester]);
+  }, [existingCourses]);
 
   // Filter out already added subjects
   const availableSubjects = useMemo(() => {
