@@ -1,5 +1,6 @@
 "use client";
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
+import { useSearchParams } from "next/navigation";
 import Navigation from "../components/Navigation";
 import Dashboard from "../components/Dashboard";
 import StudentManagement from "../components/StudentManagement";
@@ -17,7 +18,16 @@ import { Building, Section, Room, Department, Program, Major, Faculty, Fees, Sub
 import ProtectedRoute from "../components/ProtectedRoute";
 
 export default function DashboardPage() {
+  const searchParams = useSearchParams();
   const [currentView, setCurrentView] = useState("dashboard");
+
+  // Read view from URL params on mount
+  useEffect(() => {
+    const view = searchParams.get("view");
+    if (view) {
+      setCurrentView(view);
+    }
+  }, [searchParams]);
 
   const renderCurrentView = () => {
     switch (currentView) {
@@ -53,7 +63,7 @@ export default function DashboardPage() {
         return <Room />;
       case "file-maintenance-department":
         return <Department />;
-      case "file-maintenance-program":
+      case "curriculum-program":
         return <Program />;
       case "file-maintenance-major":
         return <Major />;

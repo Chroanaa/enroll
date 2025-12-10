@@ -69,7 +69,7 @@ const CourseFormSection: React.FC<CourseFormSectionProps> = ({
           <option value=''>{loading ? "Loading subjects..." : "Select Subject"}</option>
           {subjects.map((subject) => (
             <option key={subject.id} value={subject.id}>
-              {subject.name} ({subject.code}) - {subject.units} units
+              {subject.name} ({subject.code}) - {((subject.units_lec || 0) + (subject.units_lab || 0))} units
             </option>
           ))}
         </select>

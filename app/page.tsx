@@ -60,7 +60,7 @@ function App() {
         return <Room />;
       case "file-maintenance-department":
         return <Department />;
-      case "file-maintenance-program":
+      case "curriculum-program":
         return <Program />;
       case "file-maintenance-major":
         return <Major />;
