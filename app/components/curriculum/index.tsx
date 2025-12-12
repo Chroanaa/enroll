@@ -5,11 +5,12 @@ import { useRouter } from "next/navigation";
 import { Curriculum } from "../../types";
 import { colors } from "../../colors";
 import CurriculumTable from "./CurriculumTable";
-import CurriculumForm from "./CurriculumForm";
+import EditCurriculumPage from "./EditCurriculumPage";
 import SearchFilters from "../common/SearchFilters";
 import ConfirmationModal from "../common/ConfirmationModal";
 import SuccessModal from "../common/SuccessModal";
 import ErrorModal from "../common/ErrorModal";
+import Pagination from "../common/Pagination";
 import { getCurriculums } from "@/app/utils/curriculumUtils";
 const CurriculumManagement: React.FC = () => {
   const router = useRouter();
@@ -34,7 +35,6 @@ const CurriculumManagement: React.FC = () => {
   const [editingCurriculum, setEditingCurriculum] = useState<Curriculum | null>(
     null
   );
-  const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [selectedCurriculum, setSelectedCurriculum] =
     useState<Curriculum | null>(null);
   const [deleteConfirmation, setDeleteConfirmation] = useState<{
@@ -62,6 +62,8 @@ const CurriculumManagement: React.FC = () => {
     message: "",
     details: "",
   });
+  const [currentPage, setCurrentPage] = useState(1);
+  const [itemsPerPage, setItemsPerPage] = useState(10);
 
   const filteredCurriculum = useMemo(() => {
     return curriculumList.filter((curriculum) => {
@@ -78,6 +80,22 @@ const CurriculumManagement: React.FC = () => {
       return matchesSearch && matchesStatus;
     });
   }, [curriculumList, searchTerm, statusFilter]);
+
+  // Pagination calculations
+  const totalPages = Math.ceil(filteredCurriculum.length / itemsPerPage);
+  const startIndex = (currentPage - 1) * itemsPerPage;
+  const endIndex = startIndex + itemsPerPage;
+  const paginatedCurriculum = filteredCurriculum.slice(startIndex, endIndex);
+
+  // Reset to page 1 when filters change
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchTerm, statusFilter]);
+
+  const handlePageChange = (page: number) => {
+    setCurrentPage(page);
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  };
 
   const handleSaveCurriculum = async (curriculumData: Curriculum) => {
     try {
@@ -122,7 +140,6 @@ const CurriculumManagement: React.FC = () => {
         if (response.ok) {
           const newCurriculum = await response.json();
           setCurriculumList((prev) => [...prev, newCurriculum]);
-          setIsAddModalOpen(false);
           setSuccessModal({
             isOpen: true,
             message: `Curriculum "${curriculumData.program_name}" has been created successfully.`,
@@ -215,6 +232,21 @@ const CurriculumManagement: React.FC = () => {
     setSelectedCurriculum(curriculum);
   };
 
+  // If editing, show only the edit page
+  if (editingCurriculum) {
+    return (
+      <EditCurriculumPage
+        curriculum={editingCurriculum}
+        onSave={async (curriculumData: Curriculum) => {
+          await handleSaveCurriculum(curriculumData);
+        }}
+        onCancel={() => {
+          setEditingCurriculum(null);
+        }}
+      />
+    );
+  }
+
   return (
     <div
       className='min-h-screen p-6 font-sans'
@@ -246,26 +278,67 @@ const CurriculumManagement: React.FC = () => {
         </div>
 
         {/* Search and Filters */}
-        <SearchFilters
-          searchTerm={searchTerm}
-          onSearchChange={setSearchTerm}
-          searchPlaceholder='Search curriculum...'
-          filters={[
-            {
-              value: statusFilter,
-              onChange: (value) =>
-                setStatusFilter(
-                  value === "all" ? "all" : (value as "active" | "inactive")
-                ),
-              options: [
-                { value: "all", label: "All Status" },
-                { value: "active", label: "Active" },
-                { value: "inactive", label: "Inactive" },
-              ],
-              placeholder: "All Status",
-            },
-          ]}
-        />
+        <div className='space-y-4'>
+          <SearchFilters
+            searchTerm={searchTerm}
+            onSearchChange={setSearchTerm}
+            searchPlaceholder='Search curriculum...'
+          />
+          
+          {/* Status Tabs */}
+          <div className='bg-white rounded-2xl shadow-sm border border-gray-100 p-2'>
+            <div className='flex items-center gap-2'>
+              <span className='text-sm font-medium text-gray-600 px-2'>Status:</span>
+              <div className='flex gap-2 flex-1'>
+                <button
+                  onClick={() => setStatusFilter("all")}
+                  className={`flex-1 px-4 py-2.5 rounded-lg text-sm font-medium transition-all ${
+                    statusFilter === "all"
+                      ? "text-white shadow-md"
+                      : "text-gray-700 hover:bg-gray-50"
+                  }`}
+                  style={
+                    statusFilter === "all"
+                      ? { backgroundColor: colors.secondary }
+                      : {}
+                  }
+                >
+                  All Status
+                </button>
+                <button
+                  onClick={() => setStatusFilter("active")}
+                  className={`flex-1 px-4 py-2.5 rounded-lg text-sm font-medium transition-all ${
+                    statusFilter === "active"
+                      ? "text-white shadow-md"
+                      : "text-gray-700 hover:bg-gray-50"
+                  }`}
+                  style={
+                    statusFilter === "active"
+                      ? { backgroundColor: colors.secondary }
+                      : {}
+                  }
+                >
+                  Active
+                </button>
+                <button
+                  onClick={() => setStatusFilter("inactive")}
+                  className={`flex-1 px-4 py-2.5 rounded-lg text-sm font-medium transition-all ${
+                    statusFilter === "inactive"
+                      ? "text-white shadow-md"
+                      : "text-gray-700 hover:bg-gray-50"
+                  }`}
+                  style={
+                    statusFilter === "inactive"
+                      ? { backgroundColor: colors.secondary }
+                      : {}
+                  }
+                >
+                  Inactive
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
 
         {/* Curriculum List */}
         {filteredCurriculum.length === 0 ? (
@@ -299,11 +372,12 @@ const CurriculumManagement: React.FC = () => {
             </div>
           </div>
         ) : (
-          <div className='space-y-4'>
-            {filteredCurriculum.map((curriculum) => (
+          <div className='bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden'>
+            <div className='space-y-4 p-6'>
+              {paginatedCurriculum.map((curriculum) => (
               <div
                 key={curriculum.id}
-                className='bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden'
+                className='bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden'
               >
                 <div className='p-6'>
                   <div className='flex items-start justify-between mb-4'>
@@ -343,7 +417,7 @@ const CurriculumManagement: React.FC = () => {
                         }}
                       >
                         <FileText className='w-4 h-4' />
-                        View Details
+                        View Prospectus
                       </button>
                       <button
                         onClick={() => setEditingCurriculum(curriculum)}
@@ -377,7 +451,17 @@ const CurriculumManagement: React.FC = () => {
                   </div>
                 </div>
               </div>
-            ))}
+              ))}
+            </div>
+            <Pagination
+              currentPage={currentPage}
+              totalPages={totalPages}
+              itemsPerPage={itemsPerPage}
+              totalItems={filteredCurriculum.length}
+              itemName='curriculums'
+              onPageChange={handlePageChange}
+              onItemsPerPageChange={setItemsPerPage}
+            />
           </div>
         )}
 
@@ -386,18 +470,6 @@ const CurriculumManagement: React.FC = () => {
           <CurriculumTable
             curriculum={selectedCurriculum}
             onClose={() => setSelectedCurriculum(null)}
-          />
-        )}
-
-        {/* Add/Edit Curriculum Form */}
-        {(isAddModalOpen || editingCurriculum) && (
-          <CurriculumForm
-            curriculum={editingCurriculum}
-            onSave={handleSaveCurriculum}
-            onCancel={() => {
-              setEditingCurriculum(null);
-              setIsAddModalOpen(false);
-            }}
           />
         )}
 

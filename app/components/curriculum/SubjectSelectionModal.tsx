@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useEffect, useMemo } from "react";
-import { X, Search, CheckCircle2, ArrowUpDown } from "lucide-react";
+import { X, Search, CheckCircle2 } from "lucide-react";
 import { Subject, CurriculumCourse } from "../../types";
 import { colors } from "../../colors";
 import { getSubjects } from "../../utils/subjectUtils";
@@ -36,7 +36,7 @@ const SubjectSelectionModal: React.FC<SubjectSelectionModalProps> = ({
   const [sortField, setSortField] = useState<SortField>("code");
   const [sortDirection, setSortDirection] = useState<SortDirection>("asc");
   const [currentPage, setCurrentPage] = useState(1);
-  const [itemsPerPage] = useState(15);
+  const [itemsPerPage, setItemsPerPage] = useState(15);
 
   useEffect(() => {
     if (isOpen) {
@@ -121,15 +121,6 @@ const SubjectSelectionModal: React.FC<SubjectSelectionModalProps> = ({
   const endIndex = startIndex + itemsPerPage;
   const paginatedSubjects = availableSubjects.slice(startIndex, endIndex);
 
-  const handleSort = (field: SortField) => {
-    if (sortField === field) {
-      setSortDirection(sortDirection === "asc" ? "desc" : "asc");
-    } else {
-      setSortField(field);
-      setSortDirection("asc");
-    }
-    setCurrentPage(1);
-  };
 
   const handleSelectSubject = (subjectId: number) => {
     setSelectedSubjectIds((prev) =>
@@ -140,10 +131,23 @@ const SubjectSelectionModal: React.FC<SubjectSelectionModalProps> = ({
   };
 
   const handleSelectAll = () => {
-    if (selectedSubjectIds.length === paginatedSubjects.length) {
-      setSelectedSubjectIds([]);
+    const allPaginatedSelected = paginatedSubjects.every((s) => selectedSubjectIds.includes(s.id));
+    if (allPaginatedSelected) {
+      // Deselect all paginated subjects
+      const paginatedIds = paginatedSubjects.map((s) => s.id);
+      setSelectedSubjectIds((prev) => prev.filter((id) => !paginatedIds.includes(id)));
     } else {
-      setSelectedSubjectIds(paginatedSubjects.map((s) => s.id));
+      // Select all paginated subjects (add to existing selections)
+      const paginatedIds = paginatedSubjects.map((s) => s.id);
+      setSelectedSubjectIds((prev) => {
+        const newIds = [...prev];
+        paginatedIds.forEach((id) => {
+          if (!newIds.includes(id)) {
+            newIds.push(id);
+          }
+        });
+        return newIds;
+      });
     }
   };
 
@@ -176,12 +180,12 @@ const SubjectSelectionModal: React.FC<SubjectSelectionModalProps> = ({
       onClick={onClose}
     >
       <div
-        className="rounded-xl shadow-2xl w-full max-w-5xl bg-white my-4 max-h-[85vh] flex flex-col"
+        className="rounded-xl shadow-2xl w-full max-w-4xl bg-white my-4 max-h-[88vh] flex flex-col"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
         <div
-          className="px-4 py-2.5 flex items-center justify-between border-b sticky top-0 bg-white z-10"
+          className="px-4 py-2 flex items-center justify-between border-b sticky top-0 bg-white z-10"
           style={{
             backgroundColor: `${colors.primary}08`,
             borderColor: `${colors.primary}15`,
@@ -189,17 +193,17 @@ const SubjectSelectionModal: React.FC<SubjectSelectionModalProps> = ({
         >
           <div className="flex items-center gap-2">
             <div
-              className="p-1.5 rounded-lg"
+              className="p-1 rounded-lg"
               style={{ backgroundColor: `${colors.secondary}20` }}
             >
               <CheckCircle2
-                className="w-4 h-4"
+                className="w-3.5 h-3.5"
                 style={{ color: colors.secondary }}
               />
             </div>
             <div>
               <h2
-                className="text-lg font-bold"
+                className="text-base font-bold"
                 style={{ color: colors.primary }}
               >
                 Add Subjects
@@ -208,25 +212,25 @@ const SubjectSelectionModal: React.FC<SubjectSelectionModalProps> = ({
           </div>
           <button
             onClick={onClose}
-            className="p-2 rounded-full hover:bg-gray-100 transition-colors text-gray-400 hover:text-gray-600"
+            className="p-1.5 rounded-full hover:bg-gray-100 transition-colors text-gray-400 hover:text-gray-600"
           >
-            <X className="w-5 h-5" />
+            <X className="w-4 h-4" />
           </button>
         </div>
 
         {/* Content */}
-        <div className="p-4 overflow-y-auto flex-1 space-y-3">
+        <div className="p-3 overflow-y-auto flex-1 space-y-2">
           {/* Year & Semester Selection */}
-          <div className="bg-gray-50 p-3 rounded-lg space-y-2">
+          <div className="bg-gray-50 p-2 rounded-lg space-y-1.5">
             <h3
               className="text-xs font-semibold"
               style={{ color: colors.primary }}
             >
               Select Year & Semester <span className="text-red-500">*</span>
             </h3>
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-2 gap-2">
               <div>
-                <label className="block text-xs font-medium text-gray-700 mb-1">
+                <label className="block text-[10px] font-medium text-gray-700 mb-0.5">
                   Year
                 </label>
                 <select
@@ -236,7 +240,7 @@ const SubjectSelectionModal: React.FC<SubjectSelectionModalProps> = ({
                     setSelectedSubjectIds([]);
                     setCurrentPage(1);
                   }}
-                  className="w-full rounded-lg px-2.5 py-1.5 border border-gray-200 text-sm bg-white focus:ring-2 focus:ring-offset-0"
+                  className="w-full rounded-lg px-2 py-1.5 border border-gray-200 text-xs bg-white focus:ring-2 focus:ring-offset-0"
                   style={{
                     outline: "none",
                     color: "#6B5B4F",
@@ -258,7 +262,7 @@ const SubjectSelectionModal: React.FC<SubjectSelectionModalProps> = ({
                 </select>
               </div>
               <div>
-                <label className="block text-xs font-medium text-gray-700 mb-1">
+                <label className="block text-[10px] font-medium text-gray-700 mb-0.5">
                   Semester
                 </label>
                 <select
@@ -268,7 +272,7 @@ const SubjectSelectionModal: React.FC<SubjectSelectionModalProps> = ({
                     setSelectedSubjectIds([]);
                     setCurrentPage(1);
                   }}
-                  className="w-full rounded-lg px-2.5 py-1.5 border border-gray-200 text-sm bg-white focus:ring-2 focus:ring-offset-0"
+                  className="w-full rounded-lg px-2 py-1.5 border border-gray-200 text-xs bg-white focus:ring-2 focus:ring-offset-0"
                   style={{
                     outline: "none",
                     color: "#6B5B4F",
@@ -292,7 +296,7 @@ const SubjectSelectionModal: React.FC<SubjectSelectionModalProps> = ({
 
           {/* Search Bar */}
           <div className="relative">
-            <Search className="absolute left-2.5 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
+            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
             <input
               type="text"
               placeholder="Search subjects by code or title..."
@@ -301,7 +305,7 @@ const SubjectSelectionModal: React.FC<SubjectSelectionModalProps> = ({
                 setSearchTerm(e.target.value);
                 setCurrentPage(1);
               }}
-              className="w-full pl-8 pr-3 py-2 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-offset-0 transition-all"
+              className="w-full pl-10 pr-2.5 py-2 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-offset-0 transition-all placeholder:text-gray-400"
               style={{
                 outline: "none",
                 color: "#6B5B4F",
@@ -317,145 +321,97 @@ const SubjectSelectionModal: React.FC<SubjectSelectionModalProps> = ({
             />
           </div>
 
-          {/* Subject Table */}
+          {/* Subject Grid */}
           <div className="border border-gray-200 rounded-lg overflow-hidden">
-            <div className="overflow-x-auto max-h-[50vh]">
-              <table className="w-full min-w-[700px]">
-                <thead className="sticky top-0 z-10">
-                  <tr
-                    style={{
-                      backgroundColor: `${colors.primary}05`,
-                      borderBottom: `1px solid ${colors.primary}10`,
-                    }}
-                  >
-                    <th className="px-3 py-2 text-left text-xs font-bold uppercase tracking-wider text-gray-600 w-10">
-                      <input
-                        type="checkbox"
-                        checked={
-                          isTableEnabled &&
-                          paginatedSubjects.length > 0 &&
-                          selectedSubjectIds.length === paginatedSubjects.length
-                        }
-                        onChange={handleSelectAll}
-                        disabled={!isTableEnabled}
-                        className="w-4 h-4 rounded border-gray-300 text-blue-600 focus:ring-2 focus:ring-blue-500"
-                        style={{
-                          accentColor: colors.secondary,
-                          cursor: isTableEnabled ? "pointer" : "not-allowed",
-                          opacity: isTableEnabled ? 1 : 0.5,
-                        }}
-                      />
-                    </th>
-                    <th className="px-3 py-2 text-left text-xs font-bold uppercase tracking-wider text-gray-600">
-                      <button
-                        onClick={() => handleSort("code")}
-                        className="flex items-center gap-1 hover:text-gray-900"
-                        disabled={!isTableEnabled}
-                      >
-                        Code
-                        <ArrowUpDown className="w-3 h-3" />
-                      </button>
-                    </th>
-                    <th className="px-3 py-2 text-left text-xs font-bold uppercase tracking-wider text-gray-600">
-                      <button
-                        onClick={() => handleSort("name")}
-                        className="flex items-center gap-1 hover:text-gray-900"
-                        disabled={!isTableEnabled}
-                      >
-                        Title
-                        <ArrowUpDown className="w-3 h-3" />
-                      </button>
-                    </th>
-                    <th className="px-3 py-2 text-left text-xs font-bold uppercase tracking-wider text-gray-600">
-                      <button
-                        onClick={() => handleSort("units")}
-                        className="flex items-center gap-1 hover:text-gray-900"
-                        disabled={!isTableEnabled}
-                      >
-                        Units
-                        <ArrowUpDown className="w-3 h-3" />
-                      </button>
-                    </th>
-                    <th className="px-3 py-2 text-left text-xs font-bold uppercase tracking-wider text-gray-600">
-                      Prereq
-                    </th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-gray-100">
-                  {loading ? (
-                    <tr>
-                      <td colSpan={5} className="px-3 py-6 text-center text-gray-500 text-sm">
-                        Loading subjects...
-                      </td>
-                    </tr>
-                  ) : !isTableEnabled ? (
-                    <tr>
-                      <td colSpan={5} className="px-3 py-6 text-center text-gray-500 text-sm">
-                        Please select Year and Semester first
-                      </td>
-                    </tr>
-                  ) : paginatedSubjects.length === 0 ? (
-                    <tr>
-                      <td colSpan={5} className="px-3 py-6 text-center text-gray-500 text-sm">
-                        {searchTerm
-                          ? "No subjects found matching your search"
-                          : "No subjects available"}
-                      </td>
-                    </tr>
-                  ) : (
-                    paginatedSubjects.map((subject) => {
-                      const isSelected = selectedSubjectIds.includes(subject.id);
-                      const totalUnits =
-                        (subject.units_lec || 0) + (subject.units_lab || 0);
+            {/* Select All Header */}
+            {isTableEnabled && paginatedSubjects.length > 0 && (
+              <div
+                className="px-3 py-1.5 flex items-center gap-2 border-b"
+                style={{
+                  backgroundColor: `${colors.primary}05`,
+                  borderColor: `${colors.primary}10`,
+                }}
+              >
+                <input
+                  type="checkbox"
+                  checked={
+                    paginatedSubjects.length > 0 &&
+                    paginatedSubjects.every((s) => selectedSubjectIds.includes(s.id))
+                  }
+                  onChange={handleSelectAll}
+                  className="w-3.5 h-3.5 rounded border-gray-300 text-blue-600 focus:ring-2 focus:ring-blue-500"
+                  style={{
+                    accentColor: colors.secondary,
+                  }}
+                />
+                <span className="text-[10px] font-semibold text-gray-600">
+                  Select All ({paginatedSubjects.length} subjects on this page)
+                </span>
+              </div>
+            )}
 
-                      return (
-                        <tr
-                          key={subject.id}
-                          className={`hover:bg-gray-50 transition-colors ${
-                            isSelected ? "bg-blue-50" : ""
-                          }`}
-                        >
-                          <td className="px-3 py-2">
-                            <input
-                              type="checkbox"
-                              checked={isSelected}
-                              onChange={() => handleSelectSubject(subject.id)}
-                              className="w-4 h-4 rounded border-gray-300 text-blue-600 focus:ring-2 focus:ring-blue-500"
-                              style={{
-                                accentColor: colors.secondary,
-                              }}
-                            />
-                          </td>
-                          <td className="px-3 py-2">
-                            <span className="font-medium text-xs" style={{ color: colors.primary }}>
+            {loading ? (
+              <div className="p-6 text-center text-gray-500 text-sm">
+                Loading subjects...
+              </div>
+            ) : !isTableEnabled ? (
+              <div className="p-6 text-center text-gray-500 text-sm">
+                Please select Year and Semester first
+              </div>
+            ) : paginatedSubjects.length === 0 ? (
+              <div className="p-6 text-center text-gray-500 text-sm">
+                {searchTerm
+                  ? "No subjects found matching your search"
+                  : "No subjects available"}
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-0">
+                {paginatedSubjects.map((subject) => {
+                  const isSelected = selectedSubjectIds.includes(subject.id);
+                  const totalUnits =
+                    (subject.units_lec || 0) + (subject.units_lab || 0);
+
+                  return (
+                    <div
+                      key={subject.id}
+                      className={`px-3 py-2 border-b border-r border-gray-100 hover:bg-gray-50 transition-colors cursor-pointer ${
+                        isSelected ? "bg-blue-50" : ""
+                      }`}
+                      onClick={() => handleSelectSubject(subject.id)}
+                    >
+                      <div className="flex items-center gap-3">
+                        <input
+                          type="checkbox"
+                          checked={isSelected}
+                          onChange={() => handleSelectSubject(subject.id)}
+                          className="w-4 h-4 rounded border-gray-300 text-blue-600 focus:ring-2 focus:ring-blue-500 flex-shrink-0"
+                          style={{
+                            accentColor: colors.secondary,
+                          }}
+                          onClick={(e) => e.stopPropagation()}
+                        />
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2">
+                            <span
+                              className="font-medium text-sm"
+                              style={{ color: colors.primary }}
+                            >
                               {subject.code}
                             </span>
-                          </td>
-                          <td className="px-3 py-2">
-                            <span className="text-xs text-gray-700">
-                              {subject.name}
+                            <span className="text-xs text-gray-500">
+                              {totalUnits} units
                             </span>
-                          </td>
-                          <td className="px-3 py-2">
-                            <span className="text-xs font-medium text-gray-700">
-                              {totalUnits}
-                              {(subject.units_lec || subject.units_lab) && (
-                                <span className="text-gray-500 ml-1 text-[10px]">
-                                  ({subject.units_lec || 0}/{subject.units_lab || 0})
-                                </span>
-                              )}
-                            </span>
-                          </td>
-                          <td className="px-3 py-2">
-                            <span className="text-xs text-gray-600">-</span>
-                          </td>
-                        </tr>
-                      );
-                    })
-                  )}
-                </tbody>
-              </table>
-            </div>
+                          </div>
+                          <p className="text-xs text-gray-600 mt-0.5 truncate">
+                            {subject.name}
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
           </div>
 
           {/* Pagination */}
@@ -466,8 +422,14 @@ const SubjectSelectionModal: React.FC<SubjectSelectionModalProps> = ({
               itemsPerPage={itemsPerPage}
               totalItems={availableSubjects.length}
               itemName="subjects"
-              onPageChange={setCurrentPage}
-              onItemsPerPageChange={() => {}}
+              onPageChange={(page) => {
+                setCurrentPage(page);
+              }}
+              onItemsPerPageChange={(newItemsPerPage) => {
+                setItemsPerPage(newItemsPerPage);
+                setCurrentPage(1);
+              }}
+              itemsPerPageOptions={[5, 10, 15, 25, 50]}
             />
           )}
         </div>
@@ -477,17 +439,17 @@ const SubjectSelectionModal: React.FC<SubjectSelectionModalProps> = ({
           className="px-4 py-2.5 flex items-center justify-between border-t sticky bottom-0 bg-white"
           style={{ borderColor: `${colors.primary}10` }}
         >
-          <div className="text-xs text-gray-600">
+          <div className="text-[10px] text-gray-600">
             {selectedSubjectIds.length > 0 && (
               <span>
                 <strong>{selectedSubjectIds.length}</strong> selected
               </span>
             )}
           </div>
-          <div className="flex gap-2">
+          <div className="flex gap-1.5">
             <button
               onClick={onClose}
-              className="px-3 py-1.5 rounded-lg transition-all text-sm font-medium hover:bg-gray-100"
+              className="px-3 py-1.5 rounded-lg transition-all text-xs font-medium hover:bg-gray-100"
               style={{
                 color: colors.primary,
                 border: "1px solid #E5E7EB",
@@ -498,7 +460,7 @@ const SubjectSelectionModal: React.FC<SubjectSelectionModalProps> = ({
             <button
               onClick={handleAddSelected}
               disabled={!canAdd}
-              className="px-3 py-1.5 text-white rounded-lg transition-all text-sm font-medium flex items-center gap-1.5 disabled:opacity-50 disabled:cursor-not-allowed"
+              className="px-3 py-1.5 text-white rounded-lg transition-all text-xs font-medium flex items-center gap-1 disabled:opacity-50 disabled:cursor-not-allowed"
               style={{ backgroundColor: colors.secondary }}
             >
               <CheckCircle2 className="w-3.5 h-3.5" />

@@ -2,36 +2,32 @@ import { Curriculum, CurriculumCourse } from "../../types";
 
 export const parseAcademicYear = (
   academicYear: string
-): { startYear: number; endYear: number } => {
+): number => {
   if (!academicYear) {
-    const currentYear = new Date().getFullYear();
-    return { startYear: currentYear, endYear: currentYear + 1 };
-  }
-  const match = academicYear.match(/AY (\d{4})-(\d{4})/);
-  if (match) {
-    return {
-      startYear: parseInt(match[1]),
-      endYear: parseInt(match[2]),
-    };
+    return new Date().getFullYear();
   }
 
-  const parts = academicYear.split("-");
-  if (parts.length === 2) {
-    const start = parseInt(parts[0].replace(/\D/g, ""));
-    const end = parseInt(parts[1].replace(/\D/g, ""));
-    if (!isNaN(start) && !isNaN(end)) {
-      return { startYear: start, endYear: end };
+  const match = academicYear.match(/AY (\d{4})/);
+  if (match) {
+    return parseInt(match[1]);
+  }
+
+ 
+  const yearMatch = academicYear.match(/\d{4}/);
+  if (yearMatch) {
+    const year = parseInt(yearMatch[0]);
+    if (!isNaN(year)) {
+      return year;
     }
   }
-  const currentYear = new Date().getFullYear();
-  return { startYear: currentYear, endYear: currentYear + 1 };
+  
+  return new Date().getFullYear();
 };
 
 export const formatAcademicYear = (
-  startYear: number,
-  endYear: number
+  year: number
 ): string => {
-  return `AY ${startYear}-${endYear}`;
+  return `AY ${year}`;
 };
 
 export const getInitialProgramId = () => {};
@@ -40,6 +36,52 @@ export const getInitialMajorId = () => {};
 
 export const calculateTotalUnits = (courses: CurriculumCourse[]): number => {
   return courses.reduce((total, course) => total + course.units_total, 0);
+};
+
+// create function temporaryy, will ask sir how the unit and hours will be calculated in other program
+
+export const calculateLectureHours = (
+  unitsLec: number,
+  unitsLab: number
+): number => {
+  
+  if (unitsLab > 0) {
+    return unitsLec * 1; 
+  }
+  
+  return unitsLec; 
+};
+
+
+export const calculateLabHours = (unitsLab: number): number => {
+  return unitsLab * 3;
+};
+
+export const calculateLectureUnits = (
+  hoursLec: number,
+  hasLab: boolean
+): number => {
+
+  if (hasLab) {
+    return hoursLec / 1;
+  }
+
+  return hoursLec;
+};
+
+export const calculateLabUnits = (hoursLab: number): number => {
+  return hoursLab / 3;
+};
+
+
+export const getCourseHours = (
+  unitsLec: number,
+  unitsLab: number
+): { lectureHours: number; labHours: number } => {
+  return {
+    lectureHours: calculateLectureHours(unitsLec, unitsLab),
+    labHours: calculateLabHours(unitsLab),
+  };
 };
 
 export const createCourseFromForm = (
@@ -79,12 +121,11 @@ export const getInitialCourseForm = (): Partial<CurriculumCourse> & {
 export const createCurriculumData = (
   formData: Partial<Curriculum>,
   courses: CurriculumCourse[],
-  startYear: number,
-  endYear: number,
+  effectiveYear: number,
   curriculumId?: number
 ): Curriculum => {
   const totalUnits = calculateTotalUnits(courses);
-  const effectiveYear = formatAcademicYear(startYear, endYear);
+  const effectiveYearFormatted = formatAcademicYear(effectiveYear);
 
   return {
     ...formData,
@@ -92,9 +133,93 @@ export const createCurriculumData = (
     program_name: formData.program_name!,
     program_code: formData.program_code!.toUpperCase(),
     major: formData.major || "",
-    effective_year: effectiveYear,
+    effective_year: effectiveYearFormatted,
     total_units: totalUnits,
     courses: courses,
     status: (formData.status as "active" | "inactive") || "active",
   } as Curriculum;
+};
+
+// Prerequisite helper functions
+export interface PrerequisiteData {
+  subjectIds: number[];
+  yearLevel?: number;
+}
+
+export const formatPrerequisites = (
+  data: PrerequisiteData,
+  allCourses: CurriculumCourse[],
+  allSubjects?: Array<{ id: number; code: string }>
+): string => {
+  const parts: string[] = [];
+  
+  if (data.subjectIds.length > 0) {
+    const subjectCodes = data.subjectIds
+      .map((id) => {
+        // First try to find in courses (curriculum courses)
+        const course = allCourses.find((c) => c.subject_id === id);
+        if (course?.course_code) {
+          return course.course_code;
+        }
+        // Fallback to subjects if provided
+        if (allSubjects) {
+          const subject = allSubjects.find((s) => s.id === id);
+          if (subject?.code) {
+            return subject.code;
+          }
+        }
+        return null;
+      })
+      .filter((code): code is string => !!code);
+    parts.push(...subjectCodes);
+  }
+  
+  if (data.yearLevel) {
+    parts.push(`Year ${data.yearLevel}`);
+  }
+  
+  return parts.length > 0 ? parts.join(", ") : "";
+};
+
+export const parsePrerequisites = (
+  prerequisiteString: string | undefined,
+  allCourses: CurriculumCourse[]
+): PrerequisiteData => {
+  if (!prerequisiteString) {
+    return { subjectIds: [], yearLevel: undefined };
+  }
+
+  try {
+    // Try parsing as JSON first
+    const parsed = JSON.parse(prerequisiteString);
+    return {
+      subjectIds: parsed.subjectIds || [],
+      yearLevel: parsed.yearLevel,
+    };
+  } catch {
+    // If not JSON, try to parse as simple string format
+    const subjectIds: number[] = [];
+    let yearLevel: number | undefined = undefined;
+
+    // Extract year level (e.g., "Year 2", "Y2", "2nd Year")
+    const yearMatch = prerequisiteString.match(/(?:Year|Y)\s*(\d+)|(\d+)(?:st|nd|rd|th)\s*Year/i);
+    if (yearMatch) {
+      yearLevel = parseInt(yearMatch[1] || yearMatch[2]);
+    }
+
+    // Try to find subject codes in the string
+    allCourses.forEach((course) => {
+      if (course.course_code && prerequisiteString.includes(course.course_code)) {
+        if (course.subject_id) {
+          subjectIds.push(course.subject_id);
+        }
+      }
+    });
+
+    return { subjectIds, yearLevel };
+  }
+};
+
+export const serializePrerequisites = (data: PrerequisiteData): string => {
+  return JSON.stringify(data);
 };
