@@ -1,7 +1,7 @@
 import { NextAuthOptions } from "next-auth";
 import CredentialsProvider from "next-auth/providers/credentials";
 import { prisma } from "../../../lib/prisma";
-
+import bcrypt from "bcrypt";
 export const authOptions: NextAuthOptions = {
   providers: [
     CredentialsProvider({
@@ -18,12 +18,17 @@ export const authOptions: NextAuthOptions = {
         const user = await prisma.users.findFirst({
           where: {
             username: credentials.username,
-            password: credentials.password,
           },
-          select: { id: true, username: true, role: true },
+          select: { id: true, username: true, role: true, password: true },
         });
 
         if (!user) throw new Error("Invalid credentials");
+
+        const isPasswordMatch = await bcrypt.compare(
+          credentials.password,
+          user.password
+        );
+        if (!isPasswordMatch) throw new Error("Invalid credentials");
 
         return {
           id: user.id.toString(),
