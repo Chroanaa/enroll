@@ -12,9 +12,13 @@ import SubjectForm from "./SubjectForm";
 import MultipleSubjectForm from "./MultipleSubjectForm";
 import { filterSubjects } from "./utils";
 import { getSubjects } from "@/app/utils/subjectUtils";
+import { getDepartments } from "@/app/utils/departmentUtils";
+import { insertIntoReports } from "@/app/utils/reportsUtils";
+import { useSession } from "next-auth/react";
 const SubjectManagement: React.FC = () => {
   const [subjects, setSubjects] = useState<Subject[]>();
-
+  const [departments, setDepartments] = useState<Department[]>([]);
+  const { data: session } = useSession();
   useEffect(() => {
     const fetchData = async () => {
       try {
@@ -167,6 +171,10 @@ const SubjectManagement: React.FC = () => {
           isOpen: true,
           message: `Subject "${subjectData.name}" has been updated successfully.`,
         });
+        insertIntoReports({
+          action: `User ${session?.user.name} Edited the Subject ${subjectData.name}`,
+          user_id: Number(session?.user.id),
+        });
       } else {
         const response = await fetch("/api/auth/subject", {
           method: "POST",
@@ -190,6 +198,10 @@ const SubjectManagement: React.FC = () => {
         setSuccessModal({
           isOpen: true,
           message: `Subject "${subjectData.name}" has been created successfully.`,
+        });
+        insertIntoReports({
+          action: `User ${session?.user.name} Created the Subject ${subjectData.name}`,
+          user_id: Number(session?.user.id),
         });
       }
     } catch (error: any) {

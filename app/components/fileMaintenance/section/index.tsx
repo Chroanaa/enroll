@@ -13,11 +13,12 @@ import SectionForm from "./SectionForm";
 import { filterSections } from "./utils";
 import { getSections } from "../../../utils/getSection";
 import { getPrograms } from "@/app/utils/programUtils";
-
+import { useSession } from "next-auth/react";
+import { insertIntoReports } from "@/app/utils/reportsUtils";
 const SectionManagement: React.FC = () => {
   const [sections, setSections] = useState<Section[]>();
   const [programs, setPrograms] = useState<Program[]>([]);
-  
+  const { data: session } = useSession();
   React.useEffect(() => {
     async function fetchData() {
       try {
@@ -25,9 +26,13 @@ const SectionManagement: React.FC = () => {
           getSections(),
           getPrograms(),
         ]);
-        const programsArray: Program[] = Array.isArray(programsData) ? programsData : Object.values(programsData);
+        const programsArray: Program[] = Array.isArray(programsData)
+          ? programsData
+          : Object.values(programsData);
         setPrograms(programsArray);
-        const sectionsArray: Section[] = Array.isArray(sectionsData) ? sectionsData : Object.values(sectionsData);
+        const sectionsArray: Section[] = Array.isArray(sectionsData)
+          ? sectionsData
+          : Object.values(sectionsData);
         setSections(
           sectionsArray.map((section) => ({
             ...section,
@@ -115,14 +120,21 @@ const SectionManagement: React.FC = () => {
           throw new Error(errorData.error || "Failed to update section");
         }
 
-        const programName = programs.find((p) => p.id === sectionData.program_id)?.name || "";
+        const programName =
+          programs.find((p) => p.id === sectionData.program_id)?.name || "";
         setSections((prev) =>
-          prev?.map((s) => (s.id === sectionData.id ? { ...sectionData, programName } : s))
+          prev?.map((s) =>
+            s.id === sectionData.id ? { ...sectionData, programName } : s
+          )
         );
         setEditingSection(null);
         setSuccessModal({
           isOpen: true,
           message: `Section "${sectionData.section_name}" has been updated successfully.`,
+        });
+        insertIntoReports({
+          action: `User ${session?.user.name} Edited the Section ${sectionData.section_name}`,
+          user_id: Number(session?.user.id),
         });
       } else {
         const response = await fetch("/api/auth/section", {
@@ -139,12 +151,20 @@ const SectionManagement: React.FC = () => {
         }
 
         const newSection = await response.json();
-        const programName = programs.find((p) => p.id === sectionData.program_id)?.name || "";
-        setSections((prev = []) => [...prev, { ...sectionData, id: newSection.id, programName }]);
+        const programName =
+          programs.find((p) => p.id === sectionData.program_id)?.name || "";
+        setSections((prev = []) => [
+          ...prev,
+          { ...sectionData, id: newSection.id, programName },
+        ]);
         setIsAddModalOpen(false);
         setSuccessModal({
           isOpen: true,
           message: `Section "${sectionData.section_name}" has been created successfully.`,
+        });
+        insertIntoReports({
+          action: `User ${session?.user.name} Created the Section ${sectionData.section_name}`,
+          user_id: Number(session?.user.id),
         });
       }
     } catch (error: any) {
@@ -198,7 +218,8 @@ const SectionManagement: React.FC = () => {
       } catch (error: any) {
         setErrorModal({
           isOpen: true,
-          message: error.message || "An error occurred while deleting the section.",
+          message:
+            error.message || "An error occurred while deleting the section.",
           details: "Please try again.",
         });
         setDeleteConfirmation({
@@ -322,7 +343,9 @@ const SectionManagement: React.FC = () => {
         {/* Error Modal */}
         <ErrorModal
           isOpen={errorModal.isOpen}
-          onClose={() => setErrorModal({ isOpen: false, message: "", details: "" })}
+          onClose={() =>
+            setErrorModal({ isOpen: false, message: "", details: "" })
+          }
           message={errorModal.message}
           details={errorModal.details}
         />

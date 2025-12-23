@@ -13,10 +13,12 @@ import MajorForm from "./MajorForm";
 import { filterMajors } from "./utils";
 import { getMajors } from "@/app/utils/majorUtils";
 import { getPrograms } from "@/app/utils/programUtils";
+import { insertIntoReports } from "@/app/utils/reportsUtils";
+import { useSession } from "next-auth/react";
 const MajorManagement: React.FC = () => {
   const [majors, setMajors] = useState<Major[]>([]);
   const [programs, setPrograms] = useState<Program[]>([]);
-
+  const { data: session } = useSession();
   useEffect(() => {
     const fetchData = async () => {
       try {
@@ -127,6 +129,10 @@ const MajorManagement: React.FC = () => {
           isOpen: true,
           message: `Major "${majorData.name}" has been updated successfully.`,
         });
+        insertIntoReports({
+          action: `User ${session?.user.name} Edited the Major ${majorData.name}`,
+          user_id: Number(session?.user.id),
+        });
       } else {
         const response = await fetch("/api/auth/major", {
           method: "POST",
@@ -152,6 +158,10 @@ const MajorManagement: React.FC = () => {
         setSuccessModal({
           isOpen: true,
           message: `Major "${majorData.name}" has been created successfully.`,
+        });
+        insertIntoReports({
+          action: `User ${session?.user.name} Edited the Created ${majorData.name}`,
+          user_id: Number(session?.user.id),
         });
       }
     } catch (error: any) {

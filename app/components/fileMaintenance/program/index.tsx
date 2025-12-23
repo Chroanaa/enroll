@@ -13,11 +13,12 @@ import ProgramForm from "./ProgramForm";
 import { filterPrograms } from "./utils";
 import { getPrograms } from "@/app/utils/programUtils";
 import { getDepartments } from "@/app/utils/departmentUtils";
-
+import { insertIntoReports } from "@/app/utils/reportsUtils";
+import { useSession } from "next-auth/react";
 const ProgramManagement: React.FC = () => {
   const [programs, setPrograms] = useState<Program[]>([]);
   const [departments, setDepartments] = useState<Department[]>([]);
-
+  const { data: session } = useSession();
   useEffect(() => {
     const fetchData = async () => {
       try {
@@ -130,6 +131,10 @@ const ProgramManagement: React.FC = () => {
           isOpen: true,
           message: `Program "${programData.name}" has been updated successfully.`,
         });
+        insertIntoReports({
+          action: `User ${session?.user.name} Edited the Program ${programData.name}`,
+          user_id: Number(session?.user.id),
+        });
       } else {
         const response = await fetch("/api/auth/program", {
           method: "POST",
@@ -156,6 +161,10 @@ const ProgramManagement: React.FC = () => {
         setSuccessModal({
           isOpen: true,
           message: `Program "${programData.name}" has been created successfully.`,
+        });
+        insertIntoReports({
+          action: `User ${session?.user.name} Created the Program ${programData.name}`,
+          user_id: Number(session?.user.id),
         });
       }
     } catch (error: any) {
