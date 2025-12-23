@@ -13,11 +13,12 @@ import RoomForm from "./RoomForm";
 import { filterRooms } from "./utils";
 import { getRooms } from "@/app/utils/roomUtils";
 import { getBuildings } from "@/app/utils/getBuildings";
-
+import { insertIntoReports } from "@/app/utils/reportsUtils";
+import { useSession } from "next-auth/react";
 const RoomManagement: React.FC = () => {
   const [rooms, setRooms] = useState<Room[]>([]);
   const [buildings, setBuildings] = useState<Building[]>([]);
-  
+  const { data: session } = useSession();
   React.useEffect(() => {
     async function fetchData() {
       try {
@@ -25,9 +26,13 @@ const RoomManagement: React.FC = () => {
           getRooms(),
           getBuildings(),
         ]);
-        const buildingsArray: Building[] = Array.isArray(buildingsData) ? buildingsData : Object.values(buildingsData);
+        const buildingsArray: Building[] = Array.isArray(buildingsData)
+          ? buildingsData
+          : Object.values(buildingsData);
         setBuildings(buildingsArray);
-        const roomsArray: Room[] = Array.isArray(roomsData) ? roomsData : Object.values(roomsData);
+        const roomsArray: Room[] = Array.isArray(roomsData)
+          ? roomsData
+          : Object.values(roomsData);
         setRooms(
           roomsArray.map((room) => ({
             ...room,
@@ -113,14 +118,21 @@ const RoomManagement: React.FC = () => {
           throw new Error(errorData.error || "Failed to update room");
         }
 
-        const buildingName = buildings.find((b) => b.id === roomData.building_id)?.name || "";
+        const buildingName =
+          buildings.find((b) => b.id === roomData.building_id)?.name || "";
         setRooms((prev) =>
-          prev.map((r) => (r.id === roomData.id ? { ...roomData, buildingName } : r))
+          prev.map((r) =>
+            r.id === roomData.id ? { ...roomData, buildingName } : r
+          )
         );
         setEditingRoom(null);
         setSuccessModal({
           isOpen: true,
           message: `Room "${roomData.room_number}" has been updated successfully.`,
+        });
+        insertIntoReports({
+          action: `User ${session?.user.name} Edited the Room ${roomData.room_number}`,
+          user_id: Number(session?.user.id),
         });
       } else {
         const response = await fetch("/api/auth/room", {
@@ -137,12 +149,20 @@ const RoomManagement: React.FC = () => {
         }
 
         const newRoom = await response.json();
-        const buildingName = buildings.find((b) => b.id === roomData.building_id)?.name || "";
-        setRooms((prev) => [...prev, { ...roomData, id: newRoom.id, buildingName }]);
+        const buildingName =
+          buildings.find((b) => b.id === roomData.building_id)?.name || "";
+        setRooms((prev) => [
+          ...prev,
+          { ...roomData, id: newRoom.id, buildingName },
+        ]);
         setIsAddModalOpen(false);
         setSuccessModal({
           isOpen: true,
           message: `Room "${roomData.room_number}" has been created successfully.`,
+        });
+        insertIntoReports({
+          action: `User ${session?.user.name} Created the Room ${roomData.room_number}`,
+          user_id: Number(session?.user.id),
         });
       }
     } catch (error: any) {
@@ -196,7 +216,8 @@ const RoomManagement: React.FC = () => {
       } catch (error: any) {
         setErrorModal({
           isOpen: true,
-          message: error.message || "An error occurred while deleting the room.",
+          message:
+            error.message || "An error occurred while deleting the room.",
           details: "Please try again.",
         });
         setDeleteConfirmation({
@@ -337,7 +358,9 @@ const RoomManagement: React.FC = () => {
         {/* Error Modal */}
         <ErrorModal
           isOpen={errorModal.isOpen}
-          onClose={() => setErrorModal({ isOpen: false, message: "", details: "" })}
+          onClose={() =>
+            setErrorModal({ isOpen: false, message: "", details: "" })
+          }
           message={errorModal.message}
           details={errorModal.details}
         />
