@@ -10,8 +10,9 @@ datasource db {
 model users {
   id       Int    @id @default(autoincrement())
   username String @db.VarChar(255)
-  password String @db.VarChar
+  password String @db.VarChar(255)
   role     Int
+  roles    roles  @relation(fields: [role], references: [id], onDelete: SetNull, onUpdate: SetNull, map: "role_fk")
 }
 
 model payment {
@@ -24,6 +25,7 @@ model roles {
   id     Int     @id @default(autoincrement())
   role   String? @db.VarChar(255)
   status Int?
+  users  users[]
 }
 
 model course {
