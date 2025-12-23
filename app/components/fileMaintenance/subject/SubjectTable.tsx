@@ -1,5 +1,5 @@
 import React from "react";
-import { BookOpen, Hash, Building2, GraduationCap, Edit2, Trash2 } from "lucide-react";
+import { BookOpen, Hash, GraduationCap, Edit2, Trash2 } from "lucide-react";
 import { Subject } from "../../../types";
 import { colors } from "../../../colors";
 import { getStatusColor } from "../utils";
@@ -8,13 +8,39 @@ interface SubjectTableProps {
   subjects: Subject[];
   onEdit: (subject: Subject) => void;
   onDelete: (id: number) => void;
+  selectedSubjects?: number[];
+  onSelectionChange?: (selectedIds: number[]) => void;
 }
 
 const SubjectTable: React.FC<SubjectTableProps> = ({
   subjects,
   onEdit,
   onDelete,
+  selectedSubjects = [],
+  onSelectionChange,
 }) => {
+  const handleSelectAll = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (onSelectionChange) {
+      if (e.target.checked) {
+        onSelectionChange(subjects.map((s) => s.id));
+      } else {
+        onSelectionChange([]);
+      }
+    }
+  };
+
+  const handleSelectOne = (id: number, checked: boolean) => {
+    if (onSelectionChange) {
+      if (checked) {
+        onSelectionChange([...selectedSubjects, id]);
+      } else {
+        onSelectionChange(selectedSubjects.filter((selectedId) => selectedId !== id));
+      }
+    }
+  };
+
+  const isAllSelected = subjects.length > 0 && selectedSubjects.length === subjects.length;
+  const isIndeterminate = selectedSubjects.length > 0 && selectedSubjects.length < subjects.length;
   return (
     <div className='bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden'>
       <div className='overflow-x-auto'>
@@ -26,6 +52,22 @@ const SubjectTable: React.FC<SubjectTableProps> = ({
                 borderBottom: `1px solid ${colors.primary}10`,
               }}
             >
+              {onSelectionChange && (
+                <th className='px-6 py-4 text-left text-xs font-bold uppercase tracking-wider text-gray-600 w-12'>
+                  <input
+                    type="checkbox"
+                    checked={isAllSelected}
+                    ref={(input) => {
+                      if (input) input.indeterminate = isIndeterminate;
+                    }}
+                    onChange={handleSelectAll}
+                    className="w-4 h-4 rounded border-gray-300 text-blue-600 focus:ring-2 focus:ring-blue-500"
+                    style={{
+                      accentColor: colors.secondary,
+                    }}
+                  />
+                </th>
+              )}
               <th className='px-6 py-4 text-left text-xs font-bold uppercase tracking-wider text-gray-600'>
                 Subject
               </th>
@@ -33,13 +75,7 @@ const SubjectTable: React.FC<SubjectTableProps> = ({
                 Code
               </th>
               <th className='px-6 py-4 text-left text-xs font-bold uppercase tracking-wider text-gray-600'>
-                Department
-              </th>
-              <th className='px-6 py-4 text-left text-xs font-bold uppercase tracking-wider text-gray-600'>
-                Units
-              </th>
-              <th className='px-6 py-4 text-left text-xs font-bold uppercase tracking-wider text-gray-600'>
-                Prerequisites
+                Units (Lec/Lab)
               </th>
               <th className='px-6 py-4 text-left text-xs font-bold uppercase tracking-wider text-gray-600'>
                 Status
@@ -52,7 +88,7 @@ const SubjectTable: React.FC<SubjectTableProps> = ({
           <tbody className='divide-y divide-gray-100'>
             {subjects.length === 0 ? (
               <tr>
-                <td colSpan={7} className='px-6 py-12 text-center text-gray-500'>
+                <td colSpan={onSelectionChange ? 6 : 5} className='px-6 py-12 text-center text-gray-500'>
                   <div className='flex flex-col items-center justify-center gap-3'>
                     <div
                       className='p-3 rounded-full'
@@ -78,6 +114,20 @@ const SubjectTable: React.FC<SubjectTableProps> = ({
                     key={subject.id}
                     className='group hover:bg-gray-50/50 transition-colors'
                   >
+                    {onSelectionChange && (
+                      <td className='px-6 py-4 whitespace-nowrap'>
+                        <input
+                          type="checkbox"
+                          checked={selectedSubjects.includes(subject.id)}
+                          onChange={(e) => handleSelectOne(subject.id, e.target.checked)}
+                          className="w-4 h-4 rounded border-gray-300 text-blue-600 focus:ring-2 focus:ring-blue-500"
+                          style={{
+                            accentColor: colors.secondary,
+                          }}
+                          onClick={(e) => e.stopPropagation()}
+                        />
+                      </td>
+                    )}
                     <td className='px-6 py-4 whitespace-nowrap'>
                       <div className='flex items-center'>
                         <div className='flex-shrink-0 h-10 w-10'>
@@ -119,24 +169,11 @@ const SubjectTable: React.FC<SubjectTableProps> = ({
                     </td>
                     <td className='px-6 py-4 whitespace-nowrap'>
                       <div className='flex items-center gap-2'>
-                        <Building2 className='w-3.5 h-3.5 text-gray-400' />
-                        <span className='text-sm text-gray-600'>
-                          {subject.departmentName || "N/A"}
-                        </span>
-                      </div>
-                    </td>
-                    <td className='px-6 py-4 whitespace-nowrap'>
-                      <div className='flex items-center gap-2'>
                         <GraduationCap className='w-3.5 h-3.5 text-gray-400' />
                         <span className='text-sm font-medium text-gray-700'>
-                          {subject.units}
+                          {subject.units_lec || 0}/{subject.units_lab || 0}
                         </span>
                       </div>
-                    </td>
-                    <td className='px-6 py-4'>
-                      <span className='text-sm text-gray-600'>
-                        {subject.prerequisites || "None"}
-                      </span>
                     </td>
                     <td className='px-6 py-4 whitespace-nowrap'>
                       <span
