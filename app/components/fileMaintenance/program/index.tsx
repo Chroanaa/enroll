@@ -215,6 +215,10 @@ const ProgramManagement: React.FC = () => {
           isOpen: true,
           message: `Program "${deleteConfirmation.programName}" has been deleted successfully.`,
         });
+        insertIntoReports({
+          action: `This Subject: ${deleteConfirmation.programName} Was deleted By ${session?.user.name}`,
+          user_id: Number(session?.user.id),
+        });
       } catch (error: any) {
         setErrorModal({
           isOpen: true,

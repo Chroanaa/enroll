@@ -211,6 +211,10 @@ const FacultyManagement: React.FC = () => {
           isOpen: true,
           message: `Faculty "${deleteConfirmation.facultyName}" has been deleted successfully.`,
         });
+        insertIntoReports({
+          action: `This Subject: ${deleteConfirmation.facultyName} Was deleted By ${session?.user.name}`,
+          user_id: Number(session?.user.id),
+        });
       } catch (error: any) {
         setErrorModal({
           isOpen: true,

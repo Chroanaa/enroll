@@ -218,6 +218,10 @@ const DepartmentManagement: React.FC = () => {
           isOpen: true,
           message: `Department "${deleteConfirmation.departmentName}" has been deleted successfully.`,
         });
+        insertIntoReports({
+          action: `This Subject: ${deleteConfirmation.departmentName} Was deleted By ${session?.user.name}`,
+          user_id: Number(session?.user.id),
+        });
       } catch (error: any) {
         setErrorModal({
           isOpen: true,
