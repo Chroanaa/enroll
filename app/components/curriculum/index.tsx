@@ -1,6 +1,7 @@
 "use client";
 import React, { useState, useMemo, useEffect } from "react";
 import { Plus, GraduationCap, FileText, Edit2, Trash2 } from "lucide-react";
+import { useRouter } from "next/navigation";
 import { Curriculum } from "../../types";
 import { colors } from "../../colors";
 import CurriculumTable from "./CurriculumTable";
@@ -11,6 +12,7 @@ import SuccessModal from "../common/SuccessModal";
 import ErrorModal from "../common/ErrorModal";
 import { getCurriculums } from "@/app/utils/curriculumUtils";
 const CurriculumManagement: React.FC = () => {
+  const router = useRouter();
   const [curriculumList, setCurriculumList] = useState<Curriculum[]>([]);
 
   // Initialize with mock BSIT curriculum data
@@ -234,7 +236,7 @@ const CurriculumManagement: React.FC = () => {
             </p>
           </div>
           <button
-            onClick={() => setIsAddModalOpen(true)}
+            onClick={() => router.push("/curriculum/new")}
             className='flex items-center gap-2 px-5 py-3 text-white rounded-xl transition-all shadow-lg shadow-blue-900/20 hover:shadow-xl hover:scale-105 active:scale-95'
             style={{ backgroundColor: colors.secondary }}
           >
@@ -286,7 +288,7 @@ const CurriculumManagement: React.FC = () => {
                   Get started by creating your first curriculum program
                 </p>
                 <button
-                  onClick={() => setIsAddModalOpen(true)}
+                  onClick={() => router.push("/curriculum/new")}
                   className='flex items-center gap-2 px-4 py-2 text-white rounded-lg transition-all mx-auto'
                   style={{ backgroundColor: colors.secondary }}
                 >

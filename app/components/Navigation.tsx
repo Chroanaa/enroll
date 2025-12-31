@@ -49,6 +49,7 @@ const Navigation: React.FC<NavigationProps> = ({
   const userRole = Number((session?.user as any)?.role) || 0;
 
   const [isFileMaintenanceOpen, setIsFileMaintenanceOpen] = useState(false);
+  const [isCurriculumOpen, setIsCurriculumOpen] = useState(false);
   const prevViewRef = useRef<string>("");
 
   const fileMaintenanceSubItems = useMemo(
@@ -318,64 +319,84 @@ const Navigation: React.FC<NavigationProps> = ({
                 {group.items.map((item) => {
                   const Icon = item.icon;
                   const isFileMaintenance = item.id === "file-maintenance";
+                  const isCurriculum = item.id === "curriculum";
                   const isActive = isFileMaintenance
                     ? isFileMaintenanceActive
+                    : isCurriculum
+                    ? isCurriculumActive
                     : currentView === item.id;
 
                   return (
                     <li key={item.id}>
-                      <button
-                        onClick={(e) => {
-                          e.preventDefault();
-                          if (isFileMaintenance && item.hasSubmenu) {
-                            setIsFileMaintenanceOpen(!isFileMaintenanceOpen);
-                          } else {
-                            onViewChange(item.id);
-                          }
-                        }}
-                        className='w-full flex items-center justify-center md:justify-start gap-0 md:gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all duration-200'
-                        style={
-                          isActive
-                            ? {
-                                backgroundColor: `${colors.secondary}30`,
-                                color: colors.paper,
-                                border: `1px solid ${colors.secondary}`,
+                      <div className='relative w-full'>
+                        <button
+                          onClick={(e) => {
+                            e.preventDefault();
+                            // Check if click was on the chevron area
+                            const target = e.target as HTMLElement;
+                            const isChevronClick = target.closest('.chevron-toggle');
+                            
+                            if (isChevronClick) {
+                              if (isFileMaintenance) {
+                                setIsFileMaintenanceOpen(!isFileMaintenanceOpen);
+                              } else if (isCurriculum) {
+                                setIsCurriculumOpen(!isCurriculumOpen);
                               }
-                            : {
-                                color: colors.paper,
-                                backgroundColor: "transparent",
-                                border: "1px solid transparent",
-                                opacity: 0.8,
+                            } else {
+                              if (isFileMaintenance && item.hasSubmenu) {
+                                setIsFileMaintenanceOpen(!isFileMaintenanceOpen);
+                              } else if (isCurriculum && item.hasSubmenu) {
+                                // For Curriculum, clicking the main button navigates to curriculum view
+                                onViewChange(item.id);
+                              } else {
+                                onViewChange(item.id);
                               }
-                        }
-                        onMouseEnter={(e) => {
-                          if (!isActive) {
-                            e.currentTarget.style.backgroundColor = `${colors.paper}20`;
-                            e.currentTarget.style.opacity = "1";
+                            }
+                          }}
+                          className='w-full flex items-center justify-center md:justify-start gap-0 md:gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all duration-200 relative'
+                          style={
+                            isActive
+                              ? {
+                                  backgroundColor: `${colors.secondary}30`,
+                                  color: colors.paper,
+                                  border: `1px solid ${colors.secondary}`,
+                                }
+                              : {
+                                  color: colors.paper,
+                                  backgroundColor: "transparent",
+                                  border: "1px solid transparent",
+                                  opacity: 0.8,
+                                }
                           }
-                        }}
-                        onMouseLeave={(e) => {
-                          if (!isActive) {
-                            e.currentTarget.style.backgroundColor =
-                              "transparent";
-                            e.currentTarget.style.opacity = "0.8";
-                          }
-                        }}
-                      >
-                        <Icon className='w-5 h-5' />
-                        <span className='hidden md:inline flex-1 text-left'>
-                          {item.label}
-                        </span>
-                        {isFileMaintenance && item.hasSubmenu && (
-                          <span className='hidden md:inline'>
-                            {isFileMaintenanceOpen ? (
-                              <ChevronDown className='w-4 h-4' />
-                            ) : (
-                              <ChevronRight className='w-4 h-4' />
-                            )}
+                          onMouseEnter={(e) => {
+                            if (!isActive) {
+                              e.currentTarget.style.backgroundColor = `${colors.paper}20`;
+                              e.currentTarget.style.opacity = "1";
+                            }
+                          }}
+                          onMouseLeave={(e) => {
+                            if (!isActive) {
+                              e.currentTarget.style.backgroundColor =
+                                "transparent";
+                              e.currentTarget.style.opacity = "0.8";
+                            }
+                          }}
+                        >
+                          <Icon className='w-5 h-5' />
+                          <span className='hidden md:inline flex-1 text-left'>
+                            {item.label}
                           </span>
-                        )}
-                      </button>
+                          {((isFileMaintenance || isCurriculum) && item.hasSubmenu) && (
+                            <span className='hidden md:inline chevron-toggle cursor-pointer flex items-center justify-center'>
+                              {(isFileMaintenance && isFileMaintenanceOpen) || (isCurriculum && isCurriculumOpen) ? (
+                                <ChevronDown className='w-4 h-4' />
+                              ) : (
+                                <ChevronRight className='w-4 h-4' />
+                              )}
+                            </span>
+                          )}
+                        </button>
+                      </div>
 
                       {/* File Maintenance Submenu */}
                       {isFileMaintenance &&
@@ -383,6 +404,62 @@ const Navigation: React.FC<NavigationProps> = ({
                         isFileMaintenanceOpen && (
                           <ul className='ml-0 md:ml-4 mt-1 space-y-1'>
                             {visibleSubItems.map((subItem) => {
+                              const SubIcon = subItem.icon;
+                              const isSubActive = currentView === subItem.id;
+                              return (
+                                <li key={subItem.id}>
+                                  <button
+                                    onClick={(e) => {
+                                      e.preventDefault();
+                                      e.stopPropagation();
+                                      onViewChange(subItem.id);
+                                    }}
+                                    className='w-full flex items-center justify-center md:justify-start gap-0 md:gap-3 px-3 py-2 rounded-lg text-xs md:text-sm font-medium transition-all duration-200'
+                                    style={
+                                      isSubActive
+                                        ? {
+                                            backgroundColor: `${colors.secondary}40`,
+                                            color: colors.paper,
+                                            border: `1px solid ${colors.secondary}`,
+                                          }
+                                        : {
+                                            color: colors.paper,
+                                            backgroundColor: "transparent",
+                                            border: "1px solid transparent",
+                                            opacity: 0.7,
+                                          }
+                                    }
+                                    onMouseEnter={(e) => {
+                                      if (!isSubActive) {
+                                        e.currentTarget.style.backgroundColor = `${colors.paper}20`;
+                                        e.currentTarget.style.opacity = "1";
+                                      }
+                                    }}
+                                    onMouseLeave={(e) => {
+                                      if (!isSubActive) {
+                                        e.currentTarget.style.backgroundColor =
+                                          "transparent";
+                                        e.currentTarget.style.opacity = "0.7";
+                                      }
+                                    }}
+                                  >
+                                    <SubIcon className='w-4 h-4' />
+                                    <span className='hidden md:inline'>
+                                      {subItem.label}
+                                    </span>
+                                  </button>
+                                </li>
+                              );
+                            })}
+                          </ul>
+                        )}
+
+                      {/* Curriculum Submenu */}
+                      {isCurriculum &&
+                        item.hasSubmenu &&
+                        isCurriculumOpen && (
+                          <ul className='ml-0 md:ml-4 mt-1 space-y-1'>
+                            {curriculumSubItems.map((subItem) => {
                               const SubIcon = subItem.icon;
                               const isSubActive = currentView === subItem.id;
                               return (
