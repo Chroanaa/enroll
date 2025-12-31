@@ -215,6 +215,10 @@ const SectionManagement: React.FC = () => {
           isOpen: true,
           message: `Section "${deleteConfirmation.sectionName}" has been deleted successfully.`,
         });
+        insertIntoReports({
+          action: `This Subject: ${deleteConfirmation.sectionName} Was deleted By ${session?.user.name}`,
+          user_id: Number(session?.user.id),
+        });
       } catch (error: any) {
         setErrorModal({
           isOpen: true,

@@ -184,6 +184,10 @@ const FeesManagement: React.FC = () => {
           isOpen: true,
           message: `Fee "${deleteConfirmation.feeName}" has been deleted successfully.`,
         });
+        insertIntoReports({
+          action: `This Subject: ${deleteConfirmation.feeName} Was deleted By ${session?.user.name}`,
+          user_id: Number(session?.user.id),
+        });
       } catch (error: any) {
         setErrorModal({
           isOpen: true,

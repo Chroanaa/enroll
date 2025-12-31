@@ -314,6 +314,10 @@ const SubjectManagement: React.FC = () => {
           isOpen: true,
           message: `Subject "${deleteConfirmation.subjectName}" has been deleted successfully.`,
         });
+        insertIntoReports({
+          action: `This Subject: ${deleteConfirmation.subjectName} Was deleted By ${session?.user.name}`,
+          user_id: Number(session?.user.id),
+        });
       } catch (error: any) {
         setErrorModal({
           isOpen: true,
