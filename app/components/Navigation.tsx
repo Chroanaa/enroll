@@ -112,6 +112,18 @@ const Navigation: React.FC<NavigationProps> = ({
     []
   );
 
+  const curriculumSubItems = useMemo(
+    () => [
+      {
+        id: "curriculum-program",
+        label: "Program",
+        icon: GraduationCap,
+        allowedRoles: [ROLES.ADMIN, ROLES.REGISTRAR],
+      },
+    ],
+    []
+  );
+
   const navGroups = useMemo(
     () => [
       {
@@ -145,6 +157,7 @@ const Navigation: React.FC<NavigationProps> = ({
             id: "curriculum",
             label: "Curriculum",
             icon: GraduationCap,
+            hasSubmenu: true,
             allowedRoles: [ROLES.ADMIN, ROLES.REGISTRAR, ROLES.FACULTY],
           },
           {
@@ -233,22 +246,36 @@ const Navigation: React.FC<NavigationProps> = ({
             return visibleSubItems.length > 0;
           }
 
+          if (item.id === "curriculum") {
+            const visibleSubItems = curriculumSubItems.filter((sub) =>
+              sub.allowedRoles.includes(userRole)
+            );
+            return visibleSubItems.length > 0;
+          }
+
           return true;
         });
 
         return { ...group, items: visibleItems };
       })
       .filter((group) => group.items.length > 0);
-  }, [navGroups, fileMaintenanceSubItems, userRole]);
+  }, [navGroups, fileMaintenanceSubItems, curriculumSubItems, userRole]);
 
   // Filter sub-items for rendering
   const visibleSubItems = fileMaintenanceSubItems.filter((item) =>
     item.allowedRoles.includes(userRole)
   );
 
+  const visibleCurriculumSubItems = curriculumSubItems.filter((item) =>
+    item.allowedRoles.includes(userRole)
+  );
+
   const isFileMaintenanceActive = currentView.startsWith("file-maintenance");
+  const isCurriculumActive = currentView.startsWith("curriculum");
   const prevWasFileMaintenance =
     prevViewRef.current.startsWith("file-maintenance");
+  const prevWasCurriculum =
+    prevViewRef.current.startsWith("curriculum");
 
   useEffect(() => {
     if (
@@ -258,12 +285,22 @@ const Navigation: React.FC<NavigationProps> = ({
     ) {
       setIsFileMaintenanceOpen(true);
     }
+    if (
+      isCurriculumActive &&
+      !prevWasCurriculum &&
+      !isCurriculumOpen
+    ) {
+      setIsCurriculumOpen(true);
+    }
     prevViewRef.current = currentView;
   }, [
     currentView,
     isFileMaintenanceActive,
     prevWasFileMaintenance,
     isFileMaintenanceOpen,
+    isCurriculumActive,
+    prevWasCurriculum,
+    isCurriculumOpen,
   ]);
 
   return (
@@ -459,7 +496,7 @@ const Navigation: React.FC<NavigationProps> = ({
                         item.hasSubmenu &&
                         isCurriculumOpen && (
                           <ul className='ml-0 md:ml-4 mt-1 space-y-1'>
-                            {curriculumSubItems.map((subItem) => {
+                            {visibleCurriculumSubItems.map((subItem) => {
                               const SubIcon = subItem.icon;
                               const isSubActive = currentView === subItem.id;
                               return (
