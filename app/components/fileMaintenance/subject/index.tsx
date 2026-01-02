@@ -15,6 +15,7 @@ import { getSubjects } from "@/app/utils/subjectUtils";
 import { getDepartments } from "@/app/utils/departmentUtils";
 import { insertIntoReports } from "@/app/utils/reportsUtils";
 import { useSession } from "next-auth/react";
+import { Department } from "../../../types";
 const SubjectManagement: React.FC = () => {
   const [subjects, setSubjects] = useState<Subject[]>();
   const [departments, setDepartments] = useState<Department[]>([]);
@@ -107,7 +108,9 @@ const SubjectManagement: React.FC = () => {
     window.scrollTo({ top: 0, behavior: "smooth" });
   };
 
-  const handleSaveMultipleSubjects = async (subjectsData: Omit<Subject, 'id'>[]) => {
+  const handleSaveMultipleSubjects = async (
+    subjectsData: Omit<Subject, "id">[]
+  ) => {
     try {
       const response = await fetch("/api/auth/subject/bulk", {
         method: "POST",
@@ -139,7 +142,8 @@ const SubjectManagement: React.FC = () => {
     } catch (error: any) {
       setErrorModal({
         isOpen: true,
-        message: error.message || "An error occurred while saving the subjects.",
+        message:
+          error.message || "An error occurred while saving the subjects.",
         details: "Please check your input and try again.",
       });
     }
@@ -162,9 +166,7 @@ const SubjectManagement: React.FC = () => {
         }
 
         setSubjects((prev) =>
-          (prev || []).map((s) =>
-            s.id === subjectData.id ? subjectData : s
-          )
+          (prev || []).map((s) => (s.id === subjectData.id ? subjectData : s))
         );
         setEditingSubject(null);
         setSuccessModal({
@@ -380,7 +382,7 @@ const SubjectManagement: React.FC = () => {
         </div>
 
         {/* Search and Filters */}
-        <div className="space-y-4">
+        <div className='space-y-4'>
           <div className='bg-white p-4 rounded-2xl shadow-sm border border-gray-100 flex flex-col md:flex-row gap-4 items-center justify-between'>
             <div className='relative flex-1 w-full md:max-w-md'>
               <Search className='absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5' />
@@ -390,9 +392,9 @@ const SubjectManagement: React.FC = () => {
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
                 className='w-full pl-10 pr-4 py-2.5 border border-gray-200 rounded-xl focus:ring-2 focus:ring-offset-0 transition-all'
-                style={{ 
+                style={{
                   outline: "none",
-                  color: "var(--text-brown)"
+                  color: "var(--text-brown)",
                 }}
                 onFocus={(e) => {
                   e.currentTarget.style.borderColor = colors.tertiary;
@@ -412,18 +414,20 @@ const SubjectManagement: React.FC = () => {
                   value={statusFilter}
                   onChange={(e) =>
                     setStatusFilter(
-                      e.target.value === "all" ? "all" : (e.target.value as "active" | "inactive")
+                      e.target.value === "all"
+                        ? "all"
+                        : (e.target.value as "active" | "inactive")
                     )
                   }
                   className='bg-transparent border-none text-sm font-medium focus:ring-0 cursor-pointer'
-                  style={{ 
+                  style={{
                     outline: "none",
-                    color: "#6B5B4F"
+                    color: "#6B5B4F",
                   }}
                 >
-                  <option value="all">All Status</option>
-                  <option value="active">Active</option>
-                  <option value="inactive">Inactive</option>
+                  <option value='all'>All Status</option>
+                  <option value='active'>Active</option>
+                  <option value='inactive'>Inactive</option>
                 </select>
               </div>
               <button
@@ -443,13 +447,13 @@ const SubjectManagement: React.FC = () => {
             </div>
           </div>
           {showCheckboxes && (
-            <div className="flex items-center justify-between p-3 bg-gray-50 rounded-lg border border-gray-200">
-              <span className="text-sm font-medium text-gray-700">
+            <div className='flex items-center justify-between p-3 bg-gray-50 rounded-lg border border-gray-200'>
+              <span className='text-sm font-medium text-gray-700'>
                 {selectedSubjects.length > 0
                   ? `${selectedSubjects.length} subject(s) selected`
                   : "Select subjects to delete"}
               </span>
-              <div className="flex gap-2">
+              <div className='flex gap-2'>
                 {selectedSubjects.length > 0 && (
                   <button
                     onClick={() => {
@@ -458,7 +462,7 @@ const SubjectManagement: React.FC = () => {
                         subjectIds: selectedSubjects,
                       });
                     }}
-                    className="px-4 py-2 text-white rounded-lg transition-all text-sm font-medium flex items-center gap-2 shadow-md hover:shadow-lg"
+                    className='px-4 py-2 text-white rounded-lg transition-all text-sm font-medium flex items-center gap-2 shadow-md hover:shadow-lg'
                     style={{ backgroundColor: "#DC2626" }}
                     onMouseEnter={(e) =>
                       (e.currentTarget.style.backgroundColor = "#B91C1C")
@@ -467,13 +471,13 @@ const SubjectManagement: React.FC = () => {
                       (e.currentTarget.style.backgroundColor = "#DC2626")
                     }
                   >
-                    <Trash2 className="w-4 h-4" />
+                    <Trash2 className='w-4 h-4' />
                     Delete Selected
                   </button>
                 )}
                 <button
                   onClick={handleCancelDeleteAll}
-                  className="px-4 py-2 rounded-lg transition-all text-sm font-medium border border-gray-300 hover:bg-gray-100"
+                  className='px-4 py-2 rounded-lg transition-all text-sm font-medium border border-gray-300 hover:bg-gray-100'
                   style={{ color: colors.primary }}
                 >
                   Cancel

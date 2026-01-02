@@ -58,6 +58,18 @@ const EnrollmentManagement: React.FC = () => {
     pending: 0,
     dropped: 0,
   });
+  const excelImport = async () => {
+    const input = document.getElementById("excelFile") as HTMLInputElement;
+
+    const file = input.files?.[0];
+    if (!file) return;
+
+    const formData = new FormData();
+    formData.append("file", file);
+    const response = await fetch("/api/auth/enroll/bulk", {
+      body: formData,
+    });
+  };
 
   useEffect(() => {
     const fetchData = async () => {
@@ -271,6 +283,13 @@ const EnrollmentManagement: React.FC = () => {
           >
             <Plus className='w-5 h-5' />
             <span className='font-medium'>Add Enrollment</span>
+          </button>
+          <button
+            className='flex items-center gap-2 px-5 py-3 text-white rounded-xl transition-all shadow-lg shadow-blue-900/20 hover:shadow-xl hover:scale-105 active:scale-95'
+            style={{ backgroundColor: colors.secondary }}
+          >
+            <Plus className='w-5 h-5' />
+            <span className='font-medium'>Import Excel file</span>
           </button>
         </div>
 
