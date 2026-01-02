@@ -10,6 +10,7 @@ export async function POST(request: NextRequest) {
 
     const enrollment = await prisma.enrollment.create({
       data: {
+        student_number: formData.student_number || null,
         admission_date: formData.admission_date
           ? new Date(formData.admission_date)
           : null,
@@ -96,6 +97,7 @@ export async function PATCH(nextRequest: NextRequest) {
     const updatedEnrollment = await prisma.enrollment.update({
       where: { id: data.id },
       data: {
+        student_number: data.student_number || null,
         admission_date: data.admission_date
           ? new Date(data.admission_date)
           : null,

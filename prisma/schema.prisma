@@ -74,6 +74,7 @@ model students {
 
 model enrollment {
   id                       Int       @id @default(autoincrement())
+  student_number           String?   @db.VarChar(20)
   admission_date           DateTime? @db.Date
   admission_status         String?   @db.VarChar(50)
   term                     String?   @db.VarChar(50)
