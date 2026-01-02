@@ -6,13 +6,16 @@ import { colors } from "../../../colors";
 import ConfirmationModal from "../../common/ConfirmationModal";
 import SuccessModal from "../../common/SuccessModal";
 import ErrorModal from "../../common/ErrorModal";
+import { useSession } from "next-auth/react";
 import SearchFilters from "../../common/SearchFilters";
 import Pagination from "../../common/Pagination";
 import BuildingTable from "./BuildingTable";
 import BuildingForm from "./BuildingForm";
 import { filterBuildings } from "./utils";
 import { getBuildings } from "@/app/utils/getBuildings";
+import { insertIntoReports } from "@/app/utils/reportsUtils";
 const BuildingManagement: React.FC = () => {
+  const { data: session } = useSession();
   const [buildings, setBuildings] = useState<Building[]>();
   React.useEffect(() => {
     const fetchBuildings = async () => {
@@ -100,6 +103,10 @@ const BuildingManagement: React.FC = () => {
           isOpen: true,
           message: `Building "${buildingData.name}" has been updated successfully.`,
         });
+        insertIntoReports({
+          action: `User ${session?.user.name} Edited the Building ${buildingData.name}`,
+          user_id: Number(session?.user.id),
+        });
       } else {
         const response = await fetch("/api/auth/building", {
           method: "POST",
@@ -123,6 +130,10 @@ const BuildingManagement: React.FC = () => {
         setSuccessModal({
           isOpen: true,
           message: `Building "${buildingData.name}" has been created successfully.`,
+        });
+        insertIntoReports({
+          action: `User ${session?.user.name} Created the Building ${buildingData.name}`,
+          user_id: Number(session?.user.id),
         });
       }
     } catch (error: any) {
@@ -173,6 +184,10 @@ const BuildingManagement: React.FC = () => {
         setSuccessModal({
           isOpen: true,
           message: `Building "${deleteConfirmation.buildingName}" has been deleted successfully.`,
+        });
+        insertIntoReports({
+          action: `This Subject: ${deleteConfirmation.buildingName} Was deleted By ${session?.user.name}`,
+          user_id: Number(session?.user.id),
         });
       } catch (error: any) {
         setErrorModal({

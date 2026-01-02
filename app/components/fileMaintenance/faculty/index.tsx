@@ -13,11 +13,12 @@ import FacultyForm from "./FacultyForm";
 import { filterFaculty } from "./utils";
 import { getFaculties } from "@/app/utils/facultyUtils";
 import { getDepartments } from "@/app/utils/departmentUtils";
-
+import { insertIntoReports } from "@/app/utils/reportsUtils";
+import { useSession } from "next-auth/react";
 const FacultyManagement: React.FC = () => {
   const [faculty, setFaculty] = useState<Faculty[]>([]);
   const [departments, setDepartments] = useState<Department[]>([]);
-  
+  const { data: session } = useSession();
   useEffect(() => {
     const fetchData = async () => {
       try {
@@ -25,13 +26,18 @@ const FacultyManagement: React.FC = () => {
           getFaculties(),
           getDepartments(),
         ]);
-        const departmentsArray: Department[] = Array.isArray(departmentsData) ? departmentsData : Object.values(departmentsData);
+        const departmentsArray: Department[] = Array.isArray(departmentsData)
+          ? departmentsData
+          : Object.values(departmentsData);
         setDepartments(departmentsArray);
-        const facultyArray: Faculty[] = Array.isArray(facultyData) ? facultyData : Object.values(facultyData);
+        const facultyArray: Faculty[] = Array.isArray(facultyData)
+          ? facultyData
+          : Object.values(facultyData);
         const facultyWithDepartmentNames = facultyArray.map((fac) => ({
           ...fac,
           departmentName:
-            departmentsArray.find((d) => d.id === fac.department_id)?.name || "",
+            departmentsArray.find((d) => d.id === fac.department_id)?.name ||
+            "",
         }));
         setFaculty(facultyWithDepartmentNames);
       } catch (error) {
@@ -112,9 +118,13 @@ const FacultyManagement: React.FC = () => {
           throw new Error(errorData.error || "Failed to update faculty");
         }
 
-        const departmentName = departments.find((d) => d.id === facultyData.department_id)?.name || "";
+        const departmentName =
+          departments.find((d) => d.id === facultyData.department_id)?.name ||
+          "";
         setFaculty((prev) =>
-          prev.map((f) => (f.id === facultyData.id ? { ...facultyData, departmentName } : f))
+          prev.map((f) =>
+            f.id === facultyData.id ? { ...facultyData, departmentName } : f
+          )
         );
         setEditingFaculty(null);
         setSuccessModal({
@@ -136,12 +146,21 @@ const FacultyManagement: React.FC = () => {
         }
 
         const newFaculty = await response.json();
-        const departmentName = departments.find((d) => d.id === facultyData.department_id)?.name || "";
-        setFaculty((prev) => [...prev, { ...facultyData, id: newFaculty.id, departmentName }]);
+        const departmentName =
+          departments.find((d) => d.id === facultyData.department_id)?.name ||
+          "";
+        setFaculty((prev) => [
+          ...prev,
+          { ...facultyData, id: newFaculty.id, departmentName },
+        ]);
         setIsAddModalOpen(false);
         setSuccessModal({
           isOpen: true,
           message: `Faculty "${facultyData.first_name} ${facultyData.last_name}" has been created successfully.`,
+        });
+        insertIntoReports({
+          action: `User ${session?.user.name} Created the faculty ${facultyData.first_name} ${facultyData.last_name}`,
+          user_id: Number(session?.user.id),
         });
       }
     } catch (error: any) {
@@ -192,10 +211,15 @@ const FacultyManagement: React.FC = () => {
           isOpen: true,
           message: `Faculty "${deleteConfirmation.facultyName}" has been deleted successfully.`,
         });
+        insertIntoReports({
+          action: `This Subject: ${deleteConfirmation.facultyName} Was deleted By ${session?.user.name}`,
+          user_id: Number(session?.user.id),
+        });
       } catch (error: any) {
         setErrorModal({
           isOpen: true,
-          message: error.message || "An error occurred while deleting the faculty.",
+          message:
+            error.message || "An error occurred while deleting the faculty.",
           details: "Please try again.",
         });
         setDeleteConfirmation({
@@ -332,7 +356,9 @@ const FacultyManagement: React.FC = () => {
         {/* Error Modal */}
         <ErrorModal
           isOpen={errorModal.isOpen}
-          onClose={() => setErrorModal({ isOpen: false, message: "", details: "" })}
+          onClose={() =>
+            setErrorModal({ isOpen: false, message: "", details: "" })
+          }
           message={errorModal.message}
           details={errorModal.details}
         />

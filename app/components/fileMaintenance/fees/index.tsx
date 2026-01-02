@@ -12,8 +12,11 @@ import FeesTable from "./FeesTable";
 import FeesForm from "./FeesForm";
 import { filterFees } from "./utils";
 import { getFees } from "@/app/utils/feesUtils";
+import { insertIntoReports } from "@/app/utils/reportsUtils";
+import { useSession } from "next-auth/react";
 const FeesManagement: React.FC = () => {
   const [fees, setFees] = useState<Fee[]>([]);
+  const { data: session } = useSession();
   useEffect(() => {
     const fetchFees = async () => {
       try {
@@ -103,6 +106,10 @@ const FeesManagement: React.FC = () => {
           isOpen: true,
           message: `Fee "${feeData.name}" has been updated successfully.`,
         });
+        insertIntoReports({
+          action: `User ${session?.user.name} Edited the Department ${feeData.name}`,
+          user_id: Number(session?.user.id),
+        });
       } else {
         const response = await fetch("/api/auth/fees", {
           method: "POST",
@@ -123,6 +130,10 @@ const FeesManagement: React.FC = () => {
         setSuccessModal({
           isOpen: true,
           message: `Fee "${feeData.name}" has been created successfully.`,
+        });
+        insertIntoReports({
+          action: `User ${session?.user.name} Created the Fees ${feeData.name}`,
+          user_id: Number(session?.user.id),
         });
       }
     } catch (error: any) {
@@ -172,6 +183,10 @@ const FeesManagement: React.FC = () => {
         setSuccessModal({
           isOpen: true,
           message: `Fee "${deleteConfirmation.feeName}" has been deleted successfully.`,
+        });
+        insertIntoReports({
+          action: `This Subject: ${deleteConfirmation.feeName} Was deleted By ${session?.user.name}`,
+          user_id: Number(session?.user.id),
         });
       } catch (error: any) {
         setErrorModal({

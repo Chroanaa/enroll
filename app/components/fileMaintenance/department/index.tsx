@@ -13,10 +13,12 @@ import DepartmentForm from "./DepartmentForm";
 import { filterDepartments } from "./utils";
 import { getDepartments } from "@/app/utils/departmentUtils";
 import { getBuildings } from "@/app/utils/getBuildings";
+import { insertIntoReports } from "@/app/utils/reportsUtils";
+import { useSession } from "next-auth/react";
 const DepartmentManagement: React.FC = () => {
   const [departments, setDepartments] = useState<Department[]>([]);
   const [buildings, setBuildings] = useState<Building[]>([]);
-
+  const { data: session } = useSession();
   React.useEffect(() => {
     async function fetchData() {
       try {
@@ -131,6 +133,10 @@ const DepartmentManagement: React.FC = () => {
           isOpen: true,
           message: `Department "${departmentData.name}" has been updated successfully.`,
         });
+        insertIntoReports({
+          action: `User ${session?.user.name} Edited the Department ${departmentData.name}`,
+          user_id: Number(session?.user.id),
+        });
       } else {
         const response = await fetch("/api/auth/department", {
           method: "POST",
@@ -157,6 +163,10 @@ const DepartmentManagement: React.FC = () => {
         setSuccessModal({
           isOpen: true,
           message: `Department "${departmentData.name}" has been created successfully.`,
+        });
+        insertIntoReports({
+          action: `User ${session?.user.name} Created the Department ${departmentData.name}`,
+          user_id: Number(session?.user.id),
         });
       }
     } catch (error: any) {
@@ -207,6 +217,10 @@ const DepartmentManagement: React.FC = () => {
         setSuccessModal({
           isOpen: true,
           message: `Department "${deleteConfirmation.departmentName}" has been deleted successfully.`,
+        });
+        insertIntoReports({
+          action: `This Subject: ${deleteConfirmation.departmentName} Was deleted By ${session?.user.name}`,
+          user_id: Number(session?.user.id),
         });
       } catch (error: any) {
         setErrorModal({
