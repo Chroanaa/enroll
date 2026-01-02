@@ -11,13 +11,11 @@ interface BasicInfoFormProps {
   formData: Partial<Curriculum>;
   selectedProgramId: number | undefined;
   selectedMajorId: number | undefined;
-  startYear: number;
-  endYear: number;
+  effectiveYear: number;
   currentYear: number;
   onProgramChange: (programId: number) => void;
   onMajorChange: (majorId: number) => void;
-  onStartYearChange: (year: number) => void;
-  onEndYearChange: (year: number) => void;
+  onEffectiveYearChange: (year: number) => void;
   onStatusChange: (status: "active" | "inactive") => void;
   onFormDataChange: (data: Partial<Curriculum>) => void;
   onMajorReset: () => void;
@@ -27,13 +25,11 @@ const BasicInfoForm: React.FC<BasicInfoFormProps> = ({
   formData,
   selectedProgramId,
   selectedMajorId,
-  startYear,
-  endYear,
+  effectiveYear,
   currentYear,
   onProgramChange,
   onMajorChange,
-  onStartYearChange,
-  onEndYearChange,
+  onEffectiveYearChange,
   onStatusChange,
   onFormDataChange,
   onMajorReset,
@@ -224,53 +220,23 @@ const BasicInfoForm: React.FC<BasicInfoFormProps> = ({
         </select>
       </div>
 
-      {/* Start Year */}
+      {/* Effective Year */}
       <div>
         <label
           className='flex items-center gap-2 text-sm font-semibold mb-2'
           style={{ color: colors.primary }}
         >
           <Hash className='w-4 h-4 text-gray-400' />
-          Start Effective Year <span className='text-red-500'>*</span>
+          Effective Year <span className='text-red-500'>*</span>
         </label>
         <input
           type='number'
           min='2000'
           max='2100'
-          value={startYear}
+          value={effectiveYear}
           onChange={(e) => {
             const year = parseInt(e.target.value) || currentYear;
-            onStartYearChange(year);
-          }}
-          className='w-full rounded-xl px-4 py-2.5 transition-all border-gray-200 focus:ring-2 focus:ring-offset-0'
-          style={{
-            border: "1px solid #E5E7EB",
-            outline: "none",
-            color: "#6B5B4F",
-          }}
-          onFocus={handleFocus}
-          onBlur={handleBlur}
-          required
-        />
-      </div>
-
-      {/* End Year */}
-      <div>
-        <label
-          className='flex items-center gap-2 text-sm font-semibold mb-2'
-          style={{ color: colors.primary }}
-        >
-          <Hash className='w-4 h-4 text-gray-400' />
-          End Effective Year <span className='text-red-500'>*</span>
-        </label>
-        <input
-          type='number'
-          min='2000'
-          max='2100'
-          value={endYear}
-          onChange={(e) => {
-            const year = parseInt(e.target.value) || currentYear + 1;
-            onEndYearChange(year);
+            onEffectiveYearChange(year);
           }}
           className='w-full rounded-xl px-4 py-2.5 transition-all border-gray-200 focus:ring-2 focus:ring-offset-0'
           style={{

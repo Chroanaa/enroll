@@ -1,8 +1,10 @@
 "use client";
-import React from "react";
+import React, { useState, useEffect } from "react";
 import { X, Download } from "lucide-react";
-import { Curriculum, CurriculumCourse } from "../../types";
+import { Curriculum, CurriculumCourse, Subject } from "../../types";
 import { colors } from "../../colors";
+import { getCourseHours, parsePrerequisites, formatPrerequisites } from "./utils";
+import { getSubjects } from "../../utils/subjectUtils";
 
 interface CurriculumTableProps {
   curriculum: Curriculum;
@@ -13,6 +15,24 @@ const CurriculumTable: React.FC<CurriculumTableProps> = ({
   curriculum,
   onClose,
 }) => {
+  const [subjects, setSubjects] = useState<Subject[]>([]);
+
+  // Fetch subjects for displaying prerequisite codes
+  useEffect(() => {
+    const fetchSubjects = async () => {
+      try {
+        const subjectsData = await getSubjects();
+        const subjectsArray: Subject[] = Array.isArray(subjectsData)
+          ? subjectsData
+          : (Object.values(subjectsData) as Subject[]);
+        setSubjects(subjectsArray);
+      } catch (error) {
+        console.error("Error fetching subjects:", error);
+      }
+    };
+    fetchSubjects();
+  }, []);
+
   // Group courses by year level and semester
   const groupedCourses = React.useMemo(() => {
     const grouped: Record<
@@ -174,7 +194,7 @@ const CurriculumTable: React.FC<CurriculumTableProps> = ({
               className='text-sm font-semibold print:text-xs'
               style={{ color: colors.tertiary }}
             >
-              Effective AY {curriculum.effective_year}
+              Effective {curriculum.effective_year}
             </p>
           </div>
           
@@ -388,7 +408,7 @@ const CurriculumTable: React.FC<CurriculumTableProps> = ({
                                       color: colors.primary
                                     }}
                                   >
-                                    {course.units_lec || 0}
+                                    {getCourseHours(course.units_lec || 0, course.units_lab || 0).lectureHours}
                                   </td>
                                   <td
                                     className='border px-2 py-2 text-center print:px-1 print:py-0.5'
@@ -397,7 +417,7 @@ const CurriculumTable: React.FC<CurriculumTableProps> = ({
                                       color: colors.primary
                                     }}
                                   >
-                                    {course.units_lab || 0}
+                                    {getCourseHours(course.units_lec || 0, course.units_lab || 0).labHours}
                                   </td>
                                   <td
                                     className='border px-2 py-2 text-center font-semibold print:px-1 print:py-0.5'
@@ -415,7 +435,13 @@ const CurriculumTable: React.FC<CurriculumTableProps> = ({
                                       color: colors.primary
                                     }}
                                   >
-                                    {course.prerequisite || "—"}
+                                    {course.prerequisite
+                                      ? formatPrerequisites(
+                                          parsePrerequisites(course.prerequisite, curriculum.courses),
+                                          curriculum.courses,
+                                          subjects
+                                        )
+                                      : "—"}
                                   </td>
                                 </tr>
                               );
@@ -609,7 +635,7 @@ const CurriculumTable: React.FC<CurriculumTableProps> = ({
                                       color: colors.primary
                                     }}
                                   >
-                                    {course.units_lec || 0}
+                                    {getCourseHours(course.units_lec || 0, course.units_lab || 0).lectureHours}
                                   </td>
                                   <td
                                     className='border px-2 py-2 text-center print:px-1 print:py-0.5'
@@ -618,7 +644,7 @@ const CurriculumTable: React.FC<CurriculumTableProps> = ({
                                       color: colors.primary
                                     }}
                                   >
-                                    {course.units_lab || 0}
+                                    {getCourseHours(course.units_lec || 0, course.units_lab || 0).labHours}
                                   </td>
                                   <td
                                     className='border px-2 py-2 text-center font-semibold print:px-1 print:py-0.5'
@@ -636,7 +662,13 @@ const CurriculumTable: React.FC<CurriculumTableProps> = ({
                                       color: colors.primary
                                     }}
                                   >
-                                    {course.prerequisite || "—"}
+                                    {course.prerequisite
+                                      ? formatPrerequisites(
+                                          parsePrerequisites(course.prerequisite, curriculum.courses),
+                                          curriculum.courses,
+                                          subjects
+                                        )
+                                      : "—"}
                                   </td>
                                 </tr>
                               );

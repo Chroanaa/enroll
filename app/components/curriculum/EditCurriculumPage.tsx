@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useRef } from "react";
+import React, { useState, useRef, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { GraduationCap, CheckCircle2, ArrowLeft } from "lucide-react";
 import { Curriculum, CurriculumCourse } from "../../types";
@@ -18,30 +18,35 @@ import {
   calculateTotalUnits,
   createCurriculumData,
   serializePrerequisites,
-  formatPrerequisites,
   PrerequisiteData,
 } from "./utils";
 
-interface AddCurriculumPageProps {
+interface EditCurriculumPageProps {
+  curriculum: Curriculum;
   onSave: (curriculum: Curriculum) => Promise<void>;
   onCancel: () => void;
 }
 
-const AddCurriculumPage: React.FC<AddCurriculumPageProps> = ({
+const EditCurriculumPage: React.FC<EditCurriculumPageProps> = ({
+  curriculum,
   onSave,
   onCancel,
 }) => {
   const router = useRouter();
   const currentYear = new Date().getFullYear();
 
+  const effectiveYearValue = curriculum?.effective_year
+    ? parseAcademicYear(curriculum.effective_year)
+    : currentYear;
+
   const [formData, setFormData] = useState<Partial<Curriculum>>({
-    program_name: "",
-    program_code: "",
-    major: "",
-    effective_year: formatAcademicYear(currentYear),
-    total_units: 0,
-    courses: [],
-    status: "active",
+    program_name: curriculum.program_name || "",
+    program_code: curriculum.program_code || "",
+    major: curriculum.major || "",
+    effective_year: curriculum.effective_year || formatAcademicYear(currentYear),
+    total_units: curriculum.total_units || 0,
+    courses: curriculum.courses || [],
+    status: curriculum.status || "active",
   });
 
   const [selectedProgramId, setSelectedProgramId] = useState<number | undefined>(
@@ -52,8 +57,20 @@ const AddCurriculumPage: React.FC<AddCurriculumPageProps> = ({
     undefined
   );
 
-  const [effectiveYear, setEffectiveYear] = useState<number>(currentYear);
-  const [courses, setCourses] = useState<CurriculumCourse[]>([]);
+  const [effectiveYear, setEffectiveYear] = useState<number>(effectiveYearValue);
+  const [courses, setCourses] = useState<CurriculumCourse[]>(
+    curriculum.courses || []
+  );
+
+  const initialFormData = useRef<Partial<Curriculum>>({
+    program_name: curriculum.program_name || "",
+    program_code: curriculum.program_code || "",
+    major: curriculum.major || "",
+    effective_year: curriculum.effective_year || formatAcademicYear(currentYear),
+    total_units: curriculum.total_units || 0,
+    courses: curriculum.courses || [],
+    status: curriculum.status || "active",
+  });
 
   const [showSaveConfirmation, setShowSaveConfirmation] = useState(false);
   const [showCancelWarning, setShowCancelWarning] = useState(false);
@@ -96,32 +113,33 @@ const AddCurriculumPage: React.FC<AddCurriculumPageProps> = ({
   });
 
   const hasChanges = () => {
+    const currentEffectiveYear = formatAcademicYear(effectiveYear);
     return (
-      formData.program_name !== "" ||
-      formData.program_code !== "" ||
-      courses.length > 0
+      formData.program_name !== initialFormData.current.program_name ||
+      formData.program_code !== initialFormData.current.program_code ||
+      formData.major !== initialFormData.current.major ||
+      currentEffectiveYear !== initialFormData.current.effective_year ||
+      formData.status !== initialFormData.current.status ||
+      JSON.stringify(courses) !== JSON.stringify(initialFormData.current.courses)
     );
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
-  
     if (isSubmitting || showSaveConfirmation) {
       return;
     }
 
-  
     if (!formData.program_name || !formData.program_code) {
       setErrorModal({
         isOpen: true,
         message: "Please fill in all required fields (Program Name and Program Code)",
-        details: "Program and Program Code are required to create a curriculum.",
+        details: "Program and Program Code are required to update a curriculum.",
       });
       return;
     }
 
-  
     if (!courses || courses.length === 0) {
       setErrorModal({
         isOpen: true,
@@ -135,7 +153,6 @@ const AddCurriculumPage: React.FC<AddCurriculumPageProps> = ({
   };
 
   const performSave = async () => {
-    // Prevent double submission
     if (isSubmitting) {
       return;
     }
@@ -147,23 +164,23 @@ const AddCurriculumPage: React.FC<AddCurriculumPageProps> = ({
       const curriculumData = createCurriculumData(
         formData,
         courses,
-        effectiveYear
+        effectiveYear,
+        curriculum.id
       );
 
       await onSave(curriculumData);
       setSuccessModal({
         isOpen: true,
-        message: `Curriculum "${curriculumData.program_name}" has been created successfully.`,
+        message: `Curriculum "${curriculumData.program_name}" has been updated successfully.`,
       });
 
-   
       setTimeout(() => {
         onCancel();
       }, 2000);
     } catch (error: any) {
       setErrorModal({
         isOpen: true,
-        message: `Failed to create curriculum: ${error.message || "Unknown error"}`,
+        message: `Failed to update curriculum: ${error.message || "Unknown error"}`,
         details: "Please check your input and try again.",
       });
     } finally {
@@ -193,11 +210,8 @@ const AddCurriculumPage: React.FC<AddCurriculumPageProps> = ({
   };
 
   const handleSubjectsSelected = (selectedSubjects: any[], yearLevel: number, semester: 1 | 2) => {
-    // Create courses from selected subjects
-  
     const newCourses: CurriculumCourse[] = selectedSubjects
       .filter((subject) => {
-      
         return !courses.some((c) => c.subject_id === subject.id);
       })
       .map((subject) => {
@@ -275,10 +289,10 @@ const AddCurriculumPage: React.FC<AddCurriculumPageProps> = ({
                 className="text-3xl font-bold tracking-tight"
                 style={{ color: colors.primary }}
               >
-                Add New Curriculum
+                Edit Curriculum
               </h1>
               <p className="text-sm text-gray-500 mt-1">
-                Create a new curriculum program with subjects and course structure
+                Update curriculum program with subjects and course structure
               </p>
             </div>
           </div>
@@ -365,7 +379,7 @@ const AddCurriculumPage: React.FC<AddCurriculumPageProps> = ({
               style={{ backgroundColor: colors.secondary }}
             >
               <CheckCircle2 className="w-4 h-4" />
-              {isSubmitting ? "Creating..." : "Create Curriculum"}
+              {isSubmitting ? "Updating..." : "Update Curriculum"}
             </button>
           </div>
         </form>
@@ -398,10 +412,10 @@ const AddCurriculumPage: React.FC<AddCurriculumPageProps> = ({
           isOpen={showSaveConfirmation}
           onClose={() => setShowSaveConfirmation(false)}
           onConfirm={performSave}
-          title="Create Curriculum"
-          message={`Are you sure you want to create "${formData.program_name}"?`}
-          description="The curriculum will be saved and available for use."
-          confirmText="Create Curriculum"
+          title="Update Curriculum"
+          message={`Are you sure you want to update "${formData.program_name}"?`}
+          description="The curriculum will be updated with the new information."
+          confirmText="Update Curriculum"
           cancelText="Cancel"
           variant="info"
         />
@@ -442,5 +456,5 @@ const AddCurriculumPage: React.FC<AddCurriculumPageProps> = ({
   );
 };
 
-export default AddCurriculumPage;
+export default EditCurriculumPage;
 

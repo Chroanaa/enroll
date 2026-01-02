@@ -1,21 +1,43 @@
 "use client";
 
-import React, { useMemo } from "react";
-import { Plus, Trash2, BookOpen } from "lucide-react";
-import { CurriculumCourse } from "../../types";
+import React, { useMemo, useState, useEffect } from "react";
+import { Plus, Trash2, BookOpen, Edit } from "lucide-react";
+import { CurriculumCourse, Subject } from "../../types";
 import { colors } from "../../colors";
+import { parsePrerequisites, formatPrerequisites } from "./utils";
+import { getSubjects } from "../../utils/subjectUtils";
 
 interface CurriculumStructureTableProps {
   courses: CurriculumCourse[];
   onAddSubjects: (yearLevel: number, semester: 1 | 2) => void;
   onRemoveCourse: (courseId: number) => void;
+  onEditPrerequisite?: (course: CurriculumCourse) => void;
 }
 
 const CurriculumStructureTable: React.FC<CurriculumStructureTableProps> = ({
   courses,
   onAddSubjects,
   onRemoveCourse,
+  onEditPrerequisite,
 }) => {
+  const [subjects, setSubjects] = useState<Subject[]>([]);
+
+  // Fetch subjects for displaying prerequisite codes
+  useEffect(() => {
+    const fetchSubjects = async () => {
+      try {
+        const subjectsData = await getSubjects();
+        const subjectsArray: Subject[] = Array.isArray(subjectsData)
+          ? subjectsData
+          : (Object.values(subjectsData) as Subject[]);
+        setSubjects(subjectsArray);
+      } catch (error) {
+        console.error("Error fetching subjects:", error);
+      }
+    };
+    fetchSubjects();
+  }, []);
+
   // Group courses by year and semester
   const groupedCourses = useMemo(() => {
     const grouped: Record<string, CurriculumCourse[]> = {};
@@ -167,18 +189,37 @@ const CurriculumStructureTable: React.FC<CurriculumStructureTableProps> = ({
                         </td>
                         <td className="px-4 py-3">
                           <span className="text-sm text-gray-600">
-                            {course.prerequisite || "-"}
+                            {course.prerequisite
+                              ? formatPrerequisites(
+                                  parsePrerequisites(course.prerequisite, courses),
+                                  courses,
+                                  subjects
+                                )
+                              : "-"}
                           </span>
                         </td>
                         <td className="px-4 py-3 text-right">
-                          <button
-                            type="button"
-                            onClick={() => onRemoveCourse(course.id)}
-                            className="p-1.5 rounded-lg hover:bg-red-50 transition-all text-red-600"
-                            title="Remove"
-                          >
-                            <Trash2 className="w-4 h-4" />
-                          </button>
+                          <div className="flex items-center justify-end gap-2">
+                            {onEditPrerequisite && (
+                              <button
+                                type="button"
+                                onClick={() => onEditPrerequisite(course)}
+                                className="p-1.5 rounded-lg hover:bg-blue-50 transition-all"
+                                style={{ color: colors.secondary }}
+                                title="Edit Prerequisites"
+                              >
+                                <Edit className="w-4 h-4" />
+                              </button>
+                            )}
+                            <button
+                              type="button"
+                              onClick={() => onRemoveCourse(course.id)}
+                              className="p-1.5 rounded-lg hover:bg-red-50 transition-all text-red-600"
+                              title="Remove"
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </button>
+                          </div>
                         </td>
                       </tr>
                     ))}
