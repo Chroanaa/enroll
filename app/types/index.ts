@@ -236,7 +236,10 @@ export interface Building {
   floor_count: number;
   status: "active" | "inactive";
 }
-export interface Reports {
+export interface Report {
+  id: number;
   action: string;
   user_id: number;
+  username: string | null;
+  created_at: Date | string | null;
 }
