@@ -55,6 +55,29 @@ const StudentInformation: React.FC<EnrollmentPageProps> = ({
           </div>
         </div>
 
+        <div className='mb-6 group'>
+          <label
+            className='block text-sm font-semibold mb-2 ml-1 transition-colors'
+            style={{ color: colors.primary }}
+          >
+            Student ID <span className='text-xs text-gray-500'>(Auto-generated)</span>
+          </label>
+          <input
+            name="student_number"
+            data-field="student_number"
+            type='text'
+            value={formData.student_number}
+            readOnly
+            disabled
+            className={`${inputClasses} cursor-not-allowed opacity-75 bg-gray-50`}
+            style={{
+              borderColor: colors.tertiary + "30",
+              color: colors.primary,
+            }}
+            placeholder="Auto-generated (YY-00001)"
+          />
+        </div>
+
         <div className='grid grid-cols-1 md:grid-cols-3 gap-6 mb-6'>
           <div className="group">
             <label

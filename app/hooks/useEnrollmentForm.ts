@@ -16,6 +16,7 @@ export interface EnrollmentFormData {
   requirements: string[];
 
   // Page 3: Student Information
+  student_number: string;
   family_name: string;
   first_name: string;
   middle_name: string;
@@ -55,6 +56,7 @@ const initialFormData: EnrollmentFormData = {
   requirements: [],
 
   // Page 3: Student Information
+  student_number: "",
   family_name: "",
   first_name: "",
   middle_name: "",
@@ -137,6 +139,24 @@ export const useEnrollmentForm = () => {
   }, []);
 
   // Fetch departments and programs on mount
+  // Generate student ID on mount
+  useEffect(() => {
+    const generateStudentId = async () => {
+      try {
+        const response = await Axios.get("/api/auth/student/generate-id");
+        if (response.data?.student_number) {
+          setFormData((prev) => ({
+            ...prev,
+            student_number: response.data.student_number,
+          }));
+        }
+      } catch (error) {
+        console.error("Error generating student ID:", error);
+      }
+    };
+    generateStudentId();
+  }, []);
+
   useEffect(() => {
     const fetchData = async () => {
       try {
@@ -380,6 +400,8 @@ export const useEnrollmentForm = () => {
 
   const validatePage3 = (): { isValid: boolean; errors: Record<string, string> } => {
     const errors: Record<string, string> = {};
+    
+    // Student number is auto-generated, no validation needed
     
     if (!formData.family_name?.trim()) {
       errors.family_name = "Family name is required";

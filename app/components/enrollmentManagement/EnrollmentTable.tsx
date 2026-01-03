@@ -34,6 +34,9 @@ const EnrollmentTable: React.FC<EnrollmentTableProps> = ({
               }}
             >
               <th className='px-6 py-4 text-left text-xs font-bold uppercase tracking-wider text-gray-600'>
+                Student ID
+              </th>
+              <th className='px-6 py-4 text-left text-xs font-bold uppercase tracking-wider text-gray-600'>
                 Student
               </th>
               <th className='px-6 py-4 text-left text-xs font-bold uppercase tracking-wider text-gray-600'>
@@ -54,7 +57,7 @@ const EnrollmentTable: React.FC<EnrollmentTableProps> = ({
             {enrollments.length === 0 ? (
               <tr>
                 <td
-                  colSpan={5}
+                  colSpan={6}
                   className='px-6 py-12 text-center text-gray-500'
                 >
                   <div className='flex flex-col items-center justify-center gap-3'>
@@ -84,6 +87,11 @@ const EnrollmentTable: React.FC<EnrollmentTableProps> = ({
                     key={enrollment.id}
                     className='group hover:bg-gray-50/50 transition-colors'
                   >
+                    <td className='px-6 py-4 whitespace-nowrap'>
+                      <span className='text-sm font-mono text-gray-700'>
+                        {(enrollment as any).student_number || "N/A"}
+                      </span>
+                    </td>
                     <td className='px-6 py-4 whitespace-nowrap'>
                       <div className='flex items-center'>
                         <div className='flex-shrink-0 h-10 w-10'>

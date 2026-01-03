@@ -30,8 +30,8 @@ const CurriculumManagement: React.FC = () => {
   }, []);
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState<
-    "all" | "active" | "inactive"
-  >("all");
+    "active" | "inactive"
+  >("active");
   const [editingCurriculum, setEditingCurriculum] = useState<Curriculum | null>(
     null
   );
@@ -75,8 +75,7 @@ const CurriculumManagement: React.FC = () => {
           .toLowerCase()
           .includes(searchTerm.toLowerCase()) ||
         curriculum.major?.toLowerCase().includes(searchTerm.toLowerCase());
-      const matchesStatus =
-        statusFilter === "all" || curriculum.status === statusFilter;
+      const matchesStatus = curriculum.status === statusFilter;
       return matchesSearch && matchesStatus;
     });
   }, [curriculumList, searchTerm, statusFilter]);
@@ -290,21 +289,6 @@ const CurriculumManagement: React.FC = () => {
             <div className='flex items-center gap-2'>
               <span className='text-sm font-medium text-gray-600 px-2'>Status:</span>
               <div className='flex gap-2 flex-1'>
-                <button
-                  onClick={() => setStatusFilter("all")}
-                  className={`flex-1 px-4 py-2.5 rounded-lg text-sm font-medium transition-all ${
-                    statusFilter === "all"
-                      ? "text-white shadow-md"
-                      : "text-gray-700 hover:bg-gray-50"
-                  }`}
-                  style={
-                    statusFilter === "all"
-                      ? { backgroundColor: colors.secondary }
-                      : {}
-                  }
-                >
-                  All Status
-                </button>
                 <button
                   onClick={() => setStatusFilter("active")}
                   className={`flex-1 px-4 py-2.5 rounded-lg text-sm font-medium transition-all ${
