@@ -164,11 +164,11 @@ export const useEnrollmentForm = () => {
           getDepartments(),
           getPrograms(),
         ]);
-        const departmentsArray: Department[] = Array.isArray(departmentsData) 
-          ? departmentsData 
+        const departmentsArray: Department[] = Array.isArray(departmentsData)
+          ? departmentsData
           : Object.values(departmentsData);
-        const programsArray: Program[] = Array.isArray(programsData) 
-          ? programsData 
+        const programsArray: Program[] = Array.isArray(programsData)
+          ? programsData
           : Object.values(programsData);
         setDepartments(departmentsArray);
         setPrograms(programsArray);
@@ -331,16 +331,16 @@ export const useEnrollmentForm = () => {
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    
+
     // Prevent multiple submissions
     if (isSubmitting) {
       return;
     }
-    
+
     setIsSubmitting(true);
     setSubmitError(null);
     setSubmitSuccess(false);
-    
+
     Axios.post("/api/auth/enroll", { formData })
       .then((response) => {
         console.log("Enrollment submitted successfully:", response.data);
@@ -359,16 +359,22 @@ export const useEnrollmentForm = () => {
         console.error("Error submitting enrollment:", error);
         setIsSubmitting(false);
         setSubmitError({
-          message: error.response?.data?.error || "Failed to submit enrollment form.",
-          details: error.response?.data?.message || "Please check your information and try again.",
+          message:
+            error.response?.data?.error || "Failed to submit enrollment form.",
+          details:
+            error.response?.data?.message ||
+            "Please check your information and try again.",
         });
       });
   };
 
   // Validation functions for each page
-  const validatePage1 = (): { isValid: boolean; errors: Record<string, string> } => {
+  const validatePage1 = (): {
+    isValid: boolean;
+    errors: Record<string, string>;
+  } => {
     const errors: Record<string, string> = {};
-    
+
     if (!formData.admission_status) {
       errors.admission_status = "Please select an admission status";
     }
@@ -384,25 +390,31 @@ export const useEnrollmentForm = () => {
     if (!formData.photo) {
       errors.photo = "Please upload a student photo";
     }
-    
+
     return { isValid: Object.keys(errors).length === 0, errors };
   };
 
-  const validatePage2 = (): { isValid: boolean; errors: Record<string, string> } => {
+  const validatePage2 = (): {
+    isValid: boolean;
+    errors: Record<string, string>;
+  } => {
     const errors: Record<string, string> = {};
-    
+
     if (!formData.requirements || formData.requirements.length === 0) {
       errors.requirements = "Please select at least one requirement";
     }
-    
+
     return { isValid: Object.keys(errors).length === 0, errors };
   };
 
-  const validatePage3 = (): { isValid: boolean; errors: Record<string, string> } => {
+  const validatePage3 = (): {
+    isValid: boolean;
+    errors: Record<string, string>;
+  } => {
     const errors: Record<string, string> = {};
-    
+
     // Student number is auto-generated, no validation needed
-    
+
     if (!formData.family_name?.trim()) {
       errors.family_name = "Family name is required";
     }
@@ -426,21 +438,27 @@ export const useEnrollmentForm = () => {
     }
     if (!formData.contact_number?.trim()) {
       errors.contact_number = "Contact number is required";
-    } else if (!/^[0-9]{10,11}$/.test(formData.contact_number.replace(/\D/g, ""))) {
-      errors.contact_number = "Please enter a valid contact number (10-11 digits)";
+    } else if (
+      !/^[0-9]{10,11}$/.test(formData.contact_number.replace(/\D/g, ""))
+    ) {
+      errors.contact_number =
+        "Please enter a valid contact number (10-11 digits)";
     }
     if (!formData.email_address?.trim()) {
       errors.email_address = "Email address is required";
     } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.email_address)) {
       errors.email_address = "Please enter a valid email address";
     }
-    
+
     return { isValid: Object.keys(errors).length === 0, errors };
   };
 
-  const validatePage4 = (): { isValid: boolean; errors: Record<string, string> } => {
+  const validatePage4 = (): {
+    isValid: boolean;
+    errors: Record<string, string>;
+  } => {
     const errors: Record<string, string> = {};
-    
+
     if (!formData.emergency_contact_name?.trim()) {
       errors.emergency_contact_name = "Emergency contact name is required";
     }
@@ -449,27 +467,38 @@ export const useEnrollmentForm = () => {
     }
     if (!formData.emergency_contact_number?.trim()) {
       errors.emergency_contact_number = "Emergency contact number is required";
-    } else if (!/^[0-9]{10,11}$/.test(formData.emergency_contact_number.replace(/\D/g, ""))) {
-      errors.emergency_contact_number = "Please enter a valid contact number (10-11 digits)";
+    } else if (
+      !/^[0-9]{10,11}$/.test(
+        formData.emergency_contact_number.replace(/\D/g, "")
+      )
+    ) {
+      errors.emergency_contact_number =
+        "Please enter a valid contact number (10-11 digits)";
     }
-    
+
     return { isValid: Object.keys(errors).length === 0, errors };
   };
 
-  const validatePage5 = (): { isValid: boolean; errors: Record<string, string> } => {
+  const validatePage5 = (): {
+    isValid: boolean;
+    errors: Record<string, string>;
+  } => {
     const errors: Record<string, string> = {};
-    
+
     if (!formData.last_school_attended?.trim()) {
       errors.last_school_attended = "Last school attended is required";
     }
     if (!formData.school_year?.trim()) {
       errors.school_year = "School year is required";
     }
-    
+
     return { isValid: Object.keys(errors).length === 0, errors };
   };
 
-  const validateCurrentPage = (): { isValid: boolean; errors: Record<string, string> } => {
+  const validateCurrentPage = (): {
+    isValid: boolean;
+    errors: Record<string, string>;
+  } => {
     switch (currentPage) {
       case 1:
         return validatePage1();
@@ -489,18 +518,20 @@ export const useEnrollmentForm = () => {
   const nextPage = () => {
     if (currentPage < TOTAL_PAGES) {
       const validation = validateCurrentPage();
-      
+
       if (!validation.isValid) {
         setFieldErrors(validation.errors);
         setValidationError({
           isOpen: true,
-          message: "Please complete all required fields before proceeding to the next step.",
+          message:
+            "Please complete all required fields before proceeding to the next step.",
         });
         // Scroll to first error
         setTimeout(() => {
           const firstErrorField = Object.keys(validation.errors)[0];
-          const element = document.querySelector(`[name="${firstErrorField}"]`) || 
-                         document.querySelector(`[data-field="${firstErrorField}"]`);
+          const element =
+            document.querySelector(`[name="${firstErrorField}"]`) ||
+            document.querySelector(`[data-field="${firstErrorField}"]`);
           if (element) {
             element.scrollIntoView({ behavior: "smooth", block: "center" });
             (element as HTMLElement).focus();
@@ -508,7 +539,7 @@ export const useEnrollmentForm = () => {
         }, 100);
         return;
       }
-      
+
       // Clear errors if validation passes
       setFieldErrors({});
       setValidationError({ isOpen: false, message: "" });

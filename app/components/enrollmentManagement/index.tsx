@@ -1,20 +1,217 @@
 "use client";
-import React, { useState, useMemo, useEffect } from "react";
-import { Plus } from "lucide-react";
+import React, { useState, useMemo, useEffect, useRef } from "react";
+import { Plus, Upload, X, FileSpreadsheet, AlertCircle } from "lucide-react";
 import { colors } from "../../colors";
 import { getEnrollments } from "@/app/utils/getEnrollments";
 import ConfirmationModal from "../common/ConfirmationModal";
 import SuccessModal from "../common/SuccessModal";
 import ErrorModal from "../common/ErrorModal";
 import { Enrollment, DeleteConfirmationState } from "../../types";
-import { filterEnrollments, calculateStats } from "./utils";
+import { filterEnrollments } from "./utils";
 import StatsCards from "./StatsCards";
 import SearchFilters from "../common/SearchFilters";
 import EnrollmentTable from "./EnrollmentTable";
 import Pagination from "../common/Pagination";
-import { BookOpen } from "lucide-react";
 import EnrollmentForm from "./EnrollmentForm";
-import { getCountOfEnrolleesStatus } from "@/app/utils/getCountStatusEnrollees";
+
+// --- Internal Import Modal Component ---
+interface ImportModalProps {
+  isOpen: boolean;
+  onClose: () => void;
+  onUpload: (file: File) => Promise<void>;
+  isLoading: boolean;
+}
+
+const ImportModal: React.FC<ImportModalProps> = ({
+  isOpen,
+  onClose,
+  onUpload,
+  isLoading,
+}) => {
+  const [dragActive, setDragActive] = useState(false);
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
+  const formRef = useRef<HTMLFormElement>(null);
+
+  useEffect(() => {
+    if (!isOpen) {
+      setSelectedFile(null);
+      if (formRef.current) formRef.current.reset();
+    }
+  }, [isOpen]);
+
+  if (!isOpen) return null;
+
+  const handleDrag = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (e.type === "dragenter" || e.type === "dragover") {
+      setDragActive(true);
+    } else if (e.type === "dragleave") {
+      setDragActive(false);
+    }
+  };
+
+  const handleDrop = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setDragActive(false);
+    if (e.dataTransfer.files && e.dataTransfer.files[0]) {
+      const file = e.dataTransfer.files[0];
+      validateAndSetFile(file);
+    }
+  };
+
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    e.preventDefault();
+    if (e.target.files && e.target.files[0]) {
+      validateAndSetFile(e.target.files[0]);
+    }
+  };
+
+  const validateAndSetFile = (file: File) => {
+    if (
+      file.type.includes("sheet") ||
+      file.type.includes("excel") ||
+      file.name.endsWith(".csv") ||
+      file.name.endsWith(".xlsx")
+    ) {
+      setSelectedFile(file);
+    } else {
+      alert("Please upload a valid Excel or CSV file.");
+    }
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault(); // Prevent default browser reload
+    if (selectedFile) {
+      await onUpload(selectedFile);
+    }
+  };
+
+  return (
+    <div className='fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm'>
+      <div
+        className='relative w-full max-w-lg rounded-2xl shadow-2xl overflow-hidden animate-in fade-in zoom-in duration-200'
+        style={{ backgroundColor: colors.paper }}
+      >
+        {/* Header */}
+        <div className='px-6 py-4 border-b flex justify-between items-center bg-gray-50/50'>
+          <h3 className='text-xl font-bold text-gray-800 flex items-center gap-2'>
+            <FileSpreadsheet className='w-5 h-5 text-green-600' />
+            Import Enrollment Data
+          </h3>
+          <button
+            type='button'
+            onClick={onClose}
+            className='p-1 rounded-full hover:bg-gray-200 transition-colors text-gray-500'
+            disabled={isLoading}
+          >
+            <X className='w-5 h-5' />
+          </button>
+        </div>
+
+        {/* Form Wrapper */}
+        <form
+          ref={formRef}
+          onSubmit={handleSubmit}
+          encType='multipart/form-data'
+          className='flex flex-col'
+        >
+          {/* Body */}
+          <div className='p-6 space-y-4'>
+            <div
+              className={`relative flex flex-col items-center justify-center w-full h-48 border-2 border-dashed rounded-xl transition-all duration-200 ease-in-out ${
+                dragActive
+                  ? "border-blue-500 bg-blue-50"
+                  : "border-gray-300 bg-gray-50 hover:bg-gray-100"
+              } ${selectedFile ? "border-green-500 bg-green-50" : ""}`}
+              onDragEnter={handleDrag}
+              onDragLeave={handleDrag}
+              onDragOver={handleDrag}
+              onDrop={handleDrop}
+            >
+              <input
+                ref={inputRef}
+                name='file' // IMPORTANT for backend recognition
+                type='file'
+                className='absolute inset-0 w-full h-full opacity-0 cursor-pointer'
+                onChange={handleChange}
+                accept='.xlsx,.xls,.csv'
+                disabled={isLoading}
+              />
+
+              <div className='flex flex-col items-center text-center pointer-events-none p-4'>
+                {selectedFile ? (
+                  <>
+                    <FileSpreadsheet className='w-12 h-12 text-green-600 mb-3' />
+                    <p className='text-sm font-medium text-gray-900 truncate max-w-[250px]'>
+                      {selectedFile.name}
+                    </p>
+                    <p className='text-xs text-green-600 mt-1'>
+                      Ready to upload
+                    </p>
+                  </>
+                ) : (
+                  <>
+                    <Upload className='w-10 h-10 text-gray-400 mb-3' />
+                    <p className='text-sm font-medium text-gray-700'>
+                      Click to upload or drag and drop
+                    </p>
+                    <p className='text-xs text-gray-500 mt-1'>
+                      Excel (.xlsx, .xls) or CSV files
+                    </p>
+                  </>
+                )}
+              </div>
+            </div>
+
+            <div className='bg-blue-50 border border-blue-100 rounded-lg p-3 flex items-start gap-2'>
+              <AlertCircle className='w-4 h-4 text-blue-600 mt-0.5 shrink-0' />
+              <p className='text-xs text-blue-700'>
+                Please ensure your file headers match the database schema (First
+                Name, Last Name, Course, Status).
+              </p>
+            </div>
+          </div>
+
+          {/* Footer */}
+          <div className='px-6 py-4 border-t bg-gray-50/50 flex justify-end gap-3'>
+            <button
+              type='button' // Prevent form submission
+              onClick={onClose}
+              disabled={isLoading}
+              className='px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-200 transition-colors'
+            >
+              Cancel
+            </button>
+            <button
+              type='submit' // Triggers onSubmit
+              disabled={!selectedFile || isLoading}
+              className={`px-4 py-2 text-sm font-medium text-white rounded-lg focus:outline-none focus:ring-2 focus:ring-offset-2 transition-all flex items-center gap-2 ${
+                !selectedFile || isLoading
+                  ? "bg-gray-400 cursor-not-allowed"
+                  : "bg-blue-600 hover:bg-blue-700 shadow-lg shadow-blue-600/20"
+              }`}
+            >
+              {isLoading ? (
+                <>
+                  <div className='w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin' />
+                  Importing...
+                </>
+              ) : (
+                <>Import Data</>
+              )}
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+};
+
+// --- Main Component ---
+
 const EnrollmentManagement: React.FC = () => {
   const [enrollments, setEnrollments] = useState<Enrollment[]>([]);
   const [loading, setLoading] = useState(true);
@@ -23,7 +220,12 @@ const EnrollmentManagement: React.FC = () => {
     "all"
   );
   const [courseFilter, setCourseFilter] = useState<string>("all");
+
+  // Modal States
   const [isAddingEnrollment, setIsAddingEnrollment] = useState(false);
+  const [isImportModalOpen, setIsImportModalOpen] = useState(false);
+  const [isImporting, setIsImporting] = useState(false);
+
   const [editingEnrollment, setEditingEnrollment] = useState<Enrollment | null>(
     null
   );
@@ -49,47 +251,28 @@ const EnrollmentManagement: React.FC = () => {
     message: "",
     details: "",
   });
+
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage, setItemsPerPage] = useState(10);
-  const [stats, setStats] = useState({
-    total: 0,
-    enrolled: 0,
-    completed: 0,
-    pending: 0,
-    dropped: 0,
-  });
-  const excelImport = async () => {
-    const input = document.getElementById("excelFile") as HTMLInputElement;
 
-    const file = input.files?.[0];
-    if (!file) return;
-
-    const formData = new FormData();
-    formData.append("file", file);
-    const response = await fetch("/api/auth/enroll/bulk", {
-      body: formData,
-    });
+  const fetchEnrollments = async () => {
+    try {
+      const data = await getEnrollments();
+      if (Array.isArray(data)) {
+        setEnrollments(data as Enrollment[]);
+      } else {
+        setEnrollments([]);
+      }
+    } catch (error) {
+      console.error("Error fetching enrollments:", error);
+      setEnrollments([]);
+    } finally {
+      setLoading(false);
+    }
   };
 
   useEffect(() => {
-    const fetchData = async () => {
-      try {
-        const data = await getEnrollments();
-        console.log("Fetched enrollments:", data);
-        if (Array.isArray(data)) {
-          setEnrollments(data as Enrollment[]);
-        } else {
-          console.error("Data is not an array:", data);
-          setEnrollments([]);
-        }
-      } catch (error) {
-        console.error("Error fetching enrollments:", error);
-        setEnrollments([]);
-      } finally {
-        setLoading(false);
-      }
-    };
-    fetchData();
+    fetchEnrollments();
   }, []);
 
   const filteredEnrollments = useMemo(
@@ -104,7 +287,6 @@ const EnrollmentManagement: React.FC = () => {
   const endIndex = startIndex + itemsPerPage;
   const paginatedEnrollments = filteredEnrollments.slice(startIndex, endIndex);
 
-  // Reset to page 1 when filters change
   useEffect(() => {
     setCurrentPage(1);
   }, [searchTerm, statusFilter, courseFilter]);
@@ -112,6 +294,44 @@ const EnrollmentManagement: React.FC = () => {
   const handlePageChange = (page: number) => {
     setCurrentPage(page);
     window.scrollTo({ top: 0, behavior: "smooth" });
+  };
+
+  // --- Import Logic ---
+  const handleImportFile = async (file: File) => {
+    setIsImporting(true);
+
+    // NOTE: When using fetch with FormData, do NOT manually set Content-Type header.
+    // The browser automatically sets it to multipart/form-data with the correct boundary.
+    const formData = new FormData();
+    formData.append("file", file);
+
+    try {
+      const response = await fetch("/api/auth/enroll/bulk", {
+        method: "POST",
+        body: formData,
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || "Failed to import file");
+      }
+
+      await fetchEnrollments();
+
+      setIsImportModalOpen(false);
+      setSuccessModal({
+        isOpen: true,
+        message: "Excel file imported successfully!",
+      });
+    } catch (error: any) {
+      setErrorModal({
+        isOpen: true,
+        message: "Import Failed",
+        details: error.message || "Something went wrong processing the file.",
+      });
+    } finally {
+      setIsImporting(false);
+    }
   };
 
   const handleSaveEnrollment = async (enrollmentData: Enrollment) => {
@@ -276,21 +496,24 @@ const EnrollmentManagement: React.FC = () => {
               Manage student course enrollments and track progress
             </p>
           </div>
-          <button
-            onClick={() => setIsAddingEnrollment(true)}
-            className='flex items-center gap-2 px-5 py-3 text-white rounded-xl transition-all shadow-lg shadow-blue-900/20 hover:shadow-xl hover:scale-105 active:scale-95'
-            style={{ backgroundColor: colors.secondary }}
-          >
-            <Plus className='w-5 h-5' />
-            <span className='font-medium'>Add Enrollment</span>
-          </button>
-          <button
-            className='flex items-center gap-2 px-5 py-3 text-white rounded-xl transition-all shadow-lg shadow-blue-900/20 hover:shadow-xl hover:scale-105 active:scale-95'
-            style={{ backgroundColor: colors.secondary }}
-          >
-            <Plus className='w-5 h-5' />
-            <span className='font-medium'>Import Excel file</span>
-          </button>
+          <div className='flex gap-3'>
+            <button
+              onClick={() => setIsAddingEnrollment(true)}
+              className='flex items-center gap-2 px-5 py-3 text-white rounded-xl transition-all shadow-lg shadow-blue-900/20 hover:shadow-xl hover:scale-105 active:scale-95'
+              style={{ backgroundColor: colors.secondary }}
+            >
+              <Plus className='w-5 h-5' />
+              <span className='font-medium'>Add Enrollment</span>
+            </button>
+            <button
+              onClick={() => setIsImportModalOpen(true)}
+              className='flex items-center gap-2 px-5 py-3 text-white rounded-xl transition-all shadow-lg shadow-blue-900/20 hover:shadow-xl hover:scale-105 active:scale-95'
+              style={{ backgroundColor: colors.secondary }}
+            >
+              <FileSpreadsheet className='w-5 h-5' />
+              <span className='font-medium'>Import Excel</span>
+            </button>
+          </div>
         </div>
 
         {/* Stats Cards */}
@@ -349,6 +572,14 @@ const EnrollmentManagement: React.FC = () => {
             }}
           />
         )}
+
+        {/* Import Excel Modal - NEW */}
+        <ImportModal
+          isOpen={isImportModalOpen}
+          onClose={() => setIsImportModalOpen(false)}
+          onUpload={handleImportFile}
+          isLoading={isImporting}
+        />
 
         {/* Delete Confirmation Modal */}
         <ConfirmationModal

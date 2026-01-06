@@ -74,7 +74,6 @@ model students {
 
 model enrollment {
   id                       Int       @id @default(autoincrement())
-  student_number           String?   @db.VarChar(20)
   admission_date           DateTime? @db.Date
   admission_status         String?   @db.VarChar(50)
   term                     String?   @db.VarChar(50)
@@ -100,6 +99,7 @@ model enrollment {
   program_shs              String?   @db.VarChar(150)
   remarks                  String?
   status                   Int?
+  student_number           String?   @db.VarChar(20)
 }
 
 /// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
