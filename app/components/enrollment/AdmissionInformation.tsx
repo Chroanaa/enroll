@@ -119,9 +119,6 @@ const AdmissionInformation: React.FC<EnrollmentPageProps> = ({
                   <option value='new'>New Student</option>
                   <option value='transferee'>Transferee</option>
                   <option value='returning'>Returning Student</option>
-                  <option value='completed'>Completed</option>
-                  <option value='dropped'>Dropped</option>
-                  <option value='pending'>Pending</option>
                 </select>
                 <div className="absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none opacity-50">
                   <svg width="12" height="12" viewBox="0 0 12 12" fill="none" xmlns="http://www.w3.org/2000/svg">
