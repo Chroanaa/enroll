@@ -7,6 +7,7 @@ import StudentManagement from "../components/StudentManagement";
 import CourseManagement from "../components/CourseManagement";
 import EnrollmentManagement from "../components/enrollmentManagement";
 import EnrollmentForm from "../components/EnrollmentForm";
+import { ResidentPortalContent } from "../resident/page";
 import ForecastingAnalytics from "../components/ForecastingAnalytics";
 import AssessmentManagement from "../components/AssessmentManagement";
 import ReportManagement from "../components/ReportManagement";
@@ -41,6 +42,8 @@ export default function DashboardPage() {
         return <EnrollmentManagement />;
       case "enrollment-form":
         return <EnrollmentForm />;
+      case "resident-enrollment":
+        return <ResidentPortalContent />;
       case "forecast":
         return <ForecastingAnalytics />;
       case "assessment":
