@@ -35,13 +35,22 @@ export interface EnrollmentFormData {
 
   // Page 5: Educational Background
   last_school_attended: string;
-  school_year: string;
+  previous_school_year: string;
   program_shs: string;
   remarks: string;
   status?: number;
+  
+  // Academic Year (for all enrollments)
+  academic_year: string;
 }
 
 const TOTAL_PAGES = 5;
+
+// Get current academic year (current year to next year)
+const getCurrentAcademicYear = (): string => {
+  const currentYear = new Date().getFullYear();
+  return `${currentYear}-${currentYear + 1}`;
+};
 
 const initialFormData: EnrollmentFormData = {
   // Page 1: Admission Information
@@ -51,6 +60,7 @@ const initialFormData: EnrollmentFormData = {
   department: 0,
   course_program: "",
   photo: null,
+  academic_year: getCurrentAcademicYear(), // Set to current academic year by default
 
   // Page 2: Admission Requirements
   requirements: [],
@@ -75,7 +85,7 @@ const initialFormData: EnrollmentFormData = {
 
   // Page 5: Educational Background
   last_school_attended: "",
-  school_year: "",
+  previous_school_year: "",
   program_shs: "",
   remarks: "",
   status: 0,
@@ -387,6 +397,9 @@ export const useEnrollmentForm = () => {
     if (!formData.term) {
       errors.term = "Please select a term";
     }
+    if (!formData.academic_year?.trim()) {
+      errors.academic_year = "Academic year is required";
+    }
     if (!formData.photo) {
       errors.photo = "Please upload a student photo";
     }
@@ -488,8 +501,8 @@ export const useEnrollmentForm = () => {
     if (!formData.last_school_attended?.trim()) {
       errors.last_school_attended = "Last school attended is required";
     }
-    if (!formData.school_year?.trim()) {
-      errors.school_year = "School year is required";
+    if (!formData.previous_school_year?.trim()) {
+      errors.previous_school_year = "Previous school year is required";
     }
 
     return { isValid: Object.keys(errors).length === 0, errors };

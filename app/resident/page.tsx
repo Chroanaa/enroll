@@ -6,6 +6,7 @@ import { colors } from "../colors";
 import SuccessModal from "../components/common/SuccessModal";
 import ErrorModal from "../components/common/ErrorModal";
 import ProtectedRoute from "../components/ProtectedRoute";
+import { formatTerm } from "../utils/termUtils";
 
 interface StudentData {
   student_number: string;
@@ -26,7 +27,7 @@ interface EnrollmentHistory {
   id: number;
   term: string;
   admission_status: string;
-  created_at: string;
+  admission_date: string | null;
   department?: number;
   course_program?: string;
 }
@@ -362,10 +363,19 @@ function ResidentPortalContent() {
                       style={{ backgroundColor: colors.paper, border: `1px solid ${colors.tertiary}20` }}
                     >
                       <p className="font-medium text-sm" style={{ color: colors.primary }}>
-                        {enrollment.term || "N/A"}
+                        {(() => {
+                          const termFormatted = formatTerm(enrollment.term);
+                          // Add "Semester" to First and Second, keep Summer as is
+                          if (termFormatted === "First" || termFormatted === "Second") {
+                            return `${termFormatted} Semester`;
+                          }
+                          return termFormatted;
+                        })()}
                       </p>
                       <p className="text-xs text-gray-600 mt-1">
-                        {new Date(enrollment.created_at).toLocaleDateString()}
+                        {enrollment.admission_date 
+                          ? new Date(enrollment.admission_date).toLocaleDateString()
+                          : "No date available"}
                       </p>
                     </div>
                   ))}
@@ -408,9 +418,9 @@ function ResidentPortalContent() {
                       }}
                     >
                       <option value="">Select Term</option>
-                      <option value="1st Semester">1st Semester</option>
-                      <option value="2nd Semester">2nd Semester</option>
-                      <option value="Summer">Summer</option>
+                      <option value="first">First</option>
+                      <option value="second">Second</option>
+                      <option value="summer">Summer</option>
                     </select>
                   </div>
 

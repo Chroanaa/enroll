@@ -46,10 +46,10 @@ export async function PATCH(request: NextRequest) {
         message: "Profile updated successfully",
       });
     } else {
-      // Student doesn't exist in students table, update latest enrollment
+      // Student doesn't exist in students table, update latest enrollment (ordered by most recent admission date)
       const lastEnrollment = await prisma.enrollment.findFirst({
         where: { student_number: data.student_number },
-        orderBy: { id: 'desc' },
+        orderBy: { admission_date: 'desc' },
       });
 
       if (!lastEnrollment) {

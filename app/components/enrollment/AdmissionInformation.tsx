@@ -118,7 +118,6 @@ const AdmissionInformation: React.FC<EnrollmentPageProps> = ({
                   <option value=''>Select Status</option>
                   <option value='new'>New Student</option>
                   <option value='transferee'>Transferee</option>
-                  <option value='returning'>Returning Student</option>
                 </select>
                 <div className="absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none opacity-50">
                   <svg width="12" height="12" viewBox="0 0 12 12" fill="none" xmlns="http://www.w3.org/2000/svg">
@@ -297,6 +296,61 @@ const AdmissionInformation: React.FC<EnrollmentPageProps> = ({
               </div>
               {fieldErrors.term && (
                 <p className="text-red-500 text-xs mt-1 ml-1">{fieldErrors.term}</p>
+              )}
+            </div>
+
+            <div className="group">
+              <label
+                className='flex items-center gap-2 text-sm font-semibold mb-2 ml-1'
+                style={{ color: colors.primary }}
+              >
+                <Calendar
+                  className='w-4 h-4'
+                  style={{ color: colors.secondary }}
+                />
+                Academic Year <span className="text-red-500">*</span>
+              </label>
+              <div className="relative">
+                <select
+                  name="academic_year"
+                  data-field="academic_year"
+                  value={formData.academic_year}
+                  onChange={(e) => handleInputChange("academic_year", e.target.value)}
+                  className={`${inputClasses} appearance-none cursor-pointer ${fieldErrors.academic_year ? "border-red-500" : ""}`}
+                  style={{
+                    borderColor: fieldErrors.academic_year ? "#ef4444" : colors.tertiary + "30",
+                    color: colors.primary,
+                  }}
+                  onFocus={(e) => {
+                    e.currentTarget.style.borderColor = fieldErrors.academic_year ? "#ef4444" : colors.secondary;
+                    e.currentTarget.style.boxShadow = `0 0 0 4px ${fieldErrors.academic_year ? "#ef444410" : colors.secondary + "10"}`;
+                  }}
+                  onBlur={(e) => {
+                    e.currentTarget.style.borderColor = fieldErrors.academic_year ? "#ef4444" : colors.tertiary + "30";
+                    e.currentTarget.style.boxShadow = "none";
+                  }}
+                >
+                  <option value=''>Select Academic Year</option>
+                  {Array.from({ length: 10 }, (_, i) => {
+                    const currentYear = new Date().getFullYear();
+                    const startYear = currentYear + i;
+                    const endYear = startYear + 1;
+                    const yearValue = `${startYear}-${endYear}`;
+                    return (
+                      <option key={yearValue} value={yearValue}>
+                        {yearValue}
+                      </option>
+                    );
+                  })}
+                </select>
+                <div className="absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none opacity-50">
+                  <svg width="12" height="12" viewBox="0 0 12 12" fill="none" xmlns="http://www.w3.org/2000/svg">
+                    <path d="M2.5 4.5L6 8L9.5 4.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+                  </svg>
+                </div>
+              </div>
+              {fieldErrors.academic_year && (
+                <p className="text-red-500 text-xs mt-1 ml-1">{fieldErrors.academic_year}</p>
               )}
             </div>
           </div>

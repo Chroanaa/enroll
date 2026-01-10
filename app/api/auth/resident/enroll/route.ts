@@ -28,61 +28,41 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Verify student exists
-    const student = await prisma.students.findUnique({
+    // Fetch from enrollment table only (resident enrollment uses previous enrollment data)
+    const lastEnrollment = await prisma.enrollment.findFirst({
       where: { student_number: data.student_number },
+      orderBy: { admission_date: 'desc' },
     });
 
-    // If student doesn't exist in students table, check enrollment table
-    let studentData = null;
-    if (!student) {
-      const lastEnrollment = await prisma.enrollment.findFirst({
-        where: { student_number: data.student_number },
-        orderBy: { id: 'desc' },
-      });
-
-      if (!lastEnrollment) {
-        return NextResponse.json(
-          { error: "Student not found. Please enroll as a new student first." },
-          { status: 404 }
-        );
-      }
-
-      // Use data from last enrollment
-      studentData = {
-        first_name: lastEnrollment.first_name || "",
-        middle_name: lastEnrollment.middle_name || "",
-        last_name: lastEnrollment.family_name || "",
-        email_address: lastEnrollment.email_address,
-        contact_number: lastEnrollment.contact_number,
-        complete_address: lastEnrollment.complete_address,
-        emergency_contact_name: lastEnrollment.emergency_contact_name,
-        emergency_relationship: lastEnrollment.emergency_relationship,
-        emergency_contact_number: lastEnrollment.emergency_contact_number,
-      };
-    } else {
-      studentData = {
-        first_name: student.first_name,
-        middle_name: student.middle_name,
-        last_name: student.last_name,
-        email_address: student.email_address,
-        contact_number: student.contact_number,
-        complete_address: `${student.street || ""} ${student.barangay || ""} ${student.city || ""} ${student.province || ""}`.trim(),
-        emergency_contact_name: student.guardian_name,
-        emergency_relationship: "Guardian",
-        emergency_contact_number: student.guardian_contact_number,
-      };
+    if (!lastEnrollment) {
+      return NextResponse.json(
+        { error: "Student not found. Please enroll as a new student first." },
+        { status: 404 }
+      );
     }
+
+    // Use data from last enrollment for re-enrollment
+    const studentData = {
+      first_name: lastEnrollment.first_name || "",
+      middle_name: lastEnrollment.middle_name || "",
+      last_name: lastEnrollment.family_name || "",
+      email_address: lastEnrollment.email_address,
+      contact_number: lastEnrollment.contact_number,
+      complete_address: lastEnrollment.complete_address,
+      emergency_contact_name: lastEnrollment.emergency_contact_name,
+      emergency_relationship: lastEnrollment.emergency_relationship,
+      emergency_contact_number: lastEnrollment.emergency_contact_number,
+    };
 
     // Create new enrollment record for the term
     const enrollment = await prisma.enrollment.create({
       data: {
         student_number: data.student_number,
         admission_date: new Date(),
-        admission_status: "returning", // Resident students are returning
+        admission_status: "transferee", // Resident students re-enrolling (returning option removed)
         term: data.term,
-        department: data.department || (student?.course_id ? null : data.department),
-        course_program: data.course_program || (student?.course_id ? null : data.course_program),
+        department: data.department || lastEnrollment.department || null,
+        course_program: data.course_program || lastEnrollment.course_program || null,
         family_name: studentData.last_name || "",
         first_name: studentData.first_name || "",
         middle_name: studentData.middle_name || null,
@@ -93,8 +73,8 @@ export async function POST(request: NextRequest) {
         emergency_relationship: data.emergency_relationship || studentData.emergency_relationship || null,
         emergency_contact_number: data.emergency_contact_number || studentData.emergency_contact_number || null,
         remarks: data.remarks || null,
-        school_year: data.academic_year || null,
-      },
+        academic_year: data.academic_year || null,
+      } as any, // Type assertion until Prisma client is regenerated
     });
 
     return NextResponse.json(

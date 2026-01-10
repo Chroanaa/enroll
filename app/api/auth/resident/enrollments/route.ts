@@ -13,13 +13,13 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    // Fetch all enrollments for this student, ordered by most recent first
+    // Fetch all enrollments for this student, ordered by most recent admission date first
     const enrollments = await prisma.enrollment.findMany({
       where: {
         student_number: studentNumber,
       },
       orderBy: {
-        id: 'desc',
+        admission_date: 'desc',
       },
     });
 

@@ -16,13 +16,13 @@ export async function GET(
     });
 
     if (!student) {
-      // Also check enrollment table for student data
+      // Also check enrollment table for student data (ordered by most recent admission date)
       const enrollment = await prisma.enrollment.findFirst({
         where: {
           student_number: studentNumber,
         },
         orderBy: {
-          id: 'desc',
+          admission_date: 'desc',
         },
       });
 
