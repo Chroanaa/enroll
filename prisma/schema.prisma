@@ -95,11 +95,12 @@ model enrollment {
   emergency_relationship   String?   @db.VarChar(50)
   emergency_contact_number String?   @db.VarChar(30)
   last_school_attended     String?   @db.VarChar(150)
-  school_year              String?   @db.VarChar(20)
+  previous_school_year     String?   @db.VarChar(20)
   program_shs              String?   @db.VarChar(150)
   remarks                  String?
   status                   Int?
   student_number           String?   @db.VarChar(20)
+  academic_year            String?   @db.VarChar(20)
 }
 
 /// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.

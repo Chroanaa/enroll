@@ -148,6 +148,12 @@ const Navigation: React.FC<NavigationProps> = ({
             allowedRoles: [ROLES.ADMIN, ROLES.REGISTRAR],
           },
           {
+            id: "resident-enrollment",
+            label: "Resident Enrollment",
+            icon: UserPlus,
+            allowedRoles: [ROLES.ADMIN, ROLES.REGISTRAR],
+          },
+          {
             id: "curriculum",
             label: "Curriculum",
             icon: GraduationCap,

@@ -5,23 +5,6 @@ export async function GET(request: NextRequest) {
   try {
     const currentYear = new Date().getFullYear().toString().substring(2);
     
-    // Find latest student_number from students table
-    const students = await prisma.students.findMany({
-      where: {
-        student_number: {
-          startsWith: currentYear,
-        },
-      },
-      select: {
-        student_number: true,
-      },
-      orderBy: {
-        student_number: 'desc',
-      },
-      take: 1,
-    });
-
-    // Find latest student_number from enrollment table
     const enrollments = await prisma.enrollment.findMany({
       where: {
         student_number: {
@@ -32,41 +15,51 @@ export async function GET(request: NextRequest) {
       select: {
         student_number: true,
       },
-      orderBy: {
-        student_number: 'desc',
-      },
-      take: 1,
     });
 
-    let nextNumber = 1;
+    const students = await prisma.students.findMany({
+      where: {
+        student_number: {
+          startsWith: currentYear,
+        },
+      },
+      select: {
+        student_number: true,
+      },
+    });
+
     let maxNumber = 0;
 
-    // Check students table
-    if (students.length > 0 && students[0].student_number) {
-      const lastStudentNumber = students[0].student_number;
-      // Remove the year and dash (first 3 characters: YY-)
-      const numberPart = lastStudentNumber.substring(3);
-      const lastNumber = parseInt(numberPart, 10);
-      if (!isNaN(lastNumber) && lastNumber > maxNumber) {
-        maxNumber = lastNumber;
+    // Process all enrollment student numbers - only consider numeric suffixes
+    for (const enrollment of enrollments) {
+      if (enrollment.student_number) {
+        const numberPart = enrollment.student_number.substring(3); // Remove "YY-"
+        // Check if the suffix is purely numeric (matches pattern YY-NNNNN)
+        if (/^\d+$/.test(numberPart)) {
+          const number = parseInt(numberPart, 10);
+          if (!isNaN(number) && number > maxNumber) {
+            maxNumber = number;
+          }
+        }
       }
     }
 
-    // Check enrollment table
-    if (enrollments.length > 0 && enrollments[0].student_number) {
-      const lastEnrollmentNumber = enrollments[0].student_number;
-      // Remove the year and dash (first 3 characters: YY-)
-      const numberPart = lastEnrollmentNumber.substring(3);
-      const lastNumber = parseInt(numberPart, 10);
-      if (!isNaN(lastNumber) && lastNumber > maxNumber) {
-        maxNumber = lastNumber;
+    // Process all student student numbers - only consider numeric suffixes
+    for (const student of students) {
+      if (student.student_number) {
+        const numberPart = student.student_number.substring(3); // Remove "YY-"
+        // Check if the suffix is purely numeric (matches pattern YY-NNNNN)
+        if (/^\d+$/.test(numberPart)) {
+          const number = parseInt(numberPart, 10);
+          if (!isNaN(number) && number > maxNumber) {
+            maxNumber = number;
+          }
+        }
       }
     }
 
-    // Set next number to max + 1
-    if (maxNumber > 0) {
-      nextNumber = maxNumber + 1;
-    }
+    // Set next number to max + 1 (or 1 if no numeric student numbers found)
+    const nextNumber = maxNumber + 1;
 
     // Ensure the number is 5 digits with leading zeros
     const fiveDigitNumber = nextNumber.toString().padStart(5, '0');

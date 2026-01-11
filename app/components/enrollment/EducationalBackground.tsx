@@ -86,22 +86,40 @@ const EducationalBackground: React.FC<EnrollmentPageProps> = ({
               className='block text-sm font-semibold mb-2 ml-1 transition-colors'
               style={{ color: colors.primary }}
             >
-              School Year
+              Previous School Year (SHS)
             </label>
-            <input
-              name="school_year"
-              data-field="school_year"
-              type='text'
-              value={formData.school_year}
-              onChange={(e) => handleInputChange("school_year", e.target.value)}
-              placeholder='e.g., 2023-2024'
-              className={`${inputClasses} ${fieldErrors.school_year ? "border-red-500" : ""}`}
-              style={getInputStyle("school_year")}
-              onFocus={(e) => handleFocus(e, "school_year")}
-              onBlur={(e) => handleBlur(e, "school_year")}
-            />
-            {fieldErrors.school_year && (
-              <p className="text-red-500 text-xs mt-1 ml-1">{fieldErrors.school_year}</p>
+            <div className="relative">
+              <select
+                name="previous_school_year"
+                data-field="previous_school_year"
+                value={formData.previous_school_year || ""}
+                onChange={(e) => handleInputChange("previous_school_year", e.target.value)}
+                className={`${inputClasses} appearance-none cursor-pointer ${fieldErrors.previous_school_year ? "border-red-500" : ""}`}
+                style={getInputStyle("previous_school_year")}
+                onFocus={(e) => handleFocus(e as any, "previous_school_year")}
+                onBlur={(e) => handleBlur(e as any, "previous_school_year")}
+              >
+                <option value=''>Select Previous School Year</option>
+                {Array.from({ length: 10 }, (_, i) => {
+                  const currentYear = new Date().getFullYear();
+                  const startYear = currentYear - i - 1; // Start from previous year and go back
+                  const endYear = startYear + 1;
+                  const yearValue = `${startYear}-${endYear}`;
+                  return (
+                    <option key={yearValue} value={yearValue}>
+                      {yearValue}
+                    </option>
+                  );
+                })}
+              </select>
+              <div className="absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none opacity-50">
+                <svg width="12" height="12" viewBox="0 0 12 12" fill="none" xmlns="http://www.w3.org/2000/svg">
+                  <path d="M2.5 4.5L6 8L9.5 4.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+                </svg>
+              </div>
+            </div>
+            {fieldErrors.previous_school_year && (
+              <p className="text-red-500 text-xs mt-1 ml-1">{fieldErrors.previous_school_year}</p>
             )}
           </div>
           <div className="group">

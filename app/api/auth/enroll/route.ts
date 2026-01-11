@@ -33,10 +33,11 @@ export async function POST(request: NextRequest) {
         emergency_relationship: formData.emergency_relationship || null,
         emergency_contact_number: formData.emergency_contact_number || null,
         last_school_attended: formData.last_school_attended || null,
-        school_year: formData.school_year || null,
+        previous_school_year: formData.school_year || null,
+        academic_year: (formData as any).academic_year || null,
         program_shs: formData.program_shs || null,
         remarks: formData.remarks || null,
-      },
+      } as any, // Type assertion until Prisma client is regenerated
     });
     if (!enrollment) {
       return NextResponse.json(
@@ -120,10 +121,11 @@ export async function PATCH(nextRequest: NextRequest) {
         emergency_relationship: data.emergency_relationship || null,
         emergency_contact_number: data.emergency_contact_number || null,
         last_school_attended: data.last_school_attended || null,
-        school_year: data.school_year || null,
+        previous_school_year: (data as any).previous_school_year || (data as any).school_year || null,
+        academic_year: (data as any).academic_year || null,
         program_shs: data.program_shs || null,
         remarks: data.remarks || null,
-      },
+      } as any, // Type assertion until Prisma client is regenerated
     });
     return NextResponse.json(updatedEnrollment);
   } catch (error) {
