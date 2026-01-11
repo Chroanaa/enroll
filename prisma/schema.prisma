@@ -3,8 +3,9 @@ generator client {
 }
 
 datasource db {
-  provider = "postgresql"
-  url      = env("DATABASE_URL")
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DATABASE_URL_UNPOOLED")
 }
 
 model users {
@@ -79,7 +80,7 @@ model enrollment {
   term                     String?   @db.VarChar(50)
   department               Int?
   course_program           String?   @db.VarChar(100)
-  photo                    Bytes?
+  photo                    String?   @db.VarChar(255)
   requirements             String[]
   family_name              String?   @db.VarChar(100)
   first_name               String?   @db.VarChar(100)

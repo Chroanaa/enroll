@@ -39,7 +39,7 @@ export interface EnrollmentFormData {
   program_shs: string;
   remarks: string;
   status?: number;
-  
+
   // Academic Year (for all enrollments)
   academic_year: string;
 }
@@ -351,7 +351,29 @@ export const useEnrollmentForm = () => {
     setSubmitError(null);
     setSubmitSuccess(false);
 
-    Axios.post("/api/auth/enroll", { formData })
+    // Create FormData to handle file upload
+    const submitData = new FormData();
+
+    // Append all form fields
+    Object.entries(formData).forEach(([key, value]) => {
+      if (key === "photo") {
+        // Handle photo file separately
+        if (value instanceof File) {
+          submitData.append("photo", value);
+        }
+      } else if (key === "requirements" && Array.isArray(value)) {
+        // Handle array fields
+        submitData.append(key, JSON.stringify(value));
+      } else if (value !== null && value !== undefined) {
+        submitData.append(key, String(value));
+      }
+    });
+
+    Axios.post("/api/auth/enroll", submitData, {
+      headers: {
+        "Content-Type": "multipart/form-data",
+      },
+    })
       .then((response) => {
         console.log("Enrollment submitted successfully:", response.data);
         setIsSubmitting(false);

@@ -95,8 +95,28 @@ const EnrollmentTable: React.FC<EnrollmentTableProps> = ({
                     <td className='px-6 py-4 whitespace-nowrap'>
                       <div className='flex items-center'>
                         <div className='flex-shrink-0 h-10 w-10'>
+                          {(enrollment as any).photo ? (
+                            <img
+                              src={(enrollment as any).photo}
+                              alt={`${enrollment.first_name} ${enrollment.family_name}`}
+                              className='h-10 w-10 rounded-xl object-cover shadow-sm'
+                              style={{
+                                border: `1px solid ${colors.primary}10`,
+                              }}
+                              onError={(e) => {
+                                // Fallback to icon if image fails to load
+                                const target = e.target as HTMLImageElement;
+                                target.style.display = "none";
+                                target.nextElementSibling?.classList.remove(
+                                  "hidden"
+                                );
+                              }}
+                            />
+                          ) : null}
                           <div
-                            className='h-10 w-10 rounded-xl flex items-center justify-center shadow-sm'
+                            className={`h-10 w-10 rounded-xl flex items-center justify-center shadow-sm ${
+                              (enrollment as any).photo ? "hidden" : ""
+                            }`}
                             style={{
                               backgroundColor: "white",
                               border: `1px solid ${colors.primary}10`,
