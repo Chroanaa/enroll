@@ -210,12 +210,15 @@ model sections {
 }
 
 model billing {
-  id          Int       @id @default(autoincrement())
-  enrollee_id Int?
-  term        String?   @db.VarChar(10)
-  is_paid     Int?
-  date_paid   DateTime? @db.Date
-  user_id     Int?
+  id           Int       @id @default(autoincrement())
+  enrollee_id  Int?
+  term         String?   @db.VarChar(10)
+  is_paid      Int?
+  date_paid    DateTime? @db.Date
+  user_id      Int?
+  payment_type String?   @db.VarChar(20)
+  amount       Decimal?  @db.Decimal(10, 2)
+  reference_no String?   @db.VarChar(100)
 }
 
 /// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
@@ -251,4 +254,12 @@ model reports {
   action     String    @db.VarChar(255)
   user_id    Int
   created_at DateTime? @db.Timestamp(6)
+}
+
+model settings {
+  id             Int      @id @default(autoincrement())
+  key            String   @unique @db.VarChar(100)
+  value          String   @db.VarChar(255)
+  description    String?  @db.VarChar(255)
+  updated_at     DateTime @default(now()) @updatedAt
 }
