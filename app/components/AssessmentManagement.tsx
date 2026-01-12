@@ -29,6 +29,8 @@ const AssessmentManagement: React.FC = () => {
   const [studentNumber, setStudentNumber] = useState("");
   const [tuitionPerUnit, setTuitionPerUnit] = useState("570");
   const [totalUnits, setTotalUnits] = useState(0);
+  const [isFetchingStudent, setIsFetchingStudent] = useState(false);
+  const [studentFetchError, setStudentFetchError] = useState("");
 
   // Cash Basis
   const [tuition, setTuition] = useState(0);
@@ -62,6 +64,77 @@ const AssessmentManagement: React.FC = () => {
   useEffect(() => {
     fetchFees();
   }, []);
+
+  // Function to fetch student information by student number
+  const fetchStudentByNumber = async (studentNum: string) => {
+    if (!studentNum.trim()) {
+      setStudentFetchError("");
+      return;
+    }
+
+    setIsFetchingStudent(true);
+    setStudentFetchError("");
+
+    try {
+      const response = await fetch(`/api/students/${studentNum.trim()}`);
+      if (response.ok) {
+        const data = await response.json();
+        
+        // Construct student name from available fields
+        let fullName = "";
+        if (data.first_name || data.last_name) {
+          const parts = [
+            data.first_name || "",
+            data.middle_name || "",
+            data.last_name || "",
+            data.suffix || ""
+          ].filter(Boolean);
+          fullName = parts.join(" ");
+        }
+        
+        // Set student name if available
+        if (fullName) {
+          setStudentName(fullName);
+        }
+        
+        // Set program from course_program or department
+        if (data.course_program) {
+          setProgram(data.course_program);
+        } else if (data.department) {
+          setProgram(data.department);
+        }
+      } else {
+        const errorData = await response.json();
+        setStudentFetchError(errorData.error || "Student not found");
+        // Clear fields if student not found
+        setStudentName("");
+        setProgram("");
+      }
+    } catch (error) {
+      console.error("Error fetching student:", error);
+      setStudentFetchError("Failed to fetch student information");
+      setStudentName("");
+      setProgram("");
+    } finally {
+      setIsFetchingStudent(false);
+    }
+  };
+
+  // Handle student number change with debounce
+  useEffect(() => {
+    if (studentNumber.trim()) {
+      const timeoutId = setTimeout(() => {
+        fetchStudentByNumber(studentNumber);
+      }, 500); // Wait 500ms after user stops typing
+
+      return () => clearTimeout(timeoutId);
+    } else {
+      // Clear fields if student number is empty
+      setStudentName("");
+      setProgram("");
+      setStudentFetchError("");
+    }
+  }, [studentNumber]);
 
   useEffect(() => {
     // Calculate net tuition
@@ -177,6 +250,41 @@ const AssessmentManagement: React.FC = () => {
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
             <div className="group">
               <label className="flex items-center gap-2 text-sm font-semibold mb-2 ml-1" style={{ color: colors.primary }}>
+                <FileText className="w-4 h-4" style={{ color: colors.secondary }} />
+                Student Number
+              </label>
+              <div className="relative">
+                <input
+                  type="text"
+                  value={studentNumber}
+                  onChange={(e) => setStudentNumber(e.target.value)}
+                  className={inputClasses}
+                  style={{
+                    borderColor: studentFetchError ? "#ef4444" : colors.tertiary + "30",
+                    color: colors.primary
+                  }}
+                  onFocus={(e) => {
+                    e.currentTarget.style.borderColor = colors.secondary;
+                    e.currentTarget.style.boxShadow = `0 0 0 4px ${colors.secondary}10`;
+                  }}
+                  onBlur={(e) => {
+                    e.currentTarget.style.borderColor = studentFetchError ? "#ef4444" : colors.tertiary + "30";
+                    e.currentTarget.style.boxShadow = "none";
+                  }}
+                  placeholder="Enter student number"
+                />
+                {isFetchingStudent && (
+                  <div className="absolute right-3 top-1/2 transform -translate-y-1/2">
+                    <div className="animate-spin rounded-full h-4 w-4 border-2 border-gray-300 border-t-blue-600"></div>
+                  </div>
+                )}
+              </div>
+              {studentFetchError && (
+                <p className="text-xs text-red-500 mt-1 ml-1">{studentFetchError}</p>
+              )}
+            </div>
+            <div className="group">
+              <label className="flex items-center gap-2 text-sm font-semibold mb-2 ml-1" style={{ color: colors.primary }}>
                 <User className="w-4 h-4" style={{ color: colors.secondary }} />
                 Student Name
               </label>
@@ -223,31 +331,6 @@ const AssessmentManagement: React.FC = () => {
                   e.currentTarget.style.boxShadow = "none";
                 }}
                 placeholder="Enter program"
-              />
-            </div>
-            <div className="group">
-              <label className="flex items-center gap-2 text-sm font-semibold mb-2 ml-1" style={{ color: colors.primary }}>
-                <FileText className="w-4 h-4" style={{ color: colors.secondary }} />
-                Student Number
-              </label>
-              <input
-                type="text"
-                value={studentNumber}
-                onChange={(e) => setStudentNumber(e.target.value)}
-                className={inputClasses}
-                style={{
-                  borderColor: colors.tertiary + "30",
-                  color: colors.primary
-                }}
-                onFocus={(e) => {
-                  e.currentTarget.style.borderColor = colors.secondary;
-                  e.currentTarget.style.boxShadow = `0 0 0 4px ${colors.secondary}10`;
-                }}
-                onBlur={(e) => {
-                  e.currentTarget.style.borderColor = colors.tertiary + "30";
-                  e.currentTarget.style.boxShadow = "none";
-                }}
-                placeholder="Enter student number"
               />
             </div>
           </div>
