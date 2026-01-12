@@ -98,54 +98,42 @@ const Dashboard: React.FC = () => {
     return labels[semester] || semester;
   };
 
-  const getSemesterColor = (semester: string) => {
-    const semesterColors: Record<string, { bg: string; text: string; border: string }> = {
-      first: { bg: "#EFF6FF", text: "#1D4ED8", border: "#BFDBFE" },
-      second: { bg: "#F0FDF4", text: "#15803D", border: "#BBF7D0" },
-      summer: { bg: "#FEF3C7", text: "#B45309", border: "#FDE68A" },
-      First: { bg: "#EFF6FF", text: "#1D4ED8", border: "#BFDBFE" },
-      Second: { bg: "#F0FDF4", text: "#15803D", border: "#BBF7D0" },
-      Summer: { bg: "#FEF3C7", text: "#B45309", border: "#FDE68A" },
-    };
-    return semesterColors[semester] || { bg: "#F3F4F6", text: "#374151", border: "#D1D5DB" };
-  };
-
   if (loading) {
     return (
-      <div className="flex items-center justify-center min-h-screen bg-gradient-to-br from-slate-50 to-slate-100">
+      <div className="flex items-center justify-center min-h-screen" style={{ background: colors.paper }}>
         <div className="flex flex-col items-center gap-4">
           <div className="relative">
-            <div className="w-16 h-16 border-4 border-blue-200 rounded-full animate-spin border-t-blue-600"></div>
-            <GraduationCap className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 w-6 h-6 text-blue-600" />
+            <div
+              className="w-16 h-16 border-4 rounded-full animate-spin"
+              style={{
+                borderColor: colors.neutralBorder,
+                borderTopColor: colors.primary
+              }}
+            ></div>
+            <GraduationCap
+              className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 w-6 h-6"
+              style={{ color: colors.primary }}
+            />
           </div>
-          <p className="text-slate-600 font-medium">Loading Dashboard...</p>
+          <p className="font-medium" style={{ color: colors.neutral }}>Loading Dashboard...</p>
         </div>
       </div>
     );
   }
 
-  const semesterColors = getSemesterColor(stats?.currentSemester || "first");
-
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-white to-slate-50">
+    <div className="min-h-screen" style={{ backgroundColor: colors.paper }}>
       {/* Header Section */}
-      <div className="relative overflow-hidden">
-        <div 
-          className="absolute inset-0 opacity-5"
-          style={{
-            backgroundImage: `radial-gradient(circle at 20% 50%, ${colors.primary} 0%, transparent 50%), 
-                             radial-gradient(circle at 80% 50%, ${colors.secondary} 0%, transparent 50%)`,
-          }}
-        />
+      <div className="relative overflow-hidden border-b" style={{ backgroundColor: colors.paper, borderColor: "rgba(58, 35, 19, 0.2)" }}>
         <div className="relative px-6 py-8 sm:px-8 lg:px-12">
           <div className="max-w-7xl mx-auto">
             <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-6">
               {/* Left Side - Welcome & Time */}
               <div className="space-y-2">
                 <div className="flex items-center gap-3">
-                  <div 
+                  <div
                     className="p-2 rounded-xl"
-                    style={{ backgroundColor: `${colors.primary}10` }}
+                    style={{ backgroundColor: colors.primary + "10" }}
                   >
                     <Sparkles className="w-6 h-6" style={{ color: colors.primary }} />
                   </div>
@@ -153,12 +141,12 @@ const Dashboard: React.FC = () => {
                     Dashboard
                   </h1>
                 </div>
-                <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-4 text-slate-600">
-                  <p className="flex items-center gap-2">
-                    <Calendar className="w-4 h-4" />
+                <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-4">
+                  <p className="flex items-center gap-2" style={{ color: colors.secondary }}>
+                    <Calendar className="w-4 h-4" style={{ color: colors.secondary }} />
                     {formatDate(currentTime)}
                   </p>
-                  <p className="flex items-center gap-2 font-mono text-lg font-semibold" style={{ color: colors.primary }}>
+                  <p className="flex items-center gap-2 font-mono text-lg font-semibold" style={{ color: colors.neutralDark }}>
                     <Clock className="w-4 h-4" />
                     {formatTime(currentTime)}
                   </p>
@@ -166,34 +154,37 @@ const Dashboard: React.FC = () => {
               </div>
 
               {/* Right Side - Current Semester Card */}
-              <div 
-                className="flex items-center gap-4 px-6 py-4 rounded-2xl border-2 shadow-lg backdrop-blur-sm"
-                style={{ 
-                  backgroundColor: semesterColors.bg,
-                  borderColor: semesterColors.border,
+              <div
+                className="flex items-center gap-4 px-6 py-4 rounded-xl bg-white"
+                style={{
+                  boxShadow: "0 1px 3px 0 rgba(58, 35, 19, 0.12), 0 1px 2px 0 rgba(58, 35, 19, 0.08)"
                 }}
               >
-                <div 
-                  className="p-3 rounded-xl"
-                  style={{ backgroundColor: `${semesterColors.text}20` }}
+                <div
+                  className="p-3 rounded-lg"
+                  style={{
+                    backgroundColor: colors.neutralLight,
+                    border: `1px solid ${colors.neutralBorder}`
+                  }}
                 >
-                  <GraduationCap className="w-8 h-8" style={{ color: semesterColors.text }} />
+                  <GraduationCap className="w-8 h-8" style={{ color: colors.primary }} />
                 </div>
                 <div>
-                  <p className="text-sm font-medium text-slate-500">Current Academic Period</p>
-                  <p className="text-xl font-bold" style={{ color: semesterColors.text }}>
+                  <p className="text-sm font-medium" style={{ color: colors.neutral }}>Current Academic Period</p>
+                  <p className="text-xl font-bold" style={{ color: colors.primary }}>
                     {getSemesterLabel(stats?.currentSemester || "")}
                   </p>
-                  <p className="text-sm font-semibold" style={{ color: semesterColors.text }}>
+                  <p className="text-sm font-semibold" style={{ color: colors.secondary }}>
                     A.Y. {stats?.currentAcademicYear}
                   </p>
                 </div>
                 <button
                   onClick={fetchStats}
                   disabled={refreshing}
-                  className="ml-4 p-2 rounded-lg hover:bg-white/50 transition-colors"
+                  className="ml-4 p-2 rounded-lg hover:bg-gray-50 transition-colors"
+                  style={{ color: colors.neutral }}
                 >
-                  <RefreshCw className={`w-5 h-5 ${refreshing ? "animate-spin" : ""}`} style={{ color: semesterColors.text }} />
+                  <RefreshCw className={`w-5 h-5 ${refreshing ? "animate-spin" : ""}`} />
                 </button>
               </div>
             </div>
@@ -202,211 +193,317 @@ const Dashboard: React.FC = () => {
       </div>
 
       {/* Main Content */}
-      <div className="px-6 pb-12 sm:px-8 lg:px-12">
+      <div className="px-6 pb-12 sm:px-8 lg:px-12 pt-8">
         <div className="max-w-7xl mx-auto space-y-8">
-          
+
           {/* Stats Grid */}
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
             {/* Total Enrollments */}
-            <div className="group relative bg-white rounded-2xl shadow-sm border border-slate-200 p-6 hover:shadow-xl hover:border-blue-200 transition-all duration-300 overflow-hidden">
-              <div className="absolute top-0 right-0 w-32 h-32 bg-gradient-to-br from-blue-500/10 to-transparent rounded-bl-full transform translate-x-8 -translate-y-8 group-hover:scale-150 transition-transform duration-500" />
-              <div className="relative">
-                <div className="flex items-center justify-between mb-4">
-                  <div className="p-3 rounded-xl bg-blue-50 group-hover:bg-blue-100 transition-colors">
-                    <Users className="w-6 h-6 text-blue-600" />
-                  </div>
-                  {stats?.stats.enrollmentTrend !== undefined && (
-                    <div className={`flex items-center gap-1 px-2 py-1 rounded-full text-xs font-semibold ${
-                      stats.stats.enrollmentTrend >= 0 ? "bg-emerald-50 text-emerald-600" : "bg-red-50 text-red-600"
-                    }`}>
-                      {stats.stats.enrollmentTrend >= 0 ? (
-                        <ArrowUpRight className="w-3 h-3" />
-                      ) : (
-                        <ArrowDownRight className="w-3 h-3" />
-                      )}
-                      {Math.abs(stats.stats.enrollmentTrend)}%
-                    </div>
-                  )}
+            <div
+              className="rounded-2xl p-6 hover:shadow-lg transition-all duration-200 bg-white"
+              style={{
+                boxShadow: "0 1px 3px 0 rgba(58, 35, 19, 0.12), 0 1px 2px 0 rgba(58, 35, 19, 0.08)"
+              }}
+            >
+              <div className="flex items-center justify-between mb-4">
+                <div
+                  className="p-3 rounded-xl shadow-sm"
+                  style={{
+                    backgroundColor: colors.primary + "10",
+                    border: `1px solid ${colors.primary}20`
+                  }}
+                >
+                  <Users className="w-6 h-6" style={{ color: colors.primary }} />
                 </div>
-                <p className="text-sm font-medium text-slate-500 mb-1">Total Enrollments</p>
-                <p className="text-3xl font-bold text-slate-900">{stats?.stats.totalEnrollments.toLocaleString()}</p>
-                <p className="text-xs text-slate-400 mt-2">
-                  +{stats?.stats.recentEnrollments} this week
-                </p>
+                {stats?.stats.enrollmentTrend !== undefined && (
+                  <div
+                    className="flex items-center gap-1 px-2 py-1 rounded-full text-xs font-semibold"
+                    style={{
+                      backgroundColor: stats.stats.enrollmentTrend >= 0 ? colors.primary + "15" : colors.danger + "15",
+                      color: stats.stats.enrollmentTrend >= 0 ? colors.primary : colors.danger
+                    }}
+                  >
+                    {stats.stats.enrollmentTrend >= 0 ? (
+                      <ArrowUpRight className="w-3 h-3" />
+                    ) : (
+                      <ArrowDownRight className="w-3 h-3" />
+                    )}
+                    {Math.abs(stats.stats.enrollmentTrend)}%
+                  </div>
+                )}
               </div>
+              <p className="text-sm font-medium mb-1" style={{ color: colors.secondary }}>Total Enrollments</p>
+              <p className="text-3xl font-bold" style={{ color: colors.neutralDark }}>{stats?.stats.totalEnrollments.toLocaleString()}</p>
+              <p className="text-xs mt-2" style={{ color: colors.neutral }}>
+                +{stats?.stats.recentEnrollments} this week
+              </p>
             </div>
 
             {/* Pending Enrollments */}
-            <div className="group relative bg-white rounded-2xl shadow-sm border border-slate-200 p-6 hover:shadow-xl hover:border-amber-200 transition-all duration-300 overflow-hidden">
-              <div className="absolute top-0 right-0 w-32 h-32 bg-gradient-to-br from-amber-500/10 to-transparent rounded-bl-full transform translate-x-8 -translate-y-8 group-hover:scale-150 transition-transform duration-500" />
-              <div className="relative">
-                <div className="flex items-center justify-between mb-4">
-                  <div className="p-3 rounded-xl bg-amber-50 group-hover:bg-amber-100 transition-colors">
-                    <Clock className="w-6 h-6 text-amber-600" />
-                  </div>
-                  {stats?.stats.pendingEnrollments && stats.stats.pendingEnrollments > 0 && (
-                    <div className="flex items-center gap-1 px-2 py-1 rounded-full text-xs font-semibold bg-amber-50 text-amber-600">
-                      <AlertCircle className="w-3 h-3" />
-                      Needs Review
-                    </div>
-                  )}
+            <div
+              className="rounded-2xl p-6 hover:shadow-lg transition-all duration-200 bg-white"
+              style={{
+                boxShadow: "0 1px 3px 0 rgba(58, 35, 19, 0.12), 0 1px 2px 0 rgba(58, 35, 19, 0.08)"
+              }}
+            >
+              <div className="flex items-center justify-between mb-4">
+                <div
+                  className="p-3 rounded-xl shadow-sm"
+                  style={{
+                    backgroundColor: colors.warning + "10",
+                    border: `1px solid ${colors.warning}20`
+                  }}
+                >
+                  <Clock className="w-6 h-6" style={{ color: colors.warning }} />
                 </div>
-                <p className="text-sm font-medium text-slate-500 mb-1">Pending Approval</p>
-                <p className="text-3xl font-bold text-slate-900">{stats?.stats.pendingEnrollments.toLocaleString()}</p>
-                <p className="text-xs text-slate-400 mt-2">
-                  Awaiting review
-                </p>
+                {stats?.stats.pendingEnrollments && stats.stats.pendingEnrollments > 0 && (
+                  <div
+                    className="flex items-center gap-1 px-2 py-1 rounded-full text-xs font-semibold"
+                    style={{
+                      backgroundColor: colors.warning + "15",
+                      color: colors.warning
+                    }}
+                  >
+                    <AlertCircle className="w-3 h-3" />
+                    Needs Review
+                  </div>
+                )}
               </div>
+              <p className="text-sm font-medium mb-1" style={{ color: colors.secondary }}>Pending Approval</p>
+              <p className="text-3xl font-bold" style={{ color: colors.neutralDark }}>{stats?.stats.pendingEnrollments.toLocaleString()}</p>
+              <p className="text-xs mt-2" style={{ color: colors.neutral }}>
+                Awaiting review
+              </p>
             </div>
 
             {/* Approved Enrollments */}
-            <div className="group relative bg-white rounded-2xl shadow-sm border border-slate-200 p-6 hover:shadow-xl hover:border-emerald-200 transition-all duration-300 overflow-hidden">
-              <div className="absolute top-0 right-0 w-32 h-32 bg-gradient-to-br from-emerald-500/10 to-transparent rounded-bl-full transform translate-x-8 -translate-y-8 group-hover:scale-150 transition-transform duration-500" />
-              <div className="relative">
-                <div className="flex items-center justify-between mb-4">
-                  <div className="p-3 rounded-xl bg-emerald-50 group-hover:bg-emerald-100 transition-colors">
-                    <CheckCircle2 className="w-6 h-6 text-emerald-600" />
-                  </div>
+            <div
+              className="rounded-2xl p-6 hover:shadow-lg transition-all duration-200 bg-white"
+              style={{
+                boxShadow: "0 1px 3px 0 rgba(58, 35, 19, 0.12), 0 1px 2px 0 rgba(58, 35, 19, 0.08)"
+              }}
+            >
+              <div className="flex items-center justify-between mb-4">
+                <div
+                  className="p-3 rounded-xl shadow-sm"
+                  style={{
+                    backgroundColor: colors.success + "10",
+                    border: `1px solid ${colors.success}20`
+                  }}
+                >
+                  <CheckCircle2 className="w-6 h-6" style={{ color: colors.success }} />
                 </div>
-                <p className="text-sm font-medium text-slate-500 mb-1">Approved</p>
-                <p className="text-3xl font-bold text-slate-900">{stats?.stats.approvedEnrollments.toLocaleString()}</p>
-                <p className="text-xs text-slate-400 mt-2">
-                  Successfully enrolled
-                </p>
               </div>
+              <p className="text-sm font-medium mb-1" style={{ color: colors.secondary }}>Approved</p>
+              <p className="text-3xl font-bold" style={{ color: colors.neutralDark }}>{stats?.stats.approvedEnrollments.toLocaleString()}</p>
+              <p className="text-xs mt-2" style={{ color: colors.neutral }}>
+                Successfully enrolled
+              </p>
             </div>
 
             {/* Total Students */}
-            <div className="group relative bg-white rounded-2xl shadow-sm border border-slate-200 p-6 hover:shadow-xl hover:border-purple-200 transition-all duration-300 overflow-hidden">
-              <div className="absolute top-0 right-0 w-32 h-32 bg-gradient-to-br from-purple-500/10 to-transparent rounded-bl-full transform translate-x-8 -translate-y-8 group-hover:scale-150 transition-transform duration-500" />
-              <div className="relative">
-                <div className="flex items-center justify-between mb-4">
-                  <div className="p-3 rounded-xl bg-purple-50 group-hover:bg-purple-100 transition-colors">
-                    <GraduationCap className="w-6 h-6 text-purple-600" />
-                  </div>
+            <div
+              className="rounded-2xl p-6 hover:shadow-lg transition-all duration-200 bg-white"
+              style={{
+                boxShadow: "0 1px 3px 0 rgba(58, 35, 19, 0.12), 0 1px 2px 0 rgba(58, 35, 19, 0.08)"
+              }}
+            >
+              <div className="flex items-center justify-between mb-4">
+                <div
+                  className="p-3 rounded-xl shadow-sm"
+                  style={{
+                    backgroundColor: colors.primary + "10",
+                    border: `1px solid ${colors.primary}20`
+                  }}
+                >
+                  <GraduationCap className="w-6 h-6" style={{ color: colors.primary }} />
                 </div>
-                <p className="text-sm font-medium text-slate-500 mb-1">Total Students</p>
-                <p className="text-3xl font-bold text-slate-900">{stats?.stats.totalStudents.toLocaleString()}</p>
-                <p className="text-xs text-slate-400 mt-2">
-                  Registered in system
-                </p>
               </div>
+              <p className="text-sm font-medium mb-1" style={{ color: colors.secondary }}>Total Students</p>
+              <p className="text-3xl font-bold" style={{ color: colors.neutralDark }}>{stats?.stats.totalStudents.toLocaleString()}</p>
+              <p className="text-xs mt-2" style={{ color: colors.neutral }}>
+                Registered in system
+              </p>
             </div>
           </div>
 
           {/* Second Row - Programs & Departments */}
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
             {/* Quick Stats */}
-            <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-6">
-              <div className="flex items-center gap-3 mb-6">
-                <div className="p-2 rounded-xl bg-slate-100">
-                  <BarChart3 className="w-5 h-5 text-slate-600" />
+            <div
+              className="rounded-2xl p-6 bg-white"
+              style={{
+                boxShadow: "0 1px 3px 0 rgba(58, 35, 19, 0.12), 0 1px 2px 0 rgba(58, 35, 19, 0.08)"
+              }}
+            >
+              <div className="flex items-center gap-3 mb-6 pb-4 border-b" style={{ borderColor: "rgba(58, 35, 19, 0.2)" }}>
+                <div
+                  className="p-2 rounded-xl shadow-sm"
+                  style={{
+                    backgroundColor: colors.paper,
+                    border: `1px solid ${colors.tertiary}30`
+                  }}
+                >
+                  <BarChart3 className="w-5 h-5" style={{ color: colors.primary }} />
                 </div>
-                <h2 className="text-lg font-bold text-slate-900">Quick Stats</h2>
+                <h2 className="text-lg font-bold" style={{ color: colors.primary }}>Quick Stats</h2>
               </div>
-              <div className="space-y-4">
-                <div className="flex items-center justify-between p-4 rounded-xl bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-100">
+              <div className="space-y-3">
+                <div
+                  className="flex items-center justify-between p-4 rounded-xl border"
+                  style={{
+                    backgroundColor: colors.paper,
+                    borderColor: colors.tertiary + "30"
+                  }}
+                >
                   <div className="flex items-center gap-3">
-                    <BookOpen className="w-5 h-5 text-blue-600" />
-                    <span className="font-medium text-slate-700">Active Programs</span>
+                    <BookOpen className="w-5 h-5" style={{ color: colors.primary }} />
+                    <span className="font-medium" style={{ color: colors.primary }}>Active Programs</span>
                   </div>
-                  <span className="text-xl font-bold text-blue-600">{stats?.stats.totalPrograms}</span>
+                  <span className="text-xl font-bold" style={{ color: colors.primary }}>{stats?.stats.totalPrograms}</span>
                 </div>
-                <div className="flex items-center justify-between p-4 rounded-xl bg-gradient-to-r from-emerald-50 to-teal-50 border border-emerald-100">
+                <div
+                  className="flex items-center justify-between p-4 rounded-xl border"
+                  style={{
+                    backgroundColor: colors.paper,
+                    borderColor: colors.tertiary + "30"
+                  }}
+                >
                   <div className="flex items-center gap-3">
-                    <Building2 className="w-5 h-5 text-emerald-600" />
-                    <span className="font-medium text-slate-700">Departments</span>
+                    <Building2 className="w-5 h-5" style={{ color: colors.primary }} />
+                    <span className="font-medium" style={{ color: colors.primary }}>Departments</span>
                   </div>
-                  <span className="text-xl font-bold text-emerald-600">{stats?.stats.totalDepartments}</span>
+                  <span className="text-xl font-bold" style={{ color: colors.primary }}>{stats?.stats.totalDepartments}</span>
                 </div>
-                <div className="flex items-center justify-between p-4 rounded-xl bg-gradient-to-r from-amber-50 to-orange-50 border border-amber-100">
+                <div
+                  className="flex items-center justify-between p-4 rounded-xl border"
+                  style={{
+                    backgroundColor: colors.paper,
+                    borderColor: colors.tertiary + "30"
+                  }}
+                >
                   <div className="flex items-center gap-3">
-                    <Activity className="w-5 h-5 text-amber-600" />
-                    <span className="font-medium text-slate-700">This Week</span>
+                    <Activity className="w-5 h-5" style={{ color: colors.primary }} />
+                    <span className="font-medium" style={{ color: colors.primary }}>This Week</span>
                   </div>
-                  <span className="text-xl font-bold text-amber-600">+{stats?.stats.recentEnrollments}</span>
+                  <span className="text-xl font-bold" style={{ color: colors.primary }}>+{stats?.stats.recentEnrollments}</span>
                 </div>
               </div>
             </div>
 
             {/* Enrollment Status Distribution */}
-            <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-6">
-              <div className="flex items-center gap-3 mb-6">
-                <div className="p-2 rounded-xl bg-slate-100">
-                  <PieChart className="w-5 h-5 text-slate-600" />
+            <div
+              className="rounded-2xl p-6 bg-white"
+              style={{
+                boxShadow: "0 1px 3px 0 rgba(58, 35, 19, 0.12), 0 1px 2px 0 rgba(58, 35, 19, 0.08)"
+              }}
+            >
+              <div className="flex items-center gap-3 mb-6 pb-4 border-b" style={{ borderColor: "rgba(58, 35, 19, 0.2)" }}>
+                <div
+                  className="p-2 rounded-xl shadow-sm"
+                  style={{
+                    backgroundColor: colors.paper,
+                    border: `1px solid ${colors.tertiary}30`
+                  }}
+                >
+                  <PieChart className="w-5 h-5" style={{ color: colors.primary }} />
                 </div>
-                <h2 className="text-lg font-bold text-slate-900">By Admission Type</h2>
+                <h2 className="text-lg font-bold" style={{ color: colors.primary }}>By Admission Type</h2>
               </div>
               <div className="space-y-3">
                 {stats?.enrollmentsByStatus.map((item, index) => {
-                  const statusColors = [
-                    { bg: "bg-blue-500", light: "bg-blue-50" },
-                    { bg: "bg-emerald-500", light: "bg-emerald-50" },
-                    { bg: "bg-purple-500", light: "bg-purple-50" },
-                    { bg: "bg-amber-500", light: "bg-amber-50" },
+                  const progressColors = [
+                    colors.primary,
+                    colors.secondary,
+                    colors.tertiary,
+                    colors.accent,
                   ];
-                  const color = statusColors[index % statusColors.length];
+                  const progressColor = progressColors[index % progressColors.length];
                   const total = stats.stats.totalEnrollments || 1;
                   const percentage = Math.round((item.count / total) * 100);
-                  
+
                   return (
                     <div key={item.status} className="space-y-2">
                       <div className="flex items-center justify-between">
-                        <span className="text-sm font-medium text-slate-600 capitalize">
+                        <span className="text-sm font-medium capitalize" style={{ color: colors.neutral }}>
                           {item.status === "new" ? "New Student" : item.status === "transferee" ? "Transferee" : item.status}
                         </span>
-                        <span className="text-sm font-bold text-slate-900">{item.count}</span>
+                        <span className="text-sm font-bold" style={{ color: colors.primary }}>{item.count}</span>
                       </div>
-                      <div className={`h-2 rounded-full ${color.light}`}>
-                        <div 
-                          className={`h-2 rounded-full ${color.bg} transition-all duration-500`}
-                          style={{ width: `${percentage}%` }}
+                      <div className="h-2 rounded-full" style={{ backgroundColor: colors.neutralLight }}>
+                        <div
+                          className="h-2 rounded-full transition-all duration-500"
+                          style={{
+                            width: `${percentage}%`,
+                            backgroundColor: progressColor
+                          }}
                         />
                       </div>
                     </div>
                   );
                 })}
                 {(!stats?.enrollmentsByStatus || stats.enrollmentsByStatus.length === 0) && (
-                  <p className="text-sm text-slate-400 text-center py-4">No enrollment data available</p>
+                  <p className="text-sm text-center py-4" style={{ color: colors.neutral }}>No enrollment data available</p>
                 )}
               </div>
             </div>
 
             {/* Top Departments */}
-            <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-6">
-              <div className="flex items-center gap-3 mb-6">
-                <div className="p-2 rounded-xl bg-slate-100">
-                  <TrendingUp className="w-5 h-5 text-slate-600" />
+            <div
+              className="rounded-2xl p-6 bg-white"
+              style={{
+                boxShadow: "0 1px 3px 0 rgba(58, 35, 19, 0.12), 0 1px 2px 0 rgba(58, 35, 19, 0.08)"
+              }}
+            >
+              <div className="flex items-center gap-3 mb-6 pb-4 border-b" style={{ borderColor: "rgba(58, 35, 19, 0.2)" }}>
+                <div
+                  className="p-2 rounded-xl shadow-sm"
+                  style={{
+                    backgroundColor: colors.paper,
+                    border: `1px solid ${colors.tertiary}30`
+                  }}
+                >
+                  <TrendingUp className="w-5 h-5" style={{ color: colors.primary }} />
                 </div>
-                <h2 className="text-lg font-bold text-slate-900">Top Departments</h2>
+                <h2 className="text-lg font-bold" style={{ color: colors.primary }}>Top Departments</h2>
               </div>
-              <div className="space-y-3">
-                {stats?.topDepartments.map((dept, index) => (
-                  <div 
-                    key={dept.id}
-                    className="flex items-center gap-4 p-3 rounded-xl hover:bg-slate-50 transition-colors"
-                  >
-                    <div className={`
-                      w-8 h-8 rounded-lg flex items-center justify-center font-bold text-sm
-                      ${index === 0 ? "bg-amber-100 text-amber-600" : 
-                        index === 1 ? "bg-slate-200 text-slate-600" :
-                        index === 2 ? "bg-orange-100 text-orange-600" :
-                        "bg-slate-100 text-slate-500"}
-                    `}>
-                      {index + 1}
+              <div className="space-y-2">
+                {stats?.topDepartments.map((dept, index) => {
+                  return (
+                    <div
+                      key={dept.id}
+                      className="flex items-center gap-4 p-3 rounded-xl transition-colors"
+                      style={{ backgroundColor: colors.paper }}
+                      onMouseEnter={(e) => {
+                        e.currentTarget.style.backgroundColor = colors.accent + "10";
+                      }}
+                      onMouseLeave={(e) => {
+                        e.currentTarget.style.backgroundColor = colors.paper;
+                      }}
+                    >
+                      <div
+                        className="w-8 h-8 rounded-lg flex items-center justify-center font-bold text-sm"
+                        style={{
+                          backgroundColor: colors.primary + "10",
+                          color: colors.primary,
+                          border: `1px solid ${colors.primary}20`
+                        }}
+                      >
+                        {index + 1}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-semibold truncate" style={{ color: colors.primary }}>{dept.code}</p>
+                        <p className="text-xs truncate" style={{ color: colors.neutral }}>{dept.name}</p>
+                      </div>
+                      <div className="text-right">
+                        <p className="text-lg font-bold" style={{ color: colors.primary }}>{dept.count}</p>
+                        <p className="text-xs" style={{ color: colors.neutral }}>enrollees</p>
+                      </div>
                     </div>
-                    <div className="flex-1 min-w-0">
-                      <p className="text-sm font-semibold text-slate-900 truncate">{dept.code}</p>
-                      <p className="text-xs text-slate-500 truncate">{dept.name}</p>
-                    </div>
-                    <div className="text-right">
-                      <p className="text-lg font-bold text-slate-900">{dept.count}</p>
-                      <p className="text-xs text-slate-400">enrollees</p>
-                    </div>
-                  </div>
-                ))}
+                  );
+                })}
                 {(!stats?.topDepartments || stats.topDepartments.length === 0) && (
-                  <p className="text-sm text-slate-400 text-center py-4">No department data available</p>
+                  <p className="text-sm text-center py-4" style={{ color: colors.neutral }}>No department data available</p>
                 )}
               </div>
             </div>
@@ -414,48 +511,104 @@ const Dashboard: React.FC = () => {
 
           {/* Action Cards */}
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-            <button className="group flex items-center gap-4 p-4 bg-white rounded-xl border border-slate-200 hover:border-blue-300 hover:shadow-lg transition-all duration-300">
-              <div className="p-3 rounded-xl bg-blue-50 group-hover:bg-blue-100 transition-colors">
-                <Users className="w-5 h-5 text-blue-600" />
+            <button
+              className="group flex items-center gap-4 p-4 rounded-xl hover:shadow-lg transition-all duration-200 bg-white"
+              style={{
+                boxShadow: "0 1px 3px 0 rgba(58, 35, 19, 0.12), 0 1px 2px 0 rgba(58, 35, 19, 0.08)"
+              }}
+            >
+              <div
+                className="p-3 rounded-xl shadow-sm"
+                style={{
+                  backgroundColor: colors.info + "10",
+                  border: `1px solid ${colors.info}20`
+                }}
+              >
+                <Users className="w-5 h-5" style={{ color: colors.info }} />
               </div>
-              <div className="text-left">
-                <p className="font-semibold text-slate-900">New Enrollment</p>
-                <p className="text-xs text-slate-500">Add a new student</p>
+              <div className="text-left flex-1">
+                <p className="font-semibold" style={{ color: colors.primary }}>New Enrollment</p>
+                <p className="text-xs" style={{ color: colors.neutral }}>Add a new student</p>
               </div>
-              <ArrowUpRight className="w-4 h-4 text-slate-400 ml-auto group-hover:text-blue-600 transition-colors" />
+              <ArrowUpRight
+                className="w-4 h-4 transition-colors flex-shrink-0"
+                style={{ color: colors.neutral }}
+              />
             </button>
-            
-            <button className="group flex items-center gap-4 p-4 bg-white rounded-xl border border-slate-200 hover:border-emerald-300 hover:shadow-lg transition-all duration-300">
-              <div className="p-3 rounded-xl bg-emerald-50 group-hover:bg-emerald-100 transition-colors">
-                <CheckCircle2 className="w-5 h-5 text-emerald-600" />
+
+            <button
+              className="group flex items-center gap-4 p-4 rounded-xl hover:shadow-lg transition-all duration-200 bg-white"
+              style={{
+                boxShadow: "0 1px 3px 0 rgba(58, 35, 19, 0.12), 0 1px 2px 0 rgba(58, 35, 19, 0.08)"
+              }}
+            >
+              <div
+                className="p-3 rounded-xl shadow-sm"
+                style={{
+                  backgroundColor: colors.warning + "10",
+                  border: `1px solid ${colors.warning}20`
+                }}
+              >
+                <CheckCircle2 className="w-5 h-5" style={{ color: colors.warning }} />
               </div>
-              <div className="text-left">
-                <p className="font-semibold text-slate-900">Review Pending</p>
-                <p className="text-xs text-slate-500">{stats?.stats.pendingEnrollments} awaiting</p>
+              <div className="text-left flex-1">
+                <p className="font-semibold" style={{ color: colors.primary }}>Review Pending</p>
+                <p className="text-xs" style={{ color: colors.neutral }}>{stats?.stats.pendingEnrollments} awaiting</p>
               </div>
-              <ArrowUpRight className="w-4 h-4 text-slate-400 ml-auto group-hover:text-emerald-600 transition-colors" />
+              <ArrowUpRight
+                className="w-4 h-4 transition-colors flex-shrink-0"
+                style={{ color: colors.neutral }}
+              />
             </button>
-            
-            <button className="group flex items-center gap-4 p-4 bg-white rounded-xl border border-slate-200 hover:border-purple-300 hover:shadow-lg transition-all duration-300">
-              <div className="p-3 rounded-xl bg-purple-50 group-hover:bg-purple-100 transition-colors">
-                <BarChart3 className="w-5 h-5 text-purple-600" />
+
+            <button
+              className="group flex items-center gap-4 p-4 rounded-xl hover:shadow-lg transition-all duration-200 bg-white"
+              style={{
+                boxShadow: "0 1px 3px 0 rgba(58, 35, 19, 0.12), 0 1px 2px 0 rgba(58, 35, 19, 0.08)"
+              }}
+            >
+              <div
+                className="p-3 rounded-xl shadow-sm"
+                style={{
+                  backgroundColor: colors.success + "10",
+                  border: `1px solid ${colors.success}20`
+                }}
+              >
+                <BarChart3 className="w-5 h-5" style={{ color: colors.success }} />
               </div>
-              <div className="text-left">
-                <p className="font-semibold text-slate-900">View Reports</p>
-                <p className="text-xs text-slate-500">Analytics & insights</p>
+              <div className="text-left flex-1">
+                <p className="font-semibold" style={{ color: colors.primary }}>View Reports</p>
+                <p className="text-xs" style={{ color: colors.neutral }}>Analytics & insights</p>
               </div>
-              <ArrowUpRight className="w-4 h-4 text-slate-400 ml-auto group-hover:text-purple-600 transition-colors" />
+              <ArrowUpRight
+                className="w-4 h-4 transition-colors flex-shrink-0"
+                style={{ color: colors.neutral }}
+              />
             </button>
-            
-            <button className="group flex items-center gap-4 p-4 bg-white rounded-xl border border-slate-200 hover:border-slate-300 hover:shadow-lg transition-all duration-300">
-              <div className="p-3 rounded-xl bg-slate-100 group-hover:bg-slate-200 transition-colors">
-                <Settings className="w-5 h-5 text-slate-600" />
+
+            <button
+              className="group flex items-center gap-4 p-4 rounded-xl hover:shadow-lg transition-all duration-200 bg-white"
+              style={{
+                boxShadow: "0 1px 3px 0 rgba(58, 35, 19, 0.12), 0 1px 2px 0 rgba(58, 35, 19, 0.08)"
+              }}
+            >
+              <div
+                className="p-3 rounded-xl shadow-sm"
+                style={{
+                  backgroundColor: colors.neutral + "10",
+                  border: `1px solid ${colors.neutral}20`
+                }}
+              >
+                <Settings className="w-5 h-5" style={{ color: colors.neutral }} />
               </div>
-              <div className="text-left">
-                <p className="font-semibold text-slate-900">Settings</p>
-                <p className="text-xs text-slate-500">Configure system</p>
+              <div className="text-left flex-1">
+                <p className="font-semibold" style={{ color: colors.primary }}>Settings</p>
+                <p className="text-xs" style={{ color: colors.neutral }}>Configure system</p>
               </div>
-              <ArrowUpRight className="w-4 h-4 text-slate-400 ml-auto group-hover:text-slate-600 transition-colors" />
+              <ArrowUpRight
+                className="w-4 h-4 transition-colors flex-shrink-0"
+                style={{ color: colors.neutral }}
+              />
             </button>
           </div>
         </div>
