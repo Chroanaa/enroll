@@ -10,6 +10,7 @@ interface Fee {
   name: string;
   amount: number;
   category: string;
+  status?: string;
 }
 
 interface PaymentDetail {
@@ -36,12 +37,7 @@ const AssessmentManagement: React.FC = () => {
   const [tuition, setTuition] = useState(0);
   const [discount, setDiscount] = useState(0);
   const [netTuition, setNetTuition] = useState(0);
-  const [lab, setLab] = useState(0);
-  const [ojt, setOjt] = useState(0);
-  const [nstp, setNstp] = useState(0);
-  const [pe, setPe] = useState(0);
-  const [misc, setMisc] = useState(0);
-  const [other, setOther] = useState(0);
+  const [dynamicFees, setDynamicFees] = useState<{ [key: number]: number }>({});
   const [totalFees, setTotalFees] = useState(0);
 
   // Installment Basis
@@ -64,6 +60,19 @@ const AssessmentManagement: React.FC = () => {
   useEffect(() => {
     fetchFees();
   }, []);
+
+  // Initialize dynamic fees from database when fees are loaded
+  useEffect(() => {
+    if (fees.length > 0) {
+      const initialFees: { [key: number]: number } = {};
+      fees
+        .filter((fee) => fee.status === "active" && fee.category.toLowerCase() !== "tuition")
+        .forEach((fee) => {
+          initialFees[fee.id] = Number(fee.amount);
+        });
+      setDynamicFees(initialFees);
+    }
+  }, [fees]);
 
   // Function to fetch student information by student number
   const fetchStudentByNumber = async (studentNum: string) => {
@@ -97,11 +106,30 @@ const AssessmentManagement: React.FC = () => {
           setStudentName(fullName);
         }
         
-        // Set program from course_program or department
-        if (data.course_program) {
-          setProgram(data.course_program);
+        // Set program from joined program table data - display only the code
+        if (data.program && data.program.code) {
+          // Use the program code from the joined program table
+          setProgram(data.program.code);
+        } else if (data.course_program) {
+          // Fallback to course_program string if program join didn't find a match
+          // But only if it's not numeric (numeric values are likely IDs, not codes)
+          const isNumeric = /^\d+$/.test(data.course_program.trim());
+          if (!isNumeric) {
+            setProgram(data.course_program);
+          } else {
+            // If it's numeric and no program found, leave empty or show message
+            setProgram("");
+            console.warn("Program not found for course_program:", data.course_program);
+          }
         } else if (data.department) {
-          setProgram(data.department);
+          // Fallback to department if no program data available
+          // Only if department is not numeric (likely an ID)
+          const isNumeric = /^\d+$/.test(String(data.department));
+          if (!isNumeric) {
+            setProgram(String(data.department));
+          } else {
+            setProgram("");
+          }
         }
       } else {
         const errorData = await response.json();
@@ -141,8 +169,11 @@ const AssessmentManagement: React.FC = () => {
     const net = tuition - discount;
     setNetTuition(net);
 
+    // Calculate total of dynamic fees
+    const dynamicFeesTotal = Object.values(dynamicFees).reduce((sum, amount) => sum + amount, 0);
+
     // Calculate total fees (cash basis)
-    const total = net + lab + ojt + nstp + pe + misc + other;
+    const total = net + dynamicFeesTotal;
     setTotalFees(total);
 
     // Calculate installment basis
@@ -151,7 +182,7 @@ const AssessmentManagement: React.FC = () => {
     const insurance = installmentNet * 0.05;
     setInsuranceCharge(insurance);
     setTotalInstallment(installmentNet + insurance);
-  }, [tuition, discount, lab, ojt, nstp, pe, misc, other, downPayment]);
+  }, [tuition, discount, dynamicFees, downPayment]);
 
   const fetchFees = async () => {
     try {
@@ -409,23 +440,17 @@ const AssessmentManagement: React.FC = () => {
                 </h3>
               </div>
               <div className="space-y-3">
+                {/* Tuition, Discount, Net Tuition */}
                 {[
                   { label: "Tuition", value: tuition, setValue: setTuition, key: "tuition" },
                   { label: "Discount", value: discount, setValue: setDiscount, key: "discount" },
                   { label: "Net Tuition", value: netTuition, setValue: () => { }, key: "netTuition", readonly: true },
-                  { label: "Lab", value: lab, setValue: setLab, key: "lab" },
-                  { label: "OJT", value: ojt, setValue: setOjt, key: "ojt" },
-                  { label: "NSTP", value: nstp, setValue: setNstp, key: "nstp" },
-                  { label: "PE", value: pe, setValue: setPe, key: "pe" },
-                  { label: "Misc.", value: misc, setValue: setMisc, key: "misc" },
-                  { label: "Other/s", value: other, setValue: setOther, key: "other" },
-                  { label: "Total Fees", value: totalFees, setValue: () => { }, key: "totalFees", readonly: true, highlight: true },
                 ].map((item) => (
                   <div key={item.key} className="flex justify-between items-center py-2 px-3 rounded-lg border" style={{ 
-                    borderColor: item.highlight ? colors.secondary + "30" : colors.accent + "10",
-                    backgroundColor: item.highlight ? colors.accent + "08" : "transparent"
+                    borderColor: colors.accent + "10",
+                    backgroundColor: "transparent"
                   }}>
-                    <span className="text-sm font-medium" style={{ color: item.highlight ? colors.secondary : colors.primary }}>
+                    <span className="text-sm font-medium" style={{ color: colors.primary }}>
                       {item.label}
                     </span>
                     <input
@@ -435,9 +460,8 @@ const AssessmentManagement: React.FC = () => {
                       readOnly={item.readonly}
                       className="w-32 px-3 py-2 rounded-lg border text-right text-sm bg-white/50"
                       style={{
-                        borderColor: item.highlight ? colors.secondary + "30" : colors.tertiary + "30",
-                        color: item.highlight ? colors.secondary : colors.primary,
-                        fontWeight: item.highlight ? "bold" : "normal"
+                        borderColor: colors.tertiary + "30",
+                        color: colors.primary
                       }}
                       onFocus={(e) => {
                         if (!item.readonly) {
@@ -455,6 +479,66 @@ const AssessmentManagement: React.FC = () => {
                     />
                   </div>
                 ))}
+
+                {/* Dynamic Fees from Database */}
+                {fees
+                  .filter((fee) => fee.status === "active" && fee.category.toLowerCase() !== "tuition")
+                  .map((fee) => (
+                    <div key={fee.id} className="flex justify-between items-center py-2 px-3 rounded-lg border" style={{ 
+                      borderColor: colors.accent + "10",
+                      backgroundColor: "transparent"
+                    }}>
+                      <span className="text-sm font-medium" style={{ color: colors.primary }}>
+                        {fee.name}
+                      </span>
+                      <input
+                        type="number"
+                        value={dynamicFees[fee.id] || ""}
+                        onChange={(e) => {
+                          setDynamicFees((prev) => ({
+                            ...prev,
+                            [fee.id]: parseFloat(e.target.value) || 0
+                          }));
+                        }}
+                        className="w-32 px-3 py-2 rounded-lg border text-right text-sm bg-white/50"
+                        style={{
+                          borderColor: colors.tertiary + "30",
+                          color: colors.primary
+                        }}
+                        onFocus={(e) => {
+                          e.currentTarget.style.borderColor = colors.secondary;
+                          e.currentTarget.style.boxShadow = `0 0 0 3px ${colors.secondary}10`;
+                        }}
+                        onBlur={(e) => {
+                          e.currentTarget.style.borderColor = colors.tertiary + "30";
+                          e.currentTarget.style.boxShadow = "none";
+                        }}
+                        placeholder="0.00"
+                      />
+                    </div>
+                  ))}
+
+                {/* Total Fees */}
+                <div className="flex justify-between items-center py-2 px-3 rounded-lg border" style={{ 
+                  borderColor: colors.secondary + "30",
+                  backgroundColor: colors.accent + "08"
+                }}>
+                  <span className="text-sm font-medium" style={{ color: colors.secondary }}>
+                    Total Fees
+                  </span>
+                  <input
+                    type="number"
+                    value={totalFees || ""}
+                    readOnly
+                    className="w-32 px-3 py-2 rounded-lg border text-right text-sm bg-white/50"
+                    style={{
+                      borderColor: colors.secondary + "30",
+                      color: colors.secondary,
+                      fontWeight: "bold"
+                    }}
+                    placeholder="0.00"
+                  />
+                </div>
               </div>
             </div>
 
