@@ -42,6 +42,8 @@ export async function POST(request: NextRequest) {
         description: subject.description || null,
         units_lec: subject.units_lec || null,
         units_lab: subject.units_lab || null,
+        lecture_hour: subject.lecture_hour || null,
+        lab_hour: subject.lab_hour || null,
       };
     });
 

@@ -191,13 +191,15 @@ model program {
 
 /// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
 model subject {
-  id          Int     @id @default(autoincrement())
-  code        String  @db.VarChar(50)
-  name        String  @db.VarChar(255)
-  description String?
-  status      String  @db.VarChar(10)
-  units_lec   Int?
-  units_lab   Int?
+  id           Int     @id @default(autoincrement())
+  code         String  @db.VarChar(50)
+  name         String  @db.VarChar(255)
+  description  String?
+  status       String  @db.VarChar(10)
+  units_lec    Int?
+  units_lab    Int?
+  lecture_hour Int?
+  lab_hour     Int?
 }
 
 model sections {
@@ -216,8 +218,8 @@ model billing {
   is_paid      Int?
   date_paid    DateTime? @db.Date
   user_id      Int?
-  payment_type String?   @db.VarChar(20)
   amount       Decimal?  @db.Decimal(10, 2)
+  payment_type String?   @db.VarChar(20)
   reference_no String?   @db.VarChar(100)
 }
 
@@ -246,6 +248,8 @@ model curriculum_course {
   prerequisite      String?
   year_level        Int
   semester          Int
+  lecture_hour      Int?
+  lab_hour          Int?
   curriculum        curriculum @relation(fields: [curriculum_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
 }
 
@@ -257,9 +261,9 @@ model reports {
 }
 
 model settings {
-  id             Int      @id @default(autoincrement())
-  key            String   @unique @db.VarChar(100)
-  value          String   @db.VarChar(255)
-  description    String?  @db.VarChar(255)
-  updated_at     DateTime @default(now()) @updatedAt
+  id          Int      @id @default(autoincrement())
+  key         String   @unique @db.VarChar(100)
+  value       String   @db.VarChar(255)
+  description String?  @db.VarChar(255)
+  updated_at  DateTime @default(now()) @updatedAt
 }

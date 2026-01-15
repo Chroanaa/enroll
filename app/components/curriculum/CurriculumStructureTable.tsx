@@ -180,9 +180,9 @@ const CurriculumStructureTable: React.FC<CurriculumStructureTableProps> = ({
                         <td className="px-4 py-3">
                           <span className="text-sm font-medium text-gray-700">
                             {course.units_total}
-                            {course.units_lec || course.units_lab ? (
+                            {course.lecture_hour || course.lab_hour ? (
                               <span className="text-gray-500 ml-1">
-                                ({course.units_lec || 0}/{course.units_lab || 0})
+                                ({course.lecture_hour || 0}h/{course.lab_hour || 0}h)
                               </span>
                             ) : null}
                           </span>

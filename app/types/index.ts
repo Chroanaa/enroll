@@ -77,6 +77,8 @@ export interface Subject {
   description?: string;
   units_lec?: number;
   units_lab?: number;
+  lecture_hour?: number;
+  lab_hour?: number;
   status: "active" | "inactive";
 }
 
@@ -210,6 +212,8 @@ export interface CurriculumCourse {
   course_code: string;
   descriptive_title: string;
   units_lec?: number;
+  lecture_hour?: number;
+  lab_hour?: number;
   units_lab?: number;
   units_total: number;
   prerequisite?: string;

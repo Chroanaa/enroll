@@ -1,5 +1,5 @@
 import React from "react";
-import { BookOpen, Hash, GraduationCap, Edit2, Trash2 } from "lucide-react";
+import { BookOpen, Hash, GraduationCap, Clock, Edit2, Trash2 } from "lucide-react";
 import { Subject } from "../../../types";
 import { colors } from "../../../colors";
 import { getStatusColor } from "../utils";
@@ -69,13 +69,16 @@ const SubjectTable: React.FC<SubjectTableProps> = ({
                 </th>
               )}
               <th className='px-6 py-4 text-left text-xs font-bold uppercase tracking-wider text-gray-600'>
-                Subject
-              </th>
-              <th className='px-6 py-4 text-left text-xs font-bold uppercase tracking-wider text-gray-600'>
                 Code
               </th>
               <th className='px-6 py-4 text-left text-xs font-bold uppercase tracking-wider text-gray-600'>
+                Subject
+              </th>
+              <th className='px-6 py-4 text-left text-xs font-bold uppercase tracking-wider text-gray-600'>
                 Units (Lec/Lab)
+              </th>
+              <th className='px-6 py-4 text-left text-xs font-bold uppercase tracking-wider text-gray-600'>
+                Hours (Lec/Lab)
               </th>
               <th className='px-6 py-4 text-left text-xs font-bold uppercase tracking-wider text-gray-600'>
                 Status
@@ -88,7 +91,7 @@ const SubjectTable: React.FC<SubjectTableProps> = ({
           <tbody className='divide-y divide-gray-100'>
             {subjects.length === 0 ? (
               <tr>
-                <td colSpan={onSelectionChange ? 6 : 5} className='px-6 py-12 text-center text-gray-500'>
+                <td colSpan={onSelectionChange ? 7 : 6} className='px-6 py-12 text-center text-gray-500'>
                   <div className='flex flex-col items-center justify-center gap-3'>
                     <div
                       className='p-3 rounded-full'
@@ -129,6 +132,14 @@ const SubjectTable: React.FC<SubjectTableProps> = ({
                       </td>
                     )}
                     <td className='px-6 py-4 whitespace-nowrap'>
+                      <div className='flex items-center gap-2'>
+                        <Hash className='w-3.5 h-3.5 text-gray-400' />
+                        <span className='text-sm font-medium text-gray-700'>
+                          {subject.code}
+                        </span>
+                      </div>
+                    </td>
+                    <td className='px-6 py-4 whitespace-nowrap'>
                       <div className='flex items-center'>
                         <div className='flex-shrink-0 h-10 w-10'>
                           <div
@@ -161,17 +172,17 @@ const SubjectTable: React.FC<SubjectTableProps> = ({
                     </td>
                     <td className='px-6 py-4 whitespace-nowrap'>
                       <div className='flex items-center gap-2'>
-                        <Hash className='w-3.5 h-3.5 text-gray-400' />
+                        <GraduationCap className='w-3.5 h-3.5 text-gray-400' />
                         <span className='text-sm font-medium text-gray-700'>
-                          {subject.code}
+                          {subject.units_lec || 0}/{subject.units_lab || 0}
                         </span>
                       </div>
                     </td>
                     <td className='px-6 py-4 whitespace-nowrap'>
                       <div className='flex items-center gap-2'>
-                        <GraduationCap className='w-3.5 h-3.5 text-gray-400' />
+                        <Clock className='w-3.5 h-3.5 text-gray-400' />
                         <span className='text-sm font-medium text-gray-700'>
-                          {subject.units_lec || 0}/{subject.units_lab || 0}
+                          {subject.lecture_hour || 0}/{subject.lab_hour || 0}
                         </span>
                       </div>
                     </td>
