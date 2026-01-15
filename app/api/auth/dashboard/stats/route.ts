@@ -1,18 +1,28 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "../../../../lib/prisma";
+import { getAcademicTerm } from "../../../../utils/academicTermUtils";
 
 export async function GET(request: NextRequest) {
   try {
-    // Get current settings for semester and academic year
+    // Get current server time from database to prevent tampering
+    const serverTimeResult = await prisma.$queryRaw<
+      [{ now: Date }]
+    >`SELECT NOW() as now`;
+    const serverTime = serverTimeResult[0].now;
+
+    // Calculate current academic term from server time
+    const calculatedTerm = getAcademicTerm(serverTime);
+
+    // Get stored settings (they may be overridden or not exist)
     const [semesterSetting, academicYearSetting] = await Promise.all([
       prisma.settings.findUnique({ where: { key: "current_semester" } }),
       prisma.settings.findUnique({ where: { key: "current_academic_year" } }),
     ]);
 
-    const currentSemester = semesterSetting?.value || "First";
-    const currentAcademicYear =
-      academicYearSetting?.value ||
-      `${new Date().getFullYear()}-${new Date().getFullYear() + 1}`;
+    // Use calculated values (from server time) - this prevents tampering
+    // Settings are only used if you want manual override capability
+    const currentSemester = calculatedTerm.semester;
+    const currentAcademicYear = calculatedTerm.academicYear;
 
     // Get enrollment statistics
     const [
@@ -117,6 +127,12 @@ export async function GET(request: NextRequest) {
       data: {
         currentSemester,
         currentAcademicYear,
+        serverTime: serverTime.toISOString(),
+        isWithinSemester: calculatedTerm.isWithinSemester,
+        semesterDates: {
+          start: calculatedTerm.semesterStartDate.toISOString(),
+          end: calculatedTerm.semesterEndDate.toISOString(),
+        },
         stats: {
           totalEnrollments,
           pendingEnrollments,
