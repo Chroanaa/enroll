@@ -83,7 +83,7 @@ const FacultyManagement: React.FC = () => {
 
   const filteredFaculty = useMemo(
     () => filterFaculty(faculty, searchTerm, statusFilter, positionFilter),
-    [faculty, searchTerm, statusFilter, positionFilter]
+    [faculty, searchTerm, statusFilter, positionFilter],
   );
 
   // Pagination calculations
@@ -123,13 +123,18 @@ const FacultyManagement: React.FC = () => {
           "";
         setFaculty((prev) =>
           prev.map((f) =>
-            f.id === facultyData.id ? { ...facultyData, departmentName } : f
-          )
+            f.id === facultyData.id ? { ...facultyData, departmentName } : f,
+          ),
         );
         setEditingFaculty(null);
         setSuccessModal({
           isOpen: true,
           message: `Faculty "${facultyData.first_name} ${facultyData.last_name}" has been updated successfully.`,
+        });
+        insertIntoReports({
+          action: `User ${session?.user.name} Edited the faculty ${facultyData.first_name} ${facultyData.last_name}`,
+          user_id: Number(session?.user.id),
+          created_at: new Date(),
         });
       } else {
         const response = await fetch("/api/auth/faculty", {
@@ -161,6 +166,7 @@ const FacultyManagement: React.FC = () => {
         insertIntoReports({
           action: `User ${session?.user.name} Created the faculty ${facultyData.first_name} ${facultyData.last_name}`,
           user_id: Number(session?.user.id),
+          created_at: new Date(),
         });
       }
     } catch (error: any) {
@@ -200,7 +206,7 @@ const FacultyManagement: React.FC = () => {
         }
 
         setFaculty((prev) =>
-          prev.filter((f) => f.id !== deleteConfirmation.facultyId)
+          prev.filter((f) => f.id !== deleteConfirmation.facultyId),
         );
         setDeleteConfirmation({
           isOpen: false,
@@ -214,6 +220,7 @@ const FacultyManagement: React.FC = () => {
         insertIntoReports({
           action: `This Subject: ${deleteConfirmation.facultyName} Was deleted By ${session?.user.name}`,
           user_id: Number(session?.user.id),
+          created_at: new Date(),
         });
       } catch (error: any) {
         setErrorModal({
@@ -283,7 +290,7 @@ const FacultyManagement: React.FC = () => {
               value: statusFilter,
               onChange: (value) =>
                 setStatusFilter(
-                  value === "all" ? "all" : (value as "active" | "inactive")
+                  value === "all" ? "all" : (value as "active" | "inactive"),
                 ),
               options: [
                 { value: "all", label: "All Status" },

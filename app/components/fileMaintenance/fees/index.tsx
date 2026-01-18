@@ -65,7 +65,7 @@ const FeesManagement: React.FC = () => {
 
   const filteredFees = useMemo(
     () => filterFees(fees, searchTerm, statusFilter, categoryFilter),
-    [fees, searchTerm, statusFilter, categoryFilter]
+    [fees, searchTerm, statusFilter, categoryFilter],
   );
 
   // Pagination calculations
@@ -109,6 +109,7 @@ const FeesManagement: React.FC = () => {
         insertIntoReports({
           action: `User ${session?.user.name} Edited the Department ${feeData.name}`,
           user_id: Number(session?.user.id),
+          created_at: new Date(),
         });
       } else {
         const response = await fetch("/api/auth/fees", {
@@ -134,6 +135,7 @@ const FeesManagement: React.FC = () => {
         insertIntoReports({
           action: `User ${session?.user.name} Created the Fees ${feeData.name}`,
           user_id: Number(session?.user.id),
+          created_at: new Date(),
         });
       }
     } catch (error: any) {
@@ -173,7 +175,7 @@ const FeesManagement: React.FC = () => {
         }
 
         setFees((prev) =>
-          prev.filter((f) => f.id !== deleteConfirmation.feeId)
+          prev.filter((f) => f.id !== deleteConfirmation.feeId),
         );
         setDeleteConfirmation({
           isOpen: false,
@@ -187,6 +189,7 @@ const FeesManagement: React.FC = () => {
         insertIntoReports({
           action: `This Subject: ${deleteConfirmation.feeName} Was deleted By ${session?.user.name}`,
           user_id: Number(session?.user.id),
+          created_at: new Date(),
         });
       } catch (error: any) {
         setErrorModal({
@@ -255,7 +258,7 @@ const FeesManagement: React.FC = () => {
               value: statusFilter,
               onChange: (value) =>
                 setStatusFilter(
-                  value === "all" ? "all" : (value as "active" | "inactive")
+                  value === "all" ? "all" : (value as "active" | "inactive"),
                 ),
               options: [
                 { value: "all", label: "All Status" },

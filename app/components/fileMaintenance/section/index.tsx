@@ -39,7 +39,7 @@ const SectionManagement: React.FC = () => {
             programName:
               programsArray.find((p) => p.id === section.program_id)?.name ||
               "",
-          }))
+          })),
         );
       } catch (error) {
         console.error("Error fetching data:", error);
@@ -83,7 +83,7 @@ const SectionManagement: React.FC = () => {
 
   const filteredSections = useMemo(
     () => filterSections(sections || [], searchTerm, statusFilter),
-    [sections, searchTerm, statusFilter]
+    [sections, searchTerm, statusFilter],
   );
 
   // Pagination calculations
@@ -103,7 +103,7 @@ const SectionManagement: React.FC = () => {
   };
 
   const handleSaveSection = async (
-    sectionData: Section & { programName?: string }
+    sectionData: Section & { programName?: string },
   ) => {
     try {
       if (editingSection) {
@@ -124,8 +124,8 @@ const SectionManagement: React.FC = () => {
           programs.find((p) => p.id === sectionData.program_id)?.name || "";
         setSections((prev) =>
           prev?.map((s) =>
-            s.id === sectionData.id ? { ...sectionData, programName } : s
-          )
+            s.id === sectionData.id ? { ...sectionData, programName } : s,
+          ),
         );
         setEditingSection(null);
         setSuccessModal({
@@ -135,6 +135,7 @@ const SectionManagement: React.FC = () => {
         insertIntoReports({
           action: `User ${session?.user.name} Edited the Section ${sectionData.section_name}`,
           user_id: Number(session?.user.id),
+          created_at: new Date(),
         });
       } else {
         const response = await fetch("/api/auth/section", {
@@ -165,6 +166,7 @@ const SectionManagement: React.FC = () => {
         insertIntoReports({
           action: `User ${session?.user.name} Created the Section ${sectionData.section_name}`,
           user_id: Number(session?.user.id),
+          created_at: new Date(),
         });
       }
     } catch (error: any) {
@@ -204,7 +206,7 @@ const SectionManagement: React.FC = () => {
         }
 
         setSections((prev = []) =>
-          prev.filter((s) => s.id !== deleteConfirmation.sectionId)
+          prev.filter((s) => s.id !== deleteConfirmation.sectionId),
         );
         setDeleteConfirmation({
           isOpen: false,
@@ -218,6 +220,7 @@ const SectionManagement: React.FC = () => {
         insertIntoReports({
           action: `This Subject: ${deleteConfirmation.sectionName} Was deleted By ${session?.user.name}`,
           user_id: Number(session?.user.id),
+          created_at: new Date(),
         });
       } catch (error: any) {
         setErrorModal({
@@ -274,7 +277,7 @@ const SectionManagement: React.FC = () => {
               value: statusFilter,
               onChange: (value) =>
                 setStatusFilter(
-                  value === "all" ? "all" : (value as "active" | "inactive")
+                  value === "all" ? "all" : (value as "active" | "inactive"),
                 ),
               options: [
                 { value: "all", label: "All Status" },

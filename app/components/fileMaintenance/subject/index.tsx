@@ -82,7 +82,7 @@ const SubjectManagement: React.FC = () => {
 
   const filteredSubjects = useMemo(
     () => filterSubjects(subjects || [], searchTerm, statusFilter),
-    [subjects, searchTerm, statusFilter]
+    [subjects, searchTerm, statusFilter],
   );
 
   // Pagination calculations
@@ -109,7 +109,7 @@ const SubjectManagement: React.FC = () => {
   };
 
   const handleSaveMultipleSubjects = async (
-    subjectsData: Omit<Subject, "id">[]
+    subjectsData: Omit<Subject, "id">[],
   ) => {
     try {
       const response = await fetch("/api/auth/subject/bulk", {
@@ -130,7 +130,7 @@ const SubjectManagement: React.FC = () => {
       setSubjects((prev) => {
         const existingIds = new Set((prev || []).map((s) => s.id));
         const uniqueNewSubjects = newSubjects.filter(
-          (s: Subject) => !existingIds.has(s.id)
+          (s: Subject) => !existingIds.has(s.id),
         );
         return [...(prev || []), ...uniqueNewSubjects];
       });
@@ -166,7 +166,7 @@ const SubjectManagement: React.FC = () => {
         }
 
         setSubjects((prev) =>
-          (prev || []).map((s) => (s.id === subjectData.id ? subjectData : s))
+          (prev || []).map((s) => (s.id === subjectData.id ? subjectData : s)),
         );
         setEditingSubject(null);
         setSuccessModal({
@@ -176,6 +176,7 @@ const SubjectManagement: React.FC = () => {
         insertIntoReports({
           action: `User ${session?.user.name} Edited the Subject ${subjectData.name}`,
           user_id: Number(session?.user.id),
+          created_at: new Date(),
         });
       } else {
         const response = await fetch("/api/auth/subject", {
@@ -204,6 +205,7 @@ const SubjectManagement: React.FC = () => {
         insertIntoReports({
           action: `User ${session?.user.name} Created the Subject ${subjectData.name}`,
           user_id: Number(session?.user.id),
+          created_at: new Date(),
         });
       }
     } catch (error: any) {
@@ -246,7 +248,7 @@ const SubjectManagement: React.FC = () => {
               "Content-Type": "application/json",
             },
             body: JSON.stringify(id),
-          })
+          }),
         );
 
         const results = await Promise.all(deletePromises);
@@ -254,14 +256,14 @@ const SubjectManagement: React.FC = () => {
 
         if (failed.length > 0) {
           throw new Error(
-            `Failed to delete ${failed.length} out of ${bulkDeleteConfirmation.subjectIds.length} subject(s)`
+            `Failed to delete ${failed.length} out of ${bulkDeleteConfirmation.subjectIds.length} subject(s)`,
           );
         }
 
         setSubjects((prev) =>
           (prev || []).filter(
-            (s) => !bulkDeleteConfirmation.subjectIds.includes(s.id)
-          )
+            (s) => !bulkDeleteConfirmation.subjectIds.includes(s.id),
+          ),
         );
         setSelectedSubjects([]);
         setShowCheckboxes(false);
@@ -305,7 +307,7 @@ const SubjectManagement: React.FC = () => {
         }
 
         setSubjects((prev) =>
-          (prev || []).filter((s) => s.id !== deleteConfirmation.subjectId)
+          (prev || []).filter((s) => s.id !== deleteConfirmation.subjectId),
         );
         setDeleteConfirmation({
           isOpen: false,
@@ -319,6 +321,7 @@ const SubjectManagement: React.FC = () => {
         insertIntoReports({
           action: `This Subject: ${deleteConfirmation.subjectName} Was deleted By ${session?.user.name}`,
           user_id: Number(session?.user.id),
+          created_at: new Date(),
         });
       } catch (error: any) {
         setErrorModal({
@@ -416,7 +419,7 @@ const SubjectManagement: React.FC = () => {
                     setStatusFilter(
                       e.target.value === "all"
                         ? "all"
-                        : (e.target.value as "active" | "inactive")
+                        : (e.target.value as "active" | "inactive"),
                     )
                   }
                   className='bg-transparent border-none text-sm font-medium focus:ring-0 cursor-pointer'

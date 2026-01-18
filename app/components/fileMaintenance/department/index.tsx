@@ -39,7 +39,7 @@ const DepartmentManagement: React.FC = () => {
             buildingName:
               buildingsArray.find((b) => b.id === department.building_id)
                 ?.name || "",
-          }))
+          })),
         );
       } catch (error) {
         console.error("Error fetching data:", error);
@@ -52,7 +52,7 @@ const DepartmentManagement: React.FC = () => {
     "all" | "active" | "inactive"
   >("all");
   const [editingDepartment, setEditingDepartment] = useState<Department | null>(
-    null
+    null,
   );
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [deleteConfirmation, setDeleteConfirmation] = useState<{
@@ -85,7 +85,7 @@ const DepartmentManagement: React.FC = () => {
 
   const filteredDepartments = useMemo(
     () => filterDepartments(departments, searchTerm, statusFilter),
-    [departments, searchTerm, statusFilter]
+    [departments, searchTerm, statusFilter],
   );
 
   // Pagination calculations
@@ -125,8 +125,10 @@ const DepartmentManagement: React.FC = () => {
           "";
         setDepartments((prev) =>
           prev.map((d) =>
-            d.id === departmentData.id ? { ...departmentData, buildingName } : d
-          )
+            d.id === departmentData.id
+              ? { ...departmentData, buildingName }
+              : d,
+          ),
         );
         setEditingDepartment(null);
         setSuccessModal({
@@ -136,6 +138,7 @@ const DepartmentManagement: React.FC = () => {
         insertIntoReports({
           action: `User ${session?.user.name} Edited the Department ${departmentData.name}`,
           user_id: Number(session?.user.id),
+          created_at: new Date(),
         });
       } else {
         const response = await fetch("/api/auth/department", {
@@ -167,6 +170,7 @@ const DepartmentManagement: React.FC = () => {
         insertIntoReports({
           action: `User ${session?.user.name} Created the Department ${departmentData.name}`,
           user_id: Number(session?.user.id),
+          created_at: new Date(),
         });
       }
     } catch (error: any) {
@@ -207,7 +211,7 @@ const DepartmentManagement: React.FC = () => {
         }
 
         setDepartments((prev) =>
-          prev.filter((d) => d.id !== deleteConfirmation.departmentId)
+          prev.filter((d) => d.id !== deleteConfirmation.departmentId),
         );
         setDeleteConfirmation({
           isOpen: false,
@@ -221,6 +225,7 @@ const DepartmentManagement: React.FC = () => {
         insertIntoReports({
           action: `This Subject: ${deleteConfirmation.departmentName} Was deleted By ${session?.user.name}`,
           user_id: Number(session?.user.id),
+          created_at: new Date(),
         });
       } catch (error: any) {
         setErrorModal({
@@ -277,7 +282,7 @@ const DepartmentManagement: React.FC = () => {
               value: statusFilter,
               onChange: (value) =>
                 setStatusFilter(
-                  value === "all" ? "all" : (value as "active" | "inactive")
+                  value === "all" ? "all" : (value as "active" | "inactive"),
                 ),
               options: [
                 { value: "all", label: "All Status" },
