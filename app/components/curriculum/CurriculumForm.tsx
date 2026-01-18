@@ -135,9 +135,11 @@ const CurriculumForm: React.FC<CurriculumFormProps> = ({
           selectedSubjectId: subjectId,
           course_code: selectedSubject.code,
           descriptive_title: selectedSubject.name,
-          units_total: (selectedSubject.units_lec || 0) + (selectedSubject.units_lab || 0),
           units_lec: selectedSubject.units_lec || 0,
           units_lab: selectedSubject.units_lab || 0,
+          units_total: (selectedSubject.units_lec || 0) + (selectedSubject.units_lab || 0),
+          lecture_hour: selectedSubject.lecture_hour || 0,
+          lab_hour: selectedSubject.lab_hour || 0,
           prerequisite: "",
         });
       }
@@ -369,9 +371,12 @@ const CurriculumForm: React.FC<CurriculumFormProps> = ({
                 onUnitsChange={(units) => {
                   setCourseForm({
                     ...courseForm,
-                    units_total: units,
                     units_lec: units,
+                    units_total: units,
                     units_lab: 0,
+                    // Note: lecture_hour and lab_hour remain independent - not auto-calculated
+                    lecture_hour: courseForm.lecture_hour || 0,
+                    lab_hour: 0,
                   });
                 }}
                 onYearLevelChange={(yearLevel) => {

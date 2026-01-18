@@ -207,6 +207,8 @@ const AddCurriculumPage: React.FC<AddCurriculumPageProps> = ({
           course_code: subject.code,
           descriptive_title: subject.name,
           units_lec: subject.units_lec || 0,
+          lecture_hour: subject.lecture_hour || 0,
+          lab_hour: subject.lab_hour || 0,
           units_lab: subject.units_lab || 0,
           units_total: (subject.units_lec || 0) + (subject.units_lab || 0),
           prerequisite: "",
