@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "../../../lib/prisma";
 import { writeFile, mkdir } from "fs/promises";
+import { insertIntoReports } from "@/app/utils/reportsUtils";
+import { useSession } from "next-auth/react";
 import path from "path";
 
 // Helper function to generate unique filename
@@ -13,6 +15,7 @@ function generateUniqueFileName(originalName: string): string {
 
 export async function POST(request: NextRequest) {
   try {
+    const { data: session } = useSession();
     const formData = await request.formData();
 
     // Extract all form fields
@@ -41,7 +44,7 @@ export async function POST(request: NextRequest) {
       | string
       | null;
     const emergency_contact_number = formData.get(
-      "emergency_contact_number"
+      "emergency_contact_number",
     ) as string | null;
     const last_school_attended = formData.get("last_school_attended") as
       | string
@@ -62,7 +65,7 @@ export async function POST(request: NextRequest) {
         process.cwd(),
         "public",
         "uploads",
-        "enrollments"
+        "enrollments",
       );
       await mkdir(uploadsDir, { recursive: true });
 
@@ -79,7 +82,6 @@ export async function POST(request: NextRequest) {
       photoPath = `/uploads/enrollments/${fileName}`;
     }
 
-    // Use raw SQL to avoid cached prepared statement issues after schema changes
     const result = await prisma.$executeRaw`
       INSERT INTO enrollment (
         student_number, admission_date, admission_status, term, department,
@@ -90,15 +92,15 @@ export async function POST(request: NextRequest) {
         previous_school_year, academic_year, program_shs, remarks
       ) VALUES (
         ${student_number}, ${
-      admission_date ? new Date(admission_date) : null
-    }::date, 
+          admission_date ? new Date(admission_date) : null
+        }::date, 
         ${admission_status}, ${term}, ${
-      department ? parseInt(department) : null
-    },
+          department ? parseInt(department) : null
+        },
         ${course_program}, ${photoPath}, ${requirements}::text[], ${family_name}, ${first_name},
         ${middle_name}, ${sex}, ${civil_status}, ${
-      birthdate ? new Date(birthdate) : null
-    }::date, ${birthplace},
+          birthdate ? new Date(birthdate) : null
+        }::date, ${birthplace},
         ${complete_address}, ${contact_number}, ${email_address}, ${emergency_contact_name},
         ${emergency_relationship}, ${emergency_contact_number}, ${last_school_attended},
         ${previous_school_year}, ${academic_year}, ${program_shs}, ${remarks}
@@ -108,22 +110,26 @@ export async function POST(request: NextRequest) {
     if (!result) {
       return NextResponse.json(
         { error: "Failed to create enrollment" },
-        { status: 400 }
+        { status: 400 },
       );
     }
-
+    await insertIntoReports({
+      action: `Enrolled new student: ${first_name} ${family_name} by ${session?.user?.name}`,
+      user_id: Number(session?.user?.id),
+      created_at: new Date(),
+    });
     return NextResponse.json(
       {
         success: true,
         message: "Enrollment submitted successfully",
       },
-      { status: 201 }
+      { status: 201 },
     );
   } catch (error) {
     console.error("Registration error:", error);
     return NextResponse.json(
       { error: "Internal server error" },
-      { status: 500 }
+      { status: 500 },
     );
   }
 }
@@ -135,7 +141,7 @@ export async function GET() {
     console.error("Fetch enrollments error:", error);
     return NextResponse.json(
       { error: "Internal server error" },
-      { status: 500 }
+      { status: 500 },
     );
   }
 }
@@ -147,13 +153,13 @@ export async function DELETE(request: NextRequest) {
     });
     return NextResponse.json(
       { message: "All enrollments deleted successfully" },
-      { status: 200 }
+      { status: 200 },
     );
   } catch (error) {
     console.error("Delete enrollments error:", error);
     return NextResponse.json(
       { error: "Internal server error" },
-      { status: 500 }
+      { status: 500 },
     );
   }
 }
@@ -200,7 +206,7 @@ export async function PATCH(nextRequest: NextRequest) {
     console.error("Update enrollment error:", error);
     return NextResponse.json(
       { error: "Failed to update enrollment" },
-      { status: 500 }
+      { status: 500 },
     );
   }
 }

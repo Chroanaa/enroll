@@ -83,7 +83,7 @@ const ProgramManagement: React.FC = () => {
 
   const filteredPrograms = useMemo(
     () => filterPrograms(programs, searchTerm, statusFilter),
-    [programs, searchTerm, statusFilter]
+    [programs, searchTerm, statusFilter],
   );
 
   // Pagination calculations
@@ -123,8 +123,8 @@ const ProgramManagement: React.FC = () => {
           "";
         setPrograms((prev) =>
           prev.map((p) =>
-            p.id === programData.id ? { ...programData, departmentName } : p
-          )
+            p.id === programData.id ? { ...programData, departmentName } : p,
+          ),
         );
         setEditingProgram(null);
         setSuccessModal({
@@ -134,6 +134,7 @@ const ProgramManagement: React.FC = () => {
         insertIntoReports({
           action: `User ${session?.user.name} Edited the Program ${programData.name}`,
           user_id: Number(session?.user.id),
+          created_at: new Date(),
         });
       } else {
         const response = await fetch("/api/auth/program", {
@@ -165,6 +166,7 @@ const ProgramManagement: React.FC = () => {
         insertIntoReports({
           action: `User ${session?.user.name} Created the Program ${programData.name}`,
           user_id: Number(session?.user.id),
+          created_at: new Date(),
         });
       }
     } catch (error: any) {
@@ -204,7 +206,7 @@ const ProgramManagement: React.FC = () => {
         }
 
         setPrograms((prev) =>
-          prev.filter((p) => p.id !== deleteConfirmation.programId)
+          prev.filter((p) => p.id !== deleteConfirmation.programId),
         );
         setDeleteConfirmation({
           isOpen: false,
@@ -218,6 +220,7 @@ const ProgramManagement: React.FC = () => {
         insertIntoReports({
           action: `This Subject: ${deleteConfirmation.programName} Was deleted By ${session?.user.name}`,
           user_id: Number(session?.user.id),
+          created_at: new Date(),
         });
       } catch (error: any) {
         setErrorModal({
@@ -274,7 +277,7 @@ const ProgramManagement: React.FC = () => {
               value: statusFilter,
               onChange: (value) =>
                 setStatusFilter(
-                  value === "all" ? "all" : (value as "active" | "inactive")
+                  value === "all" ? "all" : (value as "active" | "inactive"),
                 ),
               options: [
                 { value: "all", label: "All Status" },

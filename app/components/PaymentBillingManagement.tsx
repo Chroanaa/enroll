@@ -44,7 +44,9 @@ interface PaymentFormData {
 const PaymentBillingManagement: React.FC = () => {
   const { data: session } = useSession();
   const [billings, setBillings] = useState<Billing[]>([]);
-  const [unbilledEnrollees, setUnbilledEnrollees] = useState<UnbilledEnrollee[]>([]);
+  const [unbilledEnrollees, setUnbilledEnrollees] = useState<
+    UnbilledEnrollee[]
+  >([]);
   const [isLoading, setIsLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
   const [paymentTypeFilter, setPaymentTypeFilter] = useState<string>("all");
@@ -118,13 +120,15 @@ const PaymentBillingManagement: React.FC = () => {
   // Filter billings
   const filteredBillings = useMemo(() => {
     return billings.filter((billing) => {
-      const fullName = `${billing.family_name || ""} ${billing.first_name || ""} ${billing.middle_name || ""}`.toLowerCase();
+      const fullName =
+        `${billing.family_name || ""} ${billing.first_name || ""} ${billing.middle_name || ""}`.toLowerCase();
       const studentNumber = billing.student_number?.toLowerCase() || "";
       const matchesSearch =
         fullName.includes(searchTerm.toLowerCase()) ||
         studentNumber.includes(searchTerm.toLowerCase());
       const matchesPaymentType =
-        paymentTypeFilter === "all" || billing.payment_type === paymentTypeFilter;
+        paymentTypeFilter === "all" ||
+        billing.payment_type === paymentTypeFilter;
       return matchesSearch && matchesPaymentType;
     });
   }, [billings, searchTerm, paymentTypeFilter]);
@@ -147,13 +151,13 @@ const PaymentBillingManagement: React.FC = () => {
   const getPaymentTypeIcon = (type: string | null) => {
     switch (type) {
       case "cash":
-        return <Wallet className="w-4 h-4" />;
+        return <Wallet className='w-4 h-4' />;
       case "gcash":
-        return <Smartphone className="w-4 h-4" />;
+        return <Smartphone className='w-4 h-4' />;
       case "bank_transfer":
-        return <Building2 className="w-4 h-4" />;
+        return <Building2 className='w-4 h-4' />;
       default:
-        return <CreditCard className="w-4 h-4" />;
+        return <CreditCard className='w-4 h-4' />;
     }
   };
 
@@ -168,10 +172,13 @@ const PaymentBillingManagement: React.FC = () => {
       gcash: "GCash",
       bank_transfer: "Bank Transfer",
     };
-    const style = styles[type as keyof typeof styles] || "bg-gray-100 text-gray-800";
+    const style =
+      styles[type as keyof typeof styles] || "bg-gray-100 text-gray-800";
     const label = labels[type as keyof typeof labels] || type || "Unknown";
     return (
-      <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium ${style}`}>
+      <span
+        className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium ${style}`}
+      >
         {getPaymentTypeIcon(type)}
         {label}
       </span>
@@ -182,7 +189,8 @@ const PaymentBillingManagement: React.FC = () => {
     setFormData({
       ...formData,
       enrollee_id: enrollee.id,
-      enrollee_name: `${enrollee.family_name || ""}, ${enrollee.first_name || ""} ${enrollee.middle_name || ""}`.trim(),
+      enrollee_name:
+        `${enrollee.family_name || ""}, ${enrollee.first_name || ""} ${enrollee.middle_name || ""}`.trim(),
       term: enrollee.term || "",
     });
   };
@@ -208,11 +216,16 @@ const PaymentBillingManagement: React.FC = () => {
       return;
     }
 
-    if ((formData.payment_type === "gcash" || formData.payment_type === "bank_transfer") && !formData.reference_no) {
+    if (
+      (formData.payment_type === "gcash" ||
+        formData.payment_type === "bank_transfer") &&
+      !formData.reference_no
+    ) {
       setErrorModal({
         isOpen: true,
         message: "Reference number required",
-        details: "Please enter the reference number for GCash or Bank Transfer payments.",
+        details:
+          "Please enter the reference number for GCash or Bank Transfer payments.",
       });
       return;
     }
@@ -235,6 +248,7 @@ const PaymentBillingManagement: React.FC = () => {
       insertIntoReports({
         action: `User ${session?.user?.name} processed payment of ₱${formData.amount} (${formData.payment_type}) for ${formData.enrollee_name}`,
         user_id: Number(session?.user?.id),
+        created_at: new Date(),
       });
 
       // Reset form and refresh data
@@ -266,13 +280,18 @@ const PaymentBillingManagement: React.FC = () => {
         isOpen: true,
         message: `Payment record for ${deleteConfirmation.studentName} has been deleted.`,
       });
-      
+
       insertIntoReports({
         action: `User ${session?.user?.name} deleted payment record for ${deleteConfirmation.studentName}`,
         user_id: Number(session?.user?.id),
+        created_at: new Date(),
       });
 
-      setDeleteConfirmation({ isOpen: false, billingId: null, studentName: "" });
+      setDeleteConfirmation({
+        isOpen: false,
+        billingId: null,
+        studentName: "",
+      });
       fetchData();
     } catch (error: any) {
       setErrorModal({
@@ -298,123 +317,141 @@ const PaymentBillingManagement: React.FC = () => {
   };
 
   return (
-    <div className="p-4 sm:p-6 bg-gray-50 min-h-screen">
-      <div className="max-w-7xl mx-auto w-full">
+    <div className='p-4 sm:p-6 bg-gray-50 min-h-screen'>
+      <div className='max-w-7xl mx-auto w-full'>
         {/* Header */}
-        <div className="mb-6">
-          <h1 className="text-2xl font-bold mb-2" style={{ color: colors.primary }}>
+        <div className='mb-6'>
+          <h1
+            className='text-2xl font-bold mb-2'
+            style={{ color: colors.primary }}
+          >
             Payment & Billing Management
           </h1>
           <p style={{ color: colors.primary }}>
-            Process payments, review transactions, and manage student billing records
+            Process payments, review transactions, and manage student billing
+            records
           </p>
         </div>
 
         {/* Stats Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
-          <div className="bg-white rounded-lg shadow-sm border border-gray-100 p-4">
-            <div className="flex items-center justify-between">
+        <div className='grid grid-cols-1 md:grid-cols-4 gap-4 mb-6'>
+          <div className='bg-white rounded-lg shadow-sm border border-gray-100 p-4'>
+            <div className='flex items-center justify-between'>
               <div>
-                <p className="text-sm text-gray-500">Total Payments</p>
-                <p className="text-2xl font-bold" style={{ color: colors.primary }}>
+                <p className='text-sm text-gray-500'>Total Payments</p>
+                <p
+                  className='text-2xl font-bold'
+                  style={{ color: colors.primary }}
+                >
                   {billings.length}
                 </p>
               </div>
-              <div className="p-3 rounded-lg" style={{ backgroundColor: `${colors.secondary}20` }}>
-                <CreditCard className="w-6 h-6" style={{ color: colors.secondary }} />
+              <div
+                className='p-3 rounded-lg'
+                style={{ backgroundColor: `${colors.secondary}20` }}
+              >
+                <CreditCard
+                  className='w-6 h-6'
+                  style={{ color: colors.secondary }}
+                />
               </div>
             </div>
           </div>
 
-          <div className="bg-white rounded-lg shadow-sm border border-gray-100 p-4">
-            <div className="flex items-center justify-between">
+          <div className='bg-white rounded-lg shadow-sm border border-gray-100 p-4'>
+            <div className='flex items-center justify-between'>
               <div>
-                <p className="text-sm text-gray-500">Cash Payments</p>
-                <p className="text-2xl font-bold text-green-600">
+                <p className='text-sm text-gray-500'>Cash Payments</p>
+                <p className='text-2xl font-bold text-green-600'>
                   {billings.filter((b) => b.payment_type === "cash").length}
                 </p>
               </div>
-              <div className="p-3 rounded-lg bg-green-100">
-                <Wallet className="w-6 h-6 text-green-600" />
+              <div className='p-3 rounded-lg bg-green-100'>
+                <Wallet className='w-6 h-6 text-green-600' />
               </div>
             </div>
           </div>
 
-          <div className="bg-white rounded-lg shadow-sm border border-gray-100 p-4">
-            <div className="flex items-center justify-between">
+          <div className='bg-white rounded-lg shadow-sm border border-gray-100 p-4'>
+            <div className='flex items-center justify-between'>
               <div>
-                <p className="text-sm text-gray-500">GCash Payments</p>
-                <p className="text-2xl font-bold text-blue-600">
+                <p className='text-sm text-gray-500'>GCash Payments</p>
+                <p className='text-2xl font-bold text-blue-600'>
                   {billings.filter((b) => b.payment_type === "gcash").length}
                 </p>
               </div>
-              <div className="p-3 rounded-lg bg-blue-100">
-                <Smartphone className="w-6 h-6 text-blue-600" />
+              <div className='p-3 rounded-lg bg-blue-100'>
+                <Smartphone className='w-6 h-6 text-blue-600' />
               </div>
             </div>
           </div>
 
-          <div className="bg-white rounded-lg shadow-sm border border-gray-100 p-4">
-            <div className="flex items-center justify-between">
+          <div className='bg-white rounded-lg shadow-sm border border-gray-100 p-4'>
+            <div className='flex items-center justify-between'>
               <div>
-                <p className="text-sm text-gray-500">Bank Transfers</p>
-                <p className="text-2xl font-bold text-purple-600">
-                  {billings.filter((b) => b.payment_type === "bank_transfer").length}
+                <p className='text-sm text-gray-500'>Bank Transfers</p>
+                <p className='text-2xl font-bold text-purple-600'>
+                  {
+                    billings.filter((b) => b.payment_type === "bank_transfer")
+                      .length
+                  }
                 </p>
               </div>
-              <div className="p-3 rounded-lg bg-purple-100">
-                <Building2 className="w-6 h-6 text-purple-600" />
+              <div className='p-3 rounded-lg bg-purple-100'>
+                <Building2 className='w-6 h-6 text-purple-600' />
               </div>
             </div>
           </div>
         </div>
 
         {/* Search and Filters */}
-        <div className="bg-white rounded-lg shadow-sm border border-gray-100 p-4 mb-6">
-          <div className="flex flex-col md:flex-row gap-4">
-            <div className="flex-1 relative">
-              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
+        <div className='bg-white rounded-lg shadow-sm border border-gray-100 p-4 mb-6'>
+          <div className='flex flex-col md:flex-row gap-4'>
+            <div className='flex-1 relative'>
+              <Search className='absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5' />
               <input
-                type="text"
-                placeholder="Search by student name or number..."
+                type='text'
+                placeholder='Search by student name or number...'
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
-                className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                className='w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent'
               />
             </div>
             <select
               value={paymentTypeFilter}
               onChange={(e) => setPaymentTypeFilter(e.target.value)}
-              className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              className='px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent'
             >
-              <option value="all">All Payment Types</option>
-              <option value="cash">Cash</option>
-              <option value="gcash">GCash</option>
-              <option value="bank_transfer">Bank Transfer</option>
+              <option value='all'>All Payment Types</option>
+              <option value='cash'>Cash</option>
+              <option value='gcash'>GCash</option>
+              <option value='bank_transfer'>Bank Transfer</option>
             </select>
             <button
               onClick={() => setIsAddModalOpen(true)}
-              className="flex items-center gap-2 px-4 py-2 rounded-lg text-white font-medium transition-colors"
+              className='flex items-center gap-2 px-4 py-2 rounded-lg text-white font-medium transition-colors'
               style={{ backgroundColor: colors.secondary }}
             >
-              <Plus className="w-5 h-5" />
+              <Plus className='w-5 h-5' />
               Add Payment
             </button>
           </div>
         </div>
 
         {/* Payments Table */}
-        <div className="bg-white rounded-lg shadow-sm border border-gray-100 overflow-hidden">
+        <div className='bg-white rounded-lg shadow-sm border border-gray-100 overflow-hidden'>
           {isLoading ? (
-            <div className="p-8 text-center">
-              <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-gray-900 mx-auto"></div>
-              <p className="mt-4 text-gray-600">Loading payment records...</p>
+            <div className='p-8 text-center'>
+              <div className='animate-spin rounded-full h-12 w-12 border-b-2 border-gray-900 mx-auto'></div>
+              <p className='mt-4 text-gray-600'>Loading payment records...</p>
             </div>
           ) : filteredBillings.length === 0 ? (
-            <div className="p-8 text-center">
-              <CreditCard className="mx-auto h-16 w-16 text-gray-400 mb-4" />
-              <h3 className="text-lg font-semibold text-gray-900 mb-2">No Payment Records</h3>
-              <p className="text-gray-600">
+            <div className='p-8 text-center'>
+              <CreditCard className='mx-auto h-16 w-16 text-gray-400 mb-4' />
+              <h3 className='text-lg font-semibold text-gray-900 mb-2'>
+                No Payment Records
+              </h3>
+              <p className='text-gray-600'>
                 {searchTerm || paymentTypeFilter !== "all"
                   ? "No payments match your search criteria."
                   : "Start by adding a new payment."}
@@ -422,62 +459,65 @@ const PaymentBillingManagement: React.FC = () => {
             </div>
           ) : (
             <>
-              <div className="overflow-x-auto">
-                <table className="w-full">
-                  <thead className="bg-gray-50 border-b border-gray-200">
+              <div className='overflow-x-auto'>
+                <table className='w-full'>
+                  <thead className='bg-gray-50 border-b border-gray-200'>
                     <tr>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      <th className='px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider'>
                         Student
                       </th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      <th className='px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider'>
                         Amount
                       </th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      <th className='px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider'>
                         Payment Type
                       </th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      <th className='px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider'>
                         Reference No.
                       </th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      <th className='px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider'>
                         Date Paid
                       </th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      <th className='px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider'>
                         Term
                       </th>
-                      <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      <th className='px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider'>
                         Actions
                       </th>
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-gray-200">
+                  <tbody className='divide-y divide-gray-200'>
                     {paginatedBillings.map((billing) => (
-                      <tr key={billing.id} className="hover:bg-gray-50">
-                        <td className="px-6 py-4 whitespace-nowrap">
+                      <tr key={billing.id} className='hover:bg-gray-50'>
+                        <td className='px-6 py-4 whitespace-nowrap'>
                           <div>
-                            <div className="text-sm font-medium text-gray-900">
-                              {`${billing.family_name || ""}, ${billing.first_name || ""} ${billing.middle_name || ""}`.trim() || "N/A"}
+                            <div className='text-sm font-medium text-gray-900'>
+                              {`${billing.family_name || ""}, ${billing.first_name || ""} ${billing.middle_name || ""}`.trim() ||
+                                "N/A"}
                             </div>
-                            <div className="text-sm text-gray-500">{billing.student_number || "No Student #"}</div>
+                            <div className='text-sm text-gray-500'>
+                              {billing.student_number || "No Student #"}
+                            </div>
                           </div>
                         </td>
-                        <td className="px-6 py-4 whitespace-nowrap">
-                          <span className="text-sm font-semibold text-gray-900">
+                        <td className='px-6 py-4 whitespace-nowrap'>
+                          <span className='text-sm font-semibold text-gray-900'>
                             {formatAmount(billing.amount)}
                           </span>
                         </td>
-                        <td className="px-6 py-4 whitespace-nowrap">
+                        <td className='px-6 py-4 whitespace-nowrap'>
                           {getPaymentTypeBadge(billing.payment_type)}
                         </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                        <td className='px-6 py-4 whitespace-nowrap text-sm text-gray-500'>
                           {billing.reference_no || "-"}
                         </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                        <td className='px-6 py-4 whitespace-nowrap text-sm text-gray-500'>
                           {formatDate(billing.date_paid)}
                         </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                        <td className='px-6 py-4 whitespace-nowrap text-sm text-gray-500'>
                           {billing.term || billing.enrollment_term || "-"}
                         </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-right">
+                        <td className='px-6 py-4 whitespace-nowrap text-right'>
                           <button
                             onClick={() =>
                               setDeleteConfirmation({
@@ -486,7 +526,7 @@ const PaymentBillingManagement: React.FC = () => {
                                 studentName: `${billing.family_name || ""}, ${billing.first_name || ""}`,
                               })
                             }
-                            className="text-red-600 hover:text-red-800 text-sm font-medium"
+                            className='text-red-600 hover:text-red-800 text-sm font-medium'
                           >
                             Delete
                           </button>
@@ -498,7 +538,7 @@ const PaymentBillingManagement: React.FC = () => {
               </div>
 
               {totalPages > 1 && (
-                <div className="border-t border-gray-200">
+                <div className='border-t border-gray-200'>
                   <Pagination
                     currentPage={currentPage}
                     totalPages={totalPages}
@@ -517,85 +557,109 @@ const PaymentBillingManagement: React.FC = () => {
       {/* Add Payment Modal */}
       {isAddModalOpen && (
         <div
-          className="fixed inset-0 flex items-center justify-center p-4 z-50 backdrop-blur-sm"
+          className='fixed inset-0 flex items-center justify-center p-4 z-50 backdrop-blur-sm'
           style={{ backgroundColor: "rgba(0,0,0,0.4)" }}
           onClick={() => setIsAddModalOpen(false)}
         >
           <div
-            className="rounded-2xl shadow-2xl w-full max-w-2xl overflow-hidden flex flex-col max-h-[90vh] animate-in fade-in zoom-in duration-200"
+            className='rounded-2xl shadow-2xl w-full max-w-2xl overflow-hidden flex flex-col max-h-[90vh] animate-in fade-in zoom-in duration-200'
             style={{ backgroundColor: "white" }}
             onClick={(e) => e.stopPropagation()}
           >
             {/* Modal Header */}
             <div
-              className="px-6 py-4 flex items-center justify-between border-b"
+              className='px-6 py-4 flex items-center justify-between border-b'
               style={{
                 backgroundColor: `${colors.primary}08`,
                 borderColor: `${colors.primary}15`,
               }}
             >
-              <div className="flex items-center gap-3">
-                <div className="p-2 rounded-lg" style={{ backgroundColor: `${colors.secondary}20` }}>
-                  <DollarSign className="w-5 h-5" style={{ color: colors.secondary }} />
+              <div className='flex items-center gap-3'>
+                <div
+                  className='p-2 rounded-lg'
+                  style={{ backgroundColor: `${colors.secondary}20` }}
+                >
+                  <DollarSign
+                    className='w-5 h-5'
+                    style={{ color: colors.secondary }}
+                  />
                 </div>
                 <div>
-                  <h2 className="text-xl font-bold" style={{ color: colors.primary }}>
+                  <h2
+                    className='text-xl font-bold'
+                    style={{ color: colors.primary }}
+                  >
                     Add New Payment
                   </h2>
-                  <p className="text-sm text-gray-500">Process a payment for an enrolled student</p>
+                  <p className='text-sm text-gray-500'>
+                    Process a payment for an enrolled student
+                  </p>
                 </div>
               </div>
               <button
                 onClick={() => setIsAddModalOpen(false)}
-                className="p-2 rounded-full hover:bg-gray-100 transition-colors text-gray-400 hover:text-gray-600"
+                className='p-2 rounded-full hover:bg-gray-100 transition-colors text-gray-400 hover:text-gray-600'
               >
-                <X className="w-5 h-5" />
+                <X className='w-5 h-5' />
               </button>
             </div>
 
             {/* Modal Body */}
-            <form onSubmit={handleSubmitPayment} className="p-6 overflow-y-auto space-y-6">
+            <form
+              onSubmit={handleSubmitPayment}
+              className='p-6 overflow-y-auto space-y-6'
+            >
               {/* Student Selection */}
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  <User className="w-4 h-4 inline mr-1" />
+                <label className='block text-sm font-medium text-gray-700 mb-2'>
+                  <User className='w-4 h-4 inline mr-1' />
                   Select Student (Unbilled Only)
                 </label>
                 {formData.enrollee_id ? (
-                  <div className="flex items-center justify-between p-3 bg-green-50 border border-green-200 rounded-lg">
+                  <div className='flex items-center justify-between p-3 bg-green-50 border border-green-200 rounded-lg'>
                     <div>
-                      <p className="font-medium text-green-800">{formData.enrollee_name}</p>
-                      <p className="text-sm text-green-600">Term: {formData.term || "N/A"}</p>
+                      <p className='font-medium text-green-800'>
+                        {formData.enrollee_name}
+                      </p>
+                      <p className='text-sm text-green-600'>
+                        Term: {formData.term || "N/A"}
+                      </p>
                     </div>
                     <button
-                      type="button"
+                      type='button'
                       onClick={() =>
-                        setFormData({ ...formData, enrollee_id: 0, enrollee_name: "", term: "" })
+                        setFormData({
+                          ...formData,
+                          enrollee_id: 0,
+                          enrollee_name: "",
+                          term: "",
+                        })
                       }
-                      className="text-green-600 hover:text-green-800"
+                      className='text-green-600 hover:text-green-800'
                     >
-                      <X className="w-5 h-5" />
+                      <X className='w-5 h-5' />
                     </button>
                   </div>
                 ) : (
-                  <div className="border border-gray-300 rounded-lg max-h-48 overflow-y-auto">
+                  <div className='border border-gray-300 rounded-lg max-h-48 overflow-y-auto'>
                     {unbilledEnrollees.length === 0 ? (
-                      <div className="p-4 text-center text-gray-500">
+                      <div className='p-4 text-center text-gray-500'>
                         No unbilled students available
                       </div>
                     ) : (
                       unbilledEnrollees.map((enrollee) => (
                         <button
                           key={enrollee.id}
-                          type="button"
+                          type='button'
                           onClick={() => handleEnrolleeSelect(enrollee)}
-                          className="w-full px-4 py-3 text-left hover:bg-gray-50 border-b border-gray-100 last:border-b-0"
+                          className='w-full px-4 py-3 text-left hover:bg-gray-50 border-b border-gray-100 last:border-b-0'
                         >
-                          <div className="font-medium text-gray-900">
+                          <div className='font-medium text-gray-900'>
                             {`${enrollee.family_name || ""}, ${enrollee.first_name || ""} ${enrollee.middle_name || ""}`.trim()}
                           </div>
-                          <div className="text-sm text-gray-500">
-                            {enrollee.student_number || "No Student #"} • {enrollee.course_program || "N/A"}
+                          <div className='text-sm text-gray-500'>
+                            {enrollee.student_number || "No Student #"} •{" "}
+                            {enrollee.course_program || "N/A"}
                           </div>
                         </button>
                       ))
@@ -606,20 +670,40 @@ const PaymentBillingManagement: React.FC = () => {
 
               {/* Payment Type */}
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  <CreditCard className="w-4 h-4 inline mr-1" />
+                <label className='block text-sm font-medium text-gray-700 mb-2'>
+                  <CreditCard className='w-4 h-4 inline mr-1' />
                   Payment Type
                 </label>
-                <div className="grid grid-cols-3 gap-3">
+                <div className='grid grid-cols-3 gap-3'>
                   {[
-                    { value: "cash", label: "Cash", icon: Wallet, color: "green" },
-                    { value: "gcash", label: "GCash", icon: Smartphone, color: "blue" },
-                    { value: "bank_transfer", label: "Bank Transfer", icon: Building2, color: "purple" },
+                    {
+                      value: "cash",
+                      label: "Cash",
+                      icon: Wallet,
+                      color: "green",
+                    },
+                    {
+                      value: "gcash",
+                      label: "GCash",
+                      icon: Smartphone,
+                      color: "blue",
+                    },
+                    {
+                      value: "bank_transfer",
+                      label: "Bank Transfer",
+                      icon: Building2,
+                      color: "purple",
+                    },
                   ].map(({ value, label, icon: Icon, color }) => (
                     <button
                       key={value}
-                      type="button"
-                      onClick={() => setFormData({ ...formData, payment_type: value as PaymentType })}
+                      type='button'
+                      onClick={() =>
+                        setFormData({
+                          ...formData,
+                          payment_type: value as PaymentType,
+                        })
+                      }
                       className={`p-4 rounded-lg border-2 transition-all ${
                         formData.payment_type === value
                           ? `border-${color}-500 bg-${color}-50`
@@ -628,8 +712,18 @@ const PaymentBillingManagement: React.FC = () => {
                       style={
                         formData.payment_type === value
                           ? {
-                              borderColor: color === "green" ? "#22c55e" : color === "blue" ? "#3b82f6" : "#a855f7",
-                              backgroundColor: color === "green" ? "#f0fdf4" : color === "blue" ? "#eff6ff" : "#faf5ff",
+                              borderColor:
+                                color === "green"
+                                  ? "#22c55e"
+                                  : color === "blue"
+                                    ? "#3b82f6"
+                                    : "#a855f7",
+                              backgroundColor:
+                                color === "green"
+                                  ? "#f0fdf4"
+                                  : color === "blue"
+                                    ? "#eff6ff"
+                                    : "#faf5ff",
                             }
                           : {}
                       }
@@ -642,19 +736,26 @@ const PaymentBillingManagement: React.FC = () => {
                               ? color === "green"
                                 ? "#22c55e"
                                 : color === "blue"
-                                ? "#3b82f6"
-                                : "#a855f7"
+                                  ? "#3b82f6"
+                                  : "#a855f7"
                               : "#9ca3af",
                         }}
                       />
                       <span
                         className={`text-sm font-medium ${
-                          formData.payment_type === value ? `text-${color}-700` : "text-gray-600"
+                          formData.payment_type === value
+                            ? `text-${color}-700`
+                            : "text-gray-600"
                         }`}
                         style={
                           formData.payment_type === value
                             ? {
-                                color: color === "green" ? "#15803d" : color === "blue" ? "#1d4ed8" : "#7e22ce",
+                                color:
+                                  color === "green"
+                                    ? "#15803d"
+                                    : color === "blue"
+                                      ? "#1d4ed8"
+                                      : "#7e22ce",
                               }
                             : {}
                         }
@@ -668,55 +769,62 @@ const PaymentBillingManagement: React.FC = () => {
 
               {/* Amount */}
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  <DollarSign className="w-4 h-4 inline mr-1" />
+                <label className='block text-sm font-medium text-gray-700 mb-2'>
+                  <DollarSign className='w-4 h-4 inline mr-1' />
                   Amount
                 </label>
-                <div className="relative">
-                  <span className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-500">₱</span>
+                <div className='relative'>
+                  <span className='absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-500'>
+                    ₱
+                  </span>
                   <input
-                    type="number"
-                    step="0.01"
-                    min="0"
+                    type='number'
+                    step='0.01'
+                    min='0'
                     value={formData.amount}
-                    onChange={(e) => setFormData({ ...formData, amount: e.target.value })}
-                    placeholder="0.00"
-                    className="w-full pl-8 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    onChange={(e) =>
+                      setFormData({ ...formData, amount: e.target.value })
+                    }
+                    placeholder='0.00'
+                    className='w-full pl-8 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent'
                     required
                   />
                 </div>
               </div>
 
               {/* Reference Number (for GCash and Bank Transfer) */}
-              {(formData.payment_type === "gcash" || formData.payment_type === "bank_transfer") && (
+              {(formData.payment_type === "gcash" ||
+                formData.payment_type === "bank_transfer") && (
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    <Hash className="w-4 h-4 inline mr-1" />
+                  <label className='block text-sm font-medium text-gray-700 mb-2'>
+                    <Hash className='w-4 h-4 inline mr-1' />
                     Reference Number
                   </label>
                   <input
-                    type="text"
+                    type='text'
                     value={formData.reference_no}
-                    onChange={(e) => setFormData({ ...formData, reference_no: e.target.value })}
-                    placeholder="Enter reference number"
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    onChange={(e) =>
+                      setFormData({ ...formData, reference_no: e.target.value })
+                    }
+                    placeholder='Enter reference number'
+                    className='w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent'
                     required
                   />
                 </div>
               )}
 
               {/* Submit Buttons */}
-              <div className="flex gap-3 pt-4 border-t border-gray-200">
+              <div className='flex gap-3 pt-4 border-t border-gray-200'>
                 <button
-                  type="button"
+                  type='button'
                   onClick={() => setIsAddModalOpen(false)}
-                  className="flex-1 px-4 py-2 border border-gray-300 rounded-lg text-gray-700 font-medium hover:bg-gray-50 transition-colors"
+                  className='flex-1 px-4 py-2 border border-gray-300 rounded-lg text-gray-700 font-medium hover:bg-gray-50 transition-colors'
                 >
                   Cancel
                 </button>
                 <button
-                  type="submit"
-                  className="flex-1 px-4 py-2 rounded-lg text-white font-medium transition-colors"
+                  type='submit'
+                  className='flex-1 px-4 py-2 rounded-lg text-white font-medium transition-colors'
                   style={{ backgroundColor: colors.secondary }}
                 >
                   Process Payment
@@ -730,13 +838,19 @@ const PaymentBillingManagement: React.FC = () => {
       {/* Delete Confirmation Modal */}
       <ConfirmationModal
         isOpen={deleteConfirmation.isOpen}
-        onClose={() => setDeleteConfirmation({ isOpen: false, billingId: null, studentName: "" })}
+        onClose={() =>
+          setDeleteConfirmation({
+            isOpen: false,
+            billingId: null,
+            studentName: "",
+          })
+        }
         onConfirm={handleDeletePayment}
-        title="Delete Payment Record"
+        title='Delete Payment Record'
         message={`Are you sure you want to delete the payment record for ${deleteConfirmation.studentName}?`}
-        description="This action cannot be undone."
-        confirmText="Delete"
-        variant="danger"
+        description='This action cannot be undone.'
+        confirmText='Delete'
+        variant='danger'
       />
 
       {/* Success Modal */}
@@ -751,7 +865,9 @@ const PaymentBillingManagement: React.FC = () => {
       {/* Error Modal */}
       <ErrorModal
         isOpen={errorModal.isOpen}
-        onClose={() => setErrorModal({ isOpen: false, message: "", details: "" })}
+        onClose={() =>
+          setErrorModal({ isOpen: false, message: "", details: "" })
+        }
         message={errorModal.message}
         details={errorModal.details}
       />
@@ -760,5 +876,3 @@ const PaymentBillingManagement: React.FC = () => {
 };
 
 export default PaymentBillingManagement;
-
-

@@ -60,7 +60,7 @@ const BuildingManagement: React.FC = () => {
 
   const filteredBuildings = useMemo(
     () => filterBuildings(buildings || [], searchTerm, statusFilter),
-    [buildings, searchTerm, statusFilter]
+    [buildings, searchTerm, statusFilter],
   );
 
   // Pagination calculations
@@ -96,7 +96,7 @@ const BuildingManagement: React.FC = () => {
         }
 
         setBuildings((prev) =>
-          prev?.map((b) => (b.id === buildingData.id ? buildingData : b))
+          prev?.map((b) => (b.id === buildingData.id ? buildingData : b)),
         );
         setEditingBuilding(null);
         setSuccessModal({
@@ -106,6 +106,7 @@ const BuildingManagement: React.FC = () => {
         insertIntoReports({
           action: `User ${session?.user.name} Edited the Building ${buildingData.name}`,
           user_id: Number(session?.user.id),
+          created_at: new Date(),
         });
       } else {
         const response = await fetch("/api/auth/building", {
@@ -134,6 +135,7 @@ const BuildingManagement: React.FC = () => {
         insertIntoReports({
           action: `User ${session?.user.name} Created the Building ${buildingData.name}`,
           user_id: Number(session?.user.id),
+          created_at: new Date(),
         });
       }
     } catch (error: any) {
@@ -174,7 +176,7 @@ const BuildingManagement: React.FC = () => {
         }
 
         setBuildings((prev) =>
-          prev?.filter((b) => b.id !== deleteConfirmation.buildingId)
+          prev?.filter((b) => b.id !== deleteConfirmation.buildingId),
         );
         setDeleteConfirmation({
           isOpen: false,
@@ -188,6 +190,7 @@ const BuildingManagement: React.FC = () => {
         insertIntoReports({
           action: `This Subject: ${deleteConfirmation.buildingName} Was deleted By ${session?.user.name}`,
           user_id: Number(session?.user.id),
+          created_at: new Date(),
         });
       } catch (error: any) {
         setErrorModal({
@@ -244,7 +247,7 @@ const BuildingManagement: React.FC = () => {
               value: statusFilter,
               onChange: (value) =>
                 setStatusFilter(
-                  value === "all" ? "all" : (value as "active" | "inactive")
+                  value === "all" ? "all" : (value as "active" | "inactive"),
                 ),
               options: [
                 { value: "all", label: "All Status" },

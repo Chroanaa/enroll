@@ -82,7 +82,7 @@ const MajorManagement: React.FC = () => {
 
   const filteredMajors = useMemo(
     () => filterMajors(majors, searchTerm, statusFilter),
-    [majors, searchTerm, statusFilter]
+    [majors, searchTerm, statusFilter],
   );
 
   // Pagination calculations
@@ -121,8 +121,8 @@ const MajorManagement: React.FC = () => {
           programs.find((p) => p.id === majorData.program_id)?.name || "";
         setMajors((prev) =>
           prev.map((m) =>
-            m.id === majorData.id ? { ...majorData, programName } : m
-          )
+            m.id === majorData.id ? { ...majorData, programName } : m,
+          ),
         );
         setEditingMajor(null);
         setSuccessModal({
@@ -132,6 +132,7 @@ const MajorManagement: React.FC = () => {
         insertIntoReports({
           action: `User ${session?.user.name} Edited the Major ${majorData.name}`,
           user_id: Number(session?.user.id),
+          created_at: new Date(),
         });
       } else {
         const response = await fetch("/api/auth/major", {
@@ -162,6 +163,7 @@ const MajorManagement: React.FC = () => {
         insertIntoReports({
           action: `User ${session?.user.name} Edited the Created ${majorData.name}`,
           user_id: Number(session?.user.id),
+          created_at: new Date(),
         });
       }
     } catch (error: any) {
@@ -201,7 +203,7 @@ const MajorManagement: React.FC = () => {
         }
 
         setMajors((prev) =>
-          prev.filter((m) => m.id !== deleteConfirmation.majorId)
+          prev.filter((m) => m.id !== deleteConfirmation.majorId),
         );
         setDeleteConfirmation({
           isOpen: false,
@@ -215,6 +217,7 @@ const MajorManagement: React.FC = () => {
         insertIntoReports({
           action: `This Subject: ${deleteConfirmation.majorName} Was deleted By ${session?.user.name}`,
           user_id: Number(session?.user.id),
+          created_at: new Date(),
         });
       } catch (error: any) {
         setErrorModal({
@@ -271,7 +274,7 @@ const MajorManagement: React.FC = () => {
               value: statusFilter,
               onChange: (value) =>
                 setStatusFilter(
-                  value === "all" ? "all" : (value as "active" | "inactive")
+                  value === "all" ? "all" : (value as "active" | "inactive"),
                 ),
               options: [
                 { value: "all", label: "All Status" },

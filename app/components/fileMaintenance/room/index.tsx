@@ -38,7 +38,7 @@ const RoomManagement: React.FC = () => {
             ...room,
             buildingName:
               buildingsArray.find((b) => b.id === room.building_id)?.name || "",
-          }))
+          })),
         );
       } catch (error) {
         console.error("Error fetching data:", error);
@@ -83,7 +83,7 @@ const RoomManagement: React.FC = () => {
 
   const filteredRooms = useMemo(
     () => filterRooms(rooms, searchTerm, statusFilter, typeFilter),
-    [rooms, searchTerm, statusFilter, typeFilter]
+    [rooms, searchTerm, statusFilter, typeFilter],
   );
 
   // Pagination calculations
@@ -122,8 +122,8 @@ const RoomManagement: React.FC = () => {
           buildings.find((b) => b.id === roomData.building_id)?.name || "";
         setRooms((prev) =>
           prev.map((r) =>
-            r.id === roomData.id ? { ...roomData, buildingName } : r
-          )
+            r.id === roomData.id ? { ...roomData, buildingName } : r,
+          ),
         );
         setEditingRoom(null);
         setSuccessModal({
@@ -133,6 +133,7 @@ const RoomManagement: React.FC = () => {
         insertIntoReports({
           action: `User ${session?.user.name} Edited the Room ${roomData.room_number}`,
           user_id: Number(session?.user.id),
+          created_at: new Date(),
         });
       } else {
         const response = await fetch("/api/auth/room", {
@@ -163,6 +164,7 @@ const RoomManagement: React.FC = () => {
         insertIntoReports({
           action: `User ${session?.user.name} Created the Room ${roomData.room_number}`,
           user_id: Number(session?.user.id),
+          created_at: new Date(),
         });
       }
     } catch (error: any) {
@@ -202,7 +204,7 @@ const RoomManagement: React.FC = () => {
         }
 
         setRooms((prev) =>
-          prev.filter((r) => r.id !== deleteConfirmation.roomId)
+          prev.filter((r) => r.id !== deleteConfirmation.roomId),
         );
         setDeleteConfirmation({
           isOpen: false,
@@ -216,6 +218,7 @@ const RoomManagement: React.FC = () => {
         insertIntoReports({
           action: `This Subject: ${deleteConfirmation.roomNumber} Was deleted By ${session?.user.name}`,
           user_id: Number(session?.user.id),
+          created_at: new Date(),
         });
       } catch (error: any) {
         setErrorModal({
@@ -288,7 +291,7 @@ const RoomManagement: React.FC = () => {
                 setStatusFilter(
                   value === "all"
                     ? "all"
-                    : (value as "available" | "occupied" | "maintenance")
+                    : (value as "available" | "occupied" | "maintenance"),
                 ),
               options: [
                 { value: "all", label: "All Status" },
