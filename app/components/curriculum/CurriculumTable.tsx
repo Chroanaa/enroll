@@ -3,7 +3,7 @@ import React, { useState, useEffect } from "react";
 import { X, Download } from "lucide-react";
 import { Curriculum, CurriculumCourse, Subject } from "../../types";
 import { colors } from "../../colors";
-import { getCourseHours, parsePrerequisites, formatPrerequisites } from "./utils";
+import { parsePrerequisites, formatPrerequisites } from "./utils";
 import { getSubjects } from "../../utils/subjectUtils";
 
 interface CurriculumTableProps {
@@ -408,7 +408,7 @@ const CurriculumTable: React.FC<CurriculumTableProps> = ({
                                       color: colors.primary
                                     }}
                                   >
-                                    {getCourseHours(course.units_lec || 0, course.units_lab || 0).lectureHours}
+                                    {course.lecture_hour || 0}
                                   </td>
                                   <td
                                     className='border px-2 py-2 text-center print:px-1 print:py-0.5'
@@ -417,7 +417,7 @@ const CurriculumTable: React.FC<CurriculumTableProps> = ({
                                       color: colors.primary
                                     }}
                                   >
-                                    {getCourseHours(course.units_lec || 0, course.units_lab || 0).labHours}
+                                    {course.lab_hour || 0}
                                   </td>
                                   <td
                                     className='border px-2 py-2 text-center font-semibold print:px-1 print:py-0.5'
@@ -635,7 +635,7 @@ const CurriculumTable: React.FC<CurriculumTableProps> = ({
                                       color: colors.primary
                                     }}
                                   >
-                                    {getCourseHours(course.units_lec || 0, course.units_lab || 0).lectureHours}
+                                    {course.lecture_hour || 0}
                                   </td>
                                   <td
                                     className='border px-2 py-2 text-center print:px-1 print:py-0.5'
@@ -644,7 +644,7 @@ const CurriculumTable: React.FC<CurriculumTableProps> = ({
                                       color: colors.primary
                                     }}
                                   >
-                                    {getCourseHours(course.units_lec || 0, course.units_lab || 0).labHours}
+                                    {course.lab_hour || 0}
                                   </td>
                                   <td
                                     className='border px-2 py-2 text-center font-semibold print:px-1 print:py-0.5'

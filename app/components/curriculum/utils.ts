@@ -38,51 +38,9 @@ export const calculateTotalUnits = (courses: CurriculumCourse[]): number => {
   return courses.reduce((total, course) => total + course.units_total, 0);
 };
 
-// create function temporaryy, will ask sir how the unit and hours will be calculated in other program
-
-export const calculateLectureHours = (
-  unitsLec: number,
-  unitsLab: number
-): number => {
-  
-  if (unitsLab > 0) {
-    return unitsLec * 1; 
-  }
-  
-  return unitsLec; 
-};
-
-
-export const calculateLabHours = (unitsLab: number): number => {
-  return unitsLab * 3;
-};
-
-export const calculateLectureUnits = (
-  hoursLec: number,
-  hasLab: boolean
-): number => {
-
-  if (hasLab) {
-    return hoursLec / 1;
-  }
-
-  return hoursLec;
-};
-
-export const calculateLabUnits = (hoursLab: number): number => {
-  return hoursLab / 3;
-};
-
-
-export const getCourseHours = (
-  unitsLec: number,
-  unitsLab: number
-): { lectureHours: number; labHours: number } => {
-  return {
-    lectureHours: calculateLectureHours(unitsLec, unitsLab),
-    labHours: calculateLabHours(unitsLab),
-  };
-};
+// Note: Units and hours are stored independently - no automatic calculation
+// units_lec and lecture_hour are separate fields
+// units_lab and lab_hour are separate fields
 
 export const createCourseFromForm = (
   courseForm: Partial<CurriculumCourse> & { selectedSubjectId?: number },
@@ -94,6 +52,8 @@ export const createCourseFromForm = (
     course_code: (courseForm.course_code || "").toUpperCase(),
     descriptive_title: courseForm.descriptive_title || "",
     units_lec: courseForm.units_lec || 0,
+    lecture_hour: courseForm.lecture_hour || 0,
+    lab_hour: courseForm.lab_hour || 0,
     units_lab: courseForm.units_lab || 0,
     units_total: courseForm.units_total || 0,
     prerequisite: courseForm.prerequisite || "",
@@ -110,6 +70,8 @@ export const getInitialCourseForm = (): Partial<CurriculumCourse> & {
     course_code: "",
     descriptive_title: "",
     units_lec: 0,
+    lecture_hour: 0,
+    lab_hour: 0,
     units_lab: 0,
     units_total: 0,
     prerequisite: "",

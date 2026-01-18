@@ -1,5 +1,6 @@
 "use client";
 import React, { useState, useMemo, useEffect } from "react";
+import { useRouter } from "next/navigation";
 import { Plus, Trash2, Search, Filter } from "lucide-react";
 import { Subject } from "../../../types";
 import { colors } from "../../../colors";
@@ -8,7 +9,6 @@ import SuccessModal from "../../common/SuccessModal";
 import ErrorModal from "../../common/ErrorModal";
 import Pagination from "../../common/Pagination";
 import SubjectTable from "./SubjectTable";
-import SubjectForm from "./SubjectForm";
 import MultipleSubjectForm from "./MultipleSubjectForm";
 import { filterSubjects } from "./utils";
 import { getSubjects } from "@/app/utils/subjectUtils";
@@ -17,6 +17,7 @@ import { insertIntoReports } from "@/app/utils/reportsUtils";
 import { useSession } from "next-auth/react";
 import { Department } from "../../../types";
 const SubjectManagement: React.FC = () => {
+  const router = useRouter();
   const [subjects, setSubjects] = useState<Subject[]>();
   const [departments, setDepartments] = useState<Department[]>([]);
   const { data: session } = useSession();
@@ -40,8 +41,6 @@ const SubjectManagement: React.FC = () => {
   const [statusFilter, setStatusFilter] = useState<
     "all" | "active" | "inactive"
   >("all");
-  const [editingSubject, setEditingSubject] = useState<Subject | null>(null);
-  const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [isMultipleModalOpen, setIsMultipleModalOpen] = useState(false);
   const [showCheckboxes, setShowCheckboxes] = useState(false);
   const [selectedSubjects, setSelectedSubjects] = useState<number[]>([]);
@@ -374,7 +373,7 @@ const SubjectManagement: React.FC = () => {
               <span className='text-sm font-medium'>Add Multiple</span>
             </button>
             <button
-              onClick={() => setIsAddModalOpen(true)}
+              onClick={() => router.push("/subject/new")}
               className='flex items-center gap-2 px-5 py-3 text-white rounded-xl transition-all shadow-lg shadow-blue-900/20 hover:shadow-xl hover:scale-105 active:scale-95'
               style={{ backgroundColor: colors.secondary }}
             >
@@ -494,7 +493,7 @@ const SubjectManagement: React.FC = () => {
         <div>
           <SubjectTable
             subjects={paginatedSubjects}
-            onEdit={setEditingSubject}
+            onEdit={(subject) => router.push(`/subject/${subject.id}/edit`)}
             onDelete={handleDeleteSubject}
             selectedSubjects={showCheckboxes ? selectedSubjects : []}
             onSelectionChange={showCheckboxes ? setSelectedSubjects : undefined}
@@ -509,18 +508,6 @@ const SubjectManagement: React.FC = () => {
             onItemsPerPageChange={setItemsPerPage}
           />
         </div>
-
-        {/* Add/Edit Subject Form */}
-        {(isAddModalOpen || editingSubject) && (
-          <SubjectForm
-            subject={editingSubject}
-            onSave={handleSaveSubject}
-            onCancel={() => {
-              setEditingSubject(null);
-              setIsAddModalOpen(false);
-            }}
-          />
-        )}
 
         {/* Add Multiple Subjects Form */}
         {isMultipleModalOpen && (

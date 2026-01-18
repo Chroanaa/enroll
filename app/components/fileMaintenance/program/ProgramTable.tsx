@@ -27,10 +27,10 @@ const ProgramTable: React.FC<ProgramTableProps> = ({
               }}
             >
               <th className='px-6 py-4 text-left text-xs font-bold uppercase tracking-wider text-gray-600'>
-                Program
+                Code
               </th>
               <th className='px-6 py-4 text-left text-xs font-bold uppercase tracking-wider text-gray-600'>
-                Code
+                Program
               </th>
               <th className='px-6 py-4 text-left text-xs font-bold uppercase tracking-wider text-gray-600'>
                 Department
@@ -76,6 +76,14 @@ const ProgramTable: React.FC<ProgramTableProps> = ({
                     className='group hover:bg-gray-50/50 transition-colors'
                   >
                     <td className='px-6 py-4 whitespace-nowrap'>
+                      <div className='flex items-center gap-2'>
+                        <Hash className='w-3.5 h-3.5 text-gray-400' />
+                        <span className='text-sm font-medium text-gray-700'>
+                          {program.code}
+                        </span>
+                      </div>
+                    </td>
+                    <td className='px-6 py-4 whitespace-nowrap'>
                       <div className='flex items-center'>
                         <div className='flex-shrink-0 h-10 w-10'>
                           <div
@@ -104,14 +112,6 @@ const ProgramTable: React.FC<ProgramTableProps> = ({
                             </div>
                           )}
                         </div>
-                      </div>
-                    </td>
-                    <td className='px-6 py-4 whitespace-nowrap'>
-                      <div className='flex items-center gap-2'>
-                        <Hash className='w-3.5 h-3.5 text-gray-400' />
-                        <span className='text-sm font-medium text-gray-700'>
-                          {program.code}
-                        </span>
                       </div>
                     </td>
                     <td className='px-6 py-4 whitespace-nowrap'>

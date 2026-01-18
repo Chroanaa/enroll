@@ -43,7 +43,7 @@ const MultipleSubjectForm: React.FC<MultipleSubjectFormProps> = ({
       },
       {
         key: "units_lec",
-        label: "Units Lec",
+        label: "Lecture Credits",
         type: "number",
         placeholder: "0",
         min: 0,
@@ -52,11 +52,27 @@ const MultipleSubjectForm: React.FC<MultipleSubjectFormProps> = ({
       },
       {
         key: "units_lab",
-        label: "Units Lab",
+        label: "Lab Credits",
         type: "number",
         placeholder: "0",
         min: 0,
         max: 6,
+        required: false,
+      },
+      {
+        key: "lecture_hour",
+        label: "Lecture Hours",
+        type: "number",
+        placeholder: "0",
+        min: 0,
+        required: false,
+      },
+      {
+        key: "lab_hour",
+        label: "Lab Hours",
+        type: "number",
+        placeholder: "0",
+        min: 0,
         required: false,
       },
       {
@@ -76,6 +92,8 @@ const MultipleSubjectForm: React.FC<MultipleSubjectFormProps> = ({
       description: "",
       units_lec: "",
       units_lab: "",
+      lecture_hour: "",
+      lab_hour: "",
       status: "active",
     },
     validateRow: (row: Record<string, any>, index: number): string[] => {
@@ -119,6 +137,8 @@ const MultipleSubjectForm: React.FC<MultipleSubjectFormProps> = ({
         description: row.description?.trim() || undefined,
         units_lec: row.units_lec ? Number(row.units_lec) : undefined,
         units_lab: row.units_lab ? Number(row.units_lab) : undefined,
+        lecture_hour: row.lecture_hour ? Number(row.lecture_hour) : undefined,
+        lab_hour: row.lab_hour ? Number(row.lab_hour) : undefined,
         status: row.status || "active",
       };
     },

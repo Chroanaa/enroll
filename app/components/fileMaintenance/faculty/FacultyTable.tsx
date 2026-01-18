@@ -28,10 +28,10 @@ const FacultyTable: React.FC<FacultyTableProps> = ({
               }}
             >
               <th className='px-6 py-4 text-left text-xs font-bold uppercase tracking-wider text-gray-600'>
-                Faculty
+                Employee ID
               </th>
               <th className='px-6 py-4 text-left text-xs font-bold uppercase tracking-wider text-gray-600'>
-                Employee ID
+                Faculty
               </th>
               <th className='px-6 py-4 text-left text-xs font-bold uppercase tracking-wider text-gray-600'>
                 Contact
@@ -80,6 +80,14 @@ const FacultyTable: React.FC<FacultyTableProps> = ({
                     className='group hover:bg-gray-50/50 transition-colors'
                   >
                     <td className='px-6 py-4 whitespace-nowrap'>
+                      <div className='flex items-center gap-2'>
+                        <Hash className='w-3.5 h-3.5 text-gray-400' />
+                        <span className='text-sm font-medium text-gray-700'>
+                          {fac.employee_id}
+                        </span>
+                      </div>
+                    </td>
+                    <td className='px-6 py-4 whitespace-nowrap'>
                       <div className='flex items-center'>
                         <div className='flex-shrink-0 h-10 w-10'>
                           <div
@@ -108,14 +116,6 @@ const FacultyTable: React.FC<FacultyTableProps> = ({
                             </div>
                           )}
                         </div>
-                      </div>
-                    </td>
-                    <td className='px-6 py-4 whitespace-nowrap'>
-                      <div className='flex items-center gap-2'>
-                        <Hash className='w-3.5 h-3.5 text-gray-400' />
-                        <span className='text-sm font-medium text-gray-700'>
-                          {fac.employee_id}
-                        </span>
                       </div>
                     </td>
                     <td className='px-6 py-4'>
