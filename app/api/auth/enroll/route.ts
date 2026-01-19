@@ -2,7 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "../../../lib/prisma";
 import { writeFile, mkdir } from "fs/promises";
 import { insertIntoReports } from "@/app/utils/reportsUtils";
-import { useSession } from "next-auth/react";
+import { getServerSession } from "next-auth";
+import { authOptions } from "../[...nextauth]/authOptions";
 import path from "path";
 
 // Helper function to generate unique filename
@@ -15,7 +16,7 @@ function generateUniqueFileName(originalName: string): string {
 
 export async function POST(request: NextRequest) {
   try {
-    const { data: session } = useSession();
+    const session = await getServerSession(authOptions);
     const formData = await request.formData();
 
     // Extract all form fields
