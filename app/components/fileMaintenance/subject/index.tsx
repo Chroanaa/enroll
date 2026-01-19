@@ -9,7 +9,6 @@ import SuccessModal from "../../common/SuccessModal";
 import ErrorModal from "../../common/ErrorModal";
 import Pagination from "../../common/Pagination";
 import SubjectTable from "./SubjectTable";
-import MultipleSubjectForm from "./MultipleSubjectForm";
 import { filterSubjects } from "./utils";
 import { getSubjects } from "@/app/utils/subjectUtils";
 import { getDepartments } from "@/app/utils/departmentUtils";
@@ -41,7 +40,6 @@ const SubjectManagement: React.FC = () => {
   const [statusFilter, setStatusFilter] = useState<
     "all" | "active" | "inactive"
   >("all");
-  const [isMultipleModalOpen, setIsMultipleModalOpen] = useState(false);
   const [showCheckboxes, setShowCheckboxes] = useState(false);
   const [selectedSubjects, setSelectedSubjects] = useState<number[]>([]);
   const [deleteConfirmation, setDeleteConfirmation] = useState<{
@@ -105,47 +103,6 @@ const SubjectManagement: React.FC = () => {
   const handlePageChange = (page: number) => {
     setCurrentPage(page);
     window.scrollTo({ top: 0, behavior: "smooth" });
-  };
-
-  const handleSaveMultipleSubjects = async (
-    subjectsData: Omit<Subject, "id">[],
-  ) => {
-    try {
-      const response = await fetch("/api/auth/subject/bulk", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify(subjectsData),
-      });
-
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || "Failed to create subjects");
-      }
-
-      const newSubjects = await response.json();
-      // Filter out duplicates by ID to prevent duplicate keys
-      setSubjects((prev) => {
-        const existingIds = new Set((prev || []).map((s) => s.id));
-        const uniqueNewSubjects = newSubjects.filter(
-          (s: Subject) => !existingIds.has(s.id),
-        );
-        return [...(prev || []), ...uniqueNewSubjects];
-      });
-      setIsMultipleModalOpen(false);
-      setSuccessModal({
-        isOpen: true,
-        message: `${newSubjects.length} subject(s) have been created successfully.`,
-      });
-    } catch (error: any) {
-      setErrorModal({
-        isOpen: true,
-        message:
-          error.message || "An error occurred while saving the subjects.",
-        details: "Please check your input and try again.",
-      });
-    }
   };
 
   const handleSaveSubject = async (subjectData: Subject) => {
@@ -359,7 +316,7 @@ const SubjectManagement: React.FC = () => {
           </div>
           <div className='flex gap-3'>
             <button
-              onClick={() => setIsMultipleModalOpen(true)}
+              onClick={() => router.push("/subject/multiple")}
               className='flex items-center gap-2 px-4 py-2.5 text-white rounded-lg transition-all shadow-md hover:shadow-lg hover:scale-105 active:scale-95'
               style={{ backgroundColor: colors.tertiary }}
               onMouseEnter={(e) =>
@@ -508,14 +465,6 @@ const SubjectManagement: React.FC = () => {
             onItemsPerPageChange={setItemsPerPage}
           />
         </div>
-
-        {/* Add Multiple Subjects Form */}
-        {isMultipleModalOpen && (
-          <MultipleSubjectForm
-            onSave={handleSaveMultipleSubjects}
-            onCancel={() => setIsMultipleModalOpen(false)}
-          />
-        )}
 
         {/* Delete Confirmation Modal */}
         <ConfirmationModal
