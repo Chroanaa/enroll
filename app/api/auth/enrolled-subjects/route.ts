@@ -119,6 +119,7 @@ export async function GET(request: NextRequest) {
         cc.units_lab,
         cc.lecture_hour,
         cc.lab_hour,
+        cc.prerequisite,
         cc.year_level as curriculum_year_level
       FROM enrolled_subjects es
       LEFT JOIN curriculum_course cc ON es.curriculum_course_id = cc.id
@@ -140,6 +141,7 @@ export async function GET(request: NextRequest) {
       units_total: es.units_total || es.units_lec + es.units_lab || 0,
       lecture_hour: es.lecture_hour || 0,
       lab_hour: es.lab_hour || 0,
+      prerequisite: es.prerequisite || null,
       year_level: es.curriculum_year_level || es.year_level,
       semester: es.semester,
     }));
