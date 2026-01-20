@@ -30,6 +30,8 @@ const EnrollmentForm: React.FC = () => {
     validationError,
     setValidationError,
     departments,
+    duplicateError,
+    isCheckingDuplicate,
   } = form;
 
   // Memoize common props for all page components
@@ -52,6 +54,8 @@ const EnrollmentForm: React.FC = () => {
       handlePhotoError: form.handlePhotoError,
       getTodayDate: form.getTodayDate,
       fieldErrors: fieldErrors,
+      duplicateError: duplicateError,
+      isCheckingDuplicate: isCheckingDuplicate,
     }),
     [
       form.formData,
@@ -67,7 +71,9 @@ const EnrollmentForm: React.FC = () => {
       form.handlePhotoError,
       form.getTodayDate,
       fieldErrors,
-    ]
+      duplicateError,
+      isCheckingDuplicate,
+    ],
   );
 
   // Get current page component
@@ -109,6 +115,8 @@ const EnrollmentForm: React.FC = () => {
                 onNext={nextPage}
                 onSubmit={handleSubmit}
                 isSubmitting={isSubmitting}
+                isCheckingDuplicate={isCheckingDuplicate}
+                duplicateError={duplicateError}
               />
             </form>
           </div>
@@ -119,8 +127,8 @@ const EnrollmentForm: React.FC = () => {
       <SuccessModal
         isOpen={submitSuccess}
         onClose={() => setSubmitSuccess(false)}
-        title="Enrollment Submitted Successfully"
-        message="Your enrollment form has been submitted successfully. We will review your application and contact you soon."
+        title='Enrollment Submitted Successfully'
+        message='Your enrollment form has been submitted successfully. We will review your application and contact you soon.'
         autoClose={true}
         autoCloseDelay={5000}
       />
@@ -129,8 +137,11 @@ const EnrollmentForm: React.FC = () => {
       <ErrorModal
         isOpen={submitError !== null}
         onClose={() => setSubmitError(null)}
-        title="Submission Failed"
-        message={submitError?.message || "An error occurred while submitting your enrollment."}
+        title='Submission Failed'
+        message={
+          submitError?.message ||
+          "An error occurred while submitting your enrollment."
+        }
         details={submitError?.details}
       />
 
@@ -138,9 +149,9 @@ const EnrollmentForm: React.FC = () => {
       <ErrorModal
         isOpen={validationError.isOpen}
         onClose={() => setValidationError({ isOpen: false, message: "" })}
-        title="Validation Error"
+        title='Validation Error'
         message={validationError.message}
-        details="Please review the highlighted fields and correct any errors before proceeding."
+        details='Please review the highlighted fields and correct any errors before proceeding.'
       />
     </div>
   );

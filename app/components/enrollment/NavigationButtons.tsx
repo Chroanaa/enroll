@@ -6,9 +6,11 @@ interface NavigationButtonsProps {
   currentPage: number;
   totalPages: number;
   onPrevious: () => void;
-  onNext: () => void;
+  onNext: () => void | Promise<void>;
   onSubmit: (e: React.FormEvent) => void;
   isSubmitting?: boolean;
+  isCheckingDuplicate?: boolean;
+  duplicateError?: string | null;
 }
 
 export const NavigationButtons: React.FC<NavigationButtonsProps> = ({
@@ -18,7 +20,10 @@ export const NavigationButtons: React.FC<NavigationButtonsProps> = ({
   onNext,
   onSubmit,
   isSubmitting = false,
+  isCheckingDuplicate = false,
+  duplicateError = null,
 }) => {
+  const isNextDisabled = isCheckingDuplicate || !!duplicateError;
   return (
     <div
       className='flex justify-between gap-4 mt-8 pt-6 border-t animate-in fade-in duration-700 delay-500'
@@ -56,21 +61,30 @@ export const NavigationButtons: React.FC<NavigationButtonsProps> = ({
           <button
             type='button'
             onClick={onNext}
-            className='flex items-center gap-2 px-8 py-3 rounded-full text-sm font-semibold transition-all duration-300 text-white shadow-lg hover:shadow-xl active:scale-95'
+            disabled={isNextDisabled}
+            className={`flex items-center gap-2 px-8 py-3 rounded-full text-sm font-semibold transition-all duration-300 text-white shadow-lg hover:shadow-xl active:scale-95 ${isNextDisabled ? "opacity-50 cursor-not-allowed" : ""}`}
             style={{
               backgroundColor: colors.secondary,
-              boxShadow: `0 4px 14px ${colors.secondary}40`
+              boxShadow: `0 4px 14px ${colors.secondary}40`,
             }}
             onMouseEnter={(e) => {
-              e.currentTarget.style.backgroundColor = colors.primary;
-              e.currentTarget.style.transform = "translateX(4px)";
+              if (!isNextDisabled) {
+                e.currentTarget.style.backgroundColor = colors.primary;
+                e.currentTarget.style.transform = "translateX(4px)";
+              }
             }}
             onMouseLeave={(e) => {
-              e.currentTarget.style.backgroundColor = colors.secondary;
-              e.currentTarget.style.transform = "translateX(0)";
+              if (!isNextDisabled) {
+                e.currentTarget.style.backgroundColor = colors.secondary;
+                e.currentTarget.style.transform = "translateX(0)";
+              }
             }}
           >
-            Next Step
+            {isCheckingDuplicate
+              ? "Checking..."
+              : duplicateError
+                ? "Duplicate Found"
+                : "Next Step"}
             <ChevronRight className='w-4 h-4' />
           </button>
         ) : (
@@ -86,7 +100,7 @@ export const NavigationButtons: React.FC<NavigationButtonsProps> = ({
             className='flex items-center gap-2 px-8 py-3 rounded-full text-sm font-semibold transition-all duration-300 text-white shadow-lg hover:shadow-xl active:scale-95 disabled:opacity-70 disabled:cursor-not-allowed disabled:transform-none'
             style={{
               backgroundColor: colors.secondary,
-              boxShadow: `0 4px 14px ${colors.secondary}40`
+              boxShadow: `0 4px 14px ${colors.secondary}40`,
             }}
             onMouseEnter={(e) => {
               if (!e.currentTarget.disabled) {
@@ -103,7 +117,7 @@ export const NavigationButtons: React.FC<NavigationButtonsProps> = ({
           >
             {isSubmitting ? (
               <>
-                <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                <div className='w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin' />
                 Submitting...
               </>
             ) : (

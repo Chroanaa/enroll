@@ -83,30 +83,72 @@ export async function POST(request: NextRequest) {
       photoPath = `/uploads/enrollments/${fileName}`;
     }
 
-    const result = await prisma.$executeRaw`
-      INSERT INTO enrollment (
-        student_number, admission_date, admission_status, term, department,
-        course_program, photo, requirements, family_name, first_name,
-        middle_name, sex, civil_status, birthdate, birthplace,
-        complete_address, contact_number, email_address, emergency_contact_name,
-        emergency_relationship, emergency_contact_number, last_school_attended,
-        previous_school_year, academic_year, program_shs, remarks
-      ) VALUES (
-        ${student_number}, ${
-          admission_date ? new Date(admission_date) : null
-        }::date, 
-        ${admission_status}, ${term}, ${
-          department ? parseInt(department) : null
+    // Check for duplicate enrollment based on first name, family name, and birthdate
+    if (first_name && family_name) {
+      const existingEnrollment = await prisma.enrollment.findFirst({
+        where: {
+          first_name: {
+            equals: first_name,
+            mode: "insensitive",
+          },
+          family_name: {
+            equals: family_name,
+            mode: "insensitive",
+          },
+          ...(middle_name && {
+            middle_name: {
+              equals: middle_name,
+              mode: "insensitive",
+            },
+          }),
+          ...(birthdate && {
+            birthdate: new Date(birthdate),
+          }),
         },
-        ${course_program}, ${photoPath}, ${requirements}::text[], ${family_name}, ${first_name},
-        ${middle_name}, ${sex}, ${civil_status}, ${
-          birthdate ? new Date(birthdate) : null
-        }::date, ${birthplace},
-        ${complete_address}, ${contact_number}, ${email_address}, ${emergency_contact_name},
-        ${emergency_relationship}, ${emergency_contact_number}, ${last_school_attended},
-        ${previous_school_year}, ${academic_year}, ${program_shs}, ${remarks}
-      )
-    `;
+      });
+
+      if (existingEnrollment) {
+        return NextResponse.json(
+          {
+            error: "Duplicate enrollment detected",
+            message: `A student with the name "${first_name} ${middle_name ? middle_name + " " : ""}${family_name}" already exists in the system.`,
+          },
+          { status: 409 },
+        );
+      }
+    }
+
+    const result = await prisma.enrollment.create({
+      data: {
+        student_number: student_number || null,
+        admission_date: admission_date ? new Date(admission_date) : null,
+        admission_status: admission_status || null,
+        term: term || null,
+        department: department ? parseInt(department) : null,
+        course_program: course_program || null,
+        photo: photoPath,
+        requirements: requirements || [],
+        family_name: family_name || null,
+        first_name: first_name || null,
+        middle_name: middle_name || null,
+        sex: sex || null,
+        civil_status: civil_status || null,
+        birthdate: birthdate ? new Date(birthdate) : null,
+        birthplace: birthplace || null,
+        complete_address: complete_address || null,
+        contact_number: contact_number || null,
+        email_address: email_address || null,
+        emergency_contact_name: emergency_contact_name || null,
+        emergency_relationship: emergency_relationship || null,
+        emergency_contact_number: emergency_contact_number || null,
+        last_school_attended: last_school_attended || null,
+        previous_school_year: previous_school_year || null,
+        academic_year: academic_year || null,
+        program_shs: program_shs || null,
+        remarks: remarks || null,
+        status: 4,
+      },
+    });
 
     if (!result) {
       return NextResponse.json(

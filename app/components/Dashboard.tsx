@@ -95,10 +95,8 @@ const Dashboard: React.FC = () => {
     const labels: Record<string, string> = {
       first: "1st Semester",
       second: "2nd Semester",
-      summer: "Summer Term",
       First: "1st Semester",
       Second: "2nd Semester",
-      Summer: "Summer Term",
     };
     return labels[semester] || semester;
   };
@@ -606,8 +604,8 @@ const Dashboard: React.FC = () => {
                           {item.status === "new"
                             ? "New Student"
                             : item.status === "transferee"
-                            ? "Transferee"
-                            : item.status}
+                              ? "Transferee"
+                              : item.status}
                         </span>
                         <span
                           className='text-sm font-bold'

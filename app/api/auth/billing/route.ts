@@ -8,7 +8,7 @@ export async function GET(request: NextRequest) {
     const unbilled = searchParams.get("unbilled");
 
     if (unbilled === "true") {
-      // Get enrollees that don't have a billing record
+      // Get enrollees that don't have a billing record and have status 4 (for payment)
       const billedEnrolleeIds = await prisma.billing.findMany({
         select: { enrollee_id: true },
       });
@@ -22,7 +22,7 @@ export async function GET(request: NextRequest) {
           id: {
             notIn: billedIds.length > 0 ? billedIds : [-1], // Use -1 to avoid empty array issue
           },
-          status: 1, // Only active enrollees
+          status: 4, // Status 4 = For Payment
         },
         orderBy: {
           family_name: "asc",
@@ -55,7 +55,7 @@ export async function GET(request: NextRequest) {
         error: error?.message || "Failed to fetch billing data",
         details: error?.code || error,
       },
-      { status: 500 }
+      { status: 500 },
     );
   }
 }
@@ -74,7 +74,7 @@ export async function POST(request: NextRequest) {
           error:
             "Missing required fields: enrollee_id, payment_type, and amount are required",
         },
-        { status: 400 }
+        { status: 400 },
       );
     }
 
@@ -86,7 +86,7 @@ export async function POST(request: NextRequest) {
     if (existingBilling) {
       return NextResponse.json(
         { error: "This enrollee already has a payment record" },
-        { status: 400 }
+        { status: 400 },
       );
     }
 
@@ -103,6 +103,12 @@ export async function POST(request: NextRequest) {
       },
     });
 
+    // Update enrollment status to 2 (Enrolled/Paid) after payment
+    await prisma.enrollment.update({
+      where: { id: Number(enrollee_id) },
+      data: { status: 2 },
+    });
+
     return NextResponse.json(newBilling, { status: 201 });
   } catch (error: any) {
     console.error("Error creating billing:", error);
@@ -111,7 +117,7 @@ export async function POST(request: NextRequest) {
         error: error?.message || "Failed to create billing",
         details: error?.code || error,
       },
-      { status: 500 }
+      { status: 500 },
     );
   }
 }
@@ -125,7 +131,7 @@ export async function PATCH(request: NextRequest) {
     if (!id) {
       return NextResponse.json(
         { error: "Missing billing ID" },
-        { status: 400 }
+        { status: 400 },
       );
     }
 
@@ -164,7 +170,7 @@ export async function PATCH(request: NextRequest) {
         error: error?.message || "Failed to update billing",
         details: error?.code || error,
       },
-      { status: 500 }
+      { status: 500 },
     );
   }
 }
@@ -186,7 +192,7 @@ export async function DELETE(request: NextRequest) {
         error: error?.message || "Failed to delete billing",
         details: error?.code || error,
       },
-      { status: 500 }
+      { status: 500 },
     );
   }
 }

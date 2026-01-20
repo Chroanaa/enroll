@@ -39,12 +39,15 @@ const AdmissionInformation: React.FC<EnrollmentPageProps> = ({
           background: `linear-gradient(to bottom right, #ffffff, ${colors.paper})`,
         }}
       >
-        <div className='flex items-center gap-4 mb-8 pb-6 border-b' style={{ borderColor: colors.accent + "10" }}>
+        <div
+          className='flex items-center gap-4 mb-8 pb-6 border-b'
+          style={{ borderColor: colors.accent + "10" }}
+        >
           <div
             className='p-3 rounded-2xl shadow-sm transform transition-transform hover:scale-105 duration-300'
             style={{
               backgroundColor: "white",
-              border: `1px solid ${colors.accent}20`
+              border: `1px solid ${colors.accent}20`,
             }}
           >
             <GraduationCap
@@ -53,10 +56,16 @@ const AdmissionInformation: React.FC<EnrollmentPageProps> = ({
             />
           </div>
           <div>
-            <h2 className='text-2xl font-bold tracking-tight' style={{ color: colors.primary }}>
+            <h2
+              className='text-2xl font-bold tracking-tight'
+              style={{ color: colors.primary }}
+            >
               Admission Information
             </h2>
-            <p className='text-sm mt-1 font-medium' style={{ color: colors.tertiary }}>
+            <p
+              className='text-sm mt-1 font-medium'
+              style={{ color: colors.tertiary }}
+            >
               Complete your admission details
             </p>
           </div>
@@ -66,15 +75,17 @@ const AdmissionInformation: React.FC<EnrollmentPageProps> = ({
           className='flex items-center gap-3 px-4 py-3 rounded-xl mb-8 border'
           style={{
             backgroundColor: colors.accent + "05",
-            borderColor: colors.accent + "10"
+            borderColor: colors.accent + "10",
           }}
         >
           <Calendar className='w-5 h-5' style={{ color: colors.secondary }} />
-          <span className="text-sm font-semibold" style={{ color: colors.primary }}>Date of Admission:</span>
-          <p
-            className='text-sm font-bold'
-            style={{ color: colors.secondary }}
+          <span
+            className='text-sm font-semibold'
+            style={{ color: colors.primary }}
           >
+            Date of Admission:
+          </span>
+          <p className='text-sm font-bold' style={{ color: colors.secondary }}>
             {getTodayDate?.() || ""}
           </p>
         </div>
@@ -82,7 +93,7 @@ const AdmissionInformation: React.FC<EnrollmentPageProps> = ({
         <div className='grid grid-cols-1 lg:grid-cols-3 gap-8'>
           {/* Left Column - Form Fields */}
           <div className='lg:col-span-2 space-y-6'>
-            <div className="group">
+            <div className='group'>
               <label
                 className='flex items-center gap-2 text-sm font-semibold mb-2 ml-1'
                 style={{ color: colors.primary }}
@@ -93,25 +104,33 @@ const AdmissionInformation: React.FC<EnrollmentPageProps> = ({
                 />
                 Admission Status
               </label>
-              <div className="relative">
+              <div className='relative'>
                 <select
-                  name="admission_status"
-                  data-field="admission_status"
+                  name='admission_status'
+                  data-field='admission_status'
                   value={formData.admission_status}
                   onChange={(e) =>
                     handleInputChange("admission_status", e.target.value)
                   }
                   className={`${inputClasses} appearance-none cursor-pointer ${fieldErrors.admission_status ? "border-red-500" : ""}`}
                   style={{
-                    borderColor: fieldErrors.admission_status ? "#ef4444" : colors.tertiary + "30",
+                    borderColor: fieldErrors.admission_status
+                      ? "#ef4444"
+                      : colors.tertiary + "30",
                     color: colors.primary,
                   }}
                   onFocus={(e) => {
-                    e.currentTarget.style.borderColor = fieldErrors.admission_status ? "#ef4444" : colors.secondary;
+                    e.currentTarget.style.borderColor =
+                      fieldErrors.admission_status
+                        ? "#ef4444"
+                        : colors.secondary;
                     e.currentTarget.style.boxShadow = `0 0 0 4px ${fieldErrors.admission_status ? "#ef444410" : colors.secondary + "10"}`;
                   }}
                   onBlur={(e) => {
-                    e.currentTarget.style.borderColor = fieldErrors.admission_status ? "#ef4444" : colors.tertiary + "30";
+                    e.currentTarget.style.borderColor =
+                      fieldErrors.admission_status
+                        ? "#ef4444"
+                        : colors.tertiary + "30";
                     e.currentTarget.style.boxShadow = "none";
                   }}
                 >
@@ -119,15 +138,27 @@ const AdmissionInformation: React.FC<EnrollmentPageProps> = ({
                   <option value='new'>New Student</option>
                   <option value='transferee'>Transferee</option>
                 </select>
-                <div className="absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none opacity-50">
-                  <svg width="12" height="12" viewBox="0 0 12 12" fill="none" xmlns="http://www.w3.org/2000/svg">
-                    <path d="M2.5 4.5L6 8L9.5 4.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+                <div className='absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none opacity-50'>
+                  <svg
+                    width='12'
+                    height='12'
+                    viewBox='0 0 12 12'
+                    fill='none'
+                    xmlns='http://www.w3.org/2000/svg'
+                  >
+                    <path
+                      d='M2.5 4.5L6 8L9.5 4.5'
+                      stroke='currentColor'
+                      strokeWidth='1.5'
+                      strokeLinecap='round'
+                      strokeLinejoin='round'
+                    />
                   </svg>
                 </div>
               </div>
             </div>
 
-            <div className="group">
+            <div className='group'>
               <label
                 className='flex items-center gap-2 text-sm font-semibold mb-2 ml-1'
                 style={{ color: colors.primary }}
@@ -138,25 +169,31 @@ const AdmissionInformation: React.FC<EnrollmentPageProps> = ({
                 />
                 Department
               </label>
-              <div className="relative">
+              <div className='relative'>
                 <select
-                  name="department"
-                  data-field="department"
+                  name='department'
+                  data-field='department'
                   value={formData.department}
                   onChange={(e) =>
                     handleDepartmentChange?.(Number(e.target.value))
                   }
                   className={`${inputClasses} appearance-none cursor-pointer ${fieldErrors.department ? "border-red-500" : ""}`}
                   style={{
-                    borderColor: fieldErrors.department ? "#ef4444" : colors.tertiary + "30",
+                    borderColor: fieldErrors.department
+                      ? "#ef4444"
+                      : colors.tertiary + "30",
                     color: colors.primary,
                   }}
                   onFocus={(e) => {
-                    e.currentTarget.style.borderColor = fieldErrors.department ? "#ef4444" : colors.secondary;
+                    e.currentTarget.style.borderColor = fieldErrors.department
+                      ? "#ef4444"
+                      : colors.secondary;
                     e.currentTarget.style.boxShadow = `0 0 0 4px ${fieldErrors.department ? "#ef444410" : colors.secondary + "10"}`;
                   }}
                   onBlur={(e) => {
-                    e.currentTarget.style.borderColor = fieldErrors.department ? "#ef4444" : colors.tertiary + "30";
+                    e.currentTarget.style.borderColor = fieldErrors.department
+                      ? "#ef4444"
+                      : colors.tertiary + "30";
                     e.currentTarget.style.boxShadow = "none";
                   }}
                 >
@@ -167,18 +204,32 @@ const AdmissionInformation: React.FC<EnrollmentPageProps> = ({
                     </option>
                   ))}
                 </select>
-                <div className="absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none opacity-50">
-                  <svg width="12" height="12" viewBox="0 0 12 12" fill="none" xmlns="http://www.w3.org/2000/svg">
-                    <path d="M2.5 4.5L6 8L9.5 4.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+                <div className='absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none opacity-50'>
+                  <svg
+                    width='12'
+                    height='12'
+                    viewBox='0 0 12 12'
+                    fill='none'
+                    xmlns='http://www.w3.org/2000/svg'
+                  >
+                    <path
+                      d='M2.5 4.5L6 8L9.5 4.5'
+                      stroke='currentColor'
+                      strokeWidth='1.5'
+                      strokeLinecap='round'
+                      strokeLinejoin='round'
+                    />
                   </svg>
                 </div>
               </div>
               {fieldErrors.department && (
-                <p className="text-red-500 text-xs mt-1 ml-1">{fieldErrors.department}</p>
+                <p className='text-red-500 text-xs mt-1 ml-1'>
+                  {fieldErrors.department}
+                </p>
               )}
             </div>
 
-            <div className="group">
+            <div className='group'>
               <label
                 className='flex items-center gap-2 text-sm font-semibold mb-2 ml-1'
                 style={{ color: colors.primary }}
@@ -189,10 +240,10 @@ const AdmissionInformation: React.FC<EnrollmentPageProps> = ({
                 />
                 Course/Program
               </label>
-              <div className="relative">
+              <div className='relative'>
                 <select
-                  name="course_program"
-                  data-field="course_program"
+                  name='course_program'
+                  data-field='course_program'
                   value={formData.course_program}
                   onChange={(e) =>
                     handleInputChange("course_program", e.target.value)
@@ -200,17 +251,23 @@ const AdmissionInformation: React.FC<EnrollmentPageProps> = ({
                   disabled={!formData.department}
                   className={`${inputClasses} appearance-none cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed ${fieldErrors.course_program ? "border-red-500" : ""}`}
                   style={{
-                    borderColor: fieldErrors.course_program ? "#ef4444" : colors.tertiary + "30",
+                    borderColor: fieldErrors.course_program
+                      ? "#ef4444"
+                      : colors.tertiary + "30",
                     color: colors.primary,
                   }}
                   onFocus={(e) => {
                     if (!formData.department) return;
-                    e.currentTarget.style.borderColor = fieldErrors.course_program ? "#ef4444" : colors.secondary;
+                    e.currentTarget.style.borderColor =
+                      fieldErrors.course_program ? "#ef4444" : colors.secondary;
                     e.currentTarget.style.boxShadow = `0 0 0 4px ${fieldErrors.course_program ? "#ef444410" : colors.secondary + "10"}`;
                   }}
                   onBlur={(e) => {
                     if (!formData.department) return;
-                    e.currentTarget.style.borderColor = fieldErrors.course_program ? "#ef4444" : colors.tertiary + "30";
+                    e.currentTarget.style.borderColor =
+                      fieldErrors.course_program
+                        ? "#ef4444"
+                        : colors.tertiary + "30";
                     e.currentTarget.style.boxShadow = "none";
                   }}
                 >
@@ -225,18 +282,32 @@ const AdmissionInformation: React.FC<EnrollmentPageProps> = ({
                     </option>
                   ))}
                 </select>
-                <div className="absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none opacity-50">
-                  <svg width="12" height="12" viewBox="0 0 12 12" fill="none" xmlns="http://www.w3.org/2000/svg">
-                    <path d="M2.5 4.5L6 8L9.5 4.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+                <div className='absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none opacity-50'>
+                  <svg
+                    width='12'
+                    height='12'
+                    viewBox='0 0 12 12'
+                    fill='none'
+                    xmlns='http://www.w3.org/2000/svg'
+                  >
+                    <path
+                      d='M2.5 4.5L6 8L9.5 4.5'
+                      stroke='currentColor'
+                      strokeWidth='1.5'
+                      strokeLinecap='round'
+                      strokeLinejoin='round'
+                    />
                   </svg>
                 </div>
               </div>
               {fieldErrors.course_program && (
-                <p className="text-red-500 text-xs mt-1 ml-1">{fieldErrors.course_program}</p>
+                <p className='text-red-500 text-xs mt-1 ml-1'>
+                  {fieldErrors.course_program}
+                </p>
               )}
             </div>
 
-            <div className="group">
+            <div className='group'>
               <label
                 className='flex items-center gap-2 text-sm font-semibold mb-3 ml-1'
                 style={{ color: colors.primary }}
@@ -248,7 +319,7 @@ const AdmissionInformation: React.FC<EnrollmentPageProps> = ({
                 Term
               </label>
               <div className='flex flex-wrap gap-4'>
-                {["First", "Second", "Summer"].map((term) => (
+                {["First", "Second"].map((term) => (
                   <label
                     key={term}
                     className='flex items-center gap-3 px-5 py-3 rounded-xl border cursor-pointer transition-all duration-300 hover:shadow-md relative overflow-hidden group/radio'
@@ -287,7 +358,7 @@ const AdmissionInformation: React.FC<EnrollmentPageProps> = ({
                     </span>
                     {formData.term === term.toLowerCase() && (
                       <div
-                        className="absolute inset-0 opacity-10 pointer-events-none"
+                        className='absolute inset-0 opacity-10 pointer-events-none'
                         style={{ backgroundColor: colors.secondary }}
                       />
                     )}
@@ -295,11 +366,13 @@ const AdmissionInformation: React.FC<EnrollmentPageProps> = ({
                 ))}
               </div>
               {fieldErrors.term && (
-                <p className="text-red-500 text-xs mt-1 ml-1">{fieldErrors.term}</p>
+                <p className='text-red-500 text-xs mt-1 ml-1'>
+                  {fieldErrors.term}
+                </p>
               )}
             </div>
 
-            <div className="group">
+            <div className='group'>
               <label
                 className='flex items-center gap-2 text-sm font-semibold mb-2 ml-1'
                 style={{ color: colors.primary }}
@@ -308,25 +381,33 @@ const AdmissionInformation: React.FC<EnrollmentPageProps> = ({
                   className='w-4 h-4'
                   style={{ color: colors.secondary }}
                 />
-                Academic Year <span className="text-red-500">*</span>
+                Academic Year <span className='text-red-500'>*</span>
               </label>
-              <div className="relative">
+              <div className='relative'>
                 <select
-                  name="academic_year"
-                  data-field="academic_year"
+                  name='academic_year'
+                  data-field='academic_year'
                   value={formData.academic_year}
-                  onChange={(e) => handleInputChange("academic_year", e.target.value)}
+                  onChange={(e) =>
+                    handleInputChange("academic_year", e.target.value)
+                  }
                   className={`${inputClasses} appearance-none cursor-pointer ${fieldErrors.academic_year ? "border-red-500" : ""}`}
                   style={{
-                    borderColor: fieldErrors.academic_year ? "#ef4444" : colors.tertiary + "30",
+                    borderColor: fieldErrors.academic_year
+                      ? "#ef4444"
+                      : colors.tertiary + "30",
                     color: colors.primary,
                   }}
                   onFocus={(e) => {
-                    e.currentTarget.style.borderColor = fieldErrors.academic_year ? "#ef4444" : colors.secondary;
+                    e.currentTarget.style.borderColor =
+                      fieldErrors.academic_year ? "#ef4444" : colors.secondary;
                     e.currentTarget.style.boxShadow = `0 0 0 4px ${fieldErrors.academic_year ? "#ef444410" : colors.secondary + "10"}`;
                   }}
                   onBlur={(e) => {
-                    e.currentTarget.style.borderColor = fieldErrors.academic_year ? "#ef4444" : colors.tertiary + "30";
+                    e.currentTarget.style.borderColor =
+                      fieldErrors.academic_year
+                        ? "#ef4444"
+                        : colors.tertiary + "30";
                     e.currentTarget.style.boxShadow = "none";
                   }}
                 >
@@ -343,21 +424,35 @@ const AdmissionInformation: React.FC<EnrollmentPageProps> = ({
                     );
                   })}
                 </select>
-                <div className="absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none opacity-50">
-                  <svg width="12" height="12" viewBox="0 0 12 12" fill="none" xmlns="http://www.w3.org/2000/svg">
-                    <path d="M2.5 4.5L6 8L9.5 4.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+                <div className='absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none opacity-50'>
+                  <svg
+                    width='12'
+                    height='12'
+                    viewBox='0 0 12 12'
+                    fill='none'
+                    xmlns='http://www.w3.org/2000/svg'
+                  >
+                    <path
+                      d='M2.5 4.5L6 8L9.5 4.5'
+                      stroke='currentColor'
+                      strokeWidth='1.5'
+                      strokeLinecap='round'
+                      strokeLinejoin='round'
+                    />
                   </svg>
                 </div>
               </div>
               {fieldErrors.academic_year && (
-                <p className="text-red-500 text-xs mt-1 ml-1">{fieldErrors.academic_year}</p>
+                <p className='text-red-500 text-xs mt-1 ml-1'>
+                  {fieldErrors.academic_year}
+                </p>
               )}
             </div>
           </div>
 
           {/* Right Column - Photo Upload */}
           <div className='lg:col-span-1'>
-            <div className="sticky top-6">
+            <div className='sticky top-6'>
               <label
                 className='flex items-center gap-2 text-sm font-semibold mb-3 ml-1'
                 style={{ color: colors.primary }}
@@ -375,22 +470,22 @@ const AdmissionInformation: React.FC<EnrollmentPageProps> = ({
                 }}
               >
                 <div
-                  className={`w-40 h-48 border-2 border-dashed rounded-xl relative overflow-hidden cursor-pointer transition-all duration-300 group ${photoPreview
+                  className={`w-40 h-48 border-2 border-dashed rounded-xl relative overflow-hidden cursor-pointer transition-all duration-300 group ${
+                    photoPreview
                       ? "border-transparent shadow-md"
                       : "flex flex-col items-center justify-center hover:border-solid"
-                    }`}
+                  }`}
                   style={{
                     borderColor: photoPreview
                       ? "transparent"
                       : colors.accent + "40",
-                    backgroundColor: photoPreview
-                      ? "white"
-                      : colors.paper,
+                    backgroundColor: photoPreview ? "white" : colors.paper,
                   }}
                   onMouseEnter={(e) => {
                     if (!photoPreview) {
                       e.currentTarget.style.borderColor = colors.secondary;
-                      e.currentTarget.style.backgroundColor = colors.accent + "10";
+                      e.currentTarget.style.backgroundColor =
+                        colors.accent + "10";
                     }
                   }}
                   onMouseLeave={(e) => {
@@ -431,7 +526,7 @@ const AdmissionInformation: React.FC<EnrollmentPageProps> = ({
                         ×
                       </button>
                       <div className='absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex items-center justify-center pointer-events-none z-20 backdrop-blur-[2px]'>
-                        <div className="bg-white/20 p-3 rounded-full backdrop-blur-md">
+                        <div className='bg-white/20 p-3 rounded-full backdrop-blur-md'>
                           <Upload className='w-6 h-6 text-white' />
                         </div>
                       </div>
@@ -439,7 +534,7 @@ const AdmissionInformation: React.FC<EnrollmentPageProps> = ({
                   ) : (
                     <div className='text-center p-4'>
                       <div
-                        className="w-12 h-12 rounded-full flex items-center justify-center mx-auto mb-3 transition-transform duration-300 group-hover:scale-110"
+                        className='w-12 h-12 rounded-full flex items-center justify-center mx-auto mb-3 transition-transform duration-300 group-hover:scale-110'
                         style={{ backgroundColor: colors.accent + "20" }}
                       >
                         <ImageIcon
@@ -470,11 +565,16 @@ const AdmissionInformation: React.FC<EnrollmentPageProps> = ({
                   className='hidden'
                   id='photo-upload'
                 />
-                <p className="text-xs text-center mt-4 max-w-[200px]" style={{ color: colors.tertiary }}>
+                <p
+                  className='text-xs text-center mt-4 max-w-[200px]'
+                  style={{ color: colors.tertiary }}
+                >
                   Supported formats: JPG, PNG. Max size: 5MB.
                 </p>
                 {fieldErrors.photo && (
-                  <p className="text-red-500 text-xs text-center mt-2">{fieldErrors.photo}</p>
+                  <p className='text-red-500 text-xs text-center mt-2'>
+                    {fieldErrors.photo}
+                  </p>
                 )}
               </div>
             </div>

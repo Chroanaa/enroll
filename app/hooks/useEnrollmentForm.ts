@@ -108,6 +108,9 @@ export const useEnrollmentForm = () => {
     isOpen: false,
     message: "",
   });
+  const [duplicateError, setDuplicateError] = useState<string | null>(null);
+  const [isCheckingDuplicate, setIsCheckingDuplicate] = useState(false);
+  const duplicateCheckTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [photoPreview, setPhotoPreview] = useState<string | null>(null);
   const photoPreviewRef = useRef<string | null>(null);
@@ -205,17 +208,84 @@ export const useEnrollmentForm = () => {
     });
   };
 
+  // Check for duplicate student
+  const checkDuplicate = async (data: {
+    first_name: string;
+    family_name: string;
+    middle_name: string;
+    birthdate: string;
+  }) => {
+    // Only check if we have at least first name and family name
+    if (!data.first_name || !data.family_name) {
+      setDuplicateError(null);
+      return;
+    }
+
+    setIsCheckingDuplicate(true);
+    try {
+      const response = await Axios.post(
+        "/api/auth/enroll/check-duplicate",
+        data,
+      );
+      if (response.data.isDuplicate) {
+        setDuplicateError(response.data.message);
+      } else {
+        setDuplicateError(null);
+      }
+    } catch (error) {
+      console.error("Error checking for duplicate:", error);
+      setDuplicateError(null);
+    } finally {
+      setIsCheckingDuplicate(false);
+    }
+  };
+
+  // Debounced duplicate check
+  const debouncedDuplicateCheck = (data: {
+    first_name: string;
+    family_name: string;
+    middle_name: string;
+    birthdate: string;
+  }) => {
+    // Clear any existing timeout
+    if (duplicateCheckTimeoutRef.current) {
+      clearTimeout(duplicateCheckTimeoutRef.current);
+    }
+    // Set a new timeout to check after 500ms of no typing
+    duplicateCheckTimeoutRef.current = setTimeout(() => {
+      checkDuplicate(data);
+    }, 500);
+  };
+
   const handleInputChange = (
     field: keyof EnrollmentFormData,
-    value: string
+    value: string,
   ) => {
-    setFormData((prev) => ({ ...prev, [field]: value }));
+    const newFormData = { ...formData, [field]: value };
+    setFormData(newFormData);
+
     // Clear error for this field when user starts typing
     if (fieldErrors[field]) {
       setFieldErrors((prev) => {
         const newErrors = { ...prev };
         delete newErrors[field];
         return newErrors;
+      });
+    }
+
+    // Trigger duplicate check when name or birthdate fields change
+    const nameFields: (keyof EnrollmentFormData)[] = [
+      "first_name",
+      "family_name",
+      "middle_name",
+      "birthdate",
+    ];
+    if (nameFields.includes(field)) {
+      debouncedDuplicateCheck({
+        first_name: newFormData.first_name,
+        family_name: newFormData.family_name,
+        middle_name: newFormData.middle_name,
+        birthdate: newFormData.birthdate,
       });
     }
   };
@@ -267,7 +337,7 @@ export const useEnrollmentForm = () => {
     const maxSize = 5 * 1024 * 1024; // 5MB in bytes
     if (file.size > maxSize) {
       alert(
-        "Image file size must be less than 5MB. Please choose a smaller image."
+        "Image file size must be less than 5MB. Please choose a smaller image.",
       );
       if (fileInputRef.current) {
         fileInputRef.current.value = "";
@@ -291,7 +361,7 @@ export const useEnrollmentForm = () => {
       if (result && result.length > 0 && result.startsWith("data:image/")) {
         console.log(
           "Image loaded successfully, data URL length:",
-          result.length
+          result.length,
         );
         photoPreviewRef.current = result;
         setPhotoPreview(result);
@@ -300,7 +370,7 @@ export const useEnrollmentForm = () => {
       } else {
         console.error(
           "FileReader returned invalid result:",
-          result ? "empty or invalid format" : "null"
+          result ? "empty or invalid format" : "null",
         );
         // Fallback to blob URL
         try {
@@ -344,6 +414,16 @@ export const useEnrollmentForm = () => {
 
     // Prevent multiple submissions
     if (isSubmitting) {
+      return;
+    }
+
+    // Block submission if duplicate is detected
+    if (duplicateError) {
+      setSubmitError({
+        message: "Duplicate Enrollment Detected",
+        details:
+          "A student with this name already exists in the system. Please verify the student information or contact the registrar.",
+      });
       return;
     }
 
@@ -456,6 +536,18 @@ export const useEnrollmentForm = () => {
     if (!formData.first_name?.trim()) {
       errors.first_name = "First name is required";
     }
+
+    // Block if duplicate check is still in progress
+    if (isCheckingDuplicate) {
+      errors.duplicate = "Please wait while we check for existing enrollments.";
+    }
+
+    // Block if duplicate is detected
+    if (duplicateError) {
+      errors.duplicate =
+        "A student with this name already exists. Cannot proceed with enrollment.";
+    }
+
     if (!formData.sex) {
       errors.sex = "Please select a sex";
     }
@@ -504,7 +596,7 @@ export const useEnrollmentForm = () => {
       errors.emergency_contact_number = "Emergency contact number is required";
     } else if (
       !/^[0-9]{10,11}$/.test(
-        formData.emergency_contact_number.replace(/\D/g, "")
+        formData.emergency_contact_number.replace(/\D/g, ""),
       )
     ) {
       errors.emergency_contact_number =
@@ -550,16 +642,60 @@ export const useEnrollmentForm = () => {
     }
   };
 
-  const nextPage = () => {
+  const nextPage = async () => {
     if (currentPage < TOTAL_PAGES) {
+      // For page 3, force a synchronous duplicate check before proceeding
+      if (currentPage === 3 && formData.first_name && formData.family_name) {
+        // Cancel any pending debounced check
+        if (duplicateCheckTimeoutRef.current) {
+          clearTimeout(duplicateCheckTimeoutRef.current);
+        }
+
+        // Force an immediate duplicate check and wait for it
+        setIsCheckingDuplicate(true);
+        try {
+          const response = await Axios.post(
+            "/api/auth/enroll/check-duplicate",
+            {
+              first_name: formData.first_name,
+              family_name: formData.family_name,
+              middle_name: formData.middle_name,
+              birthdate: formData.birthdate,
+            },
+          );
+
+          if (response.data.isDuplicate) {
+            setDuplicateError(response.data.message);
+            setIsCheckingDuplicate(false);
+            setValidationError({
+              isOpen: true,
+              message:
+                "A student with this name already exists. Cannot proceed with enrollment.",
+            });
+            return;
+          } else {
+            setDuplicateError(null);
+          }
+        } catch (error) {
+          console.error("Error checking for duplicate:", error);
+        } finally {
+          setIsCheckingDuplicate(false);
+        }
+      }
+
       const validation = validateCurrentPage();
 
       if (!validation.isValid) {
         setFieldErrors(validation.errors);
+
+        // Show specific message for duplicate error
+        const errorMessage = validation.errors.duplicate
+          ? validation.errors.duplicate
+          : "Please complete all required fields before proceeding to the next step.";
+
         setValidationError({
           isOpen: true,
-          message:
-            "Please complete all required fields before proceeding to the next step.",
+          message: errorMessage,
         });
         // Scroll to first error
         setTimeout(() => {
@@ -658,5 +794,9 @@ export const useEnrollmentForm = () => {
     setSubmitSuccess,
     setSubmitError,
     validateCurrentPage,
+
+    // Duplicate checking
+    duplicateError,
+    isCheckingDuplicate,
   };
 };

@@ -7,6 +7,7 @@ import CourseManagement from "./components/CourseManagement";
 import EnrollmentManagement from "./components/enrollmentManagement";
 import EnrollmentForm from "./components/EnrollmentForm";
 import ForecastingAnalytics from "./components/ForecastingAnalytics";
+import StudentForecastDashboard from "./components/StudentForecastDashboard";
 import AssessmentManagement from "./components/AssessmentManagement";
 import ReportManagement from "./components/ReportManagement";
 import SchedulingManagement from "./components/SchedulingManagement";
@@ -42,6 +43,8 @@ function App() {
         return <EnrollmentForm />;
       case "forecast":
         return <ForecastingAnalytics />;
+      case "forecast-billing":
+        return <StudentForecastDashboard />;
       case "assessment":
         return <AssessmentManagement />;
       case "reports":
