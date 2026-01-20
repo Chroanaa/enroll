@@ -22,6 +22,7 @@ import {
   DollarSign,
   DoorOpen,
   FolderTree,
+  TrendingUp,
 } from "lucide-react";
 import Image from "next/image";
 import { useSession, signOut } from "next-auth/react";
@@ -103,7 +104,7 @@ const Navigation: React.FC<NavigationProps> = ({
         allowedRoles: [ROLES.ADMIN, ROLES.REGISTRAR, ROLES.FACULTY],
       },
     ],
-    []
+    [],
   );
 
   const curriculumSubItems = useMemo(
@@ -115,7 +116,7 @@ const Navigation: React.FC<NavigationProps> = ({
         allowedRoles: [ROLES.ADMIN, ROLES.REGISTRAR],
       },
     ],
-    []
+    [],
   );
 
   const navGroups = useMemo(
@@ -200,11 +201,12 @@ const Navigation: React.FC<NavigationProps> = ({
             icon: FileBarChart,
             allowedRoles: [ROLES.ADMIN, ROLES.REGISTRAR],
           },
+
           {
-            id: "forecast",
-            label: "Forecasting",
-            icon: Calendar,
-            allowedRoles: [ROLES.ADMIN],
+            id: "forecast-billing",
+            label: "Student Forecast",
+            icon: TrendingUp,
+            allowedRoles: [ROLES.ADMIN, ROLES.REGISTRAR],
           },
         ],
       },
@@ -226,7 +228,7 @@ const Navigation: React.FC<NavigationProps> = ({
         ],
       },
     ],
-    []
+    [],
   );
 
   // 5. Filtering Logic (remains largely the same, but compares numbers now)
@@ -241,14 +243,14 @@ const Navigation: React.FC<NavigationProps> = ({
 
           if (item.id === "file-maintenance") {
             const visibleSubItems = fileMaintenanceSubItems.filter((sub) =>
-              sub.allowedRoles.includes(userRole)
+              sub.allowedRoles.includes(userRole),
             );
             return visibleSubItems.length > 0;
           }
 
           if (item.id === "curriculum") {
             const visibleSubItems = curriculumSubItems.filter((sub) =>
-              sub.allowedRoles.includes(userRole)
+              sub.allowedRoles.includes(userRole),
             );
             return visibleSubItems.length > 0;
           }
@@ -263,19 +265,18 @@ const Navigation: React.FC<NavigationProps> = ({
 
   // Filter sub-items for rendering
   const visibleSubItems = fileMaintenanceSubItems.filter((item) =>
-    item.allowedRoles.includes(userRole)
+    item.allowedRoles.includes(userRole),
   );
 
   const visibleCurriculumSubItems = curriculumSubItems.filter((item) =>
-    item.allowedRoles.includes(userRole)
+    item.allowedRoles.includes(userRole),
   );
 
   const isFileMaintenanceActive = currentView.startsWith("file-maintenance");
   const isCurriculumActive = currentView.startsWith("curriculum");
   const prevWasFileMaintenance =
     prevViewRef.current.startsWith("file-maintenance");
-  const prevWasCurriculum =
-    prevViewRef.current.startsWith("curriculum");
+  const prevWasCurriculum = prevViewRef.current.startsWith("curriculum");
 
   useEffect(() => {
     if (
@@ -285,11 +286,7 @@ const Navigation: React.FC<NavigationProps> = ({
     ) {
       setIsFileMaintenanceOpen(true);
     }
-    if (
-      isCurriculumActive &&
-      !prevWasCurriculum &&
-      !isCurriculumOpen
-    ) {
+    if (isCurriculumActive && !prevWasCurriculum && !isCurriculumOpen) {
       setIsCurriculumOpen(true);
     }
     prevViewRef.current = currentView;
@@ -360,8 +357,8 @@ const Navigation: React.FC<NavigationProps> = ({
                   const isActive = isFileMaintenance
                     ? isFileMaintenanceActive
                     : isCurriculum
-                    ? isCurriculumActive
-                    : currentView === item.id;
+                      ? isCurriculumActive
+                      : currentView === item.id;
 
                   return (
                     <li key={item.id}>
@@ -371,17 +368,22 @@ const Navigation: React.FC<NavigationProps> = ({
                             e.preventDefault();
                             // Check if click was on the chevron area
                             const target = e.target as HTMLElement;
-                            const isChevronClick = target.closest('.chevron-toggle');
-                            
+                            const isChevronClick =
+                              target.closest(".chevron-toggle");
+
                             if (isChevronClick) {
                               if (isFileMaintenance) {
-                                setIsFileMaintenanceOpen(!isFileMaintenanceOpen);
+                                setIsFileMaintenanceOpen(
+                                  !isFileMaintenanceOpen,
+                                );
                               } else if (isCurriculum) {
                                 setIsCurriculumOpen(!isCurriculumOpen);
                               }
                             } else {
                               if (isFileMaintenance && item.hasSubmenu) {
-                                setIsFileMaintenanceOpen(!isFileMaintenanceOpen);
+                                setIsFileMaintenanceOpen(
+                                  !isFileMaintenanceOpen,
+                                );
                               } else if (isCurriculum && item.hasSubmenu) {
                                 // For Curriculum, clicking the main button navigates to curriculum view
                                 onViewChange(item.id);
@@ -423,15 +425,17 @@ const Navigation: React.FC<NavigationProps> = ({
                           <span className='hidden md:inline flex-1 text-left'>
                             {item.label}
                           </span>
-                          {((isFileMaintenance || isCurriculum) && item.hasSubmenu) && (
-                            <span className='hidden md:inline chevron-toggle cursor-pointer flex items-center justify-center'>
-                              {(isFileMaintenance && isFileMaintenanceOpen) || (isCurriculum && isCurriculumOpen) ? (
-                                <ChevronDown className='w-4 h-4' />
-                              ) : (
-                                <ChevronRight className='w-4 h-4' />
-                              )}
-                            </span>
-                          )}
+                          {(isFileMaintenance || isCurriculum) &&
+                            item.hasSubmenu && (
+                              <span className='hidden md:inline chevron-toggle cursor-pointer flex items-center justify-center'>
+                                {(isFileMaintenance && isFileMaintenanceOpen) ||
+                                (isCurriculum && isCurriculumOpen) ? (
+                                  <ChevronDown className='w-4 h-4' />
+                                ) : (
+                                  <ChevronRight className='w-4 h-4' />
+                                )}
+                              </span>
+                            )}
                         </button>
                       </div>
 
@@ -492,60 +496,58 @@ const Navigation: React.FC<NavigationProps> = ({
                         )}
 
                       {/* Curriculum Submenu */}
-                      {isCurriculum &&
-                        item.hasSubmenu &&
-                        isCurriculumOpen && (
-                          <ul className='ml-0 md:ml-4 mt-1 space-y-1'>
-                            {visibleCurriculumSubItems.map((subItem) => {
-                              const SubIcon = subItem.icon;
-                              const isSubActive = currentView === subItem.id;
-                              return (
-                                <li key={subItem.id}>
-                                  <button
-                                    onClick={(e) => {
-                                      e.preventDefault();
-                                      e.stopPropagation();
-                                      onViewChange(subItem.id);
-                                    }}
-                                    className='w-full flex items-center justify-center md:justify-start gap-0 md:gap-3 px-3 py-2 rounded-lg text-xs md:text-sm font-medium transition-all duration-200'
-                                    style={
-                                      isSubActive
-                                        ? {
-                                            backgroundColor: `${colors.secondary}40`,
-                                            color: colors.paper,
-                                            border: `1px solid ${colors.secondary}`,
-                                          }
-                                        : {
-                                            color: colors.paper,
-                                            backgroundColor: "transparent",
-                                            border: "1px solid transparent",
-                                            opacity: 0.7,
-                                          }
+                      {isCurriculum && item.hasSubmenu && isCurriculumOpen && (
+                        <ul className='ml-0 md:ml-4 mt-1 space-y-1'>
+                          {visibleCurriculumSubItems.map((subItem) => {
+                            const SubIcon = subItem.icon;
+                            const isSubActive = currentView === subItem.id;
+                            return (
+                              <li key={subItem.id}>
+                                <button
+                                  onClick={(e) => {
+                                    e.preventDefault();
+                                    e.stopPropagation();
+                                    onViewChange(subItem.id);
+                                  }}
+                                  className='w-full flex items-center justify-center md:justify-start gap-0 md:gap-3 px-3 py-2 rounded-lg text-xs md:text-sm font-medium transition-all duration-200'
+                                  style={
+                                    isSubActive
+                                      ? {
+                                          backgroundColor: `${colors.secondary}40`,
+                                          color: colors.paper,
+                                          border: `1px solid ${colors.secondary}`,
+                                        }
+                                      : {
+                                          color: colors.paper,
+                                          backgroundColor: "transparent",
+                                          border: "1px solid transparent",
+                                          opacity: 0.7,
+                                        }
+                                  }
+                                  onMouseEnter={(e) => {
+                                    if (!isSubActive) {
+                                      e.currentTarget.style.backgroundColor = `${colors.paper}20`;
+                                      e.currentTarget.style.opacity = "1";
                                     }
-                                    onMouseEnter={(e) => {
-                                      if (!isSubActive) {
-                                        e.currentTarget.style.backgroundColor = `${colors.paper}20`;
-                                        e.currentTarget.style.opacity = "1";
-                                      }
-                                    }}
-                                    onMouseLeave={(e) => {
-                                      if (!isSubActive) {
-                                        e.currentTarget.style.backgroundColor =
-                                          "transparent";
-                                        e.currentTarget.style.opacity = "0.7";
-                                      }
-                                    }}
-                                  >
-                                    <SubIcon className='w-4 h-4' />
-                                    <span className='hidden md:inline'>
-                                      {subItem.label}
-                                    </span>
-                                  </button>
-                                </li>
-                              );
-                            })}
-                          </ul>
-                        )}
+                                  }}
+                                  onMouseLeave={(e) => {
+                                    if (!isSubActive) {
+                                      e.currentTarget.style.backgroundColor =
+                                        "transparent";
+                                      e.currentTarget.style.opacity = "0.7";
+                                    }
+                                  }}
+                                >
+                                  <SubIcon className='w-4 h-4' />
+                                  <span className='hidden md:inline'>
+                                    {subItem.label}
+                                  </span>
+                                </button>
+                              </li>
+                            );
+                          })}
+                        </ul>
+                      )}
                     </li>
                   );
                 })}

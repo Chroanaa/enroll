@@ -14,4 +14,6 @@ export interface EnrollmentPageProps {
   handlePhotoError?: () => void;
   getTodayDate?: () => string;
   fieldErrors?: Record<string, string>;
+  duplicateError?: string | null;
+  isCheckingDuplicate?: boolean;
 }

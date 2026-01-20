@@ -9,13 +9,24 @@ import EnrollmentManagement from "../components/enrollmentManagement";
 import EnrollmentForm from "../components/EnrollmentForm";
 import { ResidentPortalContent } from "../resident/page";
 import ForecastingAnalytics from "../components/ForecastingAnalytics";
+import StudentForecastDashboard from "../components/StudentForecastDashboard";
 import AssessmentManagement from "../components/AssessmentManagement";
 import ReportManagement from "../components/ReportManagement";
 import SchedulingManagement from "../components/SchedulingManagement";
 import PaymentBillingManagement from "../components/PaymentBillingManagement";
 import CurriculumManagement from "../components/curriculum";
 import FileMaintenanceManagement from "../components/FileMaintenanceManagement";
-import { Building, Section, Room, Department, Program, Major, Faculty, Fees, Subject } from "../components/fileMaintenance";
+import {
+  Building,
+  Section,
+  Room,
+  Department,
+  Program,
+  Major,
+  Faculty,
+  Fees,
+  Subject,
+} from "../components/fileMaintenance";
 import ProtectedRoute from "../components/ProtectedRoute";
 
 export default function DashboardPage() {
@@ -44,8 +55,8 @@ export default function DashboardPage() {
         return <EnrollmentForm />;
       case "resident-enrollment":
         return <ResidentPortalContent />;
-      case "forecast":
-        return <ForecastingAnalytics />;
+      case "forecast-billing":
+        return <StudentForecastDashboard />;
       case "assessment":
         return <AssessmentManagement />;
       case "reports":

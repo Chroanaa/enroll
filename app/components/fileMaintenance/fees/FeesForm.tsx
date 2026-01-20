@@ -31,11 +31,11 @@ const FeesForm: React.FC<FeesFormProps> = ({ fee, onSave, onCancel }) => {
       academic_year: "2024-2025",
       semester: "1st",
       status: "active",
-    }
+    },
   );
 
   const [formData, setFormData] = useState<Partial<Fee>>(
-    initialFormData.current
+    initialFormData.current,
   );
   const [showSaveConfirmation, setShowSaveConfirmation] = useState(false);
   const [showCancelWarning, setShowCancelWarning] = useState(false);
@@ -183,7 +183,7 @@ const FeesForm: React.FC<FeesFormProps> = ({ fee, onSave, onCancel }) => {
                     e.currentTarget.style.borderColor = "#E5E7EB";
                     e.currentTarget.style.boxShadow = "none";
                   }}
-                  placeholder="e.g. TUI001"
+                  placeholder='e.g. TUI001'
                   required
                 />
               </div>
@@ -216,7 +216,7 @@ const FeesForm: React.FC<FeesFormProps> = ({ fee, onSave, onCancel }) => {
                     e.currentTarget.style.borderColor = "#E5E7EB";
                     e.currentTarget.style.boxShadow = "none";
                   }}
-                  placeholder="e.g. Tuition Fee"
+                  placeholder='e.g. Tuition Fee'
                   required
                 />
               </div>
@@ -249,7 +249,7 @@ const FeesForm: React.FC<FeesFormProps> = ({ fee, onSave, onCancel }) => {
                     e.currentTarget.style.boxShadow = "none";
                   }}
                   rows={3}
-                  placeholder="Brief description of the fee..."
+                  placeholder='Brief description of the fee...'
                 />
               </div>
 
@@ -395,7 +395,6 @@ const FeesForm: React.FC<FeesFormProps> = ({ fee, onSave, onCancel }) => {
                 >
                   <option value='1st'>1st Semester</option>
                   <option value='2nd'>2nd Semester</option>
-                  <option value='Summer'>Summer</option>
                 </select>
               </div>
 
@@ -500,6 +499,3 @@ const FeesForm: React.FC<FeesFormProps> = ({ fee, onSave, onCancel }) => {
 };
 
 export default FeesForm;
-
-
-
