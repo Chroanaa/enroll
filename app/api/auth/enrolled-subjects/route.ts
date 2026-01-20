@@ -4,6 +4,8 @@ import { prisma } from "../../../lib/prisma";
 /**
  * POST /api/auth/enrolled-subjects
  * Save or update enrolled subjects for a student
+ * - If records exist for the same semester and academic year: UPDATE
+ * - If records don't exist or different semester/year: INSERT
  */
 export async function POST(request: NextRequest) {
   try {
@@ -25,15 +27,31 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Delete existing enrolled subjects for this student and term
-    await prisma.$executeRaw`
-      DELETE FROM enrolled_subjects 
+    // Check if enrolled subjects already exist for this student, academic year, and semester
+    const existingRecords = await prisma.$queryRaw<any[]>`
+      SELECT id FROM enrolled_subjects 
       WHERE student_number = ${studentNumber} 
       AND academic_year = ${academicYear} 
       AND semester = ${semesterNum}
+      LIMIT 1
     `;
 
-    // Insert new enrolled subjects
+    const recordsExist = existingRecords.length > 0;
+
+    if (recordsExist) {
+      // UPDATE: Delete old records ONLY for the same term and insert new ones
+      // This preserves historical data from other semesters/years
+      await prisma.$executeRaw`
+        DELETE FROM enrolled_subjects 
+        WHERE student_number = ${studentNumber} 
+        AND academic_year = ${academicYear} 
+        AND semester = ${semesterNum}
+      `;
+    }
+    // If recordsExist is false, we skip deletion and just insert new records
+    // This means different semester/year data is preserved
+
+    // Insert enrolled subjects (either new term or updated term)
     if (subjects.length > 0) {
       const enrolledSubjectsData = subjects.map((subject: any) => ({
         student_number: studentNumber,
@@ -48,7 +66,7 @@ export async function POST(request: NextRequest) {
         status: "enrolled",
       }));
 
-      // Use raw SQL for bulk insert (Prisma doesn't support bulk insert easily)
+      // Use raw SQL for bulk insert
       for (const subjectData of enrolledSubjectsData) {
         await prisma.$executeRaw`
           INSERT INTO enrolled_subjects (
@@ -72,7 +90,10 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({
       success: true,
-      message: "Enrolled subjects saved successfully",
+      message: recordsExist 
+        ? "Enrolled subjects updated successfully" 
+        : "Enrolled subjects saved successfully",
+      action: recordsExist ? "updated" : "inserted",
     });
   } catch (error: any) {
     console.error("Error saving enrolled subjects:", error);
@@ -109,7 +130,8 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    // Fetch enrolled subjects
+    // Fetch enrolled subjects with prerequisite resolution
+    // The prerequisite field in curriculum_course stores JSON like {"subjectIds":[28]}
     const enrolledSubjects = await prisma.$queryRaw<any[]>`
       SELECT 
         es.*,
@@ -129,22 +151,50 @@ export async function GET(request: NextRequest) {
       ORDER BY cc.course_code
     `;
 
-    // Transform the data to match the expected format
-    const formattedSubjects = enrolledSubjects.map((es: any) => ({
-      id: es.curriculum_course_id || es.id,
-      curriculum_course_id: es.curriculum_course_id,
-      subject_id: es.subject_id,
-      course_code: es.course_code,
-      descriptive_title: es.descriptive_title,
-      units_lec: es.units_lec || 0,
-      units_lab: es.units_lab || 0,
-      units_total: es.units_total || es.units_lec + es.units_lab || 0,
-      lecture_hour: es.lecture_hour || 0,
-      lab_hour: es.lab_hour || 0,
-      prerequisite: es.prerequisite || null,
-      year_level: es.curriculum_year_level || es.year_level,
-      semester: es.semester,
-    }));
+    // Process prerequisites: parse JSON and fetch subject codes
+    const formattedSubjects = await Promise.all(
+      enrolledSubjects.map(async (es: any) => {
+        let prerequisiteText = null;
+
+        if (es.prerequisite) {
+          try {
+            // Try to parse as JSON
+            const prereqData = JSON.parse(es.prerequisite);
+            
+            if (prereqData.subjectIds && Array.isArray(prereqData.subjectIds) && prereqData.subjectIds.length > 0) {
+              // Fetch subject codes for the prerequisite IDs
+              const subjectIds = prereqData.subjectIds;
+              const subjects = await prisma.$queryRaw<any[]>`
+                SELECT code FROM subject WHERE id = ANY(${subjectIds}::int[])
+              `;
+              
+              if (subjects.length > 0) {
+                prerequisiteText = subjects.map(s => s.code).join(", ");
+              }
+            }
+          } catch (e) {
+            // If not JSON, treat as plain text (could be subject ID or code)
+            prerequisiteText = es.prerequisite;
+          }
+        }
+
+        return {
+          id: es.id, // This is the unique enrolled_subjects.id
+          curriculum_course_id: es.curriculum_course_id,
+          subject_id: es.subject_id,
+          course_code: es.course_code,
+          descriptive_title: es.descriptive_title,
+          units_lec: es.units_lec || 0,
+          units_lab: es.units_lab || 0,
+          units_total: es.units_total || es.units_lec + es.units_lab || 0,
+          lecture_hour: es.lecture_hour || 0,
+          lab_hour: es.lab_hour || 0,
+          prerequisite: prerequisiteText,
+          year_level: es.curriculum_year_level || es.year_level,
+          semester: es.semester,
+        };
+      })
+    );
 
     return NextResponse.json({
       success: true,

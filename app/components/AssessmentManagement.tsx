@@ -375,9 +375,10 @@ const AssessmentManagement: React.FC = () => {
       });
 
       if (response.ok) {
+        const result = await response.json();
         setSuccessModal({
           isOpen: true,
-          message: "Enrolled subjects saved successfully!",
+          message: result.message || "Enrolled subjects saved successfully!",
         });
         setIsEditingSubjects(false);
       } else {

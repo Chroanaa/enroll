@@ -249,9 +249,9 @@ export const EnrolledSubjectsTab: React.FC<EnrolledSubjectsTabProps> = ({
                       subject.descriptive_title.toLowerCase().includes(search)
                     );
                   })
-                  .map((subject) => (
+                  .map((subject, subjectIndex) => (
                     <div
-                      key={subject.id}
+                      key={`available-${subject.id}-${subject.course_code}-${subjectIndex}`}
                       className="flex items-center justify-between p-3 rounded-lg border hover:bg-gray-50 transition-colors"
                       style={{ borderColor: colors.accent + "20" }}
                     >
