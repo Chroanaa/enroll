@@ -80,8 +80,51 @@ export async function GET(request: NextRequest) {
         { course_code: "asc" },
       ],
     });
+    // Resolve prerequisite JSON into subject codes (e.g. {"subjectIds":[28]} -> "GEE03")
+    // 1) Collect all referenced subject IDs from prerequisite JSON
+    const allPrereqSubjectIds = new Set<number>();
 
-    // Fetch subject details for each curriculum course
+    for (const course of curriculumCourses) {
+      if (!course.prerequisite) continue;
+
+      try {
+        const prereqData = JSON.parse(course.prerequisite as string);
+        if (
+          prereqData &&
+          Array.isArray(prereqData.subjectIds) &&
+          prereqData.subjectIds.length > 0
+        ) {
+          prereqData.subjectIds.forEach((id: number) => {
+            if (typeof id === "number" && !Number.isNaN(id)) {
+              allPrereqSubjectIds.add(id);
+            }
+          });
+        }
+      } catch {
+        // Ignore parse errors here; we'll handle formatting per-course below.
+      }
+    }
+
+    // 2) Fetch all prerequisite subject codes in a single query
+    let prereqSubjectsById: Record<number, string> = {};
+    if (allPrereqSubjectIds.size > 0) {
+      const subjectIdsArray = Array.from(allPrereqSubjectIds);
+      const prereqSubjects = await prisma.$queryRaw<any[]>`
+        SELECT id, code FROM subject WHERE id = ANY(${subjectIdsArray}::int[])
+      `;
+
+      prereqSubjectsById = prereqSubjects.reduce(
+        (acc: Record<number, string>, subj: any) => {
+          if (subj && typeof subj.id === "number" && typeof subj.code === "string") {
+            acc[subj.id] = subj.code;
+          }
+          return acc;
+        },
+        {}
+      );
+    }
+
+    // 3) Fetch subject details for each curriculum course and format prerequisite text
     const coursesWithSubjects = await Promise.all(
       curriculumCourses.map(async (course) => {
         let subject = null;
@@ -89,6 +132,36 @@ export async function GET(request: NextRequest) {
           subject = await prisma.subject.findUnique({
             where: { id: course.subject_id },
           });
+        }
+
+        let prerequisiteText: string | null = null;
+
+        if (course.prerequisite) {
+          try {
+            const prereqData = JSON.parse(course.prerequisite as string);
+
+            if (
+              prereqData &&
+              Array.isArray(prereqData.subjectIds) &&
+              prereqData.subjectIds.length > 0
+            ) {
+              const codes = prereqData.subjectIds
+                .map((id: number) => prereqSubjectsById[id])
+                .filter(Boolean);
+
+              if (codes.length > 0) {
+                prerequisiteText = codes.join(", ");
+              }
+            }
+          } catch {
+            // If parsing fails and the string looks like JSON, hide it instead
+            // of returning raw JSON to the frontend. Otherwise, treat it as
+            // already-human-readable text (e.g. "GEE03").
+            const raw = String(course.prerequisite).trim();
+            if (!raw.startsWith("{")) {
+              prerequisiteText = raw;
+            }
+          }
         }
 
         return {
@@ -102,7 +175,7 @@ export async function GET(request: NextRequest) {
           units_total: course.units_total,
           lecture_hour: course.lecture_hour,
           lab_hour: course.lab_hour,
-          prerequisite: course.prerequisite,
+          prerequisite: prerequisiteText,
           year_level: course.year_level,
           semester: course.semester,
           subject: subject,

@@ -158,23 +158,36 @@ export async function GET(request: NextRequest) {
 
         if (es.prerequisite) {
           try {
-            // Try to parse as JSON
+            // Try to parse as JSON e.g. {"subjectIds":[28]}
             const prereqData = JSON.parse(es.prerequisite);
-            
-            if (prereqData.subjectIds && Array.isArray(prereqData.subjectIds) && prereqData.subjectIds.length > 0) {
-              // Fetch subject codes for the prerequisite IDs
+
+            if (
+              prereqData &&
+              Array.isArray(prereqData.subjectIds) &&
+              prereqData.subjectIds.length > 0
+            ) {
               const subjectIds = prereqData.subjectIds;
+
               const subjects = await prisma.$queryRaw<any[]>`
                 SELECT code FROM subject WHERE id = ANY(${subjectIds}::int[])
               `;
-              
+
               if (subjects.length > 0) {
-                prerequisiteText = subjects.map(s => s.code).join(", ");
+                prerequisiteText = subjects.map((s) => s.code).join(", ");
               }
             }
           } catch (e) {
-            // If not JSON, treat as plain text (could be subject ID or code)
-            prerequisiteText = es.prerequisite;
+            // If parsing fails and the value looks like JSON, hide it instead of
+            // returning raw JSON to the frontend. If it's a simple text value,
+            // pass it through.
+            if (
+              typeof es.prerequisite === "string" &&
+              es.prerequisite.trim().startsWith("{")
+            ) {
+              prerequisiteText = null;
+            } else {
+              prerequisiteText = es.prerequisite;
+            }
           }
         }
 

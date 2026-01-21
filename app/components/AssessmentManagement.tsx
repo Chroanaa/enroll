@@ -102,12 +102,27 @@ const AssessmentManagement: React.FC = () => {
     }
   }, [fees]);
 
+  const isValidStudentNumber = (studentNum: string) => {
+    const trimmed = studentNum.trim();
+    // Basic validation: require a minimum length to avoid firing queries
+    // on obviously incomplete input. Adjust as needed if a stricter pattern exists.
+    return trimmed.length >= 5;
+  };
+
   // Function to fetch student information by student number
   const fetchStudentByNumber = async (studentNum: string) => {
-    if (!studentNum.trim()) {
+    if (!isValidStudentNumber(studentNum)) {
       setStudentFetchError("");
       return;
     }
+
+    // Reset assessment/enrollment-related state before loading a new student
+    setEnrolledSubjects([]);
+    setAvailableSubjects([]);
+    setTotalUnits(0);
+    setSubjectsError("");
+    setIsResidentReturnee(false);
+    setIsEditingSubjects(false);
 
     setIsFetchingStudent(true);
     setStudentFetchError("");
@@ -447,7 +462,10 @@ const AssessmentManagement: React.FC = () => {
   useEffect(() => {
     if (studentNumber.trim()) {
       const timeoutId = setTimeout(() => {
-        fetchStudentByNumber(studentNumber);
+        // Only query when we have a valid/complete student number
+        if (isValidStudentNumber(studentNumber)) {
+          fetchStudentByNumber(studentNumber);
+        }
       }, 500); // Wait 500ms after user stops typing
 
       return () => clearTimeout(timeoutId);
@@ -456,6 +474,13 @@ const AssessmentManagement: React.FC = () => {
       setStudentName("");
       setProgram("");
       setStudentFetchError("");
+      setProgramId(null);
+      setEnrolledSubjects([]);
+      setAvailableSubjects([]);
+      setTotalUnits(0);
+      setSubjectsError("");
+      setIsResidentReturnee(false);
+      setIsEditingSubjects(false);
     }
   }, [studentNumber]);
 
