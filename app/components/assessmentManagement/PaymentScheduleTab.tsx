@@ -359,51 +359,6 @@ export const PaymentScheduleTab: React.FC<PaymentScheduleTabProps> = ({
           </div>
         </div>
       </div>
-
-      {/* Footer */}
-      <div
-        className="grid grid-cols-2 gap-6 mt-6 pt-6 border-t"
-        style={{ borderColor: colors.accent + "10" }}
-      >
-        <div className="group">
-          <label
-            className="flex items-center gap-2 text-sm font-semibold mb-2 ml-1"
-            style={{ color: colors.primary }}
-          >
-            <FileText
-              className="w-4 h-4"
-              style={{ color: colors.secondary }}
-            />
-            Accounting Signature
-          </label>
-          <div
-            className="h-12 border-b-2 rounded-lg px-3 flex items-end"
-            style={{
-              borderColor: colors.tertiary + "30",
-              backgroundColor: colors.paper,
-            }}
-          ></div>
-        </div>
-        <div className="group">
-          <label
-            className="flex items-center gap-2 text-sm font-semibold mb-2 ml-1"
-            style={{ color: colors.primary }}
-          >
-            <Calendar
-              className="w-4 h-4"
-              style={{ color: colors.secondary }}
-            />
-            Date
-          </label>
-          <div
-            className="h-12 border-b-2 rounded-lg px-3 flex items=end"
-            style={{
-              borderColor: colors.tertiary + "30",
-              backgroundColor: colors.paper,
-            }}
-          ></div>
-        </div>
-      </div>
     </div>
   );
 };
