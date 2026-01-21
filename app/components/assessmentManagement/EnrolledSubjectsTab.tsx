@@ -9,6 +9,7 @@ interface EnrolledSubjectsTabProps {
     academicYear: string;
   };
   program: string;
+  studentNumber: string;
   totalUnits: number;
   isResidentReturnee: boolean;
   isEditingSubjects: boolean;
@@ -30,6 +31,7 @@ interface EnrolledSubjectsTabProps {
 export const EnrolledSubjectsTab: React.FC<EnrolledSubjectsTabProps> = ({
   currentTerm,
   program,
+  studentNumber,
   totalUnits,
   isResidentReturnee,
   isEditingSubjects,
@@ -98,6 +100,20 @@ export const EnrolledSubjectsTab: React.FC<EnrolledSubjectsTabProps> = ({
           )}
           {isResidentReturnee && (
             <>
+              <a
+                href={`/assessment/add-subjects?studentNumber=${encodeURIComponent(
+                  studentNumber || ""
+                )}`}
+                className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold transition-all border"
+                style={{
+                  borderColor: colors.accent + "30",
+                  color: colors.secondary,
+                  backgroundColor: "white",
+                }}
+              >
+                <Plus className="w-4 h-4" />
+                Add Subjects
+              </a>
               {!isEditingSubjects ? (
                 <button
                   onClick={onStartEditing}

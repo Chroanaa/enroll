@@ -660,6 +660,7 @@ const AssessmentManagement: React.FC = () => {
                 <EnrolledSubjectsTab
                   currentTerm={currentTerm}
                   program={program}
+                  studentNumber={studentNumber}
                   totalUnits={totalUnits}
                   isResidentReturnee={isResidentReturnee}
                   isEditingSubjects={isEditingSubjects}
