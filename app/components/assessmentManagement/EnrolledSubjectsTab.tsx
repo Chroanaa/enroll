@@ -1,5 +1,5 @@
 import React from "react";
-import { BookOpen, Plus, X, Save, Search } from "lucide-react";
+import { BookOpen, Plus, X, Save } from "lucide-react";
 import { colors } from "../../colors";
 import type { EnrolledSubject } from "./types";
 
@@ -9,6 +9,7 @@ interface EnrolledSubjectsTabProps {
     academicYear: string;
   };
   program: string;
+  studentNumber: string;
   totalUnits: number;
   isResidentReturnee: boolean;
   isEditingSubjects: boolean;
@@ -18,18 +19,13 @@ interface EnrolledSubjectsTabProps {
   isLoadingSubjects: boolean;
   subjectsError: string;
   enrolledSubjects: EnrolledSubject[];
-  availableSubjects: EnrolledSubject[];
-  showSubjectSelector: boolean;
-  setShowSubjectSelector: (value: boolean) => void;
-  subjectSearchTerm: string;
-  setSubjectSearchTerm: (value: string) => void;
-  addSubject: (subject: EnrolledSubject) => void;
   removeSubject: (subjectId: number) => void;
 }
 
 export const EnrolledSubjectsTab: React.FC<EnrolledSubjectsTabProps> = ({
   currentTerm,
   program,
+  studentNumber,
   totalUnits,
   isResidentReturnee,
   isEditingSubjects,
@@ -39,12 +35,6 @@ export const EnrolledSubjectsTab: React.FC<EnrolledSubjectsTabProps> = ({
   isLoadingSubjects,
   subjectsError,
   enrolledSubjects,
-  availableSubjects,
-  showSubjectSelector,
-  setShowSubjectSelector,
-  subjectSearchTerm,
-  setSubjectSearchTerm,
-  addSubject,
   removeSubject,
 }) => {
   return (
@@ -98,6 +88,20 @@ export const EnrolledSubjectsTab: React.FC<EnrolledSubjectsTabProps> = ({
           )}
           {isResidentReturnee && (
             <>
+              <a
+                href={`/assessment/add-subjects?studentNumber=${encodeURIComponent(
+                  studentNumber || ""
+                )}`}
+                className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold transition-all border"
+                style={{
+                  borderColor: colors.accent + "30",
+                  color: colors.secondary,
+                  backgroundColor: "white",
+                }}
+              >
+                <Plus className="w-4 h-4" />
+                Add Subjects
+              </a>
               {!isEditingSubjects ? (
                 <button
                   onClick={onStartEditing}
@@ -170,155 +174,6 @@ export const EnrolledSubjectsTab: React.FC<EnrolledSubjectsTabProps> = ({
         </div>
       ) : (
         <div className="space-y-4">
-          {/* Add Subject Button for Resident/Returnee in Edit Mode */}
-          {isResidentReturnee && isEditingSubjects && (
-            <div
-              className="flex items-center justify-between p-4 rounded-lg border"
-              style={{
-                backgroundColor: colors.accent + "05",
-                borderColor: colors.accent + "20",
-              }}
-            >
-              <div>
-                <p
-                  className="text-sm font-semibold"
-                  style={{ color: colors.primary }}
-                >
-                  Add Subject from Curriculum
-                </p>
-                <p
-                  className="text-xs mt-1"
-                  style={{ color: colors.tertiary }}
-                >
-                  Search and select subjects to add to enrollment
-                </p>
-              </div>
-              <button
-                onClick={() => setShowSubjectSelector(!showSubjectSelector)}
-                className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold transition-all"
-                style={{
-                  backgroundColor: showSubjectSelector
-                    ? colors.tertiary + "20"
-                    : colors.secondary,
-                  color: showSubjectSelector ? colors.tertiary : "white",
-                }}
-              >
-                <Plus className="w-4 h-4" />
-                {showSubjectSelector ? "Close" : "Add Subject"}
-              </button>
-            </div>
-          )}
-
-          {/* Subject Selector Modal */}
-          {isResidentReturnee && isEditingSubjects && showSubjectSelector && (
-            <div
-              className="p-4 rounded-lg border shadow-lg"
-              style={{
-                backgroundColor: "white",
-                borderColor: colors.accent + "30",
-                maxHeight: "400px",
-                overflowY: "auto",
-              }}
-            >
-              <div className="mb-4">
-                <div className="relative">
-                  <Search
-                    className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4"
-                    style={{ color: colors.tertiary }}
-                  />
-                  <input
-                    type="text"
-                    value={subjectSearchTerm}
-                    onChange={(e) => setSubjectSearchTerm(e.target.value)}
-                    placeholder="Search subjects by code or title..."
-                    className="w-full pl-10 pr-4 py-2 rounded-lg border text-sm"
-                    style={{
-                      borderColor: colors.tertiary + "30",
-                      color: colors.primary,
-                    }}
-                  />
-                </div>
-              </div>
-              <div className="space-y-2">
-                {availableSubjects
-                  .filter((subject) => {
-                    const search = subjectSearchTerm.toLowerCase();
-                    return (
-                      !search ||
-                      subject.course_code.toLowerCase().includes(search) ||
-                      subject.descriptive_title.toLowerCase().includes(search)
-                    );
-                  })
-                  .map((subject) => (
-                    <div
-                      key={subject.id}
-                      className="flex items-center justify-between p-3 rounded-lg border hover:bg-gray-50 transition-colors"
-                      style={{ borderColor: colors.accent + "20" }}
-                    >
-                      <div className="flex-1">
-                        <div className="flex items-center gap-2">
-                          <span
-                            className="text-sm font-semibold"
-                            style={{ color: colors.primary }}
-                          >
-                            {subject.course_code}
-                          </span>
-                          <span
-                            className="text-xs px-2 py-0.5 rounded"
-                            style={{
-                              backgroundColor: colors.accent + "10",
-                              color: colors.tertiary,
-                            }}
-                          >
-                            {subject.units_total} units
-                          </span>
-                        </div>
-                        <p
-                          className="text-xs mt-1"
-                          style={{ color: colors.tertiary }}
-                        >
-                          {subject.descriptive_title}
-                        </p>
-                        {subject.prerequisite && (
-                          <p
-                            className="text-xs mt-1 italic"
-                            style={{ color: colors.tertiary + "80" }}
-                          >
-                            Prerequisite: {subject.prerequisite}
-                          </p>
-                        )}
-                      </div>
-                      <button
-                        onClick={() => addSubject(subject)}
-                        className="px-3 py-1.5 rounded-lg text-xs font-semibold transition-all"
-                        style={{
-                          backgroundColor: colors.secondary,
-                          color: "white",
-                        }}
-                      >
-                        Add
-                      </button>
-                    </div>
-                  ))}
-                {availableSubjects.filter((subject) => {
-                  const search = subjectSearchTerm.toLowerCase();
-                  return (
-                    !search ||
-                    subject.course_code.toLowerCase().includes(search) ||
-                    subject.descriptive_title.toLowerCase().includes(search)
-                  );
-                }).length === 0 && (
-                  <p
-                    className="text-sm text-center py-4"
-                    style={{ color: colors.tertiary }}
-                  >
-                    No available subjects found
-                  </p>
-                )}
-              </div>
-            </div>
-          )}
-
           {/* Enrolled Subjects Table */}
           {enrolledSubjects.length > 0 && (
             <div

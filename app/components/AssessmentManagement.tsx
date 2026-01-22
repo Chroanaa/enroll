@@ -1,5 +1,6 @@
 "use client";
 import React, { useState, useEffect } from "react";
+import { useSearchParams } from "next/navigation";
 import { Calculator } from "lucide-react";
 import { colors } from "../colors";
 import { defaultFormStyles } from "../utils/formStyles";
@@ -13,6 +14,7 @@ import { PaymentCalculationTab } from "./assessmentManagement/PaymentCalculation
 import { PaymentScheduleTab } from "./assessmentManagement/PaymentScheduleTab";
 
 const AssessmentManagement: React.FC = () => {
+  const searchParams = useSearchParams();
   const { currentTerm, loading: termLoading } = useAcademicTerm();
   const [fees, setFees] = useState<Fee[]>([]);
   const [loading, setLoading] = useState(true);
@@ -35,9 +37,6 @@ const AssessmentManagement: React.FC = () => {
   // Student Type Detection
   const [isResidentReturnee, setIsResidentReturnee] = useState(false);
   const [isEditingSubjects, setIsEditingSubjects] = useState(false);
-  const [availableSubjects, setAvailableSubjects] = useState<EnrolledSubject[]>([]);
-  const [showSubjectSelector, setShowSubjectSelector] = useState(false);
-  const [subjectSearchTerm, setSubjectSearchTerm] = useState("");
 
   // Tab Management
   const [activeTab, setActiveTab] = useState<"subjects" | "payment" | "schedule" | "details">("subjects");
@@ -89,6 +88,25 @@ const AssessmentManagement: React.FC = () => {
     fetchFees();
   }, []);
 
+  // Initialize from URL parameters
+  useEffect(() => {
+    const urlStudentNumber = searchParams.get('studentNumber');
+    const urlTab = searchParams.get('tab') as 'subjects' | 'payment' | 'schedule' | null;
+    
+    // Set active tab from URL parameter, default to 'subjects'
+    if (urlTab && ['subjects', 'payment', 'schedule'].includes(urlTab)) {
+      setActiveTab(urlTab);
+    } else {
+      setActiveTab('subjects');
+    }
+    
+    // Auto-populate student number and trigger fetch if URL parameter exists
+    if (urlStudentNumber && urlStudentNumber.trim()) {
+      setStudentNumber(urlStudentNumber.trim());
+      // The fetchStudentByNumber will be triggered by the studentNumber useEffect
+    }
+  }, [searchParams]);
+
   // Initialize dynamic fees from database when fees are loaded
   useEffect(() => {
     if (fees.length > 0) {
@@ -102,12 +120,26 @@ const AssessmentManagement: React.FC = () => {
     }
   }, [fees]);
 
+  const isValidStudentNumber = (studentNum: string) => {
+    const trimmed = studentNum.trim();
+    // Basic validation: require a minimum length to avoid firing queries
+    // on obviously incomplete input. Adjust as needed if a stricter pattern exists.
+    return trimmed.length >= 5;
+  };
+
   // Function to fetch student information by student number
   const fetchStudentByNumber = async (studentNum: string) => {
-    if (!studentNum.trim()) {
+    if (!isValidStudentNumber(studentNum)) {
       setStudentFetchError("");
       return;
     }
+
+    // Reset assessment/enrollment-related state before loading a new student
+    setEnrolledSubjects([]);
+    setTotalUnits(0);
+    setSubjectsError("");
+    setIsResidentReturnee(false);
+    setIsEditingSubjects(false);
 
     setIsFetchingStudent(true);
     setStudentFetchError("");
@@ -200,118 +232,78 @@ const AssessmentManagement: React.FC = () => {
     setSubjectsError("");
 
     try {
-      // For resident/returnee, first check enrolled_subjects table
-      // If empty, populate with curriculum subjects
-      if (isResidentReturnee && studentNumber && currentTerm) {
-        // First, check if student has existing enrolled subjects
+      // ALWAYS check enrolled_subjects first if studentNumber exists
+      // This ensures we fetch the student's actual enrolled subjects, not curriculum
+      if (studentNumber && currentTerm) {
         const enrolledResponse = await fetch(
-          `/api/auth/enrolled-subjects?studentNumber=${studentNumber}&academicYear=${currentTerm.academicYear}&semester=${semesterNum}`
+          `/api/auth/enrolled-subjects?studentNumber=${encodeURIComponent(studentNumber.trim())}&academicYear=${encodeURIComponent(currentTerm.academicYear)}&semester=${semesterNum}`
         );
 
         if (enrolledResponse.ok) {
           const enrolledData = await enrolledResponse.json();
           if (enrolledData.success && enrolledData.data && enrolledData.data.length > 0) {
-            // Student has existing enrolled subjects, use them
+            // Student has existing enrolled subjects for this term, use them
             setEnrolledSubjects(enrolledData.data);
             const total = enrolledData.data.reduce(
               (sum: number, course: EnrolledSubject) => sum + (course.units_total || 0),
               0
             );
             setTotalUnits(total);
-          } else {
-            // No enrolled subjects found, fetch from curriculum and populate
-            const curriculumResponse = await fetch(
-              `/api/auth/curriculum/subjects?programId=${programIdValue}&semester=${semesterNum}`
-            );
-
-            if (curriculumResponse.ok) {
-              const curriculumData = await curriculumResponse.json();
-              if (curriculumData.success && curriculumData.data.courses) {
-                // Populate with curriculum subjects as starting point
-                setEnrolledSubjects(curriculumData.data.courses);
-                const total = curriculumData.data.courses.reduce(
-                  (sum: number, course: EnrolledSubject) => sum + (course.units_total || 0),
-                  0
-                );
-                setTotalUnits(total);
-                
-                // Optionally auto-save to enrolled_subjects table
-                // (Admin can modify later)
-                try {
-                  await fetch("/api/auth/enrolled-subjects", {
-                    method: "POST",
-                    headers: {
-                      "Content-Type": "application/json",
-                    },
-                    body: JSON.stringify({
-                      studentNumber,
-                      programId: programIdValue,
-                      academicYear: currentTerm.academicYear,
-                      semester: semesterNum,
-                      subjects: curriculumData.data.courses,
-                    }),
-                  });
-                } catch (saveError) {
-                  console.error("Error auto-saving curriculum subjects:", saveError);
-                  // Don't show error to user, they can save manually later
-                }
-              } else {
-                setSubjectsError("No subjects found in curriculum for this program and semester");
-                setEnrolledSubjects([]);
-                setTotalUnits(0);
-              }
-            } else {
-              const errorData = await curriculumResponse.json();
-              setSubjectsError(errorData.error || "Failed to fetch curriculum subjects");
-              setEnrolledSubjects([]);
-              setTotalUnits(0);
-            }
-          }
-        } else {
-          // If enrolled subjects fetch fails, fallback to curriculum
-          const curriculumResponse = await fetch(
-            `/api/auth/curriculum/subjects?programId=${programIdValue}&semester=${semesterNum}`
-          );
-
-          if (curriculumResponse.ok) {
-            const curriculumData = await curriculumResponse.json();
-            if (curriculumData.success && curriculumData.data.courses) {
-              setEnrolledSubjects(curriculumData.data.courses);
-              const total = curriculumData.data.courses.reduce(
-                (sum: number, course: EnrolledSubject) => sum + (course.units_total || 0),
-                0
-              );
-              setTotalUnits(total);
-            }
+            setIsLoadingSubjects(false);
+            return; // Exit early - we have enrolled subjects
           }
         }
-      } else {
-        // New student - fetch from curriculum
-        const response = await fetch(
-          `/api/auth/curriculum/subjects?programId=${programIdValue}&semester=${semesterNum}`
-        );
+        // If enrolled subjects fetch failed or returned empty, continue to curriculum fallback
+      }
 
-        if (response.ok) {
-          const data = await response.json();
-          if (data.success && data.data.courses) {
-            setEnrolledSubjects(data.data.courses);
-            // Calculate total units
-            const total = data.data.courses.reduce(
-              (sum: number, course: EnrolledSubject) => sum + (course.units_total || 0),
-              0
-            );
-            setTotalUnits(total);
-          } else {
-            setSubjectsError("No subjects found for this program and semester");
-            setEnrolledSubjects([]);
-            setTotalUnits(0);
+      // Fallback: Fetch from curriculum if no enrolled subjects exist
+      // This happens for new students or when enrolled_subjects is empty
+      const curriculumResponse = await fetch(
+        `/api/auth/curriculum/subjects?programId=${programIdValue}&semester=${semesterNum}`
+      );
+
+      if (curriculumResponse.ok) {
+        const curriculumData = await curriculumResponse.json();
+        if (curriculumData.success && curriculumData.data.courses) {
+          setEnrolledSubjects(curriculumData.data.courses);
+          const total = curriculumData.data.courses.reduce(
+            (sum: number, course: EnrolledSubject) => sum + (course.units_total || 0),
+            0
+          );
+          setTotalUnits(total);
+
+          // Auto-save curriculum subjects to enrolled_subjects ONLY for resident/returnee
+          // This allows them to start with curriculum and modify later
+          if (isResidentReturnee && studentNumber && currentTerm) {
+            try {
+              await fetch("/api/auth/enrolled-subjects", {
+                method: "POST",
+                headers: {
+                  "Content-Type": "application/json",
+                },
+                body: JSON.stringify({
+                  studentNumber: studentNumber.trim(),
+                  programId: programIdValue,
+                  academicYear: currentTerm.academicYear,
+                  semester: semesterNum,
+                  subjects: curriculumData.data.courses,
+                }),
+              });
+            } catch (saveError) {
+              console.error("Error auto-saving curriculum subjects:", saveError);
+              // Don't show error to user, they can save manually later
+            }
           }
         } else {
-          const errorData = await response.json();
-          setSubjectsError(errorData.error || "Failed to fetch subjects");
+          setSubjectsError("No subjects found in curriculum for this program and semester");
           setEnrolledSubjects([]);
           setTotalUnits(0);
         }
+      } else {
+        const errorData = await curriculumResponse.json();
+        setSubjectsError(errorData.error || "Failed to fetch subjects");
+        setEnrolledSubjects([]);
+        setTotalUnits(0);
       }
     } catch (error) {
       console.error("Error fetching enrolled subjects:", error);
@@ -320,31 +312,6 @@ const AssessmentManagement: React.FC = () => {
       setTotalUnits(0);
     } finally {
       setIsLoadingSubjects(false);
-    }
-  };
-
-  // Fetch available subjects from curriculum for adding
-  const fetchAvailableSubjects = async (programIdValue: number, semesterNum: number) => {
-    if (!programIdValue || !semesterNum) return;
-
-    try {
-      const response = await fetch(
-        `/api/auth/curriculum/subjects?programId=${programIdValue}&semester=${semesterNum}`
-      );
-
-      if (response.ok) {
-        const data = await response.json();
-        if (data.success && data.data.courses) {
-          // Filter out subjects that are already enrolled
-          const enrolledIds = enrolledSubjects.map(s => s.id);
-          const available = data.data.courses.filter(
-            (course: EnrolledSubject) => !enrolledIds.includes(course.id)
-          );
-          setAvailableSubjects(available);
-        }
-      }
-    } catch (error) {
-      console.error("Error fetching available subjects:", error);
     }
   };
 
@@ -375,9 +342,10 @@ const AssessmentManagement: React.FC = () => {
       });
 
       if (response.ok) {
+        const result = await response.json();
         setSuccessModal({
           isOpen: true,
-          message: "Enrolled subjects saved successfully!",
+          message: result.message || "Enrolled subjects saved successfully!",
         });
         setIsEditingSubjects(false);
       } else {
@@ -395,19 +363,6 @@ const AssessmentManagement: React.FC = () => {
         details: error instanceof Error ? error.message : "Unknown error occurred",
       });
     }
-  };
-
-  // Add subject to enrolled list
-  const addSubject = (subject: EnrolledSubject) => {
-    setEnrolledSubjects([...enrolledSubjects, subject]);
-    setShowSubjectSelector(false);
-    setSubjectSearchTerm("");
-    // Recalculate total units
-    const total = [...enrolledSubjects, subject].reduce(
-      (sum: number, course: EnrolledSubject) => sum + (course.units_total || 0),
-      0
-    );
-    setTotalUnits(total);
   };
 
   // Remove subject from enrolled list
@@ -434,19 +389,14 @@ const AssessmentManagement: React.FC = () => {
     }
   }, [programId, currentTerm, isResidentReturnee, studentNumber]);
 
-  // Fetch available subjects when editing mode is enabled
-  useEffect(() => {
-    if (isEditingSubjects && programId && currentTerm) {
-      const semesterNum = currentTerm.semester === "First" ? 1 : 2;
-      fetchAvailableSubjects(programId, semesterNum);
-    }
-  }, [isEditingSubjects, programId, currentTerm]);
-
   // Handle student number change with debounce
   useEffect(() => {
     if (studentNumber.trim()) {
       const timeoutId = setTimeout(() => {
-        fetchStudentByNumber(studentNumber);
+        // Only query when we have a valid/complete student number
+        if (isValidStudentNumber(studentNumber)) {
+          fetchStudentByNumber(studentNumber);
+        }
       }, 500); // Wait 500ms after user stops typing
 
       return () => clearTimeout(timeoutId);
@@ -455,6 +405,12 @@ const AssessmentManagement: React.FC = () => {
       setStudentName("");
       setProgram("");
       setStudentFetchError("");
+      setProgramId(null);
+      setEnrolledSubjects([]);
+      setTotalUnits(0);
+      setSubjectsError("");
+      setIsResidentReturnee(false);
+      setIsEditingSubjects(false);
     }
   }, [studentNumber]);
 
@@ -634,6 +590,7 @@ const AssessmentManagement: React.FC = () => {
                 <EnrolledSubjectsTab
                   currentTerm={currentTerm}
                   program={program}
+                  studentNumber={studentNumber}
                   totalUnits={totalUnits}
                   isResidentReturnee={isResidentReturnee}
                   isEditingSubjects={isEditingSubjects}
@@ -643,12 +600,6 @@ const AssessmentManagement: React.FC = () => {
                   isLoadingSubjects={isLoadingSubjects}
                   subjectsError={subjectsError}
                   enrolledSubjects={enrolledSubjects}
-                  availableSubjects={availableSubjects}
-                  showSubjectSelector={showSubjectSelector}
-                  setShowSubjectSelector={setShowSubjectSelector}
-                  subjectSearchTerm={subjectSearchTerm}
-                  setSubjectSearchTerm={setSubjectSearchTerm}
-                  addSubject={addSubject}
                   removeSubject={removeSubject}
                 />
               )}
