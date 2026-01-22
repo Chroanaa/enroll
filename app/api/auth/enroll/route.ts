@@ -34,7 +34,20 @@ export async function POST(request: NextRequest) {
     const sex = formData.get("sex") as string | null;
     const civil_status = formData.get("civil_status") as string | null;
     const birthdate = formData.get("birthdate") as string | null;
-    const birthplace = formData.get("birthplace") as string | null;
+    const birthplaceStr = formData.get("birthplace") as string | null;
+    // Parse birthplace array: [province, city]
+    let birthplace: string[] | null = null;
+    if (birthplaceStr) {
+      try {
+        birthplace = JSON.parse(birthplaceStr);
+        if (!Array.isArray(birthplace) || birthplace.length !== 2) {
+          birthplace = null;
+        }
+      } catch {
+        // If not valid JSON array, treat as null
+        birthplace = null;
+      }
+    }
     const complete_address = formData.get("complete_address") as string | null;
     const contact_number = formData.get("contact_number") as string | null;
     const email_address = formData.get("email_address") as string | null;
@@ -170,7 +183,7 @@ export async function POST(request: NextRequest) {
         sex: sex || null,
         civil_status: civil_status || null,
         birthdate: birthdate ? new Date(birthdate) : null,
-        birthplace: birthplace ? birthplace.trim().toUpperCase() : null,
+        birthplace: birthplace ? JSON.stringify([birthplace[0].trim().toUpperCase(), birthplace[1].trim().toUpperCase()]) : null,
         complete_address: complete_address ? complete_address.trim().toUpperCase() : null,
         contact_number: contact_number || null,
         email_address: email_address || null,

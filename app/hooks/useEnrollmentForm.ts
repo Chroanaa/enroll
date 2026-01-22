@@ -23,7 +23,7 @@ export interface EnrollmentFormData {
   sex: string;
   civil_status: string;
   birthdate: string;
-  birthplace: string;
+  birthplace: string[]; // Array format: [province, city]
   complete_address: string;
   address_province: string;
   address_city: string;
@@ -75,8 +75,8 @@ const initialFormData: EnrollmentFormData = {
   middle_name: "",
   sex: "",
   civil_status: "",
-  birthdate: "",
-  birthplace: "",
+    birthdate: "",
+    birthplace: [], // Array format: [province, city]
     complete_address: "",
     address_province: "",
     address_city: "",
@@ -265,9 +265,20 @@ export const useEnrollmentForm = () => {
 
   const handleInputChange = (
     field: keyof EnrollmentFormData,
-    value: string,
+    value: string | string[],
   ) => {
-    const newFormData = { ...formData, [field]: value };
+    // Handle birthplace array - parse JSON string if needed
+    let processedValue: any = value;
+    if (field === "birthplace" && typeof value === "string") {
+      try {
+        processedValue = JSON.parse(value);
+      } catch {
+        // If not valid JSON, treat as empty array
+        processedValue = [];
+      }
+    }
+    
+    const newFormData = { ...formData, [field]: processedValue };
     setFormData(newFormData);
 
     // Clear error for this field when user starts typing
@@ -450,6 +461,9 @@ export const useEnrollmentForm = () => {
       } else if (key === "requirements" && Array.isArray(value)) {
         // Handle array fields
         submitData.append(key, JSON.stringify(value));
+      } else if (key === "birthplace" && Array.isArray(value)) {
+        // Handle birthplace array: [province, city]
+        submitData.append(key, JSON.stringify(value));
       } else if (value !== null && value !== undefined) {
         submitData.append(key, String(value));
       }
@@ -540,16 +554,22 @@ export const useEnrollmentForm = () => {
         errors.birthdate = "Please enter a valid birthdate";
       }
     }
-    if (!formData.birthplace?.trim()) {
-      errors.birthplace = "Birthplace is required";
+    // Validate birthplace array: must have both province and city
+    if (!Array.isArray(formData.birthplace) || formData.birthplace.length < 2 || !formData.birthplace[0] || !formData.birthplace[1]) {
+      errors.birthplace = "Birthplace province and city are required";
     }
     if (!formData.complete_address?.trim()) {
       errors.complete_address = "Complete address is required";
     }
     
     // Prevent duplicate: Check if birthplace city matches address city
-    if (formData.birthplace?.trim() && formData.address_city?.trim()) {
-      if (formData.birthplace.trim().toUpperCase() === formData.address_city.trim().toUpperCase()) {
+    // Birthplace is now an array: [province, city]
+    const birthplaceCity = Array.isArray(formData.birthplace) && formData.birthplace.length >= 2 
+      ? formData.birthplace[1] 
+      : null;
+    
+    if (birthplaceCity && formData.address_city?.trim()) {
+      if (birthplaceCity.trim().toUpperCase() === formData.address_city.trim().toUpperCase()) {
         errors.birthplace = "Birthplace city cannot be the same as address city";
         errors.complete_address = "Address city cannot be the same as birthplace city";
       }

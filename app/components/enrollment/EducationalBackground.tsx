@@ -3,6 +3,8 @@ import { School, X } from "lucide-react";
 import { colors } from "../../colors";
 import { EnrollmentPageProps } from "./types";
 import Axios from "axios";
+import ConfirmationModal from "../common/ConfirmationModal";
+import SuccessModal from "../common/SuccessModal";
 
 const EducationalBackground: React.FC<EnrollmentPageProps> = ({
   formData,
@@ -15,6 +17,12 @@ const EducationalBackground: React.FC<EnrollmentPageProps> = ({
   const [showSchoolModal, setShowSchoolModal] = useState(false);
   const [customProgram, setCustomProgram] = useState("");
   const [customSchool, setCustomSchool] = useState("");
+  const [showDuplicateWarning, setShowDuplicateWarning] = useState(false);
+  const [duplicateWarningMessage, setDuplicateWarningMessage] = useState("");
+  const [successModal, setSuccessModal] = useState<{
+    isOpen: boolean;
+    message: string;
+  }>({ isOpen: false, message: "" });
 
   // Load SHS programs and schools from database
   React.useEffect(() => {
@@ -55,47 +63,167 @@ const EducationalBackground: React.FC<EnrollmentPageProps> = ({
     e.currentTarget.style.boxShadow = "none";
   };
 
-  const handleProgramChange = (value: string) => {
-    if (value === "OTHER") {
-      setShowProgramModal(true);
-    } else {
-      handleInputChange("program_shs", value);
-    }
-  };
 
-  const handleSchoolChange = (value: string) => {
+  const handleSchoolChange = async (value: string) => {
     if (value === "OTHER") {
       setShowSchoolModal(true);
     } else {
       handleInputChange("last_school_attended", value);
+      
+      // Check for duplicate if program is already selected
+      if (formData.program_shs) {
+        const isDuplicate = await checkDuplicateSchoolProgram(value, formData.program_shs);
+        if (isDuplicate) {
+          setDuplicateWarningMessage("This school and program combination already exists.");
+          setShowDuplicateWarning(true);
+          // Reset the selection
+          handleInputChange("last_school_attended", "");
+          return;
+        }
+      }
     }
   };
 
-  const saveCustomProgram = async () => {
-    if (!customProgram.trim()) return;
+  const handleProgramChange = async (value: string) => {
+    if (value === "OTHER") {
+      setShowProgramModal(true);
+    } else {
+      handleInputChange("program_shs", value);
+      
+      // Check for duplicate if school is already selected
+      if (formData.last_school_attended) {
+        const isDuplicate = await checkDuplicateSchoolProgram(formData.last_school_attended, value);
+        if (isDuplicate) {
+          setDuplicateWarningMessage("This school and program combination already exists.");
+          setShowDuplicateWarning(true);
+          // Reset the selection
+          handleInputChange("program_shs", "");
+          return;
+        }
+      }
+    }
+  };
+
+  // Check for duplicate school + program combination
+  const checkDuplicateSchoolProgram = async (schoolName: string, programName: string): Promise<boolean> => {
     try {
-      await Axios.post("/api/auth/enroll/shs-programs", { name: customProgram.toUpperCase() });
-      setShsPrograms([...shsPrograms, customProgram.toUpperCase()]);
-      handleInputChange("program_shs", customProgram.toUpperCase());
+      // Check if this combination already exists in the database
+      const response = await Axios.get("/api/auth/enroll/check-duplicate-school-program", {
+        params: { school: schoolName, program: programName }
+      });
+      return response.data.isDuplicate || false;
+    } catch (error: any) {
+      console.error("Error checking duplicate:", error);
+      // If API error, return false to allow the save to proceed (backend will catch it)
+      return false;
+    }
+  };
+
+  const saveCustomProgram = async (e?: React.MouseEvent) => {
+    if (e) {
+      e.preventDefault();
+      e.stopPropagation();
+    }
+    
+    if (!customProgram.trim()) return;
+    
+    const programName = customProgram.toUpperCase();
+    const schoolName = formData.last_school_attended?.toUpperCase() || "";
+    
+    // Check for duplicate if school is already selected
+    if (schoolName) {
+      const isDuplicate = await checkDuplicateSchoolProgram(schoolName, programName);
+      if (isDuplicate) {
+        setDuplicateWarningMessage("This school and program combination already exists.");
+        setShowDuplicateWarning(true);
+        return;
+      }
+    }
+    
+    try {
+      await Axios.post("/api/auth/enroll/shs-programs", { name: programName });
+      // Success - show success modal, then insert and close
+      setSuccessModal({
+        isOpen: true,
+        message: `Program "${programName}" has been successfully added.`,
+      });
+      setShsPrograms([...shsPrograms, programName]);
+      handleInputChange("program_shs", programName);
       setCustomProgram("");
       setShowProgramModal(false);
-    } catch (error) {
-      console.error("Error saving custom program:", error);
-      alert("Failed to save custom program. Please try again.");
+    } catch (error: any) {
+      // Handle 409 Conflict - program already exists
+      if (error.response?.status === 409) {
+        // Program already exists - add it to the list if not present, select it, and show info message
+        if (!shsPrograms.includes(programName)) {
+          setShsPrograms([...shsPrograms, programName]);
+        }
+        handleInputChange("program_shs", programName);
+        setCustomProgram("");
+        setShowProgramModal(false);
+        setDuplicateWarningMessage("This program already exists in the system and has been selected.");
+        setShowDuplicateWarning(true);
+      } else {
+        // Other errors - log and show error message
+        console.error("Error saving custom program:", error);
+        const errorMessage = error.response?.data?.error || error.message || "Failed to save custom program. Please try again.";
+        setDuplicateWarningMessage(errorMessage);
+        setShowDuplicateWarning(true);
+      }
     }
   };
 
-  const saveCustomSchool = async () => {
+  const saveCustomSchool = async (e?: React.MouseEvent) => {
+    if (e) {
+      e.preventDefault();
+      e.stopPropagation();
+    }
+    
     if (!customSchool.trim()) return;
+    
+    const schoolName = customSchool.toUpperCase();
+    const programName = formData.program_shs?.toUpperCase() || "";
+    
+    // Check for duplicate if program is already selected
+    if (programName) {
+      const isDuplicate = await checkDuplicateSchoolProgram(schoolName, programName);
+      if (isDuplicate) {
+        setDuplicateWarningMessage("This school and program combination already exists.");
+        setShowDuplicateWarning(true);
+        return;
+      }
+    }
+    
     try {
-      await Axios.post("/api/auth/enroll/schools", { name: customSchool.toUpperCase() });
-      setSchools([...schools, customSchool.toUpperCase()]);
-      handleInputChange("last_school_attended", customSchool.toUpperCase());
+      await Axios.post("/api/auth/enroll/schools", { name: schoolName });
+      // Success - show success modal, then insert and close
+      setSuccessModal({
+        isOpen: true,
+        message: `School "${schoolName}" has been successfully added.`,
+      });
+      setSchools([...schools, schoolName]);
+      handleInputChange("last_school_attended", schoolName);
       setCustomSchool("");
       setShowSchoolModal(false);
-    } catch (error) {
-      console.error("Error saving custom school:", error);
-      alert("Failed to save custom school. Please try again.");
+    } catch (error: any) {
+      // Handle 409 Conflict - school already exists
+      if (error.response?.status === 409) {
+        // School already exists - add it to the list if not present, select it, and show info message
+        if (!schools.includes(schoolName)) {
+          setSchools([...schools, schoolName]);
+        }
+        handleInputChange("last_school_attended", schoolName);
+        setCustomSchool("");
+        setShowSchoolModal(false);
+        setDuplicateWarningMessage("This school already exists in the system and has been selected.");
+        setShowDuplicateWarning(true);
+      } else {
+        // Other errors - log and show error message
+        console.error("Error saving custom school:", error);
+        const errorMessage = error.response?.data?.error || error.message || "Failed to save custom school. Please try again.";
+        setDuplicateWarningMessage(errorMessage);
+        setShowDuplicateWarning(true);
+      }
     }
   };
 
@@ -308,7 +436,10 @@ const EducationalBackground: React.FC<EnrollmentPageProps> = ({
               <div className="flex items-center justify-between mb-4">
                 <h3 className="text-xl font-bold" style={{ color: colors.primary }}>Add Custom Program</h3>
                 <button
-                  onClick={() => {
+                  type="button"
+                  onClick={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
                     setShowProgramModal(false);
                     setCustomProgram("");
                   }}
@@ -334,7 +465,10 @@ const EducationalBackground: React.FC<EnrollmentPageProps> = ({
                 </div>
                 <div className="flex gap-3 justify-end">
                   <button
-                    onClick={() => {
+                    type="button"
+                    onClick={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
                       setShowProgramModal(false);
                       setCustomProgram("");
                     }}
@@ -344,6 +478,7 @@ const EducationalBackground: React.FC<EnrollmentPageProps> = ({
                     Cancel
                   </button>
                   <button
+                    type="button"
                     onClick={saveCustomProgram}
                     className="px-4 py-2 rounded-xl text-white transition-colors"
                     style={{ backgroundColor: colors.secondary }}
@@ -363,7 +498,10 @@ const EducationalBackground: React.FC<EnrollmentPageProps> = ({
               <div className="flex items-center justify-between mb-4">
                 <h3 className="text-xl font-bold" style={{ color: colors.primary }}>Add Custom School</h3>
                 <button
-                  onClick={() => {
+                  type="button"
+                  onClick={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
                     setShowSchoolModal(false);
                     setCustomSchool("");
                   }}
@@ -389,7 +527,10 @@ const EducationalBackground: React.FC<EnrollmentPageProps> = ({
                 </div>
                 <div className="flex gap-3 justify-end">
                   <button
-                    onClick={() => {
+                    type="button"
+                    onClick={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
                       setShowSchoolModal(false);
                       setCustomSchool("");
                     }}
@@ -399,6 +540,7 @@ const EducationalBackground: React.FC<EnrollmentPageProps> = ({
                     Cancel
                   </button>
                   <button
+                    type="button"
                     onClick={saveCustomSchool}
                     className="px-4 py-2 rounded-xl text-white transition-colors"
                     style={{ backgroundColor: colors.secondary }}
@@ -410,6 +552,30 @@ const EducationalBackground: React.FC<EnrollmentPageProps> = ({
             </div>
           </div>
         )}
+
+        {/* Duplicate Warning Modal */}
+        <ConfirmationModal
+          isOpen={showDuplicateWarning}
+          onClose={() => {
+            setShowDuplicateWarning(false);
+            setDuplicateWarningMessage("");
+          }}
+          onConfirm={() => {
+            setShowDuplicateWarning(false);
+            setDuplicateWarningMessage("");
+          }}
+          title="Duplicate Entry"
+          message={duplicateWarningMessage || "This entry already exists."}
+          confirmText="OK"
+          variant="warning"
+        />
+
+        {/* Success Modal */}
+        <SuccessModal
+          isOpen={successModal.isOpen}
+          onClose={() => setSuccessModal({ isOpen: false, message: "" })}
+          message={successModal.message}
+        />
       </div>
     </div>
   );

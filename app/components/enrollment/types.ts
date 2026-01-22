@@ -2,7 +2,7 @@ import { EnrollmentFormData } from "../../hooks/useEnrollmentForm";
 
 export interface EnrollmentPageProps {
   formData: EnrollmentFormData;
-  handleInputChange: (field: keyof EnrollmentFormData, value: string) => void;
+  handleInputChange: (field: keyof EnrollmentFormData, value: string | string[]) => void;
   handleDepartmentChange?: (departmentId: number) => void;
   handleCheckboxChange?: (value: string) => void;
   filteredCoursePrograms?: Array<{ id: number; name: string }>;

@@ -20,10 +20,13 @@ const StudentInformation: React.FC<EnrollmentPageProps> = ({
   // Address state management
   const [selectedProvince, setSelectedProvince] = useState(formData.address_province || "");
   const [selectedCity, setSelectedCity] = useState(formData.address_city || "");
+  const [addressDetail, setAddressDetail] = useState(formData.address_detail || "");
   
   // Birthplace state management
-  const [selectedBirthplaceProvince, setSelectedBirthplaceProvince] = useState("");
-  const [selectedBirthplaceCity, setSelectedBirthplaceCity] = useState(formData.birthplace || "");
+  // Parse birthplace array: [province, city]
+  const birthplaceArray = Array.isArray(formData.birthplace) ? formData.birthplace : [];
+  const [selectedBirthplaceProvince, setSelectedBirthplaceProvince] = useState(birthplaceArray[0] || "");
+  const [selectedBirthplaceCity, setSelectedBirthplaceCity] = useState(birthplaceArray[1] || "");
   
   // Address data from PSGC API
   const [provinces, setProvinces] = useState<string[]>([]);
@@ -109,46 +112,46 @@ const StudentInformation: React.FC<EnrollmentPageProps> = ({
     loadBirthplaceCities();
   }, [selectedBirthplaceProvince]);
 
+  // Update complete address whenever address components change
+  useEffect(() => {
+    const addressParts: string[] = [];
+    if (formData.address_detail) addressParts.push(formData.address_detail);
+    if (selectedCity) addressParts.push(selectedCity);
+    if (selectedProvince) addressParts.push(selectedProvince);
+    const newCompleteAddress = addressParts.join(", ");
+    if (formData.complete_address !== newCompleteAddress) {
+      handleInputChange("complete_address", newCompleteAddress);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [formData.address_detail, selectedCity, selectedProvince]);
+
 
   const handleProvinceChange = (province: string) => {
     setSelectedProvince(province);
     setSelectedCity("");
     handleInputChange("address_province", province);
     handleInputChange("address_city", "");
-    updateCompleteAddress(province, "", formData.address_detail || "");
   };
 
   const handleCityChange = (city: string) => {
     setSelectedCity(city);
     handleInputChange("address_city", city);
-    updateCompleteAddress(selectedProvince, city, formData.address_detail || "");
-  };
-
-  // Helper function to construct complete address
-  const updateCompleteAddress = (
-    province: string,
-    city: string,
-    addressDetail: string
-  ) => {
-    const addressParts: string[] = [];
-    
-    if (addressDetail) addressParts.push(addressDetail);
-    if (city) addressParts.push(city);
-    if (province) addressParts.push(province);
-    
-    handleInputChange("complete_address", addressParts.join(", "));
   };
 
   // Handle address detail field change (house/building, street, barangay combined)
-  const handleAddressDetailChange = (value: string) => {
-    handleInputChange("address_detail", value.toUpperCase());
-    updateCompleteAddress(selectedProvince, selectedCity, value.toUpperCase());
+  const handleAddressDetailChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const value = e.target.value.toUpperCase();
+    // Update local state immediately for responsive UI
+    setAddressDetail(value);
+    // Update formData
+    handleInputChange("address_detail", value);
   };
 
   const handleBirthplaceProvinceChange = (province: string) => {
     setSelectedBirthplaceProvince(province);
     setSelectedBirthplaceCity("");
-    handleInputChange("birthplace", "");
+    // Update birthplace array: [province, ""]
+    handleInputChange("birthplace", JSON.stringify([province, ""]));
   };
 
   const handleBirthplaceCityChange = (city: string) => {
@@ -159,7 +162,9 @@ const StudentInformation: React.FC<EnrollmentPageProps> = ({
     }
     
     setSelectedBirthplaceCity(city);
-    handleInputChange("birthplace", city);
+    // Update birthplace array: [province, city]
+    const birthplaceArray = [selectedBirthplaceProvince, city];
+    handleInputChange("birthplace", JSON.stringify(birthplaceArray));
   };
 
   const inputClasses =
@@ -730,8 +735,8 @@ const StudentInformation: React.FC<EnrollmentPageProps> = ({
               name='address_detail'
               data-field='address_detail'
               type='text'
-              value={formData.address_detail || ""}
-              onChange={(e) => handleAddressDetailChange(e.target.value)}
+              value={addressDetail}
+              onChange={handleAddressDetailChange}
               disabled={isFormDisabled}
               className={`${inputClasses} ${isFormDisabled ? disabledClasses : ""} ${fieldErrors.complete_address ? "border-red-500" : ""}`}
               style={getInputStyle("complete_address")}
