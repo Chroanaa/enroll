@@ -534,7 +534,7 @@ const EnrollmentManagement: React.FC = () => {
               options: [
                 { value: "all", label: "All Status" },
                 { value: 1, label: "Enrolled" },
-                { value: 2, label: "Completed" },
+                { value: 2, label: "Reserved" },
                 { value: 4, label: "Pending" },
                 { value: 3, label: "Dropped" },
               ],

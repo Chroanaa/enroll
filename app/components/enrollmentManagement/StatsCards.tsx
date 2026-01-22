@@ -7,7 +7,7 @@ const StatsCards = () => {
   const [localStats, setLocalStats] = React.useState<EnrollmentStats>({
     total: 0,
     enrolled: 0,
-    completed: 0,
+    reserved: 0,
     pending: 0,
     dropped: 0,
   });
@@ -15,35 +15,41 @@ const StatsCards = () => {
   React.useEffect(() => {
     const fetchStatusCounts = async () => {
       const statusCounts = await getCountOfEnrolleesStatus();
+      
+      console.log('Raw API response:', statusCounts);
 
       const newStats = {
         total: 0,
         enrolled: 0,
-        completed: 0,
+        reserved: 0,
         pending: 0,
         dropped: 0,
       };
 
       statusCounts.forEach((count: any) => {
-        const countValue = count._count?.admission_status || count._count || 0;
+        console.log('Processing count:', count);
+        // The API returns { status: number, _count: { status: number } }
+        const countValue = count._count?.status || 0;
+        console.log('Count value:', countValue, 'for status:', count.status);
 
-        switch (count.admission_status) {
-          case "enrolled":
+        switch (count.status) {
+          case 1:
             newStats.enrolled = countValue;
             break;
-          case "completed":
-            newStats.completed = countValue;
+          case 2:
+            newStats.reserved = countValue;
             break;
-          case "pending":
-            newStats.pending = countValue;
-            break;
-          case "dropped":
+          case 3:
             newStats.dropped = countValue;
+            break;
+          case 4:
+            newStats.pending = countValue;
             break;
         }
         newStats.total += countValue;
       });
 
+      console.log('Final stats:', newStats);
       setLocalStats(newStats);
     };
     fetchStatusCounts();
@@ -55,7 +61,7 @@ const StatsCards = () => {
           <div>
             <p className='text-sm text-gray-600 mb-1'>Total</p>
             <p className='text-2xl font-bold text-gray-900'>
-              {localStats.total}
+              {Number(localStats.total) || 0}
             </p>
           </div>
           <div
@@ -71,7 +77,7 @@ const StatsCards = () => {
           <div>
             <p className='text-sm text-blue-600 mb-1'>Enrolled</p>
             <p className='text-2xl font-bold text-blue-900'>
-              {localStats?.enrolled}
+              {Number(localStats.enrolled) || 0}
             </p>
           </div>
           <div className='p-3 rounded-xl bg-blue-50'>
@@ -82,9 +88,9 @@ const StatsCards = () => {
       <div className='bg-white rounded-2xl shadow-sm border border-gray-100 p-5'>
         <div className='flex items-center justify-between'>
           <div>
-            <p className='text-sm text-emerald-600 mb-1'>Completed</p>
+            <p className='text-sm text-emerald-600 mb-1'>Reserved</p>
             <p className='text-2xl font-bold text-emerald-900'>
-              {localStats.completed}
+              {Number(localStats.reserved) || 0}
             </p>
           </div>
           <div className='p-3 rounded-xl bg-emerald-50'>
@@ -97,7 +103,7 @@ const StatsCards = () => {
           <div>
             <p className='text-sm text-yellow-600 mb-1'>Pending</p>
             <p className='text-2xl font-bold text-yellow-900'>
-              {localStats.pending}
+              {Number(localStats.pending) || 0}
             </p>
           </div>
           <div className='p-3 rounded-xl bg-yellow-50'>
@@ -110,7 +116,7 @@ const StatsCards = () => {
           <div>
             <p className='text-sm text-red-600 mb-1'>Dropped</p>
             <p className='text-2xl font-bold text-red-900'>
-              {localStats.dropped}
+              {Number(localStats.dropped) || 0}
             </p>
           </div>
           <div className='p-3 rounded-xl bg-red-50'>

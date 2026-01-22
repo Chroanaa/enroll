@@ -102,7 +102,7 @@ export interface StatusColor {
 export interface EnrollmentStats {
   total: number;
   enrolled: number;
-  completed: number;
+  reserved: number;
   pending: number;
   dropped: number;
 }

@@ -79,9 +79,7 @@ const EnrollmentTable: React.FC<EnrollmentTableProps> = ({
               </tr>
             ) : (
               enrollments.map((enrollment) => {
-                const statusStyles = getStatusColor(
-                  enrollment.admission_status
-                );
+                const statusStyles = getStatusColor(enrollment.status);
                 return (
                   <tr
                     key={enrollment.id}
@@ -160,7 +158,7 @@ const EnrollmentTable: React.FC<EnrollmentTableProps> = ({
                           className='w-1.5 h-1.5 rounded-full mr-1.5'
                           style={{ backgroundColor: statusStyles.text }}
                         />
-                        {getStatusLabel(enrollment.admission_status)}
+                        {getStatusLabel(enrollment.status)}
                       </span>
                     </td>
                     <td className='px-6 py-4 whitespace-nowrap'>
