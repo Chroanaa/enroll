@@ -289,3 +289,27 @@ model enrolled_subjects {
   @@index([program_id, semester, academic_year], map: "idx_enrolled_subjects_program_semester")
   @@index([student_number], map: "idx_enrolled_subjects_student_number")
 }
+
+model shsProgram {
+  id         Int       @id @default(autoincrement())
+  name       String    @unique @db.VarChar(255)
+  is_custom  Boolean?  @default(false)
+  created_at DateTime? @default(now()) @db.Timestamp(6)
+  updated_at DateTime? @default(now()) @updatedAt @db.Timestamp(6)
+
+  @@index([name], map: "idx_shs_programs_name")
+  @@index([is_custom], map: "idx_shs_programs_is_custom")
+  @@map("shs_programs")
+}
+
+model school {
+  id         Int       @id @default(autoincrement())
+  name       String    @unique @db.VarChar(255)
+  is_custom  Boolean?  @default(false)
+  created_at DateTime? @default(now()) @db.Timestamp(6)
+  updated_at DateTime? @default(now()) @updatedAt @db.Timestamp(6)
+
+  @@index([name], map: "idx_schools_name")
+  @@index([is_custom], map: "idx_schools_is_custom")
+  @@map("schools")
+}

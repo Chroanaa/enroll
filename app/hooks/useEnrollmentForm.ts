@@ -25,6 +25,9 @@ export interface EnrollmentFormData {
   birthdate: string;
   birthplace: string;
   complete_address: string;
+  address_province: string;
+  address_city: string;
+  address_detail: string;
   contact_number: string;
   email_address: string;
 
@@ -74,8 +77,11 @@ const initialFormData: EnrollmentFormData = {
   civil_status: "",
   birthdate: "",
   birthplace: "",
-  complete_address: "",
-  contact_number: "",
+    complete_address: "",
+    address_province: "",
+    address_city: "",
+    address_detail: "",
+    contact_number: "",
   email_address: "",
 
   // Page 4: Emergency Information
@@ -481,48 +487,8 @@ export const useEnrollmentForm = () => {
   };
 
   // Validation functions for each page
+  // Page 1: Student Information
   const validatePage1 = (): {
-    isValid: boolean;
-    errors: Record<string, string>;
-  } => {
-    const errors: Record<string, string> = {};
-
-    if (!formData.admission_status) {
-      errors.admission_status = "Please select an admission status";
-    }
-    if (!formData.department || formData.department === 0) {
-      errors.department = "Please select a department";
-    }
-    if (!formData.course_program) {
-      errors.course_program = "Please select a course/program";
-    }
-    if (!formData.term) {
-      errors.term = "Please select a term";
-    }
-    if (!formData.academic_year?.trim()) {
-      errors.academic_year = "Academic year is required";
-    }
-    if (!formData.photo) {
-      errors.photo = "Please upload a student photo";
-    }
-
-    return { isValid: Object.keys(errors).length === 0, errors };
-  };
-
-  const validatePage2 = (): {
-    isValid: boolean;
-    errors: Record<string, string>;
-  } => {
-    const errors: Record<string, string> = {};
-
-    if (!formData.requirements || formData.requirements.length === 0) {
-      errors.requirements = "Please select at least one requirement";
-    }
-
-    return { isValid: Object.keys(errors).length === 0, errors };
-  };
-
-  const validatePage3 = (): {
     isValid: boolean;
     errors: Record<string, string>;
   } => {
@@ -556,12 +522,37 @@ export const useEnrollmentForm = () => {
     }
     if (!formData.birthdate) {
       errors.birthdate = "Birthdate is required";
+    } else {
+      const birthDate = new Date(formData.birthdate);
+      const today = new Date();
+      const age = today.getFullYear() - birthDate.getFullYear();
+      const monthDiff = today.getMonth() - birthDate.getMonth();
+      const dayDiff = today.getDate() - birthDate.getDate();
+      const actualAge = monthDiff < 0 || (monthDiff === 0 && dayDiff < 0) ? age - 1 : age;
+      
+      if (actualAge < 15) {
+        errors.birthdate = "Student must be at least 15 years old";
+      }
+      if (birthDate > today) {
+        errors.birthdate = "Birthdate cannot be in the future";
+      }
+      if (actualAge > 100) {
+        errors.birthdate = "Please enter a valid birthdate";
+      }
     }
     if (!formData.birthplace?.trim()) {
       errors.birthplace = "Birthplace is required";
     }
     if (!formData.complete_address?.trim()) {
       errors.complete_address = "Complete address is required";
+    }
+    
+    // Prevent duplicate: Check if birthplace city matches address city
+    if (formData.birthplace?.trim() && formData.address_city?.trim()) {
+      if (formData.birthplace.trim().toUpperCase() === formData.address_city.trim().toUpperCase()) {
+        errors.birthplace = "Birthplace city cannot be the same as address city";
+        errors.complete_address = "Address city cannot be the same as birthplace city";
+      }
     }
     if (!formData.contact_number?.trim()) {
       errors.contact_number = "Contact number is required";
@@ -580,7 +571,8 @@ export const useEnrollmentForm = () => {
     return { isValid: Object.keys(errors).length === 0, errors };
   };
 
-  const validatePage4 = (): {
+  // Page 2: Emergency Information
+  const validatePage2 = (): {
     isValid: boolean;
     errors: Record<string, string>;
   } => {
@@ -606,7 +598,8 @@ export const useEnrollmentForm = () => {
     return { isValid: Object.keys(errors).length === 0, errors };
   };
 
-  const validatePage5 = (): {
+  // Page 3: Educational Background
+  const validatePage3 = (): {
     isValid: boolean;
     errors: Record<string, string>;
   } => {
@@ -617,6 +610,55 @@ export const useEnrollmentForm = () => {
     }
     if (!formData.previous_school_year?.trim()) {
       errors.previous_school_year = "Previous school year is required";
+    }
+    if (!formData.program_shs?.trim()) {
+      errors.program_shs = "Program (SHS) is required";
+    }
+    if (!formData.remarks?.trim()) {
+      errors.remarks = "Remarks is required";
+    }
+
+    return { isValid: Object.keys(errors).length === 0, errors };
+  };
+
+  // Page 4: Admission Information
+  const validatePage4 = (): {
+    isValid: boolean;
+    errors: Record<string, string>;
+  } => {
+    const errors: Record<string, string> = {};
+
+    if (!formData.admission_status) {
+      errors.admission_status = "Please select an admission status";
+    }
+    if (!formData.department || formData.department === 0) {
+      errors.department = "Please select a department";
+    }
+    if (!formData.course_program) {
+      errors.course_program = "Please select a course/program";
+    }
+    if (!formData.term) {
+      errors.term = "Please select a term";
+    }
+    if (!formData.academic_year?.trim()) {
+      errors.academic_year = "Academic year is required";
+    }
+    if (!formData.photo) {
+      errors.photo = "Please upload a student photo";
+    }
+
+    return { isValid: Object.keys(errors).length === 0, errors };
+  };
+
+  // Page 5: Admission Requirements
+  const validatePage5 = (): {
+    isValid: boolean;
+    errors: Record<string, string>;
+  } => {
+    const errors: Record<string, string> = {};
+
+    if (!formData.requirements || formData.requirements.length === 0) {
+      errors.requirements = "Please select at least one requirement";
     }
 
     return { isValid: Object.keys(errors).length === 0, errors };
@@ -644,8 +686,8 @@ export const useEnrollmentForm = () => {
 
   const nextPage = async () => {
     if (currentPage < TOTAL_PAGES) {
-      // For page 3, force a synchronous duplicate check before proceeding
-      if (currentPage === 3 && formData.first_name && formData.family_name) {
+      // For page 1 (Student Information), force a synchronous duplicate check before proceeding
+      if (currentPage === 1 && formData.first_name && formData.family_name) {
         // Cancel any pending debounced check
         if (duplicateCheckTimeoutRef.current) {
           clearTimeout(duplicateCheckTimeoutRef.current);

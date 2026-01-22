@@ -1,13 +1,42 @@
-import React from "react";
-import { School } from "lucide-react";
+import React, { useState, useMemo } from "react";
+import { School, X } from "lucide-react";
 import { colors } from "../../colors";
 import { EnrollmentPageProps } from "./types";
+import Axios from "axios";
 
 const EducationalBackground: React.FC<EnrollmentPageProps> = ({
   formData,
   handleInputChange,
   fieldErrors = {},
 }) => {
+  const [shsPrograms, setShsPrograms] = useState<string[]>([]);
+  const [schools, setSchools] = useState<string[]>([]);
+  const [showProgramModal, setShowProgramModal] = useState(false);
+  const [showSchoolModal, setShowSchoolModal] = useState(false);
+  const [customProgram, setCustomProgram] = useState("");
+  const [customSchool, setCustomSchool] = useState("");
+
+  // Load SHS programs and schools from database
+  React.useEffect(() => {
+    const loadData = async () => {
+      try {
+        const [programsRes, schoolsRes] = await Promise.all([
+          Axios.get("/api/auth/enroll/shs-programs"),
+          Axios.get("/api/auth/enroll/schools"),
+        ]);
+        if (programsRes.data?.data) {
+          setShsPrograms(programsRes.data.data.map((p: any) => p.name));
+        }
+        if (schoolsRes.data?.data) {
+          setSchools(schoolsRes.data.data.map((s: any) => s.name));
+        }
+      } catch (error) {
+        console.error("Error loading programs/schools:", error);
+      }
+    };
+    loadData();
+  }, []);
+
   const inputClasses =
     "w-full px-4 py-3 rounded-xl border bg-white/50 transition-all duration-300 focus:ring-2 focus:ring-offset-0 outline-none";
   
@@ -16,15 +45,81 @@ const EducationalBackground: React.FC<EnrollmentPageProps> = ({
     color: colors.primary,
   });
   
-  const handleFocus = (e: React.FocusEvent<HTMLInputElement | HTMLTextAreaElement>, fieldName: string) => {
+  const handleFocus = (e: React.FocusEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>, fieldName: string) => {
     e.currentTarget.style.borderColor = fieldErrors[fieldName] ? "#ef4444" : colors.secondary;
     e.currentTarget.style.boxShadow = `0 0 0 4px ${fieldErrors[fieldName] ? "#ef444410" : colors.secondary + "10"}`;
   };
   
-  const handleBlur = (e: React.FocusEvent<HTMLInputElement | HTMLTextAreaElement>, fieldName: string) => {
+  const handleBlur = (e: React.FocusEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>, fieldName: string) => {
     e.currentTarget.style.borderColor = fieldErrors[fieldName] ? "#ef4444" : colors.tertiary + "30";
     e.currentTarget.style.boxShadow = "none";
   };
+
+  const handleProgramChange = (value: string) => {
+    if (value === "OTHER") {
+      setShowProgramModal(true);
+    } else {
+      handleInputChange("program_shs", value);
+    }
+  };
+
+  const handleSchoolChange = (value: string) => {
+    if (value === "OTHER") {
+      setShowSchoolModal(true);
+    } else {
+      handleInputChange("last_school_attended", value);
+    }
+  };
+
+  const saveCustomProgram = async () => {
+    if (!customProgram.trim()) return;
+    try {
+      await Axios.post("/api/auth/enroll/shs-programs", { name: customProgram.toUpperCase() });
+      setShsPrograms([...shsPrograms, customProgram.toUpperCase()]);
+      handleInputChange("program_shs", customProgram.toUpperCase());
+      setCustomProgram("");
+      setShowProgramModal(false);
+    } catch (error) {
+      console.error("Error saving custom program:", error);
+      alert("Failed to save custom program. Please try again.");
+    }
+  };
+
+  const saveCustomSchool = async () => {
+    if (!customSchool.trim()) return;
+    try {
+      await Axios.post("/api/auth/enroll/schools", { name: customSchool.toUpperCase() });
+      setSchools([...schools, customSchool.toUpperCase()]);
+      handleInputChange("last_school_attended", customSchool.toUpperCase());
+      setCustomSchool("");
+      setShowSchoolModal(false);
+    } catch (error) {
+      console.error("Error saving custom school:", error);
+      alert("Failed to save custom school. Please try again.");
+    }
+  };
+
+  const defaultShsPrograms = [
+    "STEM – Science, Technology, Engineering, and Mathematics",
+    "ABM – Accountancy, Business, and Management",
+    "HUMSS – Humanities and Social Sciences",
+    "GAS – General Academic Strand",
+    "TVL – ICT (Information and Communications Technology)",
+    "TVL – HE (Home Economics)",
+    "TVL – IA (Industrial Arts)",
+    "TVL – AFA (Agri-Fishery Arts)",
+  ];
+
+  const shsProgramOptions = useMemo(() => {
+    const customPrograms = shsPrograms.filter(p => !defaultShsPrograms.includes(p));
+    return [...defaultShsPrograms, ...customPrograms, "OTHER"];
+  }, [shsPrograms]);
+
+  const remarksOptions = [
+    "GRADUATED WITH HIGHEST HONORS",
+    "GRADUATED WITH HIGH HONORS",
+    "GRADUATED WITH HONORS",
+  ];
 
   return (
     <div className='space-y-6 animate-in slide-in-from-bottom-4 duration-500 delay-200'>
@@ -63,20 +158,31 @@ const EducationalBackground: React.FC<EnrollmentPageProps> = ({
             >
               Last School Attended
             </label>
-            <input
-              name="last_school_attended"
-              data-field="last_school_attended"
-              type='text'
-              value={formData.last_school_attended}
-              onChange={(e) =>
-                handleInputChange("last_school_attended", e.target.value)
-              }
-              className={`${inputClasses} ${fieldErrors.last_school_attended ? "border-red-500" : ""}`}
-              style={getInputStyle("last_school_attended")}
-              onFocus={(e) => handleFocus(e, "last_school_attended")}
-              onBlur={(e) => handleBlur(e, "last_school_attended")}
-              placeholder="Name of School"
-            />
+            <div className="relative">
+              <select
+                name="last_school_attended"
+                data-field="last_school_attended"
+                value={formData.last_school_attended}
+                onChange={(e) => handleSchoolChange(e.target.value)}
+                className={`${inputClasses} appearance-none cursor-pointer ${fieldErrors.last_school_attended ? "border-red-500" : ""}`}
+                style={getInputStyle("last_school_attended")}
+                onFocus={(e) => handleFocus(e, "last_school_attended")}
+                onBlur={(e) => handleBlur(e, "last_school_attended")}
+              >
+                <option value=''>Select School</option>
+                {schools.map((school) => (
+                  <option key={school} value={school}>
+                    {school}
+                  </option>
+                ))}
+                <option value="OTHER">OTHER</option>
+              </select>
+              <div className="absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none opacity-50">
+                <svg width="12" height="12" viewBox="0 0 12 12" fill="none" xmlns="http://www.w3.org/2000/svg">
+                  <path d="M2.5 4.5L6 8L9.5 4.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+                </svg>
+              </div>
+            </div>
             {fieldErrors.last_school_attended && (
               <p className="text-red-500 text-xs mt-1 ml-1">{fieldErrors.last_school_attended}</p>
             )}
@@ -129,25 +235,33 @@ const EducationalBackground: React.FC<EnrollmentPageProps> = ({
             >
               Program (SHS)
             </label>
-            <input
-              type='text'
-              value={formData.program_shs}
-              onChange={(e) => handleInputChange("program_shs", e.target.value)}
-              className={inputClasses}
-              style={{
-                borderColor: colors.tertiary + "30",
-                color: colors.primary,
-              }}
-              onFocus={(e) => {
-                e.currentTarget.style.borderColor = colors.secondary;
-                e.currentTarget.style.boxShadow = `0 0 0 4px ${colors.secondary}10`;
-              }}
-              onBlur={(e) => {
-                e.currentTarget.style.borderColor = colors.tertiary + "30";
-                e.currentTarget.style.boxShadow = "none";
-              }}
-              placeholder="e.g. STEM, ABM"
-            />
+            <div className="relative">
+              <select
+                name="program_shs"
+                data-field="program_shs"
+                value={formData.program_shs}
+                onChange={(e) => handleProgramChange(e.target.value)}
+                className={`${inputClasses} appearance-none cursor-pointer ${fieldErrors.program_shs ? "border-red-500" : ""}`}
+                style={getInputStyle("program_shs")}
+                onFocus={(e) => handleFocus(e, "program_shs")}
+                onBlur={(e) => handleBlur(e, "program_shs")}
+              >
+                <option value=''>Select Program</option>
+                {shsProgramOptions.map((program) => (
+                  <option key={program} value={program}>
+                    {program}
+                  </option>
+                ))}
+              </select>
+              <div className="absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none opacity-50">
+                <svg width="12" height="12" viewBox="0 0 12 12" fill="none" xmlns="http://www.w3.org/2000/svg">
+                  <path d="M2.5 4.5L6 8L9.5 4.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+                </svg>
+              </div>
+            </div>
+            {fieldErrors.program_shs && (
+              <p className="text-red-500 text-xs mt-1 ml-1">{fieldErrors.program_shs}</p>
+            )}
           </div>
         </div>
 
@@ -158,26 +272,144 @@ const EducationalBackground: React.FC<EnrollmentPageProps> = ({
           >
             Remarks
           </label>
-          <textarea
-            value={formData.remarks}
-            onChange={(e) => handleInputChange("remarks", e.target.value)}
-            rows={4}
-            className={`${inputClasses} resize-none`}
-            style={{
-              borderColor: colors.tertiary + "30",
-              color: colors.primary,
-            }}
-            onFocus={(e) => {
-              e.currentTarget.style.borderColor = colors.secondary;
-              e.currentTarget.style.boxShadow = `0 0 0 4px ${colors.secondary}10`;
-            }}
-            onBlur={(e) => {
-              e.currentTarget.style.borderColor = colors.tertiary + "30";
-              e.currentTarget.style.boxShadow = "none";
-            }}
-            placeholder="Additional notes or comments..."
-          />
+          <div className="relative">
+            <select
+              name="remarks"
+              data-field="remarks"
+              value={formData.remarks}
+              onChange={(e) => handleInputChange("remarks", e.target.value)}
+              className={`${inputClasses} appearance-none cursor-pointer ${fieldErrors.remarks ? "border-red-500" : ""}`}
+              style={getInputStyle("remarks")}
+              onFocus={(e) => handleFocus(e, "remarks")}
+              onBlur={(e) => handleBlur(e, "remarks")}
+            >
+              <option value=''>Select Remarks</option>
+              {remarksOptions.map((remark) => (
+                <option key={remark} value={remark}>
+                  {remark}
+                </option>
+              ))}
+            </select>
+            <div className="absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none opacity-50">
+              <svg width="12" height="12" viewBox="0 0 12 12" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <path d="M2.5 4.5L6 8L9.5 4.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+              </svg>
+            </div>
+          </div>
+          {fieldErrors.remarks && (
+            <p className="text-red-500 text-xs mt-1 ml-1">{fieldErrors.remarks}</p>
+          )}
         </div>
+
+        {/* Custom Program Modal */}
+        {showProgramModal && (
+          <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+            <div className="bg-white rounded-2xl p-6 max-w-md w-full mx-4 shadow-2xl">
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-xl font-bold" style={{ color: colors.primary }}>Add Custom Program</h3>
+                <button
+                  onClick={() => {
+                    setShowProgramModal(false);
+                    setCustomProgram("");
+                  }}
+                  className="p-1 hover:bg-gray-100 rounded-full transition-colors"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-sm font-semibold mb-2" style={{ color: colors.primary }}>
+                    Program Name
+                  </label>
+                  <input
+                    type="text"
+                    value={customProgram}
+                    onChange={(e) => setCustomProgram(e.target.value.toUpperCase())}
+                    className={inputClasses}
+                    style={getInputStyle("program_shs")}
+                    placeholder="Enter program name"
+                    autoFocus
+                  />
+                </div>
+                <div className="flex gap-3 justify-end">
+                  <button
+                    onClick={() => {
+                      setShowProgramModal(false);
+                      setCustomProgram("");
+                    }}
+                    className="px-4 py-2 rounded-xl border transition-colors"
+                    style={{ borderColor: colors.tertiary + "30" }}
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    onClick={saveCustomProgram}
+                    className="px-4 py-2 rounded-xl text-white transition-colors"
+                    style={{ backgroundColor: colors.secondary }}
+                  >
+                    Save
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Custom School Modal */}
+        {showSchoolModal && (
+          <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+            <div className="bg-white rounded-2xl p-6 max-w-md w-full mx-4 shadow-2xl">
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-xl font-bold" style={{ color: colors.primary }}>Add Custom School</h3>
+                <button
+                  onClick={() => {
+                    setShowSchoolModal(false);
+                    setCustomSchool("");
+                  }}
+                  className="p-1 hover:bg-gray-100 rounded-full transition-colors"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-sm font-semibold mb-2" style={{ color: colors.primary }}>
+                    School Name
+                  </label>
+                  <input
+                    type="text"
+                    value={customSchool}
+                    onChange={(e) => setCustomSchool(e.target.value.toUpperCase())}
+                    className={inputClasses}
+                    style={getInputStyle("last_school_attended")}
+                    placeholder="Enter school name"
+                    autoFocus
+                  />
+                </div>
+                <div className="flex gap-3 justify-end">
+                  <button
+                    onClick={() => {
+                      setShowSchoolModal(false);
+                      setCustomSchool("");
+                    }}
+                    className="px-4 py-2 rounded-xl border transition-colors"
+                    style={{ borderColor: colors.tertiary + "30" }}
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    onClick={saveCustomSchool}
+                    className="px-4 py-2 rounded-xl text-white transition-colors"
+                    style={{ backgroundColor: colors.secondary }}
+                  >
+                    Save
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );

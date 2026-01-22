@@ -83,27 +83,63 @@ export async function POST(request: NextRequest) {
       photoPath = `/uploads/enrollments/${fileName}`;
     }
 
-    // Check for duplicate enrollment based on first name, family name, and birthdate
-    if (first_name && family_name) {
+    // Validate date of birth
+    if (birthdate) {
+      const birthDate = new Date(birthdate);
+      const today = new Date();
+      const age = today.getFullYear() - birthDate.getFullYear();
+      const monthDiff = today.getMonth() - birthDate.getMonth();
+      const dayDiff = today.getDate() - birthDate.getDate();
+      const actualAge = monthDiff < 0 || (monthDiff === 0 && dayDiff < 0) ? age - 1 : age;
+
+      if (actualAge < 15) {
+        return NextResponse.json(
+          {
+            error: "Invalid birthdate",
+            message: "Student must be at least 15 years old",
+          },
+          { status: 400 },
+        );
+      }
+      if (birthDate > today) {
+        return NextResponse.json(
+          {
+            error: "Invalid birthdate",
+            message: "Birthdate cannot be in the future",
+          },
+          { status: 400 },
+        );
+      }
+      if (actualAge > 100) {
+        return NextResponse.json(
+          {
+            error: "Invalid birthdate",
+            message: "Please enter a valid birthdate",
+          },
+          { status: 400 },
+        );
+      }
+    }
+
+    // Check for duplicate enrollment based on first name, family name, middle name, and birthdate
+    if (first_name && family_name && birthdate) {
       const existingEnrollment = await prisma.enrollment.findFirst({
         where: {
           first_name: {
-            equals: first_name,
+            equals: first_name.trim().toUpperCase(),
             mode: "insensitive",
           },
           family_name: {
-            equals: family_name,
+            equals: family_name.trim().toUpperCase(),
             mode: "insensitive",
           },
-          ...(middle_name && {
+          ...(middle_name && middle_name.trim() && {
             middle_name: {
-              equals: middle_name,
+              equals: middle_name.trim().toUpperCase(),
               mode: "insensitive",
             },
           }),
-          ...(birthdate && {
-            birthdate: new Date(birthdate),
-          }),
+          birthdate: new Date(birthdate),
         },
       });
 
@@ -111,7 +147,7 @@ export async function POST(request: NextRequest) {
         return NextResponse.json(
           {
             error: "Duplicate enrollment detected",
-            message: `A student with the name "${first_name} ${middle_name ? middle_name + " " : ""}${family_name}" already exists in the system.`,
+            message: `A student with the name "${first_name} ${middle_name ? middle_name + " " : ""}${family_name}" and birthdate already exists in the system.`,
           },
           { status: 409 },
         );
@@ -128,24 +164,24 @@ export async function POST(request: NextRequest) {
         course_program: course_program || null,
         photo: photoPath,
         requirements: requirements || [],
-        family_name: family_name || null,
-        first_name: first_name || null,
-        middle_name: middle_name || null,
+        family_name: family_name ? family_name.trim().toUpperCase() : null,
+        first_name: first_name ? first_name.trim().toUpperCase() : null,
+        middle_name: middle_name ? middle_name.trim().toUpperCase() : null,
         sex: sex || null,
         civil_status: civil_status || null,
         birthdate: birthdate ? new Date(birthdate) : null,
-        birthplace: birthplace || null,
-        complete_address: complete_address || null,
+        birthplace: birthplace ? birthplace.trim().toUpperCase() : null,
+        complete_address: complete_address ? complete_address.trim().toUpperCase() : null,
         contact_number: contact_number || null,
         email_address: email_address || null,
         emergency_contact_name: emergency_contact_name || null,
         emergency_relationship: emergency_relationship || null,
         emergency_contact_number: emergency_contact_number || null,
-        last_school_attended: last_school_attended || null,
+        last_school_attended: last_school_attended ? last_school_attended.trim().toUpperCase() : null,
         previous_school_year: previous_school_year || null,
         academic_year: academic_year || null,
-        program_shs: program_shs || null,
-        remarks: remarks || null,
+        program_shs: program_shs ? program_shs.trim().toUpperCase() : null,
+        remarks: remarks ? remarks.trim().toUpperCase() : null,
         status: 4,
       },
     });

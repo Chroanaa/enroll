@@ -1,7 +1,11 @@
-import React from "react";
+import React, { useState, useEffect } from "react";
 import { User, Phone, Mail } from "lucide-react";
 import { colors } from "../../colors";
 import { EnrollmentPageProps } from "./types";
+import {
+  getProvinces,
+  getCitiesAndMunicipalitiesByProvince,
+} from "../../utils/philippineAddress";
 
 const StudentInformation: React.FC<EnrollmentPageProps> = ({
   formData,
@@ -12,6 +16,151 @@ const StudentInformation: React.FC<EnrollmentPageProps> = ({
 }) => {
   // Disable all non-name fields when duplicate is detected or still checking
   const isFormDisabled = !!duplicateError || !!isCheckingDuplicate;
+
+  // Address state management
+  const [selectedProvince, setSelectedProvince] = useState(formData.address_province || "");
+  const [selectedCity, setSelectedCity] = useState(formData.address_city || "");
+  
+  // Birthplace state management
+  const [selectedBirthplaceProvince, setSelectedBirthplaceProvince] = useState("");
+  const [selectedBirthplaceCity, setSelectedBirthplaceCity] = useState(formData.birthplace || "");
+  
+  // Address data from PSGC API
+  const [provinces, setProvinces] = useState<string[]>([]);
+  const [cities, setCities] = useState<Array<{ name: string; type: string; code: string }>>([]);
+  const [loadingProvinces, setLoadingProvinces] = useState(false);
+  const [loadingCities, setLoadingCities] = useState(false);
+  
+  // Birthplace data from PSGC API
+  const [birthplaceProvinces, setBirthplaceProvinces] = useState<string[]>([]);
+  const [birthplaceCities, setBirthplaceCities] = useState<Array<{ name: string; type: string; code: string }>>([]);
+  const [loadingBirthplaceProvinces, setLoadingBirthplaceProvinces] = useState(false);
+  const [loadingBirthplaceCities, setLoadingBirthplaceCities] = useState(false);
+
+  // Load provinces on mount
+  useEffect(() => {
+    const loadProvinces = async () => {
+      setLoadingProvinces(true);
+      try {
+        const data = await getProvinces();
+        setProvinces(data);
+      } catch (error) {
+        console.error("Error loading provinces:", error);
+      } finally {
+        setLoadingProvinces(false);
+      }
+    };
+    loadProvinces();
+  }, []);
+
+  // Load cities/municipalities when province changes
+  useEffect(() => {
+    const loadCities = async () => {
+      if (!selectedProvince) {
+        setCities([]);
+        return;
+      }
+      setLoadingCities(true);
+      try {
+        const data = await getCitiesAndMunicipalitiesByProvince(selectedProvince);
+        setCities(data);
+      } catch (error) {
+        console.error("Error loading cities:", error);
+      } finally {
+        setLoadingCities(false);
+      }
+    };
+    loadCities();
+  }, [selectedProvince]);
+
+  // Load birthplace provinces on mount
+  useEffect(() => {
+    const loadBirthplaceProvinces = async () => {
+      setLoadingBirthplaceProvinces(true);
+      try {
+        const data = await getProvinces();
+        setBirthplaceProvinces(data);
+      } catch (error) {
+        console.error("Error loading birthplace provinces:", error);
+      } finally {
+        setLoadingBirthplaceProvinces(false);
+      }
+    };
+    loadBirthplaceProvinces();
+  }, []);
+
+  // Load birthplace cities/municipalities when province changes
+  useEffect(() => {
+    const loadBirthplaceCities = async () => {
+      if (!selectedBirthplaceProvince) {
+        setBirthplaceCities([]);
+        return;
+      }
+      setLoadingBirthplaceCities(true);
+      try {
+        const data = await getCitiesAndMunicipalitiesByProvince(selectedBirthplaceProvince);
+        setBirthplaceCities(data);
+      } catch (error) {
+        console.error("Error loading birthplace cities:", error);
+      } finally {
+        setLoadingBirthplaceCities(false);
+      }
+    };
+    loadBirthplaceCities();
+  }, [selectedBirthplaceProvince]);
+
+
+  const handleProvinceChange = (province: string) => {
+    setSelectedProvince(province);
+    setSelectedCity("");
+    handleInputChange("address_province", province);
+    handleInputChange("address_city", "");
+    updateCompleteAddress(province, "", formData.address_detail || "");
+  };
+
+  const handleCityChange = (city: string) => {
+    setSelectedCity(city);
+    handleInputChange("address_city", city);
+    updateCompleteAddress(selectedProvince, city, formData.address_detail || "");
+  };
+
+  // Helper function to construct complete address
+  const updateCompleteAddress = (
+    province: string,
+    city: string,
+    addressDetail: string
+  ) => {
+    const addressParts: string[] = [];
+    
+    if (addressDetail) addressParts.push(addressDetail);
+    if (city) addressParts.push(city);
+    if (province) addressParts.push(province);
+    
+    handleInputChange("complete_address", addressParts.join(", "));
+  };
+
+  // Handle address detail field change (house/building, street, barangay combined)
+  const handleAddressDetailChange = (value: string) => {
+    handleInputChange("address_detail", value.toUpperCase());
+    updateCompleteAddress(selectedProvince, selectedCity, value.toUpperCase());
+  };
+
+  const handleBirthplaceProvinceChange = (province: string) => {
+    setSelectedBirthplaceProvince(province);
+    setSelectedBirthplaceCity("");
+    handleInputChange("birthplace", "");
+  };
+
+  const handleBirthplaceCityChange = (city: string) => {
+    // Prevent duplicate: check if birthplace matches address
+    if (city && selectedCity && city === selectedCity) {
+      // Show error but allow selection (validation will catch it)
+      console.warn("Birthplace city matches address city");
+    }
+    
+    setSelectedBirthplaceCity(city);
+    handleInputChange("birthplace", city);
+  };
 
   const inputClasses =
     "w-full px-4 py-3 rounded-xl border bg-white/50 transition-all duration-300 focus:ring-2 focus:ring-offset-0 outline-none";
@@ -181,12 +330,12 @@ const StudentInformation: React.FC<EnrollmentPageProps> = ({
               data-field='family_name'
               type='text'
               value={formData.family_name}
-              onChange={(e) => handleInputChange("family_name", e.target.value)}
+              onChange={(e) => handleInputChange("family_name", e.target.value.toUpperCase())}
               className={`${inputClasses} ${fieldErrors.family_name ? "border-red-500" : ""}`}
               style={getInputStyle("family_name")}
               onFocus={(e) => handleFocus(e, "family_name")}
               onBlur={(e) => handleBlur(e, "family_name")}
-              placeholder='e.g. Dela Cruz'
+              placeholder='e.g. DELA CRUZ'
             />
             {fieldErrors.family_name && (
               <p className='text-red-500 text-xs mt-1 ml-1'>
@@ -206,12 +355,12 @@ const StudentInformation: React.FC<EnrollmentPageProps> = ({
               data-field='first_name'
               type='text'
               value={formData.first_name}
-              onChange={(e) => handleInputChange("first_name", e.target.value)}
+              onChange={(e) => handleInputChange("first_name", e.target.value.toUpperCase())}
               className={`${inputClasses} ${fieldErrors.first_name ? "border-red-500" : ""}`}
               style={getInputStyle("first_name")}
               onFocus={(e) => handleFocus(e, "first_name")}
               onBlur={(e) => handleBlur(e, "first_name")}
-              placeholder='e.g. Juan'
+              placeholder='e.g. JUAN'
             />
             {fieldErrors.first_name && (
               <p className='text-red-500 text-xs mt-1 ml-1'>
@@ -229,7 +378,7 @@ const StudentInformation: React.FC<EnrollmentPageProps> = ({
             <input
               type='text'
               value={formData.middle_name}
-              onChange={(e) => handleInputChange("middle_name", e.target.value)}
+              onChange={(e) => handleInputChange("middle_name", e.target.value.toUpperCase())}
               disabled={isFormDisabled}
               className={`${inputClasses} ${isFormDisabled ? disabledClasses : ""}`}
               style={{
@@ -246,7 +395,7 @@ const StudentInformation: React.FC<EnrollmentPageProps> = ({
                 e.currentTarget.style.borderColor = colors.tertiary + "30";
                 e.currentTarget.style.boxShadow = "none";
               }}
-              placeholder='Optional'
+              placeholder='OPTIONAL'
             />
           </div>
         </div>
@@ -366,6 +515,16 @@ const StudentInformation: React.FC<EnrollmentPageProps> = ({
               value={formData.birthdate}
               onChange={(e) => handleInputChange("birthdate", e.target.value)}
               disabled={isFormDisabled}
+              max={(() => {
+                const today = new Date();
+                const maxDate = new Date(today.getFullYear() - 15, today.getMonth(), today.getDate());
+                return maxDate.toISOString().split('T')[0];
+              })()}
+              min={(() => {
+                const today = new Date();
+                const minDate = new Date(today.getFullYear() - 100, 0, 1);
+                return minDate.toISOString().split('T')[0];
+              })()}
               className={`${inputClasses} ${isFormDisabled ? disabledClasses : ""} ${fieldErrors.birthdate ? "border-red-500" : ""}`}
               style={getInputStyle("birthdate")}
               onFocus={(e) => !isFormDisabled && handleFocus(e, "birthdate")}
@@ -379,26 +538,96 @@ const StudentInformation: React.FC<EnrollmentPageProps> = ({
           </div>
         </div>
 
-        <div className='mb-6 group'>
+        <div className='mb-6 space-y-4'>
           <label
             className='block text-sm font-semibold mb-2 ml-1'
             style={{ color: colors.primary }}
           >
             Birthplace
           </label>
-          <input
-            name='birthplace'
-            data-field='birthplace'
-            type='text'
-            value={formData.birthplace}
-            onChange={(e) => handleInputChange("birthplace", e.target.value)}
-            disabled={isFormDisabled}
-            className={`${inputClasses} ${isFormDisabled ? disabledClasses : ""} ${fieldErrors.birthplace ? "border-red-500" : ""}`}
-            style={getInputStyle("birthplace")}
-            onFocus={(e) => !isFormDisabled && handleFocus(e, "birthplace")}
-            onBlur={(e) => handleBlur(e, "birthplace")}
-            placeholder='City/Municipality, Province'
-          />
+          
+          {/* Birthplace Province Dropdown */}
+          <div className='group'>
+            <label className='block text-xs font-medium mb-1 ml-1' style={{ color: colors.tertiary }}>
+              Province
+            </label>
+            <div className='relative'>
+              <select
+                name='birthplace_province'
+                value={selectedBirthplaceProvince}
+                onChange={(e) => handleBirthplaceProvinceChange(e.target.value)}
+                disabled={isFormDisabled || loadingBirthplaceProvinces}
+                className={`${inputClasses} appearance-none ${isFormDisabled || loadingBirthplaceProvinces ? disabledClasses : "cursor-pointer"} ${fieldErrors.birthplace ? "border-red-500" : ""}`}
+                style={getInputStyle("birthplace")}
+                onFocus={(e) => !isFormDisabled && handleFocus(e, "birthplace")}
+                onBlur={(e) => handleBlur(e, "birthplace")}
+              >
+                <option value=''>{loadingBirthplaceProvinces ? "Loading provinces..." : "Select Province"}</option>
+                {birthplaceProvinces.map((province) => (
+                  <option key={province} value={province}>
+                    {province}
+                  </option>
+                ))}
+              </select>
+              <div className='absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none opacity-50'>
+                <svg width='12' height='12' viewBox='0 0 12 12' fill='none' xmlns='http://www.w3.org/2000/svg'>
+                  <path d='M2.5 4.5L6 8L9.5 4.5' stroke='currentColor' strokeWidth='1.5' strokeLinecap='round' strokeLinejoin='round' />
+                </svg>
+              </div>
+            </div>
+          </div>
+
+          {/* Birthplace City/Municipality Dropdown */}
+          <div className='group'>
+            <label className='block text-xs font-medium mb-1 ml-1' style={{ color: colors.tertiary }}>
+              City/Municipality
+            </label>
+            <div className='relative'>
+              <select
+                name='birthplace'
+                data-field='birthplace'
+                value={selectedBirthplaceCity}
+                onChange={(e) => handleBirthplaceCityChange(e.target.value)}
+                disabled={isFormDisabled || !selectedBirthplaceProvince || loadingBirthplaceCities}
+                className={`${inputClasses} appearance-none ${isFormDisabled || !selectedBirthplaceProvince || loadingBirthplaceCities ? disabledClasses : "cursor-pointer"} ${fieldErrors.birthplace ? "border-red-500" : ""}`}
+                style={getInputStyle("birthplace")}
+                onFocus={(e) => !isFormDisabled && handleFocus(e, "birthplace")}
+                onBlur={(e) => handleBlur(e, "birthplace")}
+              >
+                <option value=''>
+                  {loadingBirthplaceCities
+                    ? "Loading cities/municipalities..."
+                    : selectedBirthplaceProvince
+                    ? "Select City/Municipality"
+                    : "Select Province first"}
+                </option>
+                {birthplaceCities
+                  .filter((item) => {
+                    // Prevent duplicate: filter out the city if it matches the address city
+                    if (selectedCity && item.name === selectedCity) {
+                      return false;
+                    }
+                    return true;
+                  })
+                  .map((item) => (
+                    <option key={item.code} value={item.name}>
+                      {item.name} ({item.type})
+                    </option>
+                  ))}
+              </select>
+              <div className='absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none opacity-50'>
+                <svg width='12' height='12' viewBox='0 0 12 12' fill='none' xmlns='http://www.w3.org/2000/svg'>
+                  <path d='M2.5 4.5L6 8L9.5 4.5' stroke='currentColor' strokeWidth='1.5' strokeLinecap='round' strokeLinejoin='round' />
+                </svg>
+              </div>
+            </div>
+            {selectedBirthplaceCity && selectedCity && selectedBirthplaceCity === selectedCity && (
+              <p className='text-amber-600 text-xs mt-1 ml-1'>
+                ⚠️ Birthplace city matches address city. Please select a different location.
+              </p>
+            )}
+          </div>
+          
           {fieldErrors.birthplace && (
             <p className='text-red-500 text-xs mt-1 ml-1'>
               {fieldErrors.birthplace}
@@ -406,30 +635,118 @@ const StudentInformation: React.FC<EnrollmentPageProps> = ({
           )}
         </div>
 
-        <div className='mb-6 group'>
+        <div className='mb-6 space-y-4'>
           <label
             className='block text-sm font-semibold mb-2 ml-1'
             style={{ color: colors.primary }}
           >
             Complete Address
           </label>
-          <textarea
-            name='complete_address'
-            data-field='complete_address'
-            value={formData.complete_address}
-            onChange={(e) =>
-              handleInputChange("complete_address", e.target.value)
-            }
-            disabled={isFormDisabled}
-            rows={3}
-            className={`${inputClasses} resize-none ${isFormDisabled ? disabledClasses : ""} ${fieldErrors.complete_address ? "border-red-500" : ""}`}
-            style={getInputStyle("complete_address")}
-            onFocus={(e) =>
-              !isFormDisabled && handleFocus(e, "complete_address")
-            }
-            onBlur={(e) => handleBlur(e, "complete_address")}
-            placeholder='House No., Street, Barangay, City/Municipality, Province'
-          />
+          
+          {/* Province Dropdown */}
+          <div className='group'>
+            <label className='block text-xs font-medium mb-1 ml-1' style={{ color: colors.tertiary }}>
+              Province
+            </label>
+            <div className='relative'>
+              <select
+                name='address_province'
+                data-field='address_province'
+                value={selectedProvince}
+                onChange={(e) => handleProvinceChange(e.target.value)}
+                disabled={isFormDisabled || loadingProvinces}
+                className={`${inputClasses} appearance-none ${isFormDisabled || loadingProvinces ? disabledClasses : "cursor-pointer"} ${fieldErrors.complete_address ? "border-red-500" : ""}`}
+                style={getInputStyle("complete_address")}
+                onFocus={(e) => !isFormDisabled && handleFocus(e, "complete_address")}
+                onBlur={(e) => handleBlur(e, "complete_address")}
+              >
+                <option value=''>{loadingProvinces ? "Loading provinces..." : "Select Province"}</option>
+                {provinces.map((province) => (
+                  <option key={province} value={province}>
+                    {province}
+                  </option>
+                ))}
+              </select>
+              <div className='absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none opacity-50'>
+                <svg width='12' height='12' viewBox='0 0 12 12' fill='none' xmlns='http://www.w3.org/2000/svg'>
+                  <path d='M2.5 4.5L6 8L9.5 4.5' stroke='currentColor' strokeWidth='1.5' strokeLinecap='round' strokeLinejoin='round' />
+                </svg>
+              </div>
+            </div>
+          </div>
+
+          {/* City/Municipality Dropdown */}
+          <div className='group'>
+            <label className='block text-xs font-medium mb-1 ml-1' style={{ color: colors.tertiary }}>
+              City/Municipality
+            </label>
+            <div className='relative'>
+              <select
+                name='address_city'
+                data-field='address_city'
+                value={selectedCity}
+                onChange={(e) => handleCityChange(e.target.value)}
+                disabled={isFormDisabled || !selectedProvince || loadingCities}
+                className={`${inputClasses} appearance-none ${isFormDisabled || !selectedProvince || loadingCities ? disabledClasses : "cursor-pointer"} ${fieldErrors.complete_address ? "border-red-500" : ""}`}
+                style={getInputStyle("complete_address")}
+                onFocus={(e) => !isFormDisabled && handleFocus(e, "complete_address")}
+                onBlur={(e) => handleBlur(e, "complete_address")}
+              >
+                <option value=''>
+                  {loadingCities
+                    ? "Loading cities/municipalities..."
+                    : selectedProvince
+                    ? "Select City/Municipality"
+                    : "Select Province first"}
+                </option>
+                {cities
+                  .filter((item) => {
+                    // Prevent duplicate: filter out the city if it matches the birthplace city
+                    if (selectedBirthplaceCity && item.name === selectedBirthplaceCity) {
+                      return false;
+                    }
+                    return true;
+                  })
+                  .map((item) => (
+                    <option key={item.code} value={item.name}>
+                      {item.name} ({item.type})
+                    </option>
+                  ))}
+              </select>
+              <div className='absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none opacity-50'>
+                <svg width='12' height='12' viewBox='0 0 12 12' fill='none' xmlns='http://www.w3.org/2000/svg'>
+                  <path d='M2.5 4.5L6 8L9.5 4.5' stroke='currentColor' strokeWidth='1.5' strokeLinecap='round' strokeLinejoin='round' />
+                </svg>
+              </div>
+            </div>
+          </div>
+
+          {/* Address Detail (House/Building Number, Street, Barangay) */}
+          <div className='group'>
+            <label className='block text-xs font-medium mb-1 ml-1' style={{ color: colors.tertiary }}>
+              House/Building Number, Street, Barangay
+            </label>
+            <input
+              name='address_detail'
+              data-field='address_detail'
+              type='text'
+              value={formData.address_detail || ""}
+              onChange={(e) => handleAddressDetailChange(e.target.value)}
+              disabled={isFormDisabled}
+              className={`${inputClasses} ${isFormDisabled ? disabledClasses : ""} ${fieldErrors.complete_address ? "border-red-500" : ""}`}
+              style={getInputStyle("complete_address")}
+              onFocus={(e) => !isFormDisabled && handleFocus(e, "complete_address")}
+              onBlur={(e) => handleBlur(e, "complete_address")}
+              placeholder='e.g. 123 MAIN STREET, BARANGAY NAME'
+            />
+          </div>
+
+          {selectedCity && selectedBirthplaceCity && selectedCity === selectedBirthplaceCity && (
+            <p className='text-amber-600 text-xs mt-1 ml-1'>
+              ⚠️ Address city matches birthplace city. Please select a different location.
+            </p>
+          )}
+
           {fieldErrors.complete_address && (
             <p className='text-red-500 text-xs mt-1 ml-1'>
               {fieldErrors.complete_address}
