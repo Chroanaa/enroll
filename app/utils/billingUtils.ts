@@ -30,6 +30,36 @@ export interface UnbilledEnrollee {
   status: number | null;
 }
 
+export interface Category {
+  id: number;
+  name: string | null;
+  created_at: string | null;
+  updated_at: string | null;
+}
+
+export interface Product {
+  id: number;
+  name: string | null;
+  category_id: number | null;
+  quantity: number | null;
+  price: number | null;
+  created_at: string | null;
+  updated_at: string | null;
+  category?: Category | null;
+}
+
+export interface CartItem {
+  product: Product;
+  quantity: number;
+}
+
+export interface OrderItem {
+  product_id: number;
+  quantity: number;
+  selling_price: number;
+  total: number;
+}
+
 export async function getBillings(): Promise<Billing[]> {
   try {
     const response = await axios.get("/api/auth/billing");
@@ -67,7 +97,10 @@ export async function createBilling(data: {
   }
 }
 
-export async function updateBilling(id: number, data: Partial<Billing>): Promise<Billing> {
+export async function updateBilling(
+  id: number,
+  data: Partial<Billing>,
+): Promise<Billing> {
   try {
     const response = await axios.patch("/api/auth/billing", { id, ...data });
     return response.data;
@@ -82,6 +115,47 @@ export async function deleteBilling(id: number): Promise<void> {
     await axios.delete("/api/auth/billing", { data: id });
   } catch (error) {
     console.error("Error deleting billing:", error);
+    throw error;
+  }
+}
+
+// Product functions
+export async function getProducts(): Promise<Product[]> {
+  try {
+    const response = await axios.get("/api/auth/products");
+    return response.data || [];
+  } catch (error) {
+    console.error("Error fetching products:", error);
+    throw error;
+  }
+}
+
+export async function getCategories(): Promise<Category[]> {
+  try {
+    const response = await axios.get("/api/auth/categories");
+    return response.data || [];
+  } catch (error) {
+    console.error("Error fetching categories:", error);
+    throw error;
+  }
+}
+
+export async function createOrder(data: {
+  order_date?: Date;
+  order_amount: number;
+  billing_id?: number;
+  ar_number?: string;
+  items: OrderItem[];
+  payment_type: string;
+  tendered_amount?: number;
+  change_amount?: number;
+  transaction_ref?: string;
+}): Promise<any> {
+  try {
+    const response = await axios.post("/api/auth/orders", data);
+    return response.data;
+  } catch (error) {
+    console.error("Error creating order:", error);
     throw error;
   }
 }
