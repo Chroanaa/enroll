@@ -289,3 +289,79 @@ model enrolled_subjects {
   @@index([program_id, semester, academic_year], map: "idx_enrolled_subjects_program_semester")
   @@index([student_number], map: "idx_enrolled_subjects_student_number")
 }
+
+model category {
+  id         Int        @id @default(autoincrement())
+  name       String?    @db.VarChar(10)
+  created_at DateTime?  @db.Timestamp(6)
+  updated_at DateTime?  @db.Timestamp(6)
+  products   products[]
+}
+
+model order_details {
+  id              Int       @id @default(autoincrement())
+  order_header_id Int?
+  product_id      Int
+  quantity        Int?
+  selling_price   Decimal?  @db.Decimal(10, 2)
+  total           Decimal?  @db.Decimal(10, 2)
+  created_at      DateTime? @db.Timestamp(6)
+  updated_at      DateTime? @db.Timestamp(6)
+}
+
+model order_header {
+  id               Int       @id @default(autoincrement())
+  order_date       DateTime  @db.Date
+  order_amount     Decimal?  @db.Decimal(10, 2)
+  billing_id       Int?
+  ar_number        String?   @db.VarChar(255)
+  isvoided         Int?
+  voided_header_id Int?
+  created_at       DateTime? @db.Timestamp(6)
+  updated_at       DateTime? @db.Timestamp(6)
+}
+
+model payment_details {
+  id              Int       @id @default(autoincrement())
+  order_header_id Int?
+  payment_id      Int
+  amount          Decimal?  @db.Decimal(10, 2)
+  tendered_amount Decimal?  @db.Decimal(10, 2)
+  change_amount   Decimal?  @db.Decimal(10, 2)
+  transaction_ref String?   @db.VarChar(255)
+  created_at      DateTime? @db.Timestamp(6)
+  updated_at      DateTime? @db.Timestamp(6)
+}
+
+model products {
+  id          Int       @id @default(autoincrement())
+  name        String?   @db.VarChar(100)
+  category_id Int?
+  created_at  DateTime? @db.Timestamp(6)
+  updated_at  DateTime? @db.Timestamp(6)
+  quantity    Int?
+  price       Decimal?  @db.Decimal(10, 2)
+  category    category? @relation(fields: [category_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_category_id")
+}
+
+model schools {
+  id         Int       @id @default(autoincrement())
+  name       String    @unique @db.VarChar(255)
+  is_custom  Boolean?  @default(false)
+  created_at DateTime? @default(now()) @db.Timestamp(6)
+  updated_at DateTime? @default(now()) @db.Timestamp(6)
+
+  @@index([is_custom], map: "idx_schools_is_custom")
+  @@index([name], map: "idx_schools_name")
+}
+
+model shs_programs {
+  id         Int       @id @default(autoincrement())
+  name       String    @unique @db.VarChar(255)
+  is_custom  Boolean?  @default(false)
+  created_at DateTime? @default(now()) @db.Timestamp(6)
+  updated_at DateTime? @default(now()) @db.Timestamp(6)
+
+  @@index([is_custom], map: "idx_shs_programs_is_custom")
+  @@index([name], map: "idx_shs_programs_name")
+}
