@@ -317,6 +317,7 @@ model order_header {
   ar_number        String?   @db.VarChar(255)
   isvoided         Int?
   voided_header_id Int?
+  student_number   String?   @db.VarChar(20)
   created_at       DateTime? @db.Timestamp(6)
   updated_at       DateTime? @db.Timestamp(6)
 }
