@@ -1,4 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
+import { getServerSession } from "next-auth";
+import { authOptions } from "../[...nextauth]/authOptions";
 import { prisma } from "../../../lib/prisma";
 
 /**
@@ -51,6 +53,21 @@ export async function POST(request: NextRequest) {
     // If recordsExist is false, we skip deletion and just insert new records
     // This means different semester/year data is preserved
 
+    // Get user session to check if admin
+    const session = await getServerSession(authOptions);
+    const userRole = (session?.user as any)?.role || 0;
+    const isAdmin = userRole === 1; // Role 1 = ADMIN
+
+    // Calculate total units
+    const totalUnits = subjects.reduce((sum: number, subject: any) => {
+      return sum + (subject.units_total || 0);
+    }, 0);
+
+    // Determine status based on total units and user role
+    // If total units > 27 and user is not admin, set status to "pending"
+    // Otherwise, set status to "enrolled"
+    const enrollmentStatus = totalUnits > 27 && !isAdmin ? "pending" : "enrolled";
+
     // Insert enrolled subjects (either new term or updated term)
     if (subjects.length > 0) {
       const enrolledSubjectsData = subjects.map((subject: any) => ({
@@ -63,37 +80,47 @@ export async function POST(request: NextRequest) {
         term: semesterNum === 1 ? "First Semester" : "Second Semester",
         year_level: subject.year_level || null,
         units_total: subject.units_total || 0,
-        status: "enrolled",
+        status: enrollmentStatus,
       }));
 
-      // Use raw SQL for bulk insert
-      for (const subjectData of enrolledSubjectsData) {
-        await prisma.$executeRaw`
-          INSERT INTO enrolled_subjects (
-            student_number, program_id, curriculum_course_id, subject_id,
-            academic_year, semester, term, year_level, units_total, status
-          ) VALUES (
-            ${subjectData.student_number},
-            ${subjectData.program_id},
-            ${subjectData.curriculum_course_id},
-            ${subjectData.subject_id},
-            ${subjectData.academic_year},
-            ${subjectData.semester},
-            ${subjectData.term},
-            ${subjectData.year_level},
-            ${subjectData.units_total},
-            ${subjectData.status}
+      // Use transaction for better performance with multiple inserts
+      // This is faster than individual inserts but still safe
+      if (enrolledSubjectsData.length > 0) {
+        await prisma.$transaction(
+          enrolledSubjectsData.map((subjectData) =>
+            prisma.$executeRaw`
+              INSERT INTO enrolled_subjects (
+                student_number, program_id, curriculum_course_id, subject_id,
+                academic_year, semester, term, year_level, units_total, status
+              ) VALUES (
+                ${subjectData.student_number},
+                ${subjectData.program_id},
+                ${subjectData.curriculum_course_id},
+                ${subjectData.subject_id},
+                ${subjectData.academic_year},
+                ${subjectData.semester},
+                ${subjectData.term},
+                ${subjectData.year_level},
+                ${subjectData.units_total},
+                ${subjectData.status}
+              )
+            `
           )
-        `;
+        );
       }
     }
 
+    const statusMessage = enrollmentStatus === "pending" 
+      ? " Subjects are pending approval due to exceeding 27 units. Admin approval is required."
+      : "";
+
     return NextResponse.json({
       success: true,
-      message: recordsExist 
+      message: (recordsExist 
         ? "Enrolled subjects updated successfully" 
-        : "Enrolled subjects saved successfully",
+        : "Enrolled subjects saved successfully") + statusMessage,
       action: recordsExist ? "updated" : "inserted",
+      status: enrollmentStatus,
     });
   } catch (error: any) {
     console.error("Error saving enrolled subjects:", error);
@@ -151,63 +178,89 @@ export async function GET(request: NextRequest) {
       ORDER BY cc.course_code
     `;
 
-    // Process prerequisites: parse JSON and fetch subject codes
-    const formattedSubjects = await Promise.all(
-      enrolledSubjects.map(async (es: any) => {
-        let prerequisiteText = null;
+    // Optimize prerequisite fetching: collect all unique subject IDs first, then batch fetch
+    const allPrerequisiteSubjectIds = new Set<number>();
+    const prerequisiteMap = new Map<number, string>(); // Map subject ID to code
 
-        if (es.prerequisite) {
-          try {
-            // Try to parse as JSON e.g. {"subjectIds":[28]}
-            const prereqData = JSON.parse(es.prerequisite);
+    // First pass: collect all prerequisite subject IDs
+    enrolledSubjects.forEach((es: any) => {
+      if (es.prerequisite) {
+        try {
+          const prereqData = JSON.parse(es.prerequisite);
+          if (
+            prereqData &&
+            Array.isArray(prereqData.subjectIds) &&
+            prereqData.subjectIds.length > 0
+          ) {
+            prereqData.subjectIds.forEach((id: number) => allPrerequisiteSubjectIds.add(id));
+          }
+        } catch (e) {
+          // Skip JSON parsing errors, will handle in second pass
+        }
+      }
+    });
 
-            if (
-              prereqData &&
-              Array.isArray(prereqData.subjectIds) &&
-              prereqData.subjectIds.length > 0
-            ) {
-              const subjectIds = prereqData.subjectIds;
+    // Batch fetch all prerequisite subject codes in a single query
+    if (allPrerequisiteSubjectIds.size > 0) {
+      const subjectIdsArray = Array.from(allPrerequisiteSubjectIds);
+      const subjects = await prisma.$queryRaw<any[]>`
+        SELECT id, code FROM subject WHERE id = ANY(${subjectIdsArray}::int[])
+      `;
+      subjects.forEach((s: any) => {
+        prerequisiteMap.set(s.id, s.code);
+      });
+    }
 
-              const subjects = await prisma.$queryRaw<any[]>`
-                SELECT code FROM subject WHERE id = ANY(${subjectIds}::int[])
-              `;
+    // Second pass: map prerequisites to subjects
+    const formattedSubjects = enrolledSubjects.map((es: any) => {
+      let prerequisiteText = null;
 
-              if (subjects.length > 0) {
-                prerequisiteText = subjects.map((s) => s.code).join(", ");
-              }
-            }
-          } catch (e) {
-            // If parsing fails and the value looks like JSON, hide it instead of
-            // returning raw JSON to the frontend. If it's a simple text value,
-            // pass it through.
-            if (
-              typeof es.prerequisite === "string" &&
-              es.prerequisite.trim().startsWith("{")
-            ) {
-              prerequisiteText = null;
-            } else {
-              prerequisiteText = es.prerequisite;
+      if (es.prerequisite) {
+        try {
+          const prereqData = JSON.parse(es.prerequisite);
+          if (
+            prereqData &&
+            Array.isArray(prereqData.subjectIds) &&
+            prereqData.subjectIds.length > 0
+          ) {
+            const codes = prereqData.subjectIds
+              .map((id: number) => prerequisiteMap.get(id))
+              .filter(Boolean);
+            if (codes.length > 0) {
+              prerequisiteText = codes.join(", ");
             }
           }
+        } catch (e) {
+          // If parsing fails and the value looks like JSON, hide it instead of
+          // returning raw JSON to the frontend. If it's a simple text value,
+          // pass it through.
+          if (
+            typeof es.prerequisite === "string" &&
+            es.prerequisite.trim().startsWith("{")
+          ) {
+            prerequisiteText = null;
+          } else {
+            prerequisiteText = es.prerequisite;
+          }
         }
+      }
 
-        return {
-          id: es.id, // This is the unique enrolled_subjects.id
-          curriculum_course_id: es.curriculum_course_id,
-          subject_id: es.subject_id,
-          course_code: es.course_code,
-          descriptive_title: es.descriptive_title,
-          units_lec: es.units_lec || 0,
-          units_lab: es.units_lab || 0,
-          units_total: es.units_total || es.units_lec + es.units_lab || 0,
-          lecture_hour: es.lecture_hour || 0,
-          lab_hour: es.lab_hour || 0,
-          prerequisite: prerequisiteText,
-          year_level: es.curriculum_year_level || es.year_level,
-          semester: es.semester,
-        };
-      })
-    );
+      return {
+        id: es.id, // This is the unique enrolled_subjects.id
+        curriculum_course_id: es.curriculum_course_id,
+        subject_id: es.subject_id,
+        course_code: es.course_code,
+        descriptive_title: es.descriptive_title,
+        units_lec: es.units_lec || 0,
+        units_lab: es.units_lab || 0,
+        units_total: es.units_total || es.units_lec + es.units_lab || 0,
+        lecture_hour: es.lecture_hour || 0,
+        lab_hour: es.lab_hour || 0,
+        prerequisite: prerequisiteText,
+        year_level: es.curriculum_year_level || es.year_level,
+        semester: es.semester,
+      };
+    });
 
     return NextResponse.json({
       success: true,

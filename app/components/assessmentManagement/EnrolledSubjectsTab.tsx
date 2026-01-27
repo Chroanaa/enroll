@@ -1,7 +1,8 @@
-import React from "react";
-import { BookOpen, Plus, X, Save } from "lucide-react";
+import React, { useState, useEffect, useRef } from "react";
+import { BookOpen, Plus, X, Save, Edit } from "lucide-react";
 import { colors } from "../../colors";
 import type { EnrolledSubject } from "./types";
+import { SubjectManagementModal } from "./SubjectManagementModal";
 
 interface EnrolledSubjectsTabProps {
   currentTerm: {
@@ -9,34 +10,102 @@ interface EnrolledSubjectsTabProps {
     academicYear: string;
   };
   program: string;
+  programId: number | null;
   studentNumber: string;
   totalUnits: number;
-  isResidentReturnee: boolean;
-  isEditingSubjects: boolean;
-  onStartEditing: () => void;
-  onCancelEditing: () => void;
-  onSaveSubjects: () => void;
   isLoadingSubjects: boolean;
   subjectsError: string;
   enrolledSubjects: EnrolledSubject[];
-  removeSubject: (subjectId: number) => void;
+  onAddSubject: (subjects: any[]) => void;
+  onEditSubject: (subject: EnrolledSubject) => void;
+  onRemoveSubject: (subjectId: number) => void;
+  onSaveSubjects: () => Promise<boolean>;
+  onRestoreSubjects?: (subjects: EnrolledSubject[]) => void;
 }
 
 export const EnrolledSubjectsTab: React.FC<EnrolledSubjectsTabProps> = ({
   currentTerm,
   program,
+  programId,
   studentNumber,
   totalUnits,
-  isResidentReturnee,
-  isEditingSubjects,
-  onStartEditing,
-  onCancelEditing,
-  onSaveSubjects,
   isLoadingSubjects,
   subjectsError,
   enrolledSubjects,
-  removeSubject,
+  onAddSubject,
+  onEditSubject,
+  onRemoveSubject,
+  onSaveSubjects,
+  onRestoreSubjects,
 }) => {
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [editingSubject, setEditingSubject] = useState<EnrolledSubject | null>(null);
+  const [isEditMode, setIsEditMode] = useState(false);
+  const originalSubjectsRef = useRef<EnrolledSubject[]>([]);
+  const isEditModeRef = useRef(false);
+
+  const semesterNum = currentTerm.semester === "First" ? 1 : 2;
+  // Track enrolled subjects by curriculum_course_id (if available) or id to prevent duplicates across all semesters
+  const enrolledSubjectIds = new Set(
+    enrolledSubjects.map((s) => (s as any).curriculum_course_id || s.id)
+  );
+
+  const handleOpenAddModal = () => {
+    setEditingSubject(null);
+    setIsModalOpen(true);
+  };
+
+  const handleOpenEditModal = (subject: EnrolledSubject) => {
+    setEditingSubject(subject);
+    setIsModalOpen(true);
+  };
+
+  const handleModalAdd = (subjects: any[]) => {
+    onAddSubject(subjects);
+    setIsModalOpen(false);
+    setEditingSubject(null);
+  };
+
+  // Track edit mode in ref for cleanup
+  useEffect(() => {
+    isEditModeRef.current = isEditMode;
+  }, [isEditMode]);
+
+  // Reset edit mode and restore original subjects ONLY when component unmounts (e.g., tab switch)
+  useEffect(() => {
+    return () => {
+      // Only restore on actual unmount, not on dependency changes
+      if (isEditModeRef.current && originalSubjectsRef.current.length > 0 && onRestoreSubjects) {
+        onRestoreSubjects(originalSubjectsRef.current);
+      }
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []); // Empty deps - only run cleanup on unmount
+
+  const handleToggleEditMode = async () => {
+    if (isEditMode) {
+      // Save changes
+      const success = await onSaveSubjects();
+      if (success) {
+        setIsEditMode(false);
+        originalSubjectsRef.current = [];
+      }
+    } else {
+      // Enter edit mode - store original state
+      originalSubjectsRef.current = JSON.parse(JSON.stringify(enrolledSubjects));
+      setIsEditMode(true);
+    }
+  };
+
+  const formatHours = (lec?: number | null, lab?: number | null) => {
+    const lecHrs = lec || 0;
+    const labHrs = lab || 0;
+    if (lecHrs === 0 && labHrs === 0) return "0";
+    if (lecHrs === 0) return `${labHrs} hrs`;
+    if (labHrs === 0) return `${lecHrs} hrs`;
+    return `${lecHrs} hrs / ${labHrs} hrs`;
+  };
+
   return (
     <div className="animate-in fade-in slide-in-from-top-2 duration-300">
       <div className="flex items-center justify-between mb-6">
@@ -48,17 +117,6 @@ export const EnrolledSubjectsTab: React.FC<EnrolledSubjectsTabProps> = ({
             >
               Enrolled Subjects
             </h3>
-            {isResidentReturnee && (
-              <span
-                className="px-2 py-1 text-xs font-semibold rounded-md"
-                style={{
-                  backgroundColor: colors.accent + "15",
-                  color: colors.secondary,
-                }}
-              >
-                Resident/Returnee
-              </span>
-            )}
           </div>
           <p
             className="text-sm mt-1 font-medium"
@@ -86,62 +144,39 @@ export const EnrolledSubjectsTab: React.FC<EnrolledSubjectsTabProps> = ({
               </span>
             </div>
           )}
-          {isResidentReturnee && (
-            <>
-              <a
-                href={`/assessment/add-subjects?studentNumber=${encodeURIComponent(
-                  studentNumber || ""
-                )}`}
-                className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold transition-all border"
-                style={{
-                  borderColor: colors.accent + "30",
-                  color: colors.secondary,
-                  backgroundColor: "white",
-                }}
-              >
-                <Plus className="w-4 h-4" />
-                Add Subjects
-              </a>
-              {!isEditingSubjects ? (
-                <button
-                  onClick={onStartEditing}
-                  className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold transition-all"
-                  style={{
-                    backgroundColor: colors.secondary,
-                    color: "white",
-                  }}
-                >
-                  <Plus className="w-4 h-4" />
-                  Edit Subjects
-                </button>
+          <button
+            onClick={handleOpenAddModal}
+            className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold transition-all"
+            style={{
+              backgroundColor: colors.secondary,
+              color: "white",
+            }}
+          >
+            <Plus className="w-4 h-4" />
+            Add Subject
+          </button>
+          {enrolledSubjects.length > 0 && (
+            <button
+              onClick={handleToggleEditMode}
+              className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold transition-all border"
+              style={{
+                borderColor: colors.secondary + "30",
+                color: colors.secondary,
+                backgroundColor: "white",
+              }}
+            >
+              {isEditMode ? (
+                <>
+                  <Save className="w-4 h-4" />
+                  Save Changes
+                </>
               ) : (
-                <div className="flex items-center gap-2">
-                  <button
-                    onClick={onCancelEditing}
-                    className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold transition-all border"
-                    style={{
-                      borderColor: colors.tertiary + "30",
-                      color: colors.tertiary,
-                      backgroundColor: "white",
-                    }}
-                  >
-                    <X className="w-4 h-4" />
-                    Cancel
-                  </button>
-                  <button
-                    onClick={onSaveSubjects}
-                    className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold transition-all"
-                    style={{
-                      backgroundColor: colors.secondary,
-                      color: "white",
-                    }}
-                  >
-                    <Save className="w-4 h-4" />
-                    Save
-                  </button>
-                </div>
+                <>
+                  <Edit className="w-4 h-4" />
+                  Edit Subject
+                </>
               )}
-            </>
+            </button>
           )}
         </div>
       </div>
@@ -155,21 +190,17 @@ export const EnrolledSubjectsTab: React.FC<EnrolledSubjectsTabProps> = ({
         <div className="text-center py-12">
           <p className="text-sm text-red-500">{subjectsError}</p>
         </div>
-      ) : enrolledSubjects.length === 0 && !isEditingSubjects ? (
+      ) : enrolledSubjects.length === 0 ? (
         <div className="text-center py-12 border-2 border-dashed border-gray-200 rounded-xl">
           <BookOpen
             className="w-12 h-12 mx-auto mb-3"
             style={{ color: colors.tertiary }}
           />
           <p className="text-sm text-gray-500 font-medium">
-            {isResidentReturnee
-              ? "No enrolled subjects. Click 'Edit Subjects' to add subjects."
-              : "No subjects found for this program and semester"}
+            No enrolled subjects. Click 'Add Subject' to begin.
           </p>
           <p className="text-xs text-gray-400 mt-1">
-            {isResidentReturnee
-              ? "Select subjects from the curriculum to enroll"
-              : "Please check the curriculum configuration"}
+            Select subjects from the curriculum to enroll
           </p>
         </div>
       ) : (
@@ -196,41 +227,29 @@ export const EnrolledSubjectsTab: React.FC<EnrolledSubjectsTabProps> = ({
                       Course Title
                     </th>
                     <th
+                      className="px-4 py-3 text-center text-xs font-bold uppercase tracking-wider"
+                      style={{ color: colors.primary }}
+                    >
+                      Units
+                    </th>
+                    <th
+                      className="px-4 py-3 text-center text-xs font-bold uppercase tracking-wider"
+                      style={{ color: colors.primary }}
+                    >
+                      Lecture / Lab Hours
+                    </th>
+                    <th
                       className="px-4 py-3 text-left text-xs font-bold uppercase tracking-wider"
                       style={{ color: colors.primary }}
                     >
                       Prerequisite
                     </th>
-                    <th
-                      className="px-4 py-3 text-center text-xs font-bold uppercase tracking-wider"
-                      style={{ color: colors.primary }}
-                    >
-                      Year
-                    </th>
-                    <th
-                      className="px-4 py-3 text-center text-xs font-bold uppercase tracking-wider"
-                      style={{ color: colors.primary }}
-                    >
-                      Lec Units
-                    </th>
-                    <th
-                      className="px-4 py-3 text-center text-xs font-bold uppercase tracking-wider"
-                      style={{ color: colors.primary }}
-                    >
-                      Lab Units
-                    </th>
-                    <th
-                      className="px-4 py-3 text-center text-xs font-bold uppercase tracking-wider"
-                      style={{ color: colors.primary }}
-                    >
-                      Total Units
-                    </th>
-                    {isResidentReturnee && isEditingSubjects && (
+                    {isEditMode && (
                       <th
                         className="px-4 py-3 text-center text-xs font-bold uppercase tracking-wider"
                         style={{ color: colors.primary }}
                       >
-                        Action
+                        Actions
                       </th>
                     )}
                   </tr>
@@ -258,45 +277,39 @@ export const EnrolledSubjectsTab: React.FC<EnrolledSubjectsTabProps> = ({
                         {subject.descriptive_title}
                       </td>
                       <td
-                        className="px-4 py-3 text-sm italic"
-                        style={{ color: colors.tertiary + "90" }}
-                      >
-                        {subject.prerequisite || "None"}
-                      </td>
-                      <td
-                        className="px-4 py-3 text-center text-sm"
-                        style={{ color: colors.tertiary }}
-                      >
-                        {subject.year_level}
-                      </td>
-                      <td
-                        className="px-4 py-3 text-center text-sm"
-                        style={{ color: colors.tertiary }}
-                      >
-                        {subject.units_lec || 0}
-                      </td>
-                      <td
-                        className="px-4 py-3 text-center text-sm"
-                        style={{ color: colors.tertiary }}
-                      >
-                        {subject.units_lab || 0}
-                      </td>
-                      <td
                         className="px-4 py-3 text-center text-sm font-semibold"
                         style={{ color: colors.primary }}
                       >
                         {subject.units_total}
                       </td>
-                      {isResidentReturnee && isEditingSubjects && (
+                      <td
+                        className="px-4 py-3 text-center text-sm"
+                        style={{ color: colors.tertiary }}
+                      >
+                        {formatHours(subject.lecture_hour, subject.lab_hour)}
+                      </td>
+                      <td
+                        className="px-4 py-3 text-sm italic"
+                        style={{ color: colors.tertiary + "90" }}
+                      >
+                        {subject.prerequisite || "None"}
+                      </td>
+                      {isEditMode && (
                         <td className="px-4 py-3 text-center">
-                          <button
-                            onClick={() => removeSubject(subject.id)}
-                            className="p-1.5 rounded-lg transition-all hover:bg-red-50"
-                            style={{ color: "#ef4444" }}
-                            title="Remove subject"
-                          >
-                            <X className="w-4 h-4" />
-                          </button>
+                          <div className="flex items-center justify-center gap-2">
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                onRemoveSubject(subject.id);
+                              }}
+                              className="p-1.5 rounded-lg transition-all hover:bg-red-50 cursor-pointer relative z-10"
+                              style={{ color: "#ef4444" }}
+                              title="Remove subject"
+                              type="button"
+                            >
+                              <X className="w-4 h-4" />
+                            </button>
+                          </div>
                         </td>
                       )}
                     </tr>
@@ -305,9 +318,7 @@ export const EnrolledSubjectsTab: React.FC<EnrolledSubjectsTabProps> = ({
                 <tfoot>
                   <tr style={{ backgroundColor: colors.accent + "05" }}>
                     <td
-                      colSpan={
-                        isResidentReturnee && isEditingSubjects ? 7 : 6
-                      }
+                      colSpan={isEditMode ? 5 : 4}
                       className="px-4 py-3 text-right text-sm font-bold"
                       style={{ color: colors.primary }}
                     >
@@ -319,6 +330,7 @@ export const EnrolledSubjectsTab: React.FC<EnrolledSubjectsTabProps> = ({
                     >
                       {totalUnits}
                     </td>
+                    {isEditMode && <td></td>}
                   </tr>
                 </tfoot>
               </table>
@@ -326,8 +338,20 @@ export const EnrolledSubjectsTab: React.FC<EnrolledSubjectsTabProps> = ({
           )}
         </div>
       )}
+
+      {/* Subject Management Modal */}
+      {programId && (
+        <SubjectManagementModal
+          isOpen={isModalOpen}
+          onClose={() => setIsModalOpen(false)}
+          onAddSubjects={handleModalAdd}
+          programId={programId}
+          currentSemester={semesterNum}
+          enrolledSubjectIds={enrolledSubjectIds}
+          mode={editingSubject ? "edit" : "add"}
+          editingSubject={editingSubject}
+        />
+      )}
     </div>
   );
 };
-
-
