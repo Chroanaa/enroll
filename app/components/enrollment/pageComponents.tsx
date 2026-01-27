@@ -7,18 +7,18 @@ import EmergencyInformation from "./EmergencyInformation";
 import EducationalBackground from "./EducationalBackground";
 
 export const PAGE_COMPONENTS: Record<number, React.ComponentType<EnrollmentPageProps>> = {
-  1: AdmissionInformation,
-  2: AdmissionRequirements,
-  3: StudentInformation,
-  4: EmergencyInformation,
-  5: EducationalBackground,
+  1: StudentInformation,
+  2: EmergencyInformation,
+  3: EducationalBackground,
+  4: AdmissionInformation,
+  5: AdmissionRequirements,
 };
 
 export const PAGE_TITLES = [
-  "Admission Information",
-  "Admission Requirements",
   "Student Information",
   "Emergency Information",
   "Educational Background",
+  "Admission Information",
+  "Admission Requirements",
 ] as const;
 

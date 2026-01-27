@@ -1,26 +1,36 @@
 import { StatusColor } from "../../types";
 import { getCountOfEnrolleesStatus } from "@/app/utils/getCountStatusEnrollees";
-export const getStatusColor = (status: string): StatusColor => {
+
+export const getStatusColor = (status: number | null | undefined): StatusColor => {
+  // Treat null/undefined as pending (4)
+  if (status === null || status === undefined) {
+    return {
+      bg: "#FEF3C7",
+      text: "#92400E",
+      border: "#FDE68A",
+    };
+  }
+  
   switch (status) {
-    case "new": // Enrolled
+    case 1: // Enrolled
       return {
         bg: "#DBEAFE",
         text: "#1E40AF",
         border: "#93C5FD",
       };
-    case "completed": // Completed
+    case 2: // Reserved
       return {
         bg: "#ECFDF5",
         text: "#047857",
         border: "#A7F3D0",
       };
-    case "dropped": // Dropped
+    case 3: // Dropped
       return {
         bg: "#FEE2E2",
         text: "#991B1B",
         border: "#FCA5A5",
       };
-    case "pending": // Pending
+    case 4: // Pending
       return {
         bg: "#FEF3C7",
         text: "#92400E",
@@ -35,15 +45,20 @@ export const getStatusColor = (status: string): StatusColor => {
   }
 };
 
-export const getStatusLabel = (status: string): string => {
+export const getStatusLabel = (status: number | null | undefined): string => {
+  // Treat null/undefined as pending (4)
+  if (status === null || status === undefined) {
+    return "Pending";
+  }
+  
   switch (status) {
-    case "new":
-      return "New";
-    case "completed":
-      return "Completed";
-    case "dropped":
+    case 1:
+      return "Enrolled";
+    case 2:
+      return "Reserved";
+    case 3:
       return "Dropped";
-    case "pending":
+    case 4:
       return "Pending";
     default:
       return "Unknown";

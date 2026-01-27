@@ -290,6 +290,8 @@ model enrolled_subjects {
   @@index([student_number], map: "idx_enrolled_subjects_student_number")
 }
 
+
+
 model category {
   id         Int        @id @default(autoincrement())
   name       String?    @db.VarChar(10)
@@ -345,24 +347,26 @@ model products {
   category    category? @relation(fields: [category_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_category_id")
 }
 
-model schools {
+model school {
   id         Int       @id @default(autoincrement())
   name       String    @unique @db.VarChar(255)
   is_custom  Boolean?  @default(false)
   created_at DateTime? @default(now()) @db.Timestamp(6)
-  updated_at DateTime? @default(now()) @db.Timestamp(6)
+  updated_at DateTime? @default(now()) @updatedAt @db.Timestamp(6)
 
-  @@index([is_custom], map: "idx_schools_is_custom")
   @@index([name], map: "idx_schools_name")
+  @@index([is_custom], map: "idx_schools_is_custom")
+  @@map("schools")
 }
 
-model shs_programs {
+model shsProgram {
   id         Int       @id @default(autoincrement())
   name       String    @unique @db.VarChar(255)
   is_custom  Boolean?  @default(false)
   created_at DateTime? @default(now()) @db.Timestamp(6)
-  updated_at DateTime? @default(now()) @db.Timestamp(6)
+  updated_at DateTime? @default(now()) @updatedAt @db.Timestamp(6)
 
-  @@index([is_custom], map: "idx_shs_programs_is_custom")
   @@index([name], map: "idx_shs_programs_name")
+  @@index([is_custom], map: "idx_shs_programs_is_custom")
+  @@map("shs_programs")
 }

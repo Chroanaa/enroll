@@ -17,17 +17,17 @@ export async function POST(request: NextRequest) {
     const existingEnrollment = await prisma.enrollment.findFirst({
       where: {
         first_name: {
-          equals: first_name.trim(),
+          equals: first_name.trim().toUpperCase(),
           mode: "insensitive",
         },
         family_name: {
-          equals: family_name.trim(),
+          equals: family_name.trim().toUpperCase(),
           mode: "insensitive",
         },
         ...(middle_name &&
           middle_name.trim() && {
             middle_name: {
-              equals: middle_name.trim(),
+              equals: middle_name.trim().toUpperCase(),
               mode: "insensitive",
             },
           }),
