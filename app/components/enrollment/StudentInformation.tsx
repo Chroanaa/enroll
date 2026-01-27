@@ -155,12 +155,6 @@ const StudentInformation: React.FC<EnrollmentPageProps> = ({
   };
 
   const handleBirthplaceCityChange = (city: string) => {
-    // Prevent duplicate: check if birthplace matches address
-    if (city && selectedCity && city === selectedCity) {
-      // Show error but allow selection (validation will catch it)
-      console.warn("Birthplace city matches address city");
-    }
-    
     setSelectedBirthplaceCity(city);
     // Update birthplace array: [province, city]
     const birthplaceArray = [selectedBirthplaceProvince, city];
@@ -606,15 +600,7 @@ const StudentInformation: React.FC<EnrollmentPageProps> = ({
                     ? "Select City/Municipality"
                     : "Select Province first"}
                 </option>
-                {birthplaceCities
-                  .filter((item) => {
-                    // Prevent duplicate: filter out the city if it matches the address city
-                    if (selectedCity && item.name === selectedCity) {
-                      return false;
-                    }
-                    return true;
-                  })
-                  .map((item) => (
+                {birthplaceCities.map((item) => (
                     <option key={item.code} value={item.name}>
                       {item.name} ({item.type})
                     </option>
@@ -626,11 +612,6 @@ const StudentInformation: React.FC<EnrollmentPageProps> = ({
                 </svg>
               </div>
             </div>
-              {selectedBirthplaceCity && selectedCity && selectedBirthplaceCity === selectedCity && (
-                <p className='text-amber-600 text-xs mt-1 ml-1'>
-                  ⚠️ Birthplace city matches address city. Please select a different location.
-                </p>
-              )}
             </div>
           </div>
           {fieldErrors.birthplace && (
@@ -704,15 +685,7 @@ const StudentInformation: React.FC<EnrollmentPageProps> = ({
                     ? "Select City/Municipality"
                     : "Select Province first"}
                 </option>
-                {cities
-                  .filter((item) => {
-                    // Prevent duplicate: filter out the city if it matches the birthplace city
-                    if (selectedBirthplaceCity && item.name === selectedBirthplaceCity) {
-                      return false;
-                    }
-                    return true;
-                  })
-                  .map((item) => (
+                {cities.map((item) => (
                     <option key={item.code} value={item.name}>
                       {item.name} ({item.type})
                     </option>
@@ -746,11 +719,6 @@ const StudentInformation: React.FC<EnrollmentPageProps> = ({
             />
           </div>
 
-          {selectedCity && selectedBirthplaceCity && selectedCity === selectedBirthplaceCity && (
-            <p className='text-amber-600 text-xs mt-1 ml-1'>
-              ⚠️ Address city matches birthplace city. Please select a different location.
-            </p>
-          )}
           {fieldErrors.complete_address && (
             <p className='text-red-500 text-xs mt-1 ml-1'>
               {fieldErrors.complete_address}

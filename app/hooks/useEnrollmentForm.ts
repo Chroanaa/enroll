@@ -654,18 +654,6 @@ export const useEnrollmentForm = () => {
       errors.complete_address = "Complete address is required";
     }
     
-    // Prevent duplicate: Check if birthplace city matches address city
-    // Birthplace is now an array: [province, city]
-    const birthplaceCity = Array.isArray(formData.birthplace) && formData.birthplace.length >= 2 
-      ? formData.birthplace[1] 
-      : null;
-    
-    if (birthplaceCity && formData.address_city?.trim()) {
-      if (birthplaceCity.trim().toUpperCase() === formData.address_city.trim().toUpperCase()) {
-        errors.birthplace = "Birthplace city cannot be the same as address city";
-        errors.complete_address = "Address city cannot be the same as birthplace city";
-      }
-    }
     if (!formData.contact_number?.trim()) {
       errors.contact_number = "Contact number is required";
     } else if (
