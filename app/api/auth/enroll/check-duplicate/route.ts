@@ -6,9 +6,11 @@ export async function POST(request: NextRequest) {
     const { first_name, family_name, middle_name, birthdate } =
       await request.json();
 
-    if (!first_name || !family_name) {
+    // Require first_name, family_name, and birthdate for duplicate check
+    // middle_name is optional, so it can be empty
+    if (!first_name || !family_name || !birthdate) {
       return NextResponse.json(
-        { error: "First name and family name are required" },
+        { error: "First name, family name, and birthdate are required for duplicate check" },
         { status: 400 },
       );
     }

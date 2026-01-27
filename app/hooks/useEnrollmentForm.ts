@@ -157,22 +157,24 @@ export const useEnrollmentForm = () => {
     };
   }, []);
 
+  // Function to generate student ID
+  const generateStudentId = async () => {
+    try {
+      const response = await Axios.get("/api/auth/student/generate-id");
+      if (response.data?.student_number) {
+        setFormData((prev) => ({
+          ...prev,
+          student_number: response.data.student_number,
+        }));
+      }
+    } catch (error) {
+      console.error("Error generating student ID:", error);
+    }
+  };
+
   // Fetch departments and programs on mount
   // Generate student ID on mount
   useEffect(() => {
-    const generateStudentId = async () => {
-      try {
-        const response = await Axios.get("/api/auth/student/generate-id");
-        if (response.data?.student_number) {
-          setFormData((prev) => ({
-            ...prev,
-            student_number: response.data.student_number,
-          }));
-        }
-      } catch (error) {
-        console.error("Error generating student ID:", error);
-      }
-    };
     generateStudentId();
   }, []);
 
@@ -221,8 +223,9 @@ export const useEnrollmentForm = () => {
     middle_name: string;
     birthdate: string;
   }) => {
-    // Only check if we have at least first name and family name
-    if (!data.first_name || !data.family_name) {
+    // Only check if all required fields are filled: first_name, family_name, and birthdate
+    // middle_name is optional, so it can be empty
+    if (!data.first_name || !data.family_name || !data.birthdate) {
       setDuplicateError(null);
       return;
     }
@@ -479,12 +482,17 @@ export const useEnrollmentForm = () => {
         setIsSubmitting(false);
         setSubmitSuccess(true);
         // Reset form after successful submission
-        setTimeout(() => {
+        setTimeout(async () => {
           setFormData(initialFormData);
           setPhotoPreview(null);
+          setCurrentPage(1); // Reset to first page
+          setFieldErrors({}); // Clear any field errors
+          setDuplicateError(null); // Clear duplicate error
           if (fileInputRef.current) {
             fileInputRef.current.value = "";
           }
+          // Regenerate student number for new enrollment
+          await generateStudentId();
         }, 2000);
       })
       .catch((error) => {
@@ -707,7 +715,9 @@ export const useEnrollmentForm = () => {
   const nextPage = async () => {
     if (currentPage < TOTAL_PAGES) {
       // For page 1 (Student Information), force a synchronous duplicate check before proceeding
-      if (currentPage === 1 && formData.first_name && formData.family_name) {
+      // Only check if all required fields are filled: first_name, family_name, and birthdate
+      // middle_name is optional, so it can be empty
+      if (currentPage === 1 && formData.first_name && formData.family_name && formData.birthdate) {
         // Cancel any pending debounced check
         if (duplicateCheckTimeoutRef.current) {
           clearTimeout(duplicateCheckTimeoutRef.current);

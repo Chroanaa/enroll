@@ -9,7 +9,7 @@ const EmergencyInformation: React.FC<EnrollmentPageProps> = ({
   fieldErrors = {},
 }) => {
   const inputClasses =
-    "w-full px-4 py-3 rounded-xl border bg-white/50 transition-all duration-300 focus:ring-2 focus:ring-offset-0 outline-none";
+    "w-full px-4 py-2.5 rounded-xl border bg-white/50 transition-all duration-300 focus:ring-2 focus:ring-offset-0 outline-none";
   
   const getInputStyle = (fieldName: string) => ({
     borderColor: fieldErrors[fieldName] ? "#ef4444" : colors.tertiary + "30",
@@ -27,15 +27,15 @@ const EmergencyInformation: React.FC<EnrollmentPageProps> = ({
   };
 
   return (
-    <div className='space-y-6 animate-in slide-in-from-bottom-4 duration-500 delay-300'>
+    <div className='space-y-4 animate-in slide-in-from-bottom-4 duration-500 delay-300'>
       <div
-        className='p-8 rounded-2xl bg-white border shadow-lg shadow-gray-100/50'
+        className='p-6 rounded-2xl bg-white border shadow-lg shadow-gray-100/50'
         style={{
           borderColor: colors.accent + "20",
           background: `linear-gradient(to bottom right, #ffffff, ${colors.paper})`,
         }}
       >
-        <div className='flex items-center gap-4 mb-8 pb-6 border-b' style={{ borderColor: colors.accent + "10" }}>
+        <div className='flex items-center gap-4 mb-6 pb-4 border-b' style={{ borderColor: colors.accent + "10" }}>
           <div
             className='p-3 rounded-2xl shadow-sm transform transition-transform hover:scale-105 duration-300'
             style={{
@@ -55,7 +55,7 @@ const EmergencyInformation: React.FC<EnrollmentPageProps> = ({
           </div>
         </div>
 
-        <div className='grid grid-cols-1 md:grid-cols-3 gap-6'>
+        <div className='grid grid-cols-1 md:grid-cols-3 gap-4'>
           <div className="group">
             <label
               className='block text-sm font-semibold mb-2 ml-1 transition-colors'

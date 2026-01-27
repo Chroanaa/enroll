@@ -168,7 +168,7 @@ const StudentInformation: React.FC<EnrollmentPageProps> = ({
   };
 
   const inputClasses =
-    "w-full px-4 py-3 rounded-xl border bg-white/50 transition-all duration-300 focus:ring-2 focus:ring-offset-0 outline-none";
+    "w-full px-4 py-2.5 rounded-xl border bg-white/50 transition-all duration-300 focus:ring-2 focus:ring-offset-0 outline-none";
 
   const disabledClasses = "cursor-not-allowed opacity-50 bg-gray-100";
 
@@ -202,16 +202,16 @@ const StudentInformation: React.FC<EnrollmentPageProps> = ({
   };
 
   return (
-    <div className='space-y-6 animate-in slide-in-from-bottom-4 duration-500'>
+    <div className='space-y-4 animate-in slide-in-from-bottom-4 duration-500'>
       <div
-        className='p-8 rounded-2xl bg-white border shadow-lg shadow-gray-100/50'
+        className='p-6 rounded-2xl bg-white border shadow-lg shadow-gray-100/50'
         style={{
           borderColor: colors.accent + "20",
           background: `linear-gradient(to bottom right, #ffffff, ${colors.paper})`,
         }}
       >
         <div
-          className='flex items-center gap-4 mb-8 pb-6 border-b'
+          className='flex items-center gap-4 mb-6 pb-4 border-b'
           style={{ borderColor: colors.accent + "10" }}
         >
           <div
@@ -239,7 +239,7 @@ const StudentInformation: React.FC<EnrollmentPageProps> = ({
           </div>
         </div>
 
-        <div className='mb-6 group'>
+        <div className='mb-4 group'>
           <label
             className='block text-sm font-semibold mb-2 ml-1 transition-colors'
             style={{ color: colors.primary }}
@@ -265,7 +265,7 @@ const StudentInformation: React.FC<EnrollmentPageProps> = ({
 
         {/* Duplicate Warning Banner */}
         {duplicateError && (
-          <div className='mb-6 p-4 rounded-xl border-2 border-amber-400 bg-amber-50 animate-in fade-in duration-300'>
+          <div className='mb-4 p-3 rounded-xl border-2 border-amber-400 bg-amber-50 animate-in fade-in duration-300'>
             <div className='flex items-center gap-3'>
               <div className='p-2 rounded-full bg-amber-100'>
                 <svg
@@ -294,7 +294,7 @@ const StudentInformation: React.FC<EnrollmentPageProps> = ({
 
         {/* Checking Duplicate Indicator */}
         {isCheckingDuplicate && (
-          <div className='mb-6 p-3 rounded-xl border border-blue-200 bg-blue-50 animate-pulse'>
+          <div className='mb-4 p-3 rounded-xl border border-blue-200 bg-blue-50 animate-pulse'>
             <div className='flex items-center gap-2'>
               <svg
                 className='w-4 h-4 text-blue-500 animate-spin'
@@ -322,7 +322,7 @@ const StudentInformation: React.FC<EnrollmentPageProps> = ({
           </div>
         )}
 
-        <div className='grid grid-cols-1 md:grid-cols-3 gap-6 mb-6'>
+        <div className='grid grid-cols-1 md:grid-cols-3 gap-4 mb-4'>
           <div className='group'>
             <label
               className='block text-sm font-semibold mb-2 ml-1 transition-colors'
@@ -405,7 +405,7 @@ const StudentInformation: React.FC<EnrollmentPageProps> = ({
           </div>
         </div>
 
-        <div className='grid grid-cols-1 md:grid-cols-3 gap-6 mb-6'>
+        <div className='grid grid-cols-1 md:grid-cols-3 gap-4 mb-4'>
           <div className='group'>
             <label
               className='block text-sm font-semibold mb-2 ml-1'
@@ -543,19 +543,19 @@ const StudentInformation: React.FC<EnrollmentPageProps> = ({
           </div>
         </div>
 
-        <div className='mb-6 space-y-4'>
+        <div className='mb-4'>
           <label
             className='block text-sm font-semibold mb-2 ml-1'
             style={{ color: colors.primary }}
           >
             Birthplace
           </label>
-          
-          {/* Birthplace Province Dropdown */}
-          <div className='group'>
-            <label className='block text-xs font-medium mb-1 ml-1' style={{ color: colors.tertiary }}>
-              Province
-            </label>
+          <div className='grid grid-cols-1 md:grid-cols-2 gap-4'>
+            {/* Birthplace Province Dropdown */}
+            <div className='group'>
+              <label className='block text-xs font-medium mb-1 ml-1' style={{ color: colors.tertiary }}>
+                Province
+              </label>
             <div className='relative'>
               <select
                 name='birthplace_province'
@@ -582,11 +582,11 @@ const StudentInformation: React.FC<EnrollmentPageProps> = ({
             </div>
           </div>
 
-          {/* Birthplace City/Municipality Dropdown */}
-          <div className='group'>
-            <label className='block text-xs font-medium mb-1 ml-1' style={{ color: colors.tertiary }}>
-              City/Municipality
-            </label>
+            {/* Birthplace City/Municipality Dropdown */}
+            <div className='group'>
+              <label className='block text-xs font-medium mb-1 ml-1' style={{ color: colors.tertiary }}>
+                City/Municipality
+              </label>
             <div className='relative'>
               <select
                 name='birthplace'
@@ -626,13 +626,13 @@ const StudentInformation: React.FC<EnrollmentPageProps> = ({
                 </svg>
               </div>
             </div>
-            {selectedBirthplaceCity && selectedCity && selectedBirthplaceCity === selectedCity && (
-              <p className='text-amber-600 text-xs mt-1 ml-1'>
-                ⚠️ Birthplace city matches address city. Please select a different location.
-              </p>
-            )}
+              {selectedBirthplaceCity && selectedCity && selectedBirthplaceCity === selectedCity && (
+                <p className='text-amber-600 text-xs mt-1 ml-1'>
+                  ⚠️ Birthplace city matches address city. Please select a different location.
+                </p>
+              )}
+            </div>
           </div>
-          
           {fieldErrors.birthplace && (
             <p className='text-red-500 text-xs mt-1 ml-1'>
               {fieldErrors.birthplace}
@@ -640,19 +640,19 @@ const StudentInformation: React.FC<EnrollmentPageProps> = ({
           )}
         </div>
 
-        <div className='mb-6 space-y-4'>
+        <div className='mb-4'>
           <label
             className='block text-sm font-semibold mb-2 ml-1'
             style={{ color: colors.primary }}
           >
             Complete Address
           </label>
-          
-          {/* Province Dropdown */}
-          <div className='group'>
-            <label className='block text-xs font-medium mb-1 ml-1' style={{ color: colors.tertiary }}>
-              Province
-            </label>
+          <div className='grid grid-cols-1 md:grid-cols-2 gap-4 mb-4'>
+            {/* Province Dropdown */}
+            <div className='group'>
+              <label className='block text-xs font-medium mb-1 ml-1' style={{ color: colors.tertiary }}>
+                Province
+              </label>
             <div className='relative'>
               <select
                 name='address_province'
@@ -680,11 +680,11 @@ const StudentInformation: React.FC<EnrollmentPageProps> = ({
             </div>
           </div>
 
-          {/* City/Municipality Dropdown */}
-          <div className='group'>
-            <label className='block text-xs font-medium mb-1 ml-1' style={{ color: colors.tertiary }}>
-              City/Municipality
-            </label>
+            {/* City/Municipality Dropdown */}
+            <div className='group'>
+              <label className='block text-xs font-medium mb-1 ml-1' style={{ color: colors.tertiary }}>
+                City/Municipality
+              </label>
             <div className='relative'>
               <select
                 name='address_city'
@@ -725,7 +725,7 @@ const StudentInformation: React.FC<EnrollmentPageProps> = ({
               </div>
             </div>
           </div>
-
+          </div>
           {/* Address Detail (House/Building Number, Street, Barangay) */}
           <div className='group'>
             <label className='block text-xs font-medium mb-1 ml-1' style={{ color: colors.tertiary }}>
@@ -751,7 +751,6 @@ const StudentInformation: React.FC<EnrollmentPageProps> = ({
               ⚠️ Address city matches birthplace city. Please select a different location.
             </p>
           )}
-
           {fieldErrors.complete_address && (
             <p className='text-red-500 text-xs mt-1 ml-1'>
               {fieldErrors.complete_address}
@@ -759,7 +758,7 @@ const StudentInformation: React.FC<EnrollmentPageProps> = ({
           )}
         </div>
 
-        <div className='grid grid-cols-1 md:grid-cols-2 gap-6'>
+        <div className='grid grid-cols-1 md:grid-cols-2 gap-4'>
           <div className='group'>
             <label
               className='flex items-center gap-2 text-sm font-semibold mb-2 ml-1'

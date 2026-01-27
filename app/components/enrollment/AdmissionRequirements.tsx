@@ -9,15 +9,15 @@ const AdmissionRequirements: React.FC<EnrollmentPageProps> = ({
   fieldErrors = {},
 }) => {
   return (
-    <div className="space-y-6 animate-in slide-in-from-bottom-4 duration-500 delay-400">
+    <div className="space-y-4 animate-in slide-in-from-bottom-4 duration-500 delay-400">
       <div
-        className="p-8 rounded-2xl bg-white border shadow-lg shadow-gray-100/50"
+        className="p-6 rounded-2xl bg-white border shadow-lg shadow-gray-100/50"
         style={{
           borderColor: colors.accent + "20",
           background: `linear-gradient(to bottom right, #ffffff, ${colors.paper})`
         }}
       >
-        <div className="flex items-center gap-4 mb-8 pb-6 border-b" style={{ borderColor: colors.accent + "10" }}>
+        <div className="flex items-center gap-4 mb-6 pb-4 border-b" style={{ borderColor: colors.accent + "10" }}>
           <div
             className="p-3 rounded-2xl shadow-sm transform transition-transform hover:scale-105 duration-300"
             style={{
@@ -40,7 +40,7 @@ const AdmissionRequirements: React.FC<EnrollmentPageProps> = ({
           </div>
         </div>
 
-        <div className="flex items-center gap-3 px-4 py-3 rounded-xl mb-8 border"
+        <div className="flex items-center gap-3 px-4 py-2 rounded-xl mb-6 border"
           style={{
             backgroundColor: colors.accent + "05",
             borderColor: colors.accent + "10"
@@ -52,7 +52,7 @@ const AdmissionRequirements: React.FC<EnrollmentPageProps> = ({
           </p>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
           {[
             "School Form 10 / Form 137A",
             "Transcript of Records",
@@ -65,7 +65,7 @@ const AdmissionRequirements: React.FC<EnrollmentPageProps> = ({
             return (
               <label
                 key={req}
-                className="flex items-center gap-4 p-5 rounded-xl border cursor-pointer transition-all duration-300 group relative overflow-hidden"
+                className="flex items-center gap-3 p-4 rounded-xl border cursor-pointer transition-all duration-300 group relative overflow-hidden"
                 style={{
                   borderColor: isSelected ? colors.secondary : colors.tertiary + "20",
                   backgroundColor: isSelected ? colors.accent + "08" : "white",

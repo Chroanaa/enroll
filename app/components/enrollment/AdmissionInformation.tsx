@@ -28,19 +28,19 @@ const AdmissionInformation: React.FC<EnrollmentPageProps> = ({
   formData.admission_date = getTodayDate?.() || "";
 
   const inputClasses =
-    "w-full px-4 py-3 rounded-xl border bg-white/50 transition-all duration-300 focus:ring-2 focus:ring-offset-0 outline-none";
+    "w-full px-4 py-2.5 rounded-xl border bg-white/50 transition-all duration-300 focus:ring-2 focus:ring-offset-0 outline-none";
 
   return (
-    <div className='space-y-6 animate-in slide-in-from-bottom-4 duration-500 delay-100'>
+    <div className='space-y-4 animate-in slide-in-from-bottom-4 duration-500 delay-100'>
       <div
-        className='p-8 rounded-2xl bg-white border shadow-lg shadow-gray-100/50'
+        className='p-6 rounded-2xl bg-white border shadow-lg shadow-gray-100/50'
         style={{
           borderColor: colors.accent + "20",
           background: `linear-gradient(to bottom right, #ffffff, ${colors.paper})`,
         }}
       >
         <div
-          className='flex items-center gap-4 mb-8 pb-6 border-b'
+          className='flex items-center gap-4 mb-6 pb-4 border-b'
           style={{ borderColor: colors.accent + "10" }}
         >
           <div
@@ -72,7 +72,7 @@ const AdmissionInformation: React.FC<EnrollmentPageProps> = ({
         </div>
 
         <div
-          className='flex items-center gap-3 px-4 py-3 rounded-xl mb-8 border'
+          className='flex items-center gap-3 px-4 py-2 rounded-xl mb-6 border'
           style={{
             backgroundColor: colors.accent + "05",
             borderColor: colors.accent + "10",
@@ -90,9 +90,9 @@ const AdmissionInformation: React.FC<EnrollmentPageProps> = ({
           </p>
         </div>
 
-        <div className='grid grid-cols-1 lg:grid-cols-3 gap-8'>
+        <div className='grid grid-cols-1 lg:grid-cols-3 gap-6'>
           {/* Left Column - Form Fields */}
-          <div className='lg:col-span-2 space-y-6'>
+          <div className='lg:col-span-2 space-y-4'>
             <div className='group'>
               <label
                 className='flex items-center gap-2 text-sm font-semibold mb-2 ml-1'

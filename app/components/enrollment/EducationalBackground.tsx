@@ -1,5 +1,5 @@
-import React, { useState, useMemo } from "react";
-import { School, X } from "lucide-react";
+import React, { useState, useMemo, useRef } from "react";
+import { School, X, Loader2 } from "lucide-react";
 import { colors } from "../../colors";
 import { EnrollmentPageProps } from "./types";
 import Axios from "axios";
@@ -23,6 +23,10 @@ const EducationalBackground: React.FC<EnrollmentPageProps> = ({
     isOpen: boolean;
     message: string;
   }>({ isOpen: false, message: "" });
+  const [isSavingProgram, setIsSavingProgram] = useState(false);
+  const [isSavingSchool, setIsSavingSchool] = useState(false);
+  const isSubmittingProgramRef = useRef(false);
+  const isSubmittingSchoolRef = useRef(false);
 
   // Load SHS programs and schools from database
   React.useEffect(() => {
@@ -46,7 +50,7 @@ const EducationalBackground: React.FC<EnrollmentPageProps> = ({
   }, []);
 
   const inputClasses =
-    "w-full px-4 py-3 rounded-xl border bg-white/50 transition-all duration-300 focus:ring-2 focus:ring-offset-0 outline-none";
+    "w-full px-4 py-2.5 rounded-xl border bg-white/50 transition-all duration-300 focus:ring-2 focus:ring-offset-0 outline-none";
   
   const getInputStyle = (fieldName: string) => ({
     borderColor: fieldErrors[fieldName] ? "#ef4444" : colors.tertiary + "30",
@@ -125,22 +129,33 @@ const EducationalBackground: React.FC<EnrollmentPageProps> = ({
       e.stopPropagation();
     }
     
+    // Prevent multiple simultaneous submissions
+    if (isSubmittingProgramRef.current || isSavingProgram) {
+      return;
+    }
+    
     if (!customProgram.trim()) return;
     
     const programName = customProgram.toUpperCase();
     const schoolName = formData.last_school_attended?.toUpperCase() || "";
     
-    // Check for duplicate if school is already selected
-    if (schoolName) {
-      const isDuplicate = await checkDuplicateSchoolProgram(schoolName, programName);
-      if (isDuplicate) {
-        setDuplicateWarningMessage("This school and program combination already exists.");
-        setShowDuplicateWarning(true);
-        return;
-      }
-    }
+    // Set loading state and prevent multiple submissions
+    setIsSavingProgram(true);
+    isSubmittingProgramRef.current = true;
     
     try {
+      // Check for duplicate if school is already selected
+      if (schoolName) {
+        const isDuplicate = await checkDuplicateSchoolProgram(schoolName, programName);
+        if (isDuplicate) {
+          setDuplicateWarningMessage("This school and program combination already exists.");
+          setShowDuplicateWarning(true);
+          setIsSavingProgram(false);
+          isSubmittingProgramRef.current = false;
+          return;
+        }
+      }
+      
       await Axios.post("/api/auth/enroll/shs-programs", { name: programName });
       // Success - show success modal, then insert and close
       setSuccessModal({
@@ -170,6 +185,9 @@ const EducationalBackground: React.FC<EnrollmentPageProps> = ({
         setDuplicateWarningMessage(errorMessage);
         setShowDuplicateWarning(true);
       }
+    } finally {
+      setIsSavingProgram(false);
+      isSubmittingProgramRef.current = false;
     }
   };
 
@@ -179,22 +197,33 @@ const EducationalBackground: React.FC<EnrollmentPageProps> = ({
       e.stopPropagation();
     }
     
+    // Prevent multiple simultaneous submissions
+    if (isSubmittingSchoolRef.current || isSavingSchool) {
+      return;
+    }
+    
     if (!customSchool.trim()) return;
     
     const schoolName = customSchool.toUpperCase();
     const programName = formData.program_shs?.toUpperCase() || "";
     
-    // Check for duplicate if program is already selected
-    if (programName) {
-      const isDuplicate = await checkDuplicateSchoolProgram(schoolName, programName);
-      if (isDuplicate) {
-        setDuplicateWarningMessage("This school and program combination already exists.");
-        setShowDuplicateWarning(true);
-        return;
-      }
-    }
+    // Set loading state and prevent multiple submissions
+    setIsSavingSchool(true);
+    isSubmittingSchoolRef.current = true;
     
     try {
+      // Check for duplicate if program is already selected
+      if (programName) {
+        const isDuplicate = await checkDuplicateSchoolProgram(schoolName, programName);
+        if (isDuplicate) {
+          setDuplicateWarningMessage("This school and program combination already exists.");
+          setShowDuplicateWarning(true);
+          setIsSavingSchool(false);
+          isSubmittingSchoolRef.current = false;
+          return;
+        }
+      }
+      
       await Axios.post("/api/auth/enroll/schools", { name: schoolName });
       // Success - show success modal, then insert and close
       setSuccessModal({
@@ -224,6 +253,9 @@ const EducationalBackground: React.FC<EnrollmentPageProps> = ({
         setDuplicateWarningMessage(errorMessage);
         setShowDuplicateWarning(true);
       }
+    } finally {
+      setIsSavingSchool(false);
+      isSubmittingSchoolRef.current = false;
     }
   };
 
@@ -250,15 +282,15 @@ const EducationalBackground: React.FC<EnrollmentPageProps> = ({
   ];
 
   return (
-    <div className='space-y-6 animate-in slide-in-from-bottom-4 duration-500 delay-200'>
+    <div className='space-y-4 animate-in slide-in-from-bottom-4 duration-500 delay-200'>
       <div
-        className='p-8 rounded-2xl bg-white border shadow-lg shadow-gray-100/50'
+        className='p-6 rounded-2xl bg-white border shadow-lg shadow-gray-100/50'
         style={{
           borderColor: colors.accent + "20",
           background: `linear-gradient(to bottom right, #ffffff, ${colors.paper})`,
         }}
       >
-        <div className='flex items-center gap-4 mb-8 pb-6 border-b' style={{ borderColor: colors.accent + "10" }}>
+        <div className='flex items-center gap-4 mb-6 pb-4 border-b' style={{ borderColor: colors.accent + "10" }}>
           <div
             className='p-3 rounded-2xl shadow-sm transform transition-transform hover:scale-105 duration-300'
             style={{
@@ -278,7 +310,7 @@ const EducationalBackground: React.FC<EnrollmentPageProps> = ({
           </div>
         </div>
 
-        <div className='grid grid-cols-1 md:grid-cols-3 gap-6 mb-6'>
+        <div className='grid grid-cols-1 md:grid-cols-3 gap-4 mb-4'>
           <div className="group">
             <label
               className='block text-sm font-semibold mb-2 ml-1 transition-colors'
@@ -442,8 +474,11 @@ const EducationalBackground: React.FC<EnrollmentPageProps> = ({
                     e.stopPropagation();
                     setShowProgramModal(false);
                     setCustomProgram("");
+                    setIsSavingProgram(false);
+                    isSubmittingProgramRef.current = false;
                   }}
-                  className="p-1 hover:bg-gray-100 rounded-full transition-colors"
+                  disabled={isSavingProgram}
+                  className="p-1 hover:bg-gray-100 rounded-full transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   <X className="w-5 h-5" />
                 </button>
@@ -471,8 +506,11 @@ const EducationalBackground: React.FC<EnrollmentPageProps> = ({
                       e.stopPropagation();
                       setShowProgramModal(false);
                       setCustomProgram("");
+                      setIsSavingProgram(false);
+                      isSubmittingProgramRef.current = false;
                     }}
-                    className="px-4 py-2 rounded-xl border transition-colors"
+                    disabled={isSavingProgram}
+                    className="px-4 py-2 rounded-xl border transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                     style={{ borderColor: colors.tertiary + "30" }}
                   >
                     Cancel
@@ -480,10 +518,14 @@ const EducationalBackground: React.FC<EnrollmentPageProps> = ({
                   <button
                     type="button"
                     onClick={saveCustomProgram}
-                    className="px-4 py-2 rounded-xl text-white transition-colors"
-                    style={{ backgroundColor: colors.secondary }}
+                    disabled={isSavingProgram || !customProgram.trim()}
+                    className="px-4 py-2 rounded-xl text-white transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+                    style={{ backgroundColor: isSavingProgram ? colors.tertiary : colors.secondary }}
                   >
-                    Save
+                    {isSavingProgram && (
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                    )}
+                    {isSavingProgram ? "Saving..." : "Save"}
                   </button>
                 </div>
               </div>
@@ -504,8 +546,11 @@ const EducationalBackground: React.FC<EnrollmentPageProps> = ({
                     e.stopPropagation();
                     setShowSchoolModal(false);
                     setCustomSchool("");
+                    setIsSavingSchool(false);
+                    isSubmittingSchoolRef.current = false;
                   }}
-                  className="p-1 hover:bg-gray-100 rounded-full transition-colors"
+                  disabled={isSavingSchool}
+                  className="p-1 hover:bg-gray-100 rounded-full transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   <X className="w-5 h-5" />
                 </button>
@@ -533,8 +578,11 @@ const EducationalBackground: React.FC<EnrollmentPageProps> = ({
                       e.stopPropagation();
                       setShowSchoolModal(false);
                       setCustomSchool("");
+                      setIsSavingSchool(false);
+                      isSubmittingSchoolRef.current = false;
                     }}
-                    className="px-4 py-2 rounded-xl border transition-colors"
+                    disabled={isSavingSchool}
+                    className="px-4 py-2 rounded-xl border transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                     style={{ borderColor: colors.tertiary + "30" }}
                   >
                     Cancel
@@ -542,10 +590,14 @@ const EducationalBackground: React.FC<EnrollmentPageProps> = ({
                   <button
                     type="button"
                     onClick={saveCustomSchool}
-                    className="px-4 py-2 rounded-xl text-white transition-colors"
-                    style={{ backgroundColor: colors.secondary }}
+                    disabled={isSavingSchool || !customSchool.trim()}
+                    className="px-4 py-2 rounded-xl text-white transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+                    style={{ backgroundColor: isSavingSchool ? colors.tertiary : colors.secondary }}
                   >
-                    Save
+                    {isSavingSchool && (
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                    )}
+                    {isSavingSchool ? "Saving..." : "Save"}
                   </button>
                 </div>
               </div>

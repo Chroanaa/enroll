@@ -91,7 +91,7 @@ const EnrollmentForm: React.FC = () => {
 
         <div className='max-w-7xl mx-auto'>
           <div
-            className='rounded-2xl shadow-2xl p-8'
+            className='rounded-2xl shadow-2xl p-6'
             style={{
               backgroundColor: "white",
               border: `1px solid ${colors.accent}30`,
@@ -104,7 +104,7 @@ const EnrollmentForm: React.FC = () => {
             />
 
             <form onSubmit={handleSubmit}>
-              <div className='mb-6'>
+              <div className='mb-4'>
                 <CurrentPageComponent {...pageProps} />
               </div>
 
