@@ -7,6 +7,7 @@ import { defaultFormStyles } from "../utils/formStyles";
 import { useAcademicTerm } from "../hooks/useAcademicTerm";
 import SuccessModal from "./common/SuccessModal";
 import ErrorModal from "./common/ErrorModal";
+import StudentSearchModal from "./common/StudentSearchModal";
 import type { Fee, PaymentDetail, EnrolledSubject } from "./assessmentManagement/types";
 import { StudentInfoSection } from "./assessmentManagement/StudentInfoSection";
 import { EnrolledSubjectsTab } from "./assessmentManagement/EnrolledSubjectsTab";
@@ -36,7 +37,6 @@ const AssessmentManagement: React.FC = () => {
 
   // Student Type Detection
   const [isResidentReturnee, setIsResidentReturnee] = useState(false);
-  const [isEditingSubjects, setIsEditingSubjects] = useState(false);
 
   // Tab Management
   const [activeTab, setActiveTab] = useState<"subjects" | "payment" | "schedule" | "details">("subjects");
@@ -66,6 +66,7 @@ const AssessmentManagement: React.FC = () => {
   const [finalsAmount, setFinalsAmount] = useState(0);
 
   // Modal states
+  const [isStudentSearchModalOpen, setIsStudentSearchModalOpen] = useState(false);
   const [successModal, setSuccessModal] = useState<{
     isOpen: boolean;
     message: string;
@@ -139,7 +140,6 @@ const AssessmentManagement: React.FC = () => {
     setTotalUnits(0);
     setSubjectsError("");
     setIsResidentReturnee(false);
-    setIsEditingSubjects(false);
 
     setIsFetchingStudent(true);
     setStudentFetchError("");
@@ -316,13 +316,13 @@ const AssessmentManagement: React.FC = () => {
   };
 
   // Save enrolled subjects for resident/returnee
-  const saveEnrolledSubjects = async () => {
+  const saveEnrolledSubjects = async (): Promise<boolean> => {
     if (!studentNumber || !programId || !currentTerm) {
       setErrorModal({
         isOpen: true,
         message: "Please enter student information first",
       });
-      return;
+      return false;
     }
 
     try {
@@ -347,13 +347,14 @@ const AssessmentManagement: React.FC = () => {
           isOpen: true,
           message: result.message || "Enrolled subjects saved successfully!",
         });
-        setIsEditingSubjects(false);
+        return true;
       } else {
         const errorData = await response.json();
         setErrorModal({
           isOpen: true,
           message: errorData.error || "Failed to save enrolled subjects",
         });
+        return false;
       }
     } catch (error) {
       console.error("Error saving enrolled subjects:", error);
@@ -362,15 +363,93 @@ const AssessmentManagement: React.FC = () => {
         message: "Failed to save enrolled subjects",
         details: error instanceof Error ? error.message : "Unknown error occurred",
       });
+      return false;
     }
   };
 
+  // Handle add subjects from modal
+  const handleAddSubject = (subjects: any[]) => {
+    if (!studentNumber || !programId || !currentTerm) {
+      setErrorModal({
+        isOpen: true,
+        message: "Please select a student first",
+      });
+      return;
+    }
+
+    try {
+      const semesterNum = currentTerm.semester === "First" ? 1 : 2;
+      
+      // Convert curriculum courses to enrolled subjects format
+      const newSubjects: (EnrolledSubject & { curriculum_course_id?: number })[] = subjects.map((course) => ({
+        id: Date.now() + Math.random(), // Temporary unique ID for UI
+        curriculum_id: course.curriculum_id,
+        curriculum_course_id: course.id, // Store the curriculum_course.id for reference
+        subject_id: course.subject_id || null,
+        course_code: course.course_code,
+        descriptive_title: course.descriptive_title,
+        units_lec: course.units_lec || 0,
+        units_lab: course.units_lab || 0,
+        units_total: course.units_total,
+        lecture_hour: course.lecture_hour || null,
+        lab_hour: course.lab_hour || null,
+        prerequisite: course.prerequisite || null,
+        year_level: course.year_level,
+        semester: semesterNum,
+      }));
+
+      // Add new subjects to enrolled list (avoid duplicates by curriculum_course_id or course_code)
+      const existingCourseIds = new Set(
+        enrolledSubjects.map((s) => (s as any).curriculum_course_id || s.id)
+      );
+      const existingCourseCodes = new Set(enrolledSubjects.map((s) => s.course_code));
+      
+      const uniqueNewSubjects = newSubjects.filter((s) => {
+        // Check if this curriculum course is already enrolled
+        return !existingCourseIds.has(s.curriculum_course_id!) && !existingCourseCodes.has(s.course_code);
+      });
+      const updated = [...enrolledSubjects, ...uniqueNewSubjects];
+
+      setEnrolledSubjects(updated);
+
+      // Recalculate total units
+      const total = updated.reduce(
+        (sum: number, course: EnrolledSubject) => sum + (course.units_total || 0),
+        0
+      );
+      setTotalUnits(total);
+    } catch (error) {
+      console.error("Error adding subjects:", error);
+      setErrorModal({
+        isOpen: true,
+        message: "Failed to add subjects",
+      });
+    }
+  };
+
+  // Handle edit subject (for future use)
+  const handleEditSubject = (subject: EnrolledSubject) => {
+    // This can be implemented later if needed
+    console.log("Edit subject:", subject);
+  };
+
   // Remove subject from enrolled list
-  const removeSubject = (subjectId: number) => {
+  const handleRemoveSubject = (subjectId: number) => {
     const updated = enrolledSubjects.filter(s => s.id !== subjectId);
     setEnrolledSubjects(updated);
     // Recalculate total units
     const total = updated.reduce(
+      (sum: number, course: EnrolledSubject) => sum + (course.units_total || 0),
+      0
+    );
+    setTotalUnits(total);
+  };
+
+  // Restore original subjects (used when canceling edit mode or switching tabs)
+  const handleRestoreSubjects = (subjects: EnrolledSubject[]) => {
+    setEnrolledSubjects(subjects);
+    // Recalculate total units
+    const total = subjects.reduce(
       (sum: number, course: EnrolledSubject) => sum + (course.units_total || 0),
       0
     );
@@ -389,7 +468,18 @@ const AssessmentManagement: React.FC = () => {
     }
   }, [programId, currentTerm, isResidentReturnee, studentNumber]);
 
-  // Handle student number change with debounce
+  // Handle student selection from modal
+  const handleStudentSelect = (selectedStudentNumber: string) => {
+    setStudentNumber(selectedStudentNumber);
+    setIsStudentSearchModalOpen(false);
+    // Show success confirmation
+    setSuccessModal({
+      isOpen: true,
+      message: "Student selected successfully",
+    });
+  };
+
+  // Handle student number change with debounce (for URL params or direct setting)
   useEffect(() => {
     if (studentNumber.trim()) {
       const timeoutId = setTimeout(() => {
@@ -410,7 +500,6 @@ const AssessmentManagement: React.FC = () => {
       setTotalUnits(0);
       setSubjectsError("");
       setIsResidentReturnee(false);
-      setIsEditingSubjects(false);
     }
   }, [studentNumber]);
 
@@ -469,21 +558,8 @@ const AssessmentManagement: React.FC = () => {
     }).format(amount);
   };
 
-  const handleStartEditingSubjects = () => {
-    setIsEditingSubjects(true);
-  };
-
-  const handleCancelEditingSubjects = () => {
-    setIsEditingSubjects(false);
-    // Reload subjects to discard changes
-    if (programId && currentTerm) {
-      const semesterNum = currentTerm.semester === "First" ? 1 : 2;
-      fetchEnrolledSubjects(programId, semesterNum);
-    }
-  };
-
-  const handleSaveSubjects = () => {
-    saveEnrolledSubjects();
+  const handleSaveSubjects = async (): Promise<boolean> => {
+    return await saveEnrolledSubjects();
   };
 
   if (loading) {
@@ -530,14 +606,10 @@ const AssessmentManagement: React.FC = () => {
         {/* Student Information Card - Always Visible */}
         <StudentInfoSection
           studentNumber={studentNumber}
-          setStudentNumber={setStudentNumber}
           studentName={studentName}
-          setStudentName={setStudentName}
           program={program}
-          setProgram={setProgram}
-          studentFetchError={studentFetchError}
           isFetchingStudent={isFetchingStudent}
-          inputClasses={inputClasses}
+          onSelectStudent={() => setIsStudentSearchModalOpen(true)}
         />
 
         {/* Tabbed Content Section */}
@@ -590,17 +662,17 @@ const AssessmentManagement: React.FC = () => {
                 <EnrolledSubjectsTab
                   currentTerm={currentTerm}
                   program={program}
+                  programId={programId}
                   studentNumber={studentNumber}
                   totalUnits={totalUnits}
-                  isResidentReturnee={isResidentReturnee}
-                  isEditingSubjects={isEditingSubjects}
-                  onStartEditing={handleStartEditingSubjects}
-                  onCancelEditing={handleCancelEditingSubjects}
-                  onSaveSubjects={handleSaveSubjects}
                   isLoadingSubjects={isLoadingSubjects}
                   subjectsError={subjectsError}
                   enrolledSubjects={enrolledSubjects}
-                  removeSubject={removeSubject}
+                  onAddSubject={handleAddSubject}
+                  onEditSubject={handleEditSubject}
+                  onRemoveSubject={handleRemoveSubject}
+                  onSaveSubjects={handleSaveSubjects}
+                  onRestoreSubjects={handleRestoreSubjects}
                 />
               )}
 
@@ -661,6 +733,14 @@ const AssessmentManagement: React.FC = () => {
         message={errorModal.message}
         details={errorModal.details}
       />
+
+      {/* Student Search Modal */}
+      <StudentSearchModal
+        isOpen={isStudentSearchModalOpen}
+        onClose={() => setIsStudentSearchModalOpen(false)}
+        onSelect={handleStudentSelect}
+      />
+
     </div>
   );
 };

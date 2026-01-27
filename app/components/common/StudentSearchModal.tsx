@@ -45,6 +45,29 @@ const StudentSearchModal: React.FC<StudentSearchModalProps> = ({
     }
   }, [isOpen]);
 
+  // Handle Esc key to close modal and prevent body scroll
+  useEffect(() => {
+    const handleEscKey = (event: KeyboardEvent) => {
+      if (event.key === "Escape" && isOpen) {
+        setSearchQuery("");
+        setStudents([]);
+        setError(null);
+        onClose();
+      }
+    };
+
+    if (isOpen) {
+      document.addEventListener("keydown", handleEscKey);
+      // Prevent body scroll when modal is open
+      document.body.style.overflow = "hidden";
+    }
+
+    return () => {
+      document.removeEventListener("keydown", handleEscKey);
+      document.body.style.overflow = "unset";
+    };
+  }, [isOpen, onClose]);
+
   // Debounced search
   useEffect(() => {
     if (debounceTimerRef.current) {
@@ -174,6 +197,12 @@ const StudentSearchModal: React.FC<StudentSearchModalProps> = ({
               type="text"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" && searchQuery.trim().length >= 2) {
+                  e.preventDefault();
+                  performSearch(searchQuery.trim());
+                }
+              }}
               placeholder="Enter student number, name, or course/program..."
               className="w-full pl-12 pr-4 py-3 rounded-lg border transition-all focus:outline-none focus:ring-2"
               style={{
@@ -290,8 +319,9 @@ const StudentSearchModal: React.FC<StudentSearchModalProps> = ({
                   {students.map((student) => (
                     <tr
                       key={student.id}
-                      className="border-b hover:bg-gray-50 transition-colors"
+                      className="border-b hover:bg-gray-50 transition-colors cursor-pointer"
                       style={{ borderColor: colors.tertiary + "20" }}
+                      onClick={() => handleSelect(student.student_number)}
                     >
                       <td className="py-3 px-4">
                         <span

@@ -2,16 +2,17 @@
 import React, { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import {
-  GraduationCap,
   Calendar,
   User,
   Mail,
   Phone,
-  FileText,
   Search,
   CheckCircle,
-  AlertCircle,
   Loader2,
+  ChevronRight,
+  History,
+  School,
+  LayoutDashboard,
 } from "lucide-react";
 import { colors } from "../colors";
 import SuccessModal from "../components/common/SuccessModal";
@@ -99,7 +100,7 @@ function ResidentPortalContent() {
 
   const handleSearchStudent = async (studentNum?: string) => {
     const studentNumberToSearch = studentNum || inputStudentNumber.trim();
-    
+
     if (!studentNumberToSearch) {
       setErrorMessage("Please enter a student number");
       setShowError(true);
@@ -138,7 +139,7 @@ function ResidentPortalContent() {
         const errorData = await response.json();
         setErrorMessage(
           errorData.error ||
-            "Student not found. Please check the student number.",
+          "Student not found. Please check the student number.",
         );
         setShowError(true);
       }
@@ -237,11 +238,11 @@ function ResidentPortalContent() {
   // Get Program/Major display text
   const getProgramMajorDisplay = () => {
     if (!studentData) return "N/A";
-    
+
     const programName = studentData.program?.name || studentData.program?.code || "";
     const majorName = studentData.major?.name || "";
     const departmentName = studentData.program?.department_name || "";
-    
+
     if (majorName) {
       return `${programName} - ${majorName}`;
     } else if (departmentName) {
@@ -249,54 +250,77 @@ function ResidentPortalContent() {
     } else if (programName) {
       return programName;
     }
-    
+
     return "N/A";
   };
 
   return (
     <div
-      className='min-h-screen p-4 sm:p-6'
+      className='min-h-screen p-4 sm:p-6 lg:p-8'
       style={{ background: colors.paper }}
     >
-      <div className='max-w-6xl mx-auto'>
-        {/* Header */}
-        <div className='mb-6'>
-          <div className='flex items-center gap-3 mb-6'>
-            <div
-              className='w-12 h-12 rounded-full flex items-center justify-center'
-              style={{ backgroundColor: colors.primary + "10" }}
-            >
-              <GraduationCap size={24} style={{ color: colors.primary }} />
-            </div>
+      <div className='max-w-7xl mx-auto space-y-6'>
+        {/* Breadcrumbs & Header */}
+        <div className='flex flex-col gap-2'>
+          <div className='flex items-center gap-2 text-sm text-gray-500 mb-1'>
+            <LayoutDashboard size={14} />
+            <span>Dashboard</span>
+            <ChevronRight size={14} />
+            <span style={{ color: colors.primary, fontWeight: 500 }}>
+              Resident Enrollment
+            </span>
+          </div>
+          <div className='flex items-center justify-between'>
             <div>
               <h1
-                className='text-2xl font-bold'
+                className='text-3xl font-bold tracking-tight'
                 style={{ color: colors.primary }}
               >
-                Resident Student Re-enrollment
+                Resident Student Enrollment
               </h1>
-              <p className='text-sm text-gray-600'>
-                Enter student number to process re-enrollment
+              <p className='text-gray-600 mt-1'>
+                Manage re-enrollment for continuing students
               </p>
             </div>
           </div>
+        </div>
 
-          {/* Student Number Search */}
-          <div
-            className='bg-white rounded-xl shadow-lg p-6 mb-6'
-            style={{ border: `1px solid ${colors.tertiary}30` }}
-          >
-            <label
-              className='block text-sm font-semibold mb-2'
-              style={{ color: colors.primary }}
-            >
-              Student Number
-            </label>
+        {/* Search Section */}
+        <div
+          className={`bg-white rounded-2xl transition-all duration-300 ${studentData ? "p-4" : "p-8 sm:p-12"
+            }`}
+          style={{
+            border: `1px solid ${colors.tertiary}20`,
+            boxShadow: "0 4px 20px -2px rgba(0, 0, 0, 0.05)",
+          }}
+        >
+          {!studentData && (
+            <div className='text-center mb-8'>
+              <div
+                className='w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4'
+                style={{ backgroundColor: colors.primary + "10" }}
+              >
+                <Search size={32} style={{ color: colors.primary }} />
+              </div>
+              <h2
+                className='text-xl font-semibold mb-2'
+                style={{ color: colors.primary }}
+              >
+                Find Student
+              </h2>
+              <p className='text-gray-500 max-w-md mx-auto'>
+                Enter a student number to view their profile and process
+                re-enrollment.
+              </p>
+            </div>
+          )}
+
+          <div className={`max-w-2xl mx-auto ${studentData ? "" : "mb-4"}`}>
             <div className='flex gap-3'>
-              <div className='flex-1 relative'>
-                <div className='absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none'>
+              <div className='flex-1 relative group'>
+                <div className='absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none'>
                   <Search
-                    className='h-5 w-5'
+                    className='h-5 w-5 transition-colors'
                     style={{ color: colors.tertiary }}
                   />
                 </div>
@@ -310,11 +334,12 @@ function ResidentPortalContent() {
                       handleSearchStudent();
                     }
                   }}
-                  placeholder='e.g. 26-00001 or click to search'
-                  className='w-full pl-10 pr-4 py-3 rounded-lg border transition-all focus:outline-none focus:ring-2 cursor-pointer'
+                  placeholder='Enter Student Number (e.g. 26-00001)'
+                  className='w-full pl-12 pr-4 py-3.5 rounded-xl border transition-all focus:outline-none focus:ring-4 text-lg'
                   style={{
                     borderColor: colors.tertiary + "30",
                     color: colors.primary,
+                    backgroundColor: colors.paper,
                   }}
                   onFocus={(e) => {
                     e.currentTarget.style.borderColor = colors.secondary;
@@ -327,276 +352,268 @@ function ResidentPortalContent() {
                 />
               </div>
               <button
-                onClick={() => setShowSearchModal(true)}
-                className='px-6 py-3 rounded-lg font-semibold text-white transition-all flex items-center gap-2'
+                onClick={() => handleSearchStudent()}
+                disabled={isLoading || !inputStudentNumber.trim()}
+                className='px-8 py-3.5 rounded-xl font-semibold text-white transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 shadow-lg hover:shadow-xl active:scale-95'
                 style={{ backgroundColor: colors.primary }}
-                onMouseEnter={(e) => {
-                  e.currentTarget.style.backgroundColor = colors.tertiary;
-                }}
-                onMouseLeave={(e) => {
-                  e.currentTarget.style.backgroundColor = colors.primary;
-                }}
               >
-                <Search size={18} />
-                Search
+                {isLoading ? (
+                  <Loader2 className='w-5 h-5 animate-spin' />
+                ) : (
+                  <Search size={20} />
+                )}
+                <span className='hidden sm:inline'>Search</span>
               </button>
-              {inputStudentNumber.trim() && (
-                <button
-                  onClick={() => handleSearchStudent()}
-                  disabled={isLoading}
-                  className='px-6 py-3 rounded-lg font-semibold text-white transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2'
-                  style={{ backgroundColor: colors.secondary }}
-                  onMouseEnter={(e) => {
-                    if (!isLoading) {
-                      e.currentTarget.style.backgroundColor = colors.tertiary;
-                    }
-                  }}
-                  onMouseLeave={(e) => {
-                    if (!isLoading) {
-                      e.currentTarget.style.backgroundColor = colors.secondary;
-                    }
-                  }}
-                >
-                  {isLoading ? (
-                    <>
-                      <Loader2 className='w-5 h-5 animate-spin' />
-                      Loading...
-                    </>
-                  ) : (
-                    <>
-                      <User size={18} />
-                      Load
-                    </>
-                  )}
-                </button>
-              )}
-              {studentData && (
-                <button
-                  onClick={handleClear}
-                  className='px-4 py-3 rounded-lg font-medium transition-colors'
-                  style={{
-                    color: colors.primary,
-                    border: `1px solid ${colors.tertiary}30`,
-                  }}
-                  onMouseEnter={(e) => {
-                    e.currentTarget.style.backgroundColor =
-                      colors.tertiary + "10";
-                  }}
-                  onMouseLeave={(e) => {
-                    e.currentTarget.style.backgroundColor = "transparent";
-                  }}
-                >
-                  Clear
-                </button>
-              )}
             </div>
           </div>
+
+          {studentData && (
+            <div className="flex justify-center mt-4 pt-4 border-t border-dashed" style={{ borderColor: colors.tertiary + '30' }}>
+              <button
+                onClick={handleClear}
+                className='text-sm font-medium hover:underline flex items-center gap-1'
+                style={{ color: colors.secondary }}
+              >
+                <Search size={14} />
+                Search for another student
+              </button>
+            </div>
+          )}
         </div>
 
-        {!studentData && !isLoading && (
-          <div
-            className='bg-white rounded-xl shadow-lg p-12 text-center'
-            style={{ border: `1px solid ${colors.tertiary}30` }}
-          >
-            <GraduationCap
-              size={64}
-              className='mx-auto mb-4'
-              style={{ color: colors.tertiary, opacity: 0.5 }}
+        {/* Loading State */}
+        {isLoading && !studentData && (
+          <div className='flex flex-col items-center justify-center py-12 animate-in fade-in'>
+            <Loader2
+              className='w-12 h-12 animate-spin mb-4'
+              style={{ color: colors.secondary }}
             />
-            <p className='text-gray-600'>
-              Enter a student number above to begin re-enrollment
-            </p>
+            <p className='text-gray-500 font-medium'>Loading student data...</p>
           </div>
         )}
 
-        {isLoading && (
-          <div
-            className='bg-white rounded-xl shadow-lg p-12 text-center'
-            style={{ border: `1px solid ${colors.tertiary}30` }}
-          >
-            <div
-              className='w-16 h-16 border-4 border-t-transparent rounded-full animate-spin mx-auto mb-4'
-              style={{ borderColor: colors.secondary }}
-            ></div>
-            <p style={{ color: colors.primary }}>Loading student data...</p>
-          </div>
-        )}
-
+        {/* Main Content Grid */}
         {studentData && (
-          <div className='grid grid-cols-1 lg:grid-cols-3 gap-6'>
-            {/* Student Info Card */}
-            <div className='lg:col-span-1'>
+          <div className='grid grid-cols-1 lg:grid-cols-12 gap-6 duration-500'>
+            {/* Left Column: Profile & History */}
+            <div className='lg:col-span-4 space-y-6'>
+              {/* Profile Card */}
               <div
-                className='bg-white rounded-xl shadow-lg p-6 mb-6'
-                style={{ border: `1px solid ${colors.tertiary}30` }}
+                className='bg-white rounded-2xl shadow-sm overflow-hidden'
+                style={{
+                  border: `1px solid ${colors.tertiary}20`,
+                  boxShadow: "0 4px 20px -2px rgba(0, 0, 0, 0.05)",
+                }}
               >
-                <h2
-                  className='text-lg font-semibold mb-4'
-                  style={{ color: colors.primary }}
+                <div
+                  className='h-24 relative'
+                  style={{
+                    background: `linear-gradient(135deg, ${colors.primary} 0%, ${colors.secondary} 100%)`,
+                  }}
                 >
-                  Student Information
-                </h2>
-                <div className='space-y-3'>
-                  <div className='flex items-start gap-3'>
-                    <User
-                      size={18}
-                      className='mt-0.5'
-                      style={{ color: colors.tertiary }}
-                    />
-                    <div>
-                      <p className='text-sm text-gray-600'>Name</p>
-                      <p
-                        className='font-medium'
-                        style={{ color: colors.primary }}
-                      >
-                        {studentData.first_name} {studentData.middle_name}{" "}
-                        {studentData.last_name}
-                      </p>
+                  <div className='absolute -bottom-10 left-6'>
+                    <div
+                      className='w-20 h-20 rounded-2xl shadow-lg flex items-center justify-center text-2xl font-bold text-white border-4 border-white'
+                      style={{ backgroundColor: colors.tertiary }}
+                    >
+                      {studentData.first_name[0]}
+                      {studentData.last_name[0]}
                     </div>
                   </div>
-                  <div className='flex items-start gap-3'>
-                    <FileText
-                      size={18}
-                      className='mt-0.5'
-                      style={{ color: colors.tertiary }}
-                    />
-                    <div>
-                      <p className='text-sm text-gray-600'>Student Number</p>
-                      <p
-                        className='font-medium'
-                        style={{ color: colors.primary }}
-                      >
-                        {studentData.student_number}
-                      </p>
-                    </div>
-                  </div>
-                  {studentData.email_address && (
-                    <div className='flex items-start gap-3'>
-                      <Mail
+                </div>
+                <div className='pt-12 p-6'>
+                  <h2
+                    className='text-xl font-bold mb-1'
+                    style={{ color: colors.primary }}
+                  >
+                    {studentData.first_name} {studentData.middle_name}{" "}
+                    {studentData.last_name}
+                  </h2>
+                  <p className='text-sm font-medium text-gray-500 mb-6 flex items-center gap-2'>
+                    <span
+                      className='px-2 py-0.5 rounded text-xs font-semibold'
+                      style={{
+                        backgroundColor: colors.primary + "10",
+                        color: colors.primary,
+                      }}
+                    >
+                      {studentData.student_number}
+                    </span>
+                    {studentData.status === 1 ? (
+                      <span className='text-green-600 text-xs flex items-center gap-1'>
+                        <CheckCircle size={12} /> Active
+                      </span>
+                    ) : (
+                      <span className='text-gray-500 text-xs'>Inactive</span>
+                    )}
+                  </p>
+
+                  <div className='space-y-4'>
+                    <div className='flex items-start gap-3 p-3 rounded-xl bg-gray-50'>
+                      <School
                         size={18}
                         className='mt-0.5'
                         style={{ color: colors.tertiary }}
                       />
                       <div>
-                        <p className='text-sm text-gray-600'>Email</p>
+                        <p className='text-xs font-semibold text-gray-500 uppercase tracking-wider'>
+                          Program
+                        </p>
                         <p
-                          className='font-medium text-sm'
+                          className='text-sm font-medium leading-tight mt-0.5'
                           style={{ color: colors.primary }}
                         >
-                          {studentData.email_address}
+                          {getProgramMajorDisplay()}
                         </p>
                       </div>
                     </div>
-                  )}
-                  {studentData.contact_number && (
-                    <div className='flex items-start gap-3'>
-                      <Phone
-                        size={18}
-                        className='mt-0.5'
-                        style={{ color: colors.tertiary }}
-                      />
-                      <div>
-                        <p className='text-sm text-gray-600'>Contact</p>
-                        <p
-                          className='font-medium text-sm'
-                          style={{ color: colors.primary }}
-                        >
-                          {studentData.contact_number}
-                        </p>
-                      </div>
-                    </div>
-                  )}
-                  <div className='flex items-start gap-3'>
-                    <GraduationCap
-                      size={18}
-                      className='mt-0.5'
-                      style={{ color: colors.tertiary }}
-                    />
-                    <div>
-                      <p className='text-sm text-gray-600'>Program / Major</p>
-                      <p
-                        className='font-medium text-sm'
-                        style={{ color: colors.primary }}
-                      >
-                        {getProgramMajorDisplay()}
-                      </p>
+
+                    <div className='grid grid-cols-1 gap-3'>
+                      {studentData.email_address && (
+                        <div className='flex items-center gap-3'>
+                          <div
+                            className='w-8 h-8 rounded-lg flex items-center justify-center'
+                            style={{ backgroundColor: colors.paper }}
+                          >
+                            <Mail size={16} style={{ color: colors.tertiary }} />
+                          </div>
+                          <div className='overflow-hidden'>
+                            <p className='text-xs text-gray-500'>Email</p>
+                            <p
+                              className='text-sm font-medium truncate'
+                              style={{ color: colors.primary }}
+                            >
+                              {studentData.email_address}
+                            </p>
+                          </div>
+                        </div>
+                      )}
+                      {studentData.contact_number && (
+                        <div className='flex items-center gap-3'>
+                          <div
+                            className='w-8 h-8 rounded-lg flex items-center justify-center'
+                            style={{ backgroundColor: colors.paper }}
+                          >
+                            <Phone size={16} style={{ color: colors.tertiary }} />
+                          </div>
+                          <div>
+                            <p className='text-xs text-gray-500'>Contact</p>
+                            <p
+                              className='text-sm font-medium'
+                              style={{ color: colors.primary }}
+                            >
+                              {studentData.contact_number}
+                            </p>
+                          </div>
+                        </div>
+                      )}
                     </div>
                   </div>
                 </div>
               </div>
 
               {/* Enrollment History */}
-              {enrollmentHistory.length > 0 && (
-                <div
-                  className='bg-white rounded-xl shadow-lg p-6'
-                  style={{ border: `1px solid ${colors.tertiary}30` }}
-                >
-                  <h2
-                    className='text-lg font-semibold mb-4'
+              <div
+                className='bg-white rounded-2xl shadow-sm overflow-hidden'
+                style={{
+                  border: `1px solid ${colors.tertiary}20`,
+                  boxShadow: "0 4px 20px -2px rgba(0, 0, 0, 0.05)",
+                }}
+              >
+                <div className='p-4 border-b border-gray-100 flex items-center justify-between'>
+                  <h3
+                    className='font-semibold flex items-center gap-2'
                     style={{ color: colors.primary }}
                   >
-                    Enrollment History
-                  </h2>
-                  <div className='space-y-3 max-h-96 overflow-y-auto'>
-                    {enrollmentHistory.map((enrollment) => (
-                      <div
-                        key={enrollment.id}
-                        className='p-3 rounded-lg'
-                        style={{
-                          backgroundColor: colors.paper,
-                          border: `1px solid ${colors.tertiary}20`,
-                        }}
-                      >
-                        <p
-                          className='font-medium text-sm'
-                          style={{ color: colors.primary }}
-                        >
-                          {`${formatTerm(enrollment.term)} Semester`}
-                        </p>
-                        <p className='text-xs text-gray-600 mt-1'>
-                          {enrollment.admission_date
-                            ? new Date(
-                                enrollment.admission_date,
-                              ).toLocaleDateString()
-                            : "No date available"}
-                        </p>
-                      </div>
-                    ))}
-                  </div>
+                    <History size={18} style={{ color: colors.secondary }} />
+                    History
+                  </h3>
+                  <span
+                    className='text-xs font-medium px-2 py-1 rounded-full'
+                    style={{
+                      backgroundColor: colors.paper,
+                      color: colors.neutral,
+                    }}
+                  >
+                    {enrollmentHistory.length} Records
+                  </span>
                 </div>
-              )}
+                <div className='max-h-[300px] overflow-y-auto p-2'>
+                  {enrollmentHistory.length > 0 ? (
+                    <div className='space-y-1'>
+                      {enrollmentHistory.map((enrollment) => (
+                        <div
+                          key={enrollment.id}
+                          className='p-3 rounded-xl hover:bg-gray-50 transition-colors flex items-center justify-between group'
+                        >
+                          <div>
+                            <p
+                              className='font-medium text-sm'
+                              style={{ color: colors.primary }}
+                            >
+                              {formatTerm(enrollment.term)}
+                            </p>
+                            <p className='text-xs text-gray-500'>
+                              {enrollment.admission_date
+                                ? new Date(
+                                  enrollment.admission_date,
+                                ).toLocaleDateString()
+                                : "No date"}
+                            </p>
+                          </div>
+                          <div
+                            className='w-8 h-8 rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity'
+                            style={{ backgroundColor: colors.paper }}
+                          >
+                            <CheckCircle
+                              size={14}
+                              style={{ color: colors.success }}
+                            />
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <div className='p-6 text-center text-gray-500 text-sm'>
+                      No enrollment history found.
+                    </div>
+                  )}
+                </div>
+              </div>
             </div>
 
-            {/* Re-enrollment Form */}
-            <div className='lg:col-span-2'>
+            {/* Right Column: Re-enrollment Form */}
+            <div className='lg:col-span-8'>
               <div
-                className='bg-white rounded-xl shadow-lg p-5'
-                style={{ border: `1px solid ${colors.tertiary}30` }}
+                className='bg-white rounded-2xl shadow-sm p-6 sm:p-8'
+                style={{
+                  border: `1px solid ${colors.tertiary}20`,
+                  boxShadow: "0 4px 20px -2px rgba(0, 0, 0, 0.05)",
+                }}
               >
-                <h2
-                  className='text-lg font-semibold mb-3 pb-3 border-b'
-                  style={{ 
-                    color: colors.primary,
-                    borderColor: colors.tertiary + "30"
-                  }}
-                >
-                  Re-enrollment Form
-                </h2>
+                <div className='mb-8'>
+                  <h2
+                    className='text-xl font-bold mb-2'
+                    style={{ color: colors.primary }}
+                  >
+                    Re-enrollment Details
+                  </h2>
+                  <p className='text-gray-500'>
+                    Update the student's enrollment information for the upcoming
+                    term.
+                  </p>
+                </div>
 
-                <form onSubmit={handleSubmit} className='space-y-3'>
-                  {/* Essential Fields */}
-                  <div className='grid grid-cols-1 md:grid-cols-3 gap-4'>
-                    <div>
+                <form onSubmit={handleSubmit} className='space-y-8'>
+                  <div className='grid grid-cols-1 md:grid-cols-2 gap-6'>
+                    {/* Term Selection */}
+                    <div className='space-y-2'>
                       <label
-                        className='block text-sm font-semibold mb-2'
+                        className='text-sm font-semibold flex items-center gap-2'
                         style={{ color: colors.primary }}
                       >
-                        <Calendar
-                          size={16}
-                          className='inline mr-2'
-                          style={{ color: colors.secondary }}
-                        />
-                        Term <span className='text-red-500'>*</span>
+                        <Calendar size={16} style={{ color: colors.secondary }} />
+                        Term / Semester <span className='text-red-500'>*</span>
                       </label>
                       <div className='relative'>
                         <select
@@ -604,7 +621,7 @@ function ResidentPortalContent() {
                           onChange={(e) => setTerm(e.target.value)}
                           required
                           disabled={termLoading}
-                          className='w-full px-4 py-2.5 rounded-lg border transition-all focus:outline-none focus:ring-2 appearance-none cursor-pointer'
+                          className='w-full px-4 py-3 rounded-xl border transition-all focus:outline-none focus:ring-4 appearance-none cursor-pointer bg-white'
                           style={{
                             borderColor: colors.tertiary + "30",
                             color: colors.primary,
@@ -622,37 +639,26 @@ function ResidentPortalContent() {
                           <option value=''>Select Term</option>
                           {currentTerm && (
                             <option value={currentTerm.semesterCode}>
-                              {currentTerm.semester} Semester
+                              {currentTerm.semester} Semester (Current)
                             </option>
                           )}
-                          <option value='first'>First</option>
-                          <option value='second'>Second</option>
+                          <option value='first'>First Semester</option>
+                          <option value='second'>Second Semester</option>
+                          <option value='summer'>Summer</option>
                         </select>
-                        <div className='absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none opacity-50'>
-                          <svg
-                            width='12'
-                            height='12'
-                            viewBox='0 0 12 12'
-                            fill='none'
-                            xmlns='http://www.w3.org/2000/svg'
-                          >
-                            <path
-                              d='M2.5 4.5L6 8L9.5 4.5'
-                              stroke='currentColor'
-                              strokeWidth='1.5'
-                              strokeLinecap='round'
-                              strokeLinejoin='round'
-                            />
-                          </svg>
+                        <div className='absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none text-gray-400'>
+                          <ChevronRight size={16} className='rotate-90' />
                         </div>
                       </div>
                     </div>
 
-                    <div>
+                    {/* Academic Year */}
+                    <div className='space-y-2'>
                       <label
-                        className='block text-sm font-semibold mb-2'
+                        className='text-sm font-semibold flex items-center gap-2'
                         style={{ color: colors.primary }}
                       >
+                        <Calendar size={16} style={{ color: colors.secondary }} />
                         Academic Year
                       </label>
                       <div className='relative'>
@@ -660,14 +666,13 @@ function ResidentPortalContent() {
                           value={academicYear}
                           onChange={(e) => setAcademicYear(e.target.value)}
                           disabled={termLoading}
-                          className='w-full px-4 py-2.5 rounded-lg border transition-all focus:outline-none focus:ring-2 appearance-none cursor-pointer'
+                          className='w-full px-4 py-3 rounded-xl border transition-all focus:outline-none focus:ring-4 appearance-none cursor-pointer bg-white'
                           style={{
                             borderColor: colors.tertiary + "30",
                             color: colors.primary,
                           }}
                           onFocus={(e) => {
-                            e.currentTarget.style.borderColor =
-                              colors.secondary;
+                            e.currentTarget.style.borderColor = colors.secondary;
                             e.currentTarget.style.boxShadow = `0 0 0 4px ${colors.secondary}10`;
                           }}
                           onBlur={(e) => {
@@ -679,11 +684,11 @@ function ResidentPortalContent() {
                           <option value=''>Select Academic Year</option>
                           {currentTerm && (
                             <option value={currentTerm.academicYear}>
-                              {currentTerm.academicYear}
+                              {currentTerm.academicYear} (Current)
                             </option>
                           )}
-                          {Array.from({ length: 10 }, (_, i) => {
-                            const startYear = new Date().getFullYear() + i;
+                          {Array.from({ length: 5 }, (_, i) => {
+                            const startYear = new Date().getFullYear() - 1 + i;
                             const endYear = startYear + 1;
                             const academicYearValue = `${startYear}-${endYear}`;
                             return (
@@ -696,92 +701,86 @@ function ResidentPortalContent() {
                             );
                           })}
                         </select>
-                        <div className='absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none opacity-50'>
-                          <svg
-                            width='12'
-                            height='12'
-                            viewBox='0 0 12 12'
-                            fill='none'
-                            xmlns='http://www.w3.org/2000/svg'
-                          >
-                            <path
-                              d='M2.5 4.5L6 8L9.5 4.5'
-                              stroke='currentColor'
-                              strokeWidth='1.5'
-                              strokeLinecap='round'
-                              strokeLinejoin='round'
-                            />
-                          </svg>
+                        <div className='absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none text-gray-400'>
+                          <ChevronRight size={16} className='rotate-90' />
                         </div>
                       </div>
                     </div>
 
-                    <div>
+                    {/* Admission Status */}
+                    <div className='space-y-2 md:col-span-2'>
                       <label
-                        className='block text-sm font-semibold mb-2'
+                        className='text-sm font-semibold flex items-center gap-2'
                         style={{ color: colors.primary }}
                       >
+                        <User size={16} style={{ color: colors.secondary }} />
                         Admission Status
                       </label>
-                      <select
-                        value={admissionStatus}
-                        onChange={(e) => setAdmissionStatus(e.target.value)}
-                        className='w-full px-4 py-2.5 rounded-lg border transition-all focus:outline-none focus:ring-2'
-                        style={{
-                          borderColor: colors.tertiary + "30",
-                          color: colors.primary,
-                        }}
-                        onFocus={(e) => {
-                          e.currentTarget.style.borderColor = colors.secondary;
-                          e.currentTarget.style.boxShadow = `0 0 0 4px ${colors.secondary}10`;
-                        }}
-                        onBlur={(e) => {
-                          e.currentTarget.style.borderColor =
-                            colors.tertiary + "30";
-                          e.currentTarget.style.boxShadow = "none";
-                        }}
-                      >
-                        <option value=''>Select Status</option>
-                        <option value='new'>New</option>
-                        <option value='transferee'>Transferee</option>
-                        <option value='returning'>Returning</option>
-                      </select>
+                      <div className='grid grid-cols-1 sm:grid-cols-3 gap-3'>
+                        {["new", "transferee", "returning"].map((status) => (
+                          <label
+                            key={status}
+                            className={`relative flex items-center justify-center p-4 rounded-xl border-2 cursor-pointer transition-all ${admissionStatus === status
+                              ? "bg-orange-50"
+                              : "bg-white hover:bg-gray-50"
+                              }`}
+                            style={{
+                              borderColor:
+                                admissionStatus === status
+                                  ? colors.secondary
+                                  : colors.tertiary + "30",
+                            }}
+                          >
+                            <input
+                              type='radio'
+                              name='admissionStatus'
+                              value={status}
+                              checked={admissionStatus === status}
+                              onChange={(e) => setAdmissionStatus(e.target.value)}
+                              className='sr-only'
+                            />
+                            <span
+                              className='font-medium capitalize'
+                              style={{
+                                color:
+                                  admissionStatus === status
+                                    ? colors.secondary
+                                    : colors.primary,
+                              }}
+                            >
+                              {status}
+                            </span>
+                            {admissionStatus === status && (
+                              <div className='absolute top-2 right-2'>
+                                <CheckCircle
+                                  size={16}
+                                  style={{ color: colors.secondary }}
+                                />
+                              </div>
+                            )}
+                          </label>
+                        ))}
+                      </div>
                     </div>
                   </div>
 
-
-                  {/* Submit Button */}
-                  <div className='flex gap-4 pt-2'>
+                  <div className='pt-6 border-t border-gray-100'>
                     <button
                       type='submit'
                       disabled={isSubmitting}
-                      className='flex-1 py-2.5 rounded-lg font-semibold text-white transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2'
-                      style={{ backgroundColor: colors.secondary }}
-                      onMouseEnter={(e) => {
-                        if (!isSubmitting) {
-                          e.currentTarget.style.backgroundColor =
-                            colors.tertiary;
-                          e.currentTarget.style.transform = "translateY(-2px)";
-                          e.currentTarget.style.boxShadow = `0 4px 12px ${colors.secondary}40`;
-                        }
-                      }}
-                      onMouseLeave={(e) => {
-                        if (!isSubmitting) {
-                          e.currentTarget.style.backgroundColor =
-                            colors.secondary;
-                          e.currentTarget.style.transform = "translateY(0)";
-                          e.currentTarget.style.boxShadow = "none";
-                        }
+                      className='w-full py-4 rounded-xl font-bold text-white text-lg transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-3 shadow-xl hover:shadow-2xl active:scale-[0.99]'
+                      style={{
+                        background: `linear-gradient(135deg, ${colors.secondary} 0%, ${colors.tertiary} 100%)`,
                       }}
                     >
                       {isSubmitting ? (
                         <>
-                          <div className='w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin'></div>
-                          Updating...
+                          <Loader2 className='w-6 h-6 animate-spin' />
+                          Processing Re-enrollment...
                         </>
                       ) : (
                         <>
-                          <CheckCircle size={18} />
+                          <CheckCircle size={20} />
                           Update Re-enrollment
                         </>
                       )}
