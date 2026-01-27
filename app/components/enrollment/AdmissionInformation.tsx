@@ -14,9 +14,12 @@ import { EnrollmentPageProps } from "./types";
 const AdmissionInformation: React.FC<EnrollmentPageProps> = ({
   formData,
   handleInputChange,
-  handleDepartmentChange,
+  handleProgramChange,
+  handleMajorChange,
   filteredCoursePrograms,
   departments = [],
+  majors = [],
+  selectedProgramHasMajors = false,
   photoPreview,
   fileInputRef,
   handlePhotoUpload,
@@ -163,93 +166,22 @@ const AdmissionInformation: React.FC<EnrollmentPageProps> = ({
                 className='flex items-center gap-2 text-sm font-semibold mb-2 ml-1'
                 style={{ color: colors.primary }}
               >
-                <Building2
-                  className='w-4 h-4'
-                  style={{ color: colors.secondary }}
-                />
-                Department
-              </label>
-              <div className='relative'>
-                <select
-                  name='department'
-                  data-field='department'
-                  value={formData.department}
-                  onChange={(e) =>
-                    handleDepartmentChange?.(Number(e.target.value))
-                  }
-                  className={`${inputClasses} appearance-none cursor-pointer ${fieldErrors.department ? "border-red-500" : ""}`}
-                  style={{
-                    borderColor: fieldErrors.department
-                      ? "#ef4444"
-                      : colors.tertiary + "30",
-                    color: colors.primary,
-                  }}
-                  onFocus={(e) => {
-                    e.currentTarget.style.borderColor = fieldErrors.department
-                      ? "#ef4444"
-                      : colors.secondary;
-                    e.currentTarget.style.boxShadow = `0 0 0 4px ${fieldErrors.department ? "#ef444410" : colors.secondary + "10"}`;
-                  }}
-                  onBlur={(e) => {
-                    e.currentTarget.style.borderColor = fieldErrors.department
-                      ? "#ef4444"
-                      : colors.tertiary + "30";
-                    e.currentTarget.style.boxShadow = "none";
-                  }}
-                >
-                  <option value=''>Select Department</option>
-                  {departments.map((dept) => (
-                    <option key={dept.id} value={dept.id}>
-                      {dept.name} ({dept.code})
-                    </option>
-                  ))}
-                </select>
-                <div className='absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none opacity-50'>
-                  <svg
-                    width='12'
-                    height='12'
-                    viewBox='0 0 12 12'
-                    fill='none'
-                    xmlns='http://www.w3.org/2000/svg'
-                  >
-                    <path
-                      d='M2.5 4.5L6 8L9.5 4.5'
-                      stroke='currentColor'
-                      strokeWidth='1.5'
-                      strokeLinecap='round'
-                      strokeLinejoin='round'
-                    />
-                  </svg>
-                </div>
-              </div>
-              {fieldErrors.department && (
-                <p className='text-red-500 text-xs mt-1 ml-1'>
-                  {fieldErrors.department}
-                </p>
-              )}
-            </div>
-
-            <div className='group'>
-              <label
-                className='flex items-center gap-2 text-sm font-semibold mb-2 ml-1'
-                style={{ color: colors.primary }}
-              >
                 <BookOpen
                   className='w-4 h-4'
                   style={{ color: colors.secondary }}
                 />
-                Course/Program
+                Program / Major
               </label>
               <div className='relative'>
                 <select
                   name='course_program'
                   data-field='course_program'
                   value={formData.course_program}
-                  onChange={(e) =>
-                    handleInputChange("course_program", e.target.value)
-                  }
-                  disabled={!formData.department}
-                  className={`${inputClasses} appearance-none cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed ${fieldErrors.course_program ? "border-red-500" : ""}`}
+                  onChange={(e) => {
+                    const programId = Number(e.target.value);
+                    handleProgramChange?.(programId);
+                  }}
+                  className={`${inputClasses} appearance-none cursor-pointer ${fieldErrors.course_program ? "border-red-500" : ""}`}
                   style={{
                     borderColor: fieldErrors.course_program
                       ? "#ef4444"
@@ -257,13 +189,11 @@ const AdmissionInformation: React.FC<EnrollmentPageProps> = ({
                     color: colors.primary,
                   }}
                   onFocus={(e) => {
-                    if (!formData.department) return;
                     e.currentTarget.style.borderColor =
                       fieldErrors.course_program ? "#ef4444" : colors.secondary;
                     e.currentTarget.style.boxShadow = `0 0 0 4px ${fieldErrors.course_program ? "#ef444410" : colors.secondary + "10"}`;
                   }}
                   onBlur={(e) => {
-                    if (!formData.department) return;
                     e.currentTarget.style.borderColor =
                       fieldErrors.course_program
                         ? "#ef4444"
@@ -271,11 +201,7 @@ const AdmissionInformation: React.FC<EnrollmentPageProps> = ({
                     e.currentTarget.style.boxShadow = "none";
                   }}
                 >
-                  <option value=''>
-                    {formData.department
-                      ? "Select Course/Program"
-                      : "Please select a department first"}
-                  </option>
+                  <option value=''>Select Program</option>
                   {filteredCoursePrograms?.map((program) => (
                     <option key={program.id} value={String(program.id)}>
                       {program.name}
@@ -306,6 +232,144 @@ const AdmissionInformation: React.FC<EnrollmentPageProps> = ({
                 </p>
               )}
             </div>
+
+            {/* Show majors dropdown if program has majors */}
+            {selectedProgramHasMajors && (
+              <div className='group'>
+                <label
+                  className='flex items-center gap-2 text-sm font-semibold mb-2 ml-1'
+                  style={{ color: colors.primary }}
+                >
+                  <Building2
+                    className='w-4 h-4'
+                    style={{ color: colors.secondary }}
+                  />
+                  Major
+                </label>
+                <div className='relative'>
+                  <select
+                    name='major_id'
+                    data-field='major_id'
+                    value={formData.major_id}
+                    onChange={(e) => {
+                      const majorId = Number(e.target.value);
+                      handleMajorChange?.(majorId);
+                    }}
+                    disabled={!formData.course_program || formData.course_program === "0"}
+                    className={`${inputClasses} appearance-none cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed ${fieldErrors.major_id ? "border-red-500" : ""}`}
+                    style={{
+                      borderColor: fieldErrors.major_id
+                        ? "#ef4444"
+                        : colors.tertiary + "30",
+                      color: colors.primary,
+                    }}
+                    onFocus={(e) => {
+                      if (!formData.course_program || formData.course_program === "0") return;
+                      e.currentTarget.style.borderColor =
+                        fieldErrors.major_id ? "#ef4444" : colors.secondary;
+                      e.currentTarget.style.boxShadow = `0 0 0 4px ${fieldErrors.major_id ? "#ef444410" : colors.secondary + "10"}`;
+                    }}
+                    onBlur={(e) => {
+                      e.currentTarget.style.borderColor =
+                        fieldErrors.major_id
+                          ? "#ef4444"
+                          : colors.tertiary + "30";
+                      e.currentTarget.style.boxShadow = "none";
+                    }}
+                  >
+                    <option value=''>
+                      {formData.course_program && formData.course_program !== "0"
+                        ? "Select Major"
+                        : "Please select a program first"}
+                    </option>
+                    {majors.map((major) => (
+                      <option key={major.id} value={major.id}>
+                        {major.name} ({major.code})
+                      </option>
+                    ))}
+                  </select>
+                  <div className='absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none opacity-50'>
+                    <svg
+                      width='12'
+                      height='12'
+                      viewBox='0 0 12 12'
+                      fill='none'
+                      xmlns='http://www.w3.org/2000/svg'
+                    >
+                      <path
+                        d='M2.5 4.5L6 8L9.5 4.5'
+                        stroke='currentColor'
+                        strokeWidth='1.5'
+                        strokeLinecap='round'
+                        strokeLinejoin='round'
+                      />
+                    </svg>
+                  </div>
+                </div>
+                {fieldErrors.major_id && (
+                  <p className='text-red-500 text-xs mt-1 ml-1'>
+                    {fieldErrors.major_id}
+                  </p>
+                )}
+              </div>
+            )}
+
+            {/* Show department info if program has no majors */}
+            {!selectedProgramHasMajors && formData.course_program && formData.course_program !== "0" && formData.department > 0 && (
+              <div className='group'>
+                <label
+                  className='flex items-center gap-2 text-sm font-semibold mb-2 ml-1'
+                  style={{ color: colors.primary }}
+                >
+                  <Building2
+                    className='w-4 h-4'
+                    style={{ color: colors.secondary }}
+                  />
+                  Department
+                </label>
+                <div className='relative'>
+                  <select
+                    name='department'
+                    data-field='department'
+                    value={formData.department}
+                    disabled
+                    className={`${inputClasses} appearance-none cursor-not-allowed opacity-75 bg-gray-50`}
+                    style={{
+                      borderColor: colors.tertiary + "30",
+                      color: colors.primary,
+                    }}
+                  >
+                    {departments
+                      .filter((dept) => dept.id === formData.department)
+                      .map((dept) => (
+                        <option key={dept.id} value={dept.id}>
+                          {dept.name} ({dept.code})
+                        </option>
+                      ))}
+                  </select>
+                  <div className='absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none opacity-50'>
+                    <svg
+                      width='12'
+                      height='12'
+                      viewBox='0 0 12 12'
+                      fill='none'
+                      xmlns='http://www.w3.org/2000/svg'
+                    >
+                      <path
+                        d='M2.5 4.5L6 8L9.5 4.5'
+                        stroke='currentColor'
+                        strokeWidth='1.5'
+                        strokeLinecap='round'
+                        strokeLinejoin='round'
+                      />
+                    </svg>
+                  </div>
+                </div>
+                <p className='text-xs text-gray-500 mt-1 ml-1'>
+                  Department is automatically set from the selected program
+                </p>
+              </div>
+            )}
 
             <div className='group'>
               <label

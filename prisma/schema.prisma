@@ -102,6 +102,7 @@ model enrollment {
   status                   Int?
   student_number           String?   @db.VarChar(20)
   academic_year            String?   @db.VarChar(20)
+  major_id                 Int?
 }
 
 /// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
@@ -290,8 +291,6 @@ model enrolled_subjects {
   @@index([student_number], map: "idx_enrolled_subjects_student_number")
 }
 
-
-
 model category {
   id         Int        @id @default(autoincrement())
   name       String?    @db.VarChar(10)
@@ -319,9 +318,9 @@ model order_header {
   ar_number        String?   @db.VarChar(255)
   isvoided         Int?
   voided_header_id Int?
-  student_number   String?   @db.VarChar(20)
   created_at       DateTime? @db.Timestamp(6)
   updated_at       DateTime? @db.Timestamp(6)
+  student_number   String?   @db.VarChar(20)
 }
 
 model payment_details {

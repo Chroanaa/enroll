@@ -1,6 +1,6 @@
 import { useState, useMemo, useRef, useEffect } from "react";
 import Axios from "axios";
-import { Department, Program } from "../types";
+import { Department, Program, Major } from "../types";
 import { getDepartments } from "../utils/departmentUtils";
 import { getPrograms } from "../utils/programUtils";
 export interface EnrollmentFormData {
@@ -10,6 +10,7 @@ export interface EnrollmentFormData {
   term: string;
   department: number;
   course_program: string;
+  major_id: number;
   photo: File | null;
 
   // Page 2: Admission Requirements
@@ -62,6 +63,7 @@ const initialFormData: EnrollmentFormData = {
   term: "",
   department: 0,
   course_program: "",
+  major_id: 0,
   photo: null,
   academic_year: getCurrentAcademicYear(), // Set to current academic year by default
 
@@ -122,6 +124,8 @@ export const useEnrollmentForm = () => {
   const photoPreviewRef = useRef<string | null>(null);
   const [departments, setDepartments] = useState<Department[]>([]);
   const [programs, setPrograms] = useState<Program[]>([]);
+  const [majors, setMajors] = useState<Major[]>([]);
+  const [selectedProgramHasMajors, setSelectedProgramHasMajors] = useState(false);
 
   // Get today's date
   const getTodayDate = () => {
@@ -200,14 +204,89 @@ export const useEnrollmentForm = () => {
     fetchData();
   }, []);
 
-  // Reset course program when department changes
+  // Fetch majors when program is selected
+  const fetchMajorsByProgram = async (programId: number) => {
+    try {
+      const response = await Axios.get(`/api/auth/major/by-program/${programId}`);
+      const majorsData = response.data || [];
+      setMajors(majorsData);
+      setSelectedProgramHasMajors(majorsData.length > 0);
+      
+      // If program has no majors, get the department from the program
+      if (majorsData.length === 0) {
+        const selectedProgram = programs.find(p => p.id === programId);
+        if (selectedProgram && selectedProgram.department_id) {
+          setFormData((prev) => ({
+            ...prev,
+            department: selectedProgram.department_id || 0,
+          }));
+        }
+      } else {
+        // Clear department if majors exist (will be set from major selection)
+        setFormData((prev) => ({
+          ...prev,
+          department: 0,
+        }));
+      }
+    } catch (error) {
+      console.error("Error fetching majors:", error);
+      setMajors([]);
+      setSelectedProgramHasMajors(false);
+    }
+  };
+
+  // Handle program selection
+  const handleProgramChange = (programId: number) => {
+    setFormData((prev) => ({
+      ...prev,
+      course_program: String(programId),
+      major_id: 0, // Reset major when program changes
+    }));
+    
+    // Fetch majors for this program
+    fetchMajorsByProgram(programId);
+    
+    // Clear errors
+    setFieldErrors((prev) => {
+      const newErrors = { ...prev };
+      delete newErrors.course_program;
+      delete newErrors.major_id;
+      return newErrors;
+    });
+  };
+
+  // Handle major selection
+  const handleMajorChange = (majorId: number) => {
+    const selectedMajor = majors.find(m => m.id === majorId);
+    if (selectedMajor) {
+      // Get program and department from the major
+      const selectedProgram = programs.find(p => p.id === selectedMajor.program_id);
+      setFormData((prev) => ({
+        ...prev,
+        major_id: majorId,
+        course_program: String(selectedMajor.program_id),
+        department: selectedProgram?.department_id || 0,
+      }));
+    }
+    
+    // Clear errors
+    setFieldErrors((prev) => {
+      const newErrors = { ...prev };
+      delete newErrors.major_id;
+      return newErrors;
+    });
+  };
+
+  // Keep handleDepartmentChange for backward compatibility but it's no longer used in the form
   const handleDepartmentChange = (departmentId: number) => {
     setFormData((prev) => ({
       ...prev,
       department: departmentId,
       course_program: "",
+      major_id: 0,
     }));
-    // Clear errors for department and course_program when department changes
+    setMajors([]);
+    setSelectedProgramHasMajors(false);
     setFieldErrors((prev) => {
       const newErrors = { ...prev };
       delete newErrors.department;
@@ -467,6 +546,11 @@ export const useEnrollmentForm = () => {
       } else if (key === "birthplace" && Array.isArray(value)) {
         // Handle birthplace array: [province, city]
         submitData.append(key, JSON.stringify(value));
+      } else if (key === "major_id") {
+        // Handle major_id as number
+        if (value !== null && value !== undefined && value !== 0) {
+          submitData.append(key, String(value));
+        }
       } else if (value !== null && value !== undefined) {
         submitData.append(key, String(value));
       }
@@ -659,11 +743,16 @@ export const useEnrollmentForm = () => {
     if (!formData.admission_status) {
       errors.admission_status = "Please select an admission status";
     }
-    if (!formData.department || formData.department === 0) {
-      errors.department = "Please select a department";
+    if (!formData.course_program || formData.course_program === "0" || formData.course_program === "") {
+      errors.course_program = "Please select a program";
     }
-    if (!formData.course_program) {
-      errors.course_program = "Please select a course/program";
+    // If program has majors, major must be selected
+    if (selectedProgramHasMajors && (!formData.major_id || formData.major_id === 0)) {
+      errors.major_id = "Please select a major";
+    }
+    // If program has no majors, department should be set (automatically from program)
+    if (!selectedProgramHasMajors && (!formData.department || formData.department === 0)) {
+      errors.department = "Department is required";
     }
     if (!formData.term) {
       errors.term = "Please select a term";
@@ -825,15 +914,16 @@ export const useEnrollmentForm = () => {
 
   // Progress calculation
   const progress = (currentPage / TOTAL_PAGES) * 100;
+  // Show all active programs (no longer filtered by department)
   const filteredCoursePrograms = useMemo(() => {
-    if (!formData.department) return [];
     return programs
-      .filter((program) => program.department_id === formData.department)
+      .filter((program) => program.status === "active")
       .map((program) => ({
         id: program.id,
         name: program.name,
+        department_id: program.department_id,
       }));
-  }, [formData.department, programs]);
+  }, [programs]);
   return {
     // State
     currentPage,
@@ -854,6 +944,8 @@ export const useEnrollmentForm = () => {
     // Functions
     getTodayDate,
     handleDepartmentChange,
+    handleProgramChange,
+    handleMajorChange,
     handleInputChange,
     handleCheckboxChange,
     handlePhotoUpload,
@@ -870,5 +962,9 @@ export const useEnrollmentForm = () => {
     // Duplicate checking
     duplicateError,
     isCheckingDuplicate,
+
+    // Program/Major state
+    majors,
+    selectedProgramHasMajors,
   };
 };

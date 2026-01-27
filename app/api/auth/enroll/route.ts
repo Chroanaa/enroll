@@ -26,6 +26,7 @@ export async function POST(request: NextRequest) {
     const term = formData.get("term") as string | null;
     const department = formData.get("department") as string | null;
     const course_program = formData.get("course_program") as string | null;
+    const major_id = formData.get("major_id") as string | null;
     const requirementsStr = formData.get("requirements") as string | null;
     const requirements = requirementsStr ? JSON.parse(requirementsStr) : [];
     const family_name = formData.get("family_name") as string | null;
@@ -167,14 +168,65 @@ export async function POST(request: NextRequest) {
       }
     }
 
+    // Handle major_id and course_program (program_id) logic
+    let finalMajorId: number | null = null;
+    let finalDepartmentId: number | null = null;
+    let finalCourseProgram: string | null = course_program;
+
+    if (major_id && major_id !== "0") {
+      // When major is selected: get program_id from major and department_id from program
+      const majorIdNum = parseInt(major_id);
+      const selectedMajor = await prisma.major.findUnique({
+        where: { id: majorIdNum },
+      });
+
+      if (selectedMajor) {
+        finalMajorId = majorIdNum;
+        // course_program stores the program ID (from major's program_id)
+        finalCourseProgram = String(selectedMajor.program_id);
+        
+        // Get department from program
+        const selectedProgram = await prisma.program.findUnique({
+          where: { id: selectedMajor.program_id },
+        });
+        
+        if (selectedProgram && selectedProgram.department_id) {
+          finalDepartmentId = selectedProgram.department_id;
+        }
+      }
+    } else if (course_program && course_program !== "0" && course_program !== "") {
+      // When no major: use course_program (which contains program ID) and get department_id from program
+      const programIdNum = parseInt(course_program);
+      
+      if (!isNaN(programIdNum)) {
+        const selectedProgram = await prisma.program.findUnique({
+          where: { id: programIdNum },
+        });
+        
+        if (selectedProgram && selectedProgram.department_id) {
+          finalDepartmentId = selectedProgram.department_id;
+        } else if (department) {
+          // Fallback to provided department if program doesn't have one
+          finalDepartmentId = parseInt(department);
+        }
+      } else if (department) {
+        // Fallback: use provided department
+        finalDepartmentId = parseInt(department);
+      }
+    } else if (department) {
+      // Fallback: use provided department
+      finalDepartmentId = parseInt(department);
+    }
+
     const result = await prisma.enrollment.create({
       data: {
         student_number: student_number || null,
         admission_date: admission_date ? new Date(admission_date) : null,
         admission_status: admission_status || null,
         term: term || null,
-        department: department ? parseInt(department) : null,
-        course_program: course_program || null,
+        department: finalDepartmentId,
+        course_program: finalCourseProgram,
+        major_id: finalMajorId,
         photo: photoPath,
         requirements: requirements || [],
         family_name: family_name ? family_name.trim().toUpperCase() : null,
