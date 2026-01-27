@@ -7,8 +7,6 @@ import {
   User,
   Mail,
   Phone,
-  MapPin,
-  Users,
   FileText,
   Search,
   CheckCircle,
@@ -18,10 +16,13 @@ import {
 import { colors } from "../colors";
 import SuccessModal from "../components/common/SuccessModal";
 import ErrorModal from "../components/common/ErrorModal";
+import StudentSearchModal from "../components/common/StudentSearchModal";
 import ProtectedRoute from "../components/ProtectedRoute";
 import { formatTerm } from "../utils/termUtils";
+import { useAcademicTerm } from "../hooks/useAcademicTerm";
 
 interface StudentData {
+  enrollment_id?: number;
   student_number: string;
   first_name: string;
   middle_name?: string;
@@ -34,6 +35,33 @@ interface StudentData {
   emergency_contact_number?: string;
   department?: number;
   course_program?: string;
+  major_id?: number;
+  term?: string;
+  academic_year?: string;
+  admission_date?: string;
+  admission_status?: string;
+  sex?: string;
+  civil_status?: string;
+  birthdate?: string;
+  birthplace?: string;
+  last_school_attended?: string;
+  previous_school_year?: string;
+  program_shs?: string;
+  remarks?: string;
+  status?: number;
+  program?: {
+    id: number;
+    code: string;
+    name: string;
+    department_id?: number;
+    department_name?: string;
+  } | null;
+  major?: {
+    id: number;
+    code: string;
+    name: string;
+    program_id: number;
+  } | null;
 }
 
 interface EnrollmentHistory {
@@ -58,20 +86,21 @@ function ResidentPortalContent() {
   const [showSuccess, setShowSuccess] = useState(false);
   const [showError, setShowError] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
+  const [showSearchModal, setShowSearchModal] = useState(false);
+
+  // Academic Term hook
+  const { currentTerm, loading: termLoading } = useAcademicTerm({ autoSync: true });
 
   // Form data
+  const [enrollmentId, setEnrollmentId] = useState<number | null>(null);
   const [term, setTerm] = useState("");
   const [academicYear, setAcademicYear] = useState("");
-  const [contactNumber, setContactNumber] = useState("");
-  const [emailAddress, setEmailAddress] = useState("");
-  const [completeAddress, setCompleteAddress] = useState("");
-  const [emergencyContactName, setEmergencyContactName] = useState("");
-  const [emergencyRelationship, setEmergencyRelationship] = useState("");
-  const [emergencyContactNumber, setEmergencyContactNumber] = useState("");
-  const [remarks, setRemarks] = useState("");
+  const [admissionStatus, setAdmissionStatus] = useState("");
 
-  const handleSearchStudent = async () => {
-    if (!inputStudentNumber.trim()) {
+  const handleSearchStudent = async (studentNum?: string) => {
+    const studentNumberToSearch = studentNum || inputStudentNumber.trim();
+    
+    if (!studentNumberToSearch) {
       setErrorMessage("Please enter a student number");
       setShowError(true);
       return;
@@ -85,21 +114,26 @@ function ResidentPortalContent() {
 
     try {
       const response = await fetch(
-        `/api/students/${inputStudentNumber.trim()}`,
+        `/api/students/${studentNumberToSearch}`,
       );
       if (response.ok) {
         const data = await response.json();
         setStudentData(data);
-        setStudentNumber(inputStudentNumber.trim());
+        setStudentNumber(studentNumberToSearch);
+        setInputStudentNumber(studentNumberToSearch);
+        setEnrollmentId(data.enrollment_id || null);
         // Pre-fill form with existing data
-        setContactNumber(data.contact_number || "");
-        setEmailAddress(data.email_address || "");
-        setCompleteAddress(data.complete_address || "");
-        setEmergencyContactName(data.emergency_contact_name || "");
-        setEmergencyRelationship(data.emergency_relationship || "");
-        setEmergencyContactNumber(data.emergency_contact_number || "");
+        // Set term and academic year from current term if not in data
+        if (currentTerm && !data.term) {
+          setTerm(currentTerm.semesterCode);
+          setAcademicYear(currentTerm.academicYear);
+        } else {
+          setTerm(data.term || "");
+          setAcademicYear(data.academic_year || "");
+        }
+        setAdmissionStatus(data.admission_status || "");
         // Fetch enrollment history
-        fetchEnrollmentHistory(inputStudentNumber.trim());
+        fetchEnrollmentHistory(studentNumberToSearch);
       } else {
         const errorData = await response.json();
         setErrorMessage(
@@ -114,6 +148,10 @@ function ResidentPortalContent() {
     } finally {
       setIsLoading(false);
     }
+  };
+
+  const handleStudentSelect = (selectedStudentNumber: string) => {
+    handleSearchStudent(selectedStudentNumber);
   };
 
   const fetchEnrollmentHistory = async (studentNum: string) => {
@@ -135,12 +173,8 @@ function ResidentPortalContent() {
     setIsSubmitting(true);
     setShowError(false);
 
-    if (!term.trim()) {
-      setErrorMessage("Please select a term");
-      setShowError(true);
-      setIsSubmitting(false);
-      return;
-    }
+    // Term is optional for updates - only required for new enrollments
+    // But we'll keep it as optional since we're updating existing records
 
     try {
       const response = await fetch("/api/auth/resident/enroll", {
@@ -149,18 +183,14 @@ function ResidentPortalContent() {
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
+          enrollment_id: enrollmentId,
           student_number: studentNumber,
-          term: term,
-          academic_year: academicYear,
-          contact_number: contactNumber,
-          email_address: emailAddress,
-          complete_address: completeAddress,
-          emergency_contact_name: emergencyContactName,
-          emergency_relationship: emergencyRelationship,
-          emergency_contact_number: emergencyContactNumber,
+          term: term || undefined,
+          academic_year: academicYear || undefined,
           department: studentData?.department,
           course_program: studentData?.course_program,
-          remarks: remarks,
+          major_id: studentData?.major_id,
+          admission_status: admissionStatus || undefined,
         }),
       });
 
@@ -168,12 +198,9 @@ function ResidentPortalContent() {
 
       if (response.ok) {
         setShowSuccess(true);
-        // Refresh enrollment history
+        // Refresh enrollment history and reload student data
         fetchEnrollmentHistory(studentNumber);
-        // Reset form
-        setTerm("");
-        setAcademicYear("");
-        setRemarks("");
+        handleSearchStudent(studentNumber);
       } else {
         setErrorMessage(data.error || "Failed to submit enrollment");
         setShowError(true);
@@ -191,17 +218,39 @@ function ResidentPortalContent() {
     setStudentNumber("");
     setStudentData(null);
     setEnrollmentHistory([]);
+    setEnrollmentId(null);
     setTerm("");
     setAcademicYear("");
-    setContactNumber("");
-    setEmailAddress("");
-    setCompleteAddress("");
-    setEmergencyContactName("");
-    setEmergencyRelationship("");
-    setEmergencyContactNumber("");
-    setRemarks("");
+    setAdmissionStatus("");
     setErrorMessage("");
     setShowError(false);
+  };
+
+  // Update term and academic year when currentTerm changes
+  useEffect(() => {
+    if (currentTerm && !studentData) {
+      setTerm(currentTerm.semesterCode);
+      setAcademicYear(currentTerm.academicYear);
+    }
+  }, [currentTerm, studentData]);
+
+  // Get Program/Major display text
+  const getProgramMajorDisplay = () => {
+    if (!studentData) return "N/A";
+    
+    const programName = studentData.program?.name || studentData.program?.code || "";
+    const majorName = studentData.major?.name || "";
+    const departmentName = studentData.program?.department_name || "";
+    
+    if (majorName) {
+      return `${programName} - ${majorName}`;
+    } else if (departmentName) {
+      return `${programName} - ${departmentName}`;
+    } else if (programName) {
+      return programName;
+    }
+    
+    return "N/A";
   };
 
   return (
@@ -255,13 +304,14 @@ function ResidentPortalContent() {
                   type='text'
                   value={inputStudentNumber}
                   onChange={(e) => setInputStudentNumber(e.target.value)}
+                  onClick={() => setShowSearchModal(true)}
                   onKeyPress={(e) => {
                     if (e.key === "Enter") {
                       handleSearchStudent();
                     }
                   }}
-                  placeholder='e.g. 26-00001'
-                  className='w-full pl-10 pr-4 py-3 rounded-lg border transition-all focus:outline-none focus:ring-2'
+                  placeholder='e.g. 26-00001 or click to search'
+                  className='w-full pl-10 pr-4 py-3 rounded-lg border transition-all focus:outline-none focus:ring-2 cursor-pointer'
                   style={{
                     borderColor: colors.tertiary + "30",
                     color: colors.primary,
@@ -277,33 +327,49 @@ function ResidentPortalContent() {
                 />
               </div>
               <button
-                onClick={handleSearchStudent}
-                disabled={isLoading || !inputStudentNumber.trim()}
-                className='px-6 py-3 rounded-lg font-semibold text-white transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2'
-                style={{ backgroundColor: colors.secondary }}
+                onClick={() => setShowSearchModal(true)}
+                className='px-6 py-3 rounded-lg font-semibold text-white transition-all flex items-center gap-2'
+                style={{ backgroundColor: colors.primary }}
                 onMouseEnter={(e) => {
-                  if (!isLoading && inputStudentNumber.trim()) {
-                    e.currentTarget.style.backgroundColor = colors.tertiary;
-                  }
+                  e.currentTarget.style.backgroundColor = colors.tertiary;
                 }}
                 onMouseLeave={(e) => {
-                  if (!isLoading && inputStudentNumber.trim()) {
-                    e.currentTarget.style.backgroundColor = colors.secondary;
-                  }
+                  e.currentTarget.style.backgroundColor = colors.primary;
                 }}
               >
-                {isLoading ? (
-                  <>
-                    <Loader2 className='w-5 h-5 animate-spin' />
-                    Searching...
-                  </>
-                ) : (
-                  <>
-                    <Search size={18} />
-                    Search
-                  </>
-                )}
+                <Search size={18} />
+                Search
               </button>
+              {inputStudentNumber.trim() && (
+                <button
+                  onClick={() => handleSearchStudent()}
+                  disabled={isLoading}
+                  className='px-6 py-3 rounded-lg font-semibold text-white transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2'
+                  style={{ backgroundColor: colors.secondary }}
+                  onMouseEnter={(e) => {
+                    if (!isLoading) {
+                      e.currentTarget.style.backgroundColor = colors.tertiary;
+                    }
+                  }}
+                  onMouseLeave={(e) => {
+                    if (!isLoading) {
+                      e.currentTarget.style.backgroundColor = colors.secondary;
+                    }
+                  }}
+                >
+                  {isLoading ? (
+                    <>
+                      <Loader2 className='w-5 h-5 animate-spin' />
+                      Loading...
+                    </>
+                  ) : (
+                    <>
+                      <User size={18} />
+                      Load
+                    </>
+                  )}
+                </button>
+              )}
               {studentData && (
                 <button
                   onClick={handleClear}
@@ -440,6 +506,22 @@ function ResidentPortalContent() {
                       </div>
                     </div>
                   )}
+                  <div className='flex items-start gap-3'>
+                    <GraduationCap
+                      size={18}
+                      className='mt-0.5'
+                      style={{ color: colors.tertiary }}
+                    />
+                    <div>
+                      <p className='text-sm text-gray-600'>Program / Major</p>
+                      <p
+                        className='font-medium text-sm'
+                        style={{ color: colors.primary }}
+                      >
+                        {getProgramMajorDisplay()}
+                      </p>
+                    </div>
+                  </div>
                 </div>
               </div>
 
@@ -488,19 +570,22 @@ function ResidentPortalContent() {
             {/* Re-enrollment Form */}
             <div className='lg:col-span-2'>
               <div
-                className='bg-white rounded-xl shadow-lg p-6'
+                className='bg-white rounded-xl shadow-lg p-5'
                 style={{ border: `1px solid ${colors.tertiary}30` }}
               >
                 <h2
-                  className='text-xl font-semibold mb-6'
-                  style={{ color: colors.primary }}
+                  className='text-lg font-semibold mb-3 pb-3 border-b'
+                  style={{ 
+                    color: colors.primary,
+                    borderColor: colors.tertiary + "30"
+                  }}
                 >
                   Re-enrollment Form
                 </h2>
 
-                <form onSubmit={handleSubmit} className='space-y-6'>
-                  {/* Term and Academic Year */}
-                  <div className='grid grid-cols-1 md:grid-cols-2 gap-4'>
+                <form onSubmit={handleSubmit} className='space-y-3'>
+                  {/* Essential Fields */}
+                  <div className='grid grid-cols-1 md:grid-cols-3 gap-4'>
                     <div>
                       <label
                         className='block text-sm font-semibold mb-2'
@@ -513,29 +598,54 @@ function ResidentPortalContent() {
                         />
                         Term <span className='text-red-500'>*</span>
                       </label>
-                      <select
-                        value={term}
-                        onChange={(e) => setTerm(e.target.value)}
-                        required
-                        className='w-full px-4 py-2 rounded-lg border transition-all focus:outline-none focus:ring-2'
-                        style={{
-                          borderColor: colors.tertiary + "30",
-                          color: colors.primary,
-                        }}
-                        onFocus={(e) => {
-                          e.currentTarget.style.borderColor = colors.secondary;
-                          e.currentTarget.style.boxShadow = `0 0 0 4px ${colors.secondary}10`;
-                        }}
-                        onBlur={(e) => {
-                          e.currentTarget.style.borderColor =
-                            colors.tertiary + "30";
-                          e.currentTarget.style.boxShadow = "none";
-                        }}
-                      >
-                        <option value=''>Select Term</option>
-                        <option value='first'>First</option>
-                        <option value='second'>Second</option>
-                      </select>
+                      <div className='relative'>
+                        <select
+                          value={term}
+                          onChange={(e) => setTerm(e.target.value)}
+                          required
+                          disabled={termLoading}
+                          className='w-full px-4 py-2.5 rounded-lg border transition-all focus:outline-none focus:ring-2 appearance-none cursor-pointer'
+                          style={{
+                            borderColor: colors.tertiary + "30",
+                            color: colors.primary,
+                          }}
+                          onFocus={(e) => {
+                            e.currentTarget.style.borderColor = colors.secondary;
+                            e.currentTarget.style.boxShadow = `0 0 0 4px ${colors.secondary}10`;
+                          }}
+                          onBlur={(e) => {
+                            e.currentTarget.style.borderColor =
+                              colors.tertiary + "30";
+                            e.currentTarget.style.boxShadow = "none";
+                          }}
+                        >
+                          <option value=''>Select Term</option>
+                          {currentTerm && (
+                            <option value={currentTerm.semesterCode}>
+                              {currentTerm.semester} Semester
+                            </option>
+                          )}
+                          <option value='first'>First</option>
+                          <option value='second'>Second</option>
+                        </select>
+                        <div className='absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none opacity-50'>
+                          <svg
+                            width='12'
+                            height='12'
+                            viewBox='0 0 12 12'
+                            fill='none'
+                            xmlns='http://www.w3.org/2000/svg'
+                          >
+                            <path
+                              d='M2.5 4.5L6 8L9.5 4.5'
+                              stroke='currentColor'
+                              strokeWidth='1.5'
+                              strokeLinecap='round'
+                              strokeLinejoin='round'
+                            />
+                          </svg>
+                        </div>
+                      </div>
                     </div>
 
                     <div>
@@ -549,7 +659,8 @@ function ResidentPortalContent() {
                         <select
                           value={academicYear}
                           onChange={(e) => setAcademicYear(e.target.value)}
-                          className='w-full px-4 py-2 rounded-lg border transition-all focus:outline-none focus:ring-2 appearance-none cursor-pointer'
+                          disabled={termLoading}
+                          className='w-full px-4 py-2.5 rounded-lg border transition-all focus:outline-none focus:ring-2 appearance-none cursor-pointer'
                           style={{
                             borderColor: colors.tertiary + "30",
                             color: colors.primary,
@@ -566,6 +677,11 @@ function ResidentPortalContent() {
                           }}
                         >
                           <option value=''>Select Academic Year</option>
+                          {currentTerm && (
+                            <option value={currentTerm.academicYear}>
+                              {currentTerm.academicYear}
+                            </option>
+                          )}
                           {Array.from({ length: 10 }, (_, i) => {
                             const startYear = new Date().getFullYear() + i;
                             const endYear = startYear + 1;
@@ -599,103 +715,18 @@ function ResidentPortalContent() {
                         </div>
                       </div>
                     </div>
-                  </div>
 
-                  {/* Contact Information */}
-                  <div>
-                    <h3
-                      className='text-md font-semibold mb-4'
-                      style={{ color: colors.primary }}
-                    >
-                      Update Contact Information (Optional)
-                    </h3>
-                    <div className='grid grid-cols-1 md:grid-cols-2 gap-4'>
-                      <div>
-                        <label
-                          className='block text-sm font-semibold mb-2'
-                          style={{ color: colors.primary }}
-                        >
-                          <Phone
-                            size={16}
-                            className='inline mr-2'
-                            style={{ color: colors.secondary }}
-                          />
-                          Contact Number
-                        </label>
-                        <input
-                          type='text'
-                          value={contactNumber}
-                          onChange={(e) => setContactNumber(e.target.value)}
-                          className='w-full px-4 py-2 rounded-lg border transition-all focus:outline-none focus:ring-2'
-                          style={{
-                            borderColor: colors.tertiary + "30",
-                            color: colors.primary,
-                          }}
-                          onFocus={(e) => {
-                            e.currentTarget.style.borderColor =
-                              colors.secondary;
-                            e.currentTarget.style.boxShadow = `0 0 0 4px ${colors.secondary}10`;
-                          }}
-                          onBlur={(e) => {
-                            e.currentTarget.style.borderColor =
-                              colors.tertiary + "30";
-                            e.currentTarget.style.boxShadow = "none";
-                          }}
-                        />
-                      </div>
-
-                      <div>
-                        <label
-                          className='block text-sm font-semibold mb-2'
-                          style={{ color: colors.primary }}
-                        >
-                          <Mail
-                            size={16}
-                            className='inline mr-2'
-                            style={{ color: colors.secondary }}
-                          />
-                          Email Address
-                        </label>
-                        <input
-                          type='email'
-                          value={emailAddress}
-                          onChange={(e) => setEmailAddress(e.target.value)}
-                          className='w-full px-4 py-2 rounded-lg border transition-all focus:outline-none focus:ring-2'
-                          style={{
-                            borderColor: colors.tertiary + "30",
-                            color: colors.primary,
-                          }}
-                          onFocus={(e) => {
-                            e.currentTarget.style.borderColor =
-                              colors.secondary;
-                            e.currentTarget.style.boxShadow = `0 0 0 4px ${colors.secondary}10`;
-                          }}
-                          onBlur={(e) => {
-                            e.currentTarget.style.borderColor =
-                              colors.tertiary + "30";
-                            e.currentTarget.style.boxShadow = "none";
-                          }}
-                        />
-                      </div>
-                    </div>
-
-                    <div className='mt-4'>
+                    <div>
                       <label
                         className='block text-sm font-semibold mb-2'
                         style={{ color: colors.primary }}
                       >
-                        <MapPin
-                          size={16}
-                          className='inline mr-2'
-                          style={{ color: colors.secondary }}
-                        />
-                        Complete Address
+                        Admission Status
                       </label>
-                      <textarea
-                        value={completeAddress}
-                        onChange={(e) => setCompleteAddress(e.target.value)}
-                        rows={3}
-                        className='w-full px-4 py-2 rounded-lg border transition-all focus:outline-none focus:ring-2'
+                      <select
+                        value={admissionStatus}
+                        onChange={(e) => setAdmissionStatus(e.target.value)}
+                        className='w-full px-4 py-2.5 rounded-lg border transition-all focus:outline-none focus:ring-2'
                         style={{
                           borderColor: colors.tertiary + "30",
                           color: colors.primary,
@@ -709,156 +740,22 @@ function ResidentPortalContent() {
                             colors.tertiary + "30";
                           e.currentTarget.style.boxShadow = "none";
                         }}
-                      />
+                      >
+                        <option value=''>Select Status</option>
+                        <option value='new'>New</option>
+                        <option value='transferee'>Transferee</option>
+                        <option value='returning'>Returning</option>
+                      </select>
                     </div>
                   </div>
 
-                  {/* Emergency Contact */}
-                  <div>
-                    <h3
-                      className='text-md font-semibold mb-4'
-                      style={{ color: colors.primary }}
-                    >
-                      Emergency Contact (Optional)
-                    </h3>
-                    <div className='grid grid-cols-1 md:grid-cols-3 gap-4'>
-                      <div>
-                        <label
-                          className='block text-sm font-semibold mb-2'
-                          style={{ color: colors.primary }}
-                        >
-                          <Users
-                            size={16}
-                            className='inline mr-2'
-                            style={{ color: colors.secondary }}
-                          />
-                          Name
-                        </label>
-                        <input
-                          type='text'
-                          value={emergencyContactName}
-                          onChange={(e) =>
-                            setEmergencyContactName(e.target.value)
-                          }
-                          className='w-full px-4 py-2 rounded-lg border transition-all focus:outline-none focus:ring-2'
-                          style={{
-                            borderColor: colors.tertiary + "30",
-                            color: colors.primary,
-                          }}
-                          onFocus={(e) => {
-                            e.currentTarget.style.borderColor =
-                              colors.secondary;
-                            e.currentTarget.style.boxShadow = `0 0 0 4px ${colors.secondary}10`;
-                          }}
-                          onBlur={(e) => {
-                            e.currentTarget.style.borderColor =
-                              colors.tertiary + "30";
-                            e.currentTarget.style.boxShadow = "none";
-                          }}
-                        />
-                      </div>
-
-                      <div>
-                        <label
-                          className='block text-sm font-semibold mb-2'
-                          style={{ color: colors.primary }}
-                        >
-                          Relationship
-                        </label>
-                        <input
-                          type='text'
-                          value={emergencyRelationship}
-                          onChange={(e) =>
-                            setEmergencyRelationship(e.target.value)
-                          }
-                          placeholder='e.g. Parent, Guardian'
-                          className='w-full px-4 py-2 rounded-lg border transition-all focus:outline-none focus:ring-2'
-                          style={{
-                            borderColor: colors.tertiary + "30",
-                            color: colors.primary,
-                          }}
-                          onFocus={(e) => {
-                            e.currentTarget.style.borderColor =
-                              colors.secondary;
-                            e.currentTarget.style.boxShadow = `0 0 0 4px ${colors.secondary}10`;
-                          }}
-                          onBlur={(e) => {
-                            e.currentTarget.style.borderColor =
-                              colors.tertiary + "30";
-                            e.currentTarget.style.boxShadow = "none";
-                          }}
-                        />
-                      </div>
-
-                      <div>
-                        <label
-                          className='block text-sm font-semibold mb-2'
-                          style={{ color: colors.primary }}
-                        >
-                          Contact Number
-                        </label>
-                        <input
-                          type='text'
-                          value={emergencyContactNumber}
-                          onChange={(e) =>
-                            setEmergencyContactNumber(e.target.value)
-                          }
-                          className='w-full px-4 py-2 rounded-lg border transition-all focus:outline-none focus:ring-2'
-                          style={{
-                            borderColor: colors.tertiary + "30",
-                            color: colors.primary,
-                          }}
-                          onFocus={(e) => {
-                            e.currentTarget.style.borderColor =
-                              colors.secondary;
-                            e.currentTarget.style.boxShadow = `0 0 0 4px ${colors.secondary}10`;
-                          }}
-                          onBlur={(e) => {
-                            e.currentTarget.style.borderColor =
-                              colors.tertiary + "30";
-                            e.currentTarget.style.boxShadow = "none";
-                          }}
-                        />
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Remarks */}
-                  <div>
-                    <label
-                      className='block text-sm font-semibold mb-2'
-                      style={{ color: colors.primary }}
-                    >
-                      Remarks (Optional)
-                    </label>
-                    <textarea
-                      value={remarks}
-                      onChange={(e) => setRemarks(e.target.value)}
-                      rows={3}
-                      placeholder='Any additional notes or information...'
-                      className='w-full px-4 py-2 rounded-lg border transition-all focus:outline-none focus:ring-2'
-                      style={{
-                        borderColor: colors.tertiary + "30",
-                        color: colors.primary,
-                      }}
-                      onFocus={(e) => {
-                        e.currentTarget.style.borderColor = colors.secondary;
-                        e.currentTarget.style.boxShadow = `0 0 0 4px ${colors.secondary}10`;
-                      }}
-                      onBlur={(e) => {
-                        e.currentTarget.style.borderColor =
-                          colors.tertiary + "30";
-                        e.currentTarget.style.boxShadow = "none";
-                      }}
-                    />
-                  </div>
 
                   {/* Submit Button */}
-                  <div className='flex gap-4 pt-4'>
+                  <div className='flex gap-4 pt-2'>
                     <button
                       type='submit'
                       disabled={isSubmitting}
-                      className='flex-1 py-3 rounded-lg font-semibold text-white transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2'
+                      className='flex-1 py-2.5 rounded-lg font-semibold text-white transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2'
                       style={{ backgroundColor: colors.secondary }}
                       onMouseEnter={(e) => {
                         if (!isSubmitting) {
@@ -880,12 +777,12 @@ function ResidentPortalContent() {
                       {isSubmitting ? (
                         <>
                           <div className='w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin'></div>
-                          Submitting...
+                          Updating...
                         </>
                       ) : (
                         <>
                           <CheckCircle size={18} />
-                          Submit Re-enrollment
+                          Update Re-enrollment
                         </>
                       )}
                     </button>
@@ -913,6 +810,13 @@ function ResidentPortalContent() {
         onClose={() => setShowError(false)}
         title='Submission Failed'
         message={errorMessage}
+      />
+
+      {/* Student Search Modal */}
+      <StudentSearchModal
+        isOpen={showSearchModal}
+        onClose={() => setShowSearchModal(false)}
+        onSelect={handleStudentSelect}
       />
     </div>
   );

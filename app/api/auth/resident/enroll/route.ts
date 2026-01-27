@@ -2,10 +2,12 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "../../../../lib/prisma";
 
 interface ResidentEnrollmentData {
+  enrollment_id?: number;
   student_number: string;
-  term: string;
+  term?: string;
   department?: number;
   course_program?: string;
+  major_id?: number;
   academic_year?: string;
   remarks?: string;
   emergency_contact_name?: string;
@@ -14,6 +16,14 @@ interface ResidentEnrollmentData {
   contact_number?: string;
   email_address?: string;
   complete_address?: string;
+  admission_status?: string;
+  sex?: string;
+  civil_status?: string;
+  birthdate?: string;
+  birthplace?: string;
+  last_school_attended?: string;
+  previous_school_year?: string;
+  program_shs?: string;
 }
 
 export async function POST(request: NextRequest) {
@@ -21,74 +31,127 @@ export async function POST(request: NextRequest) {
     const data: ResidentEnrollmentData = await request.json();
 
     // Validate required fields
-    if (!data.student_number || !data.term) {
+    if (!data.student_number) {
       return NextResponse.json(
-        { error: "Student number and term are required" },
+        { error: "Student number is required" },
         { status: 400 }
       );
     }
 
-    // Fetch from enrollment table only (resident enrollment uses previous enrollment data)
-    const lastEnrollment = await prisma.enrollment.findFirst({
-      where: { student_number: data.student_number },
-      orderBy: { admission_date: 'desc' },
-    });
+    // Find the enrollment record to update
+    let enrollmentToUpdate = null;
+    
+    if (data.enrollment_id) {
+      // Use provided enrollment_id
+      enrollmentToUpdate = await prisma.enrollment.findUnique({
+        where: { id: data.enrollment_id },
+      });
+    } else {
+      // Find most recent enrollment for this student
+      enrollmentToUpdate = await prisma.enrollment.findFirst({
+        where: { student_number: data.student_number },
+        orderBy: { admission_date: 'desc' },
+      });
+    }
 
-    if (!lastEnrollment) {
+    if (!enrollmentToUpdate) {
       return NextResponse.json(
-        { error: "Student not found. Please enroll as a new student first." },
+        { error: "Student enrollment not found. Please enroll as a new student first." },
         { status: 404 }
       );
     }
 
-    // Use data from last enrollment for re-enrollment
-    const studentData = {
-      first_name: lastEnrollment.first_name || "",
-      middle_name: lastEnrollment.middle_name || "",
-      last_name: lastEnrollment.family_name || "",
-      email_address: lastEnrollment.email_address,
-      contact_number: lastEnrollment.contact_number,
-      complete_address: lastEnrollment.complete_address,
-      emergency_contact_name: lastEnrollment.emergency_contact_name,
-      emergency_relationship: lastEnrollment.emergency_relationship,
-      emergency_contact_number: lastEnrollment.emergency_contact_number,
-    };
+    // Build update data - only include fields that are provided (changed)
+    const updateData: any = {};
 
-    // Create new enrollment record for the term
-    const enrollment = await prisma.enrollment.create({
-      data: {
-        student_number: data.student_number,
-        admission_date: new Date(),
-        admission_status: "transferee", // Resident students re-enrolling (returning option removed)
-        term: data.term,
-        department: data.department || lastEnrollment.department || null,
-        course_program: data.course_program || lastEnrollment.course_program || null,
-        family_name: studentData.last_name || "",
-        first_name: studentData.first_name || "",
-        middle_name: studentData.middle_name || null,
-        contact_number: data.contact_number || studentData.contact_number || null,
-        email_address: data.email_address || studentData.email_address || null,
-        complete_address: data.complete_address || studentData.complete_address || null,
-        emergency_contact_name: data.emergency_contact_name || studentData.emergency_contact_name || null,
-        emergency_relationship: data.emergency_relationship || studentData.emergency_relationship || null,
-        emergency_contact_number: data.emergency_contact_number || studentData.emergency_contact_number || null,
-        remarks: data.remarks || null,
-        academic_year: data.academic_year || null,
-      } as any, // Type assertion until Prisma client is regenerated
+    // Handle program and major updates
+    let finalDepartmentId = enrollmentToUpdate.department;
+    let finalCourseProgram = enrollmentToUpdate.course_program;
+    let finalMajorId = enrollmentToUpdate.major_id;
+
+    if (data.major_id && data.major_id !== 0) {
+      // If major is provided, get program and department from major
+      const majorIdNum = parseInt(String(data.major_id));
+      const selectedMajor = await prisma.major.findUnique({
+        where: { id: majorIdNum },
+      });
+
+      if (selectedMajor) {
+        finalMajorId = majorIdNum;
+        finalCourseProgram = String(selectedMajor.program_id);
+        
+        const selectedProgram = await prisma.program.findUnique({
+          where: { id: selectedMajor.program_id },
+        });
+        
+        if (selectedProgram && selectedProgram.department_id) {
+          finalDepartmentId = selectedProgram.department_id;
+        }
+      }
+    } else if (data.course_program && data.course_program !== "0" && data.course_program !== "") {
+      // If program is provided (but no major), get department from program
+      const programIdNum = parseInt(data.course_program);
+      if (!isNaN(programIdNum)) {
+        const selectedProgram = await prisma.program.findUnique({
+          where: { id: programIdNum },
+        });
+        
+        if (selectedProgram) {
+          finalCourseProgram = data.course_program;
+          if (selectedProgram.department_id) {
+            finalDepartmentId = selectedProgram.department_id;
+          }
+        }
+      }
+    }
+
+    // Only update fields that are provided in the request
+    if (data.term !== undefined) updateData.term = data.term;
+    if (data.academic_year !== undefined) updateData.academic_year = data.academic_year;
+    if (data.contact_number !== undefined) updateData.contact_number = data.contact_number;
+    if (data.email_address !== undefined) updateData.email_address = data.email_address;
+    if (data.complete_address !== undefined) updateData.complete_address = data.complete_address;
+    if (data.emergency_contact_name !== undefined) updateData.emergency_contact_name = data.emergency_contact_name;
+    if (data.emergency_relationship !== undefined) updateData.emergency_relationship = data.emergency_relationship;
+    if (data.emergency_contact_number !== undefined) updateData.emergency_contact_number = data.emergency_contact_number;
+    if (data.remarks !== undefined) updateData.remarks = data.remarks;
+    if (data.admission_status !== undefined) updateData.admission_status = data.admission_status;
+    if (data.sex !== undefined) updateData.sex = data.sex;
+    if (data.civil_status !== undefined) updateData.civil_status = data.civil_status;
+    if (data.birthdate !== undefined) updateData.birthdate = data.birthdate ? new Date(data.birthdate) : null;
+    if (data.birthplace !== undefined) updateData.birthplace = data.birthplace;
+    if (data.last_school_attended !== undefined) updateData.last_school_attended = data.last_school_attended;
+    if (data.previous_school_year !== undefined) updateData.previous_school_year = data.previous_school_year;
+    if (data.program_shs !== undefined) updateData.program_shs = data.program_shs;
+
+    // Update program/major/department if changed
+    if (data.course_program !== undefined || data.major_id !== undefined) {
+      updateData.course_program = finalCourseProgram;
+      updateData.major_id = finalMajorId;
+      updateData.department = finalDepartmentId;
+    }
+
+    // Perform update
+    const updatedEnrollment = await prisma.enrollment.update({
+      where: { id: enrollmentToUpdate.id },
+      data: updateData,
     });
 
     return NextResponse.json(
       {
         success: true,
-        data: enrollment,
-        message: "Re-enrollment submitted successfully",
+        data: updatedEnrollment,
+        message: "Re-enrollment updated successfully",
       },
-      { status: 201 }
+      { status: 200 }
     );
-  } catch (error) {
+  } catch (error: any) {
     console.error("Resident enrollment error:", error);
     return NextResponse.json(
-      { error: "Internal server error" },
+      { 
+        error: error?.message || "Internal server error",
+        details: error?.code || error,
+      },
       { status: 500 }
     );
   }

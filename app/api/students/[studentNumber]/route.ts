@@ -130,8 +130,25 @@ export async function GET(
       }
     }
 
-    // Return data from enrollment table with joined program data
+    // Fetch major data if major_id exists
+    let majorData = null;
+    if (enrollment.major_id) {
+      const major = await prisma.major.findUnique({
+        where: { id: enrollment.major_id },
+      });
+      if (major) {
+        majorData = {
+          id: major.id,
+          code: major.code,
+          name: major.name,
+          program_id: major.program_id,
+        };
+      }
+    }
+
+    // Return data from enrollment table with joined program and major data
     return NextResponse.json({
+      enrollment_id: enrollment.id,
       student_number: enrollment.student_number,
       first_name: enrollment.first_name,
       middle_name: enrollment.middle_name,
@@ -143,9 +160,24 @@ export async function GET(
       emergency_relationship: enrollment.emergency_relationship,
       emergency_contact_number: enrollment.emergency_contact_number,
       department: enrollment.department,
-      course_program: enrollment.course_program, // Keep original for backward compatibility
-      program: programData, // Add joined program data
-      from_enrollment: true, // Flag to indicate data is from enrollment table
+      course_program: enrollment.course_program,
+      major_id: enrollment.major_id,
+      term: enrollment.term,
+      academic_year: enrollment.academic_year,
+      admission_date: enrollment.admission_date,
+      admission_status: enrollment.admission_status,
+      sex: enrollment.sex,
+      civil_status: enrollment.civil_status,
+      birthdate: enrollment.birthdate,
+      birthplace: enrollment.birthplace,
+      last_school_attended: enrollment.last_school_attended,
+      previous_school_year: enrollment.previous_school_year,
+      program_shs: enrollment.program_shs,
+      remarks: enrollment.remarks,
+      status: enrollment.status,
+      program: programData,
+      major: majorData,
+      from_enrollment: true,
     });
   } catch (error) {
     console.error("Fetch student error:", error);
