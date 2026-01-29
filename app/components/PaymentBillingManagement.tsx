@@ -1,5 +1,11 @@
 "use client";
-import React, { useState, useEffect, useMemo } from "react";
+import React, {
+  useState,
+  useEffect,
+  useMemo,
+  useRef,
+  useCallback,
+} from "react";
 import {
   CreditCard,
   Plus,
@@ -23,6 +29,7 @@ import {
   Calendar,
   Clock,
   RefreshCw,
+  Loader2,
 } from "lucide-react";
 import { colors } from "../colors";
 import ConfirmationModal from "./common/ConfirmationModal";
@@ -50,6 +57,7 @@ import {
   getOrderDetails,
   voidOrder,
   getEnrolledStudent,
+  searchEnrolledStudents,
 } from "../utils/billingUtils";
 import { insertIntoReports } from "../utils/reportsUtils";
 import { useSession } from "next-auth/react";
@@ -98,6 +106,12 @@ const PaymentBillingManagement: React.FC = () => {
     useState<EnrolledStudent | null>(null);
   const [studentSearchLoading, setStudentSearchLoading] = useState(false);
   const [studentSearchError, setStudentSearchError] = useState("");
+  const [studentSearchResults, setStudentSearchResults] = useState<
+    EnrolledStudent[]
+  >([]);
+  const [showStudentDropdown, setShowStudentDropdown] = useState(false);
+  const studentSearchRef = useRef<HTMLDivElement>(null);
+  const searchDebounceRef = useRef<NodeJS.Timeout | null>(null);
 
   // Enrollment cart states
   const [enrollmentCart, setEnrollmentCart] = useState<UnbilledEnrollee[]>([]);
@@ -276,24 +290,106 @@ const PaymentBillingManagement: React.FC = () => {
     window.scrollTo({ top: 0, behavior: "smooth" });
   };
 
-  // Search enrolled student by student number
+  // Debounced student search for autocomplete
+  const handleStudentInputChange = useCallback((value: string) => {
+    setStudentNumberInput(value);
+    setStudentSearchError("");
+
+    // Clear previous timeout
+    if (searchDebounceRef.current) {
+      clearTimeout(searchDebounceRef.current);
+    }
+
+    if (!value.trim()) {
+      setStudentSearchResults([]);
+      setShowStudentDropdown(false);
+      return;
+    }
+
+    // Debounce the search
+    searchDebounceRef.current = setTimeout(async () => {
+      setStudentSearchLoading(true);
+      try {
+        const results = await searchEnrolledStudents(value);
+        setStudentSearchResults(results);
+        setShowStudentDropdown(results.length > 0);
+      } catch (error) {
+        console.error("Error searching students:", error);
+        setStudentSearchResults([]);
+      } finally {
+        setStudentSearchLoading(false);
+      }
+    }, 300);
+  }, []);
+
+  // Handle student selection from dropdown
+  const handleStudentSelect = (student: EnrolledStudent) => {
+    setSelectedStudent(student);
+    setStudentNumberInput("");
+    setStudentSearchResults([]);
+    setShowStudentDropdown(false);
+    setStudentSearchError("");
+  };
+
+  // Click outside to close dropdown
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (
+        studentSearchRef.current &&
+        !studentSearchRef.current.contains(event.target as Node)
+      ) {
+        setShowStudentDropdown(false);
+      }
+    };
+
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside);
+    };
+  }, []);
+
+  // Cleanup debounce on unmount
+  useEffect(() => {
+    return () => {
+      if (searchDebounceRef.current) {
+        clearTimeout(searchDebounceRef.current);
+      }
+    };
+  }, []);
+
+  // Search enrolled student by student number (fallback for Enter key)
   const handleStudentSearch = async () => {
     if (!studentNumberInput.trim()) {
-      setStudentSearchError("Please enter a student number");
+      setStudentSearchError("Please enter a student number or name");
       return;
     }
 
     setStudentSearchLoading(true);
     setStudentSearchError("");
-    setSelectedStudent(null);
+    setShowStudentDropdown(false);
 
     try {
+      // First try exact match
       const student = await getEnrolledStudent(studentNumberInput.trim());
       if (student) {
         setSelectedStudent(student);
+        setStudentNumberInput("");
+        setStudentSearchResults([]);
         setStudentSearchError("");
       } else {
-        setStudentSearchError("Student not found or not enrolled");
+        // If no exact match, search and show dropdown
+        const results = await searchEnrolledStudents(studentNumberInput.trim());
+        if (results.length === 1) {
+          // If only one result, auto-select it
+          setSelectedStudent(results[0]);
+          setStudentNumberInput("");
+          setStudentSearchResults([]);
+        } else if (results.length > 1) {
+          setStudentSearchResults(results);
+          setShowStudentDropdown(true);
+        } else {
+          setStudentSearchError("No students found");
+        }
       }
     } catch (error) {
       setStudentSearchError("Error searching for student");
@@ -307,6 +403,8 @@ const PaymentBillingManagement: React.FC = () => {
     setSelectedStudent(null);
     setStudentNumberInput("");
     setStudentSearchError("");
+    setStudentSearchResults([]);
+    setShowStudentDropdown(false);
   };
 
   // Cart functions
@@ -499,8 +597,15 @@ const PaymentBillingManagement: React.FC = () => {
         enrollee_id: enrollee.id,
         enrollee_name:
           `${enrollee.family_name || ""}, ${enrollee.first_name || ""}`.trim(),
+        student_number: enrollee.student_number || undefined,
         amount: enrollee.paymentAmount,
       }));
+
+      // Get the first student number for AR number generation
+      const firstStudentNumber =
+        (enrollmentCart as any[]).length > 0
+          ? (enrollmentCart as any[])[0].student_number
+          : undefined;
 
       // Create enrollment order (order_header, order_details, payment_details)
       await createEnrollmentOrder({
@@ -514,6 +619,7 @@ const PaymentBillingManagement: React.FC = () => {
         change_amount:
           enrollmentPaymentType === "cash" ? enrollmentChangeAmount : 0,
         transaction_ref: enrollmentReferenceNo || undefined,
+        student_number: firstStudentNumber,
       });
 
       // Process each enrollee payment (create billing records)
@@ -1017,28 +1123,90 @@ const PaymentBillingManagement: React.FC = () => {
                       </div>
                     </div>
                   ) : (
-                    <div className='space-y-2'>
-                      <div className='flex gap-2'>
-                        <input
-                          type='text'
-                          placeholder='Enter student number...'
-                          value={studentNumberInput}
-                          onChange={(e) =>
-                            setStudentNumberInput(e.target.value)
-                          }
-                          onKeyDown={(e) => {
-                            if (e.key === "Enter") handleStudentSearch();
-                          }}
-                          className='flex-1 px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent'
-                        />
-                        <button
-                          onClick={handleStudentSearch}
-                          disabled={studentSearchLoading}
-                          className='px-3 py-2 rounded-lg text-white text-sm font-medium hover:opacity-90 transition-opacity disabled:opacity-50'
-                          style={{ backgroundColor: colors.secondary }}
-                        >
-                          {studentSearchLoading ? "..." : "Search"}
-                        </button>
+                    <div className='space-y-2' ref={studentSearchRef}>
+                      <div className='relative'>
+                        <div className='flex gap-2'>
+                          <div className='relative flex-1'>
+                            <Search className='absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4' />
+                            <input
+                              type='text'
+                              placeholder='Search by name or student number...'
+                              value={studentNumberInput}
+                              onChange={(e) =>
+                                handleStudentInputChange(e.target.value)
+                              }
+                              onFocus={() => {
+                                if (studentSearchResults.length > 0) {
+                                  setShowStudentDropdown(true);
+                                }
+                              }}
+                              onKeyDown={(e) => {
+                                if (e.key === "Enter") {
+                                  e.preventDefault();
+                                  handleStudentSearch();
+                                }
+                                if (e.key === "Escape") {
+                                  setShowStudentDropdown(false);
+                                }
+                              }}
+                              className='w-full pl-9 pr-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent'
+                            />
+                            {studentSearchLoading && (
+                              <Loader2 className='absolute right-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400 animate-spin' />
+                            )}
+                          </div>
+                          <button
+                            onClick={handleStudentSearch}
+                            disabled={studentSearchLoading}
+                            className='px-3 py-2 rounded-lg text-white text-sm font-medium hover:opacity-90 transition-opacity disabled:opacity-50'
+                            style={{ backgroundColor: colors.secondary }}
+                          >
+                            {studentSearchLoading ? "..." : "Search"}
+                          </button>
+                        </div>
+
+                        {/* Autocomplete Dropdown */}
+                        {showStudentDropdown &&
+                          studentSearchResults.length > 0 && (
+                            <div className='absolute z-50 w-full mt-1 bg-white border border-gray-200 rounded-lg shadow-lg max-h-64 overflow-y-auto'>
+                              {studentSearchResults.map((student) => (
+                                <button
+                                  key={student.id}
+                                  onClick={() => handleStudentSelect(student)}
+                                  className='w-full px-4 py-3 text-left hover:bg-blue-50 border-b border-gray-100 last:border-b-0 transition-colors'
+                                >
+                                  <div className='flex items-center gap-3'>
+                                    <div
+                                      className='w-8 h-8 rounded-full flex items-center justify-center text-white text-sm font-medium'
+                                      style={{
+                                        backgroundColor: colors.secondary,
+                                      }}
+                                    >
+                                      {(
+                                        student.first_name?.[0] || ""
+                                      ).toUpperCase()}
+                                    </div>
+                                    <div className='flex-1 min-w-0'>
+                                      <p className='font-medium text-gray-900 truncate'>
+                                        {student.family_name},{" "}
+                                        {student.first_name}{" "}
+                                        {student.middle_name || ""}
+                                      </p>
+                                      <div className='flex items-center gap-2 text-xs text-gray-500'>
+                                        <span className='font-mono'>
+                                          {student.student_number}
+                                        </span>
+                                        <span>•</span>
+                                        <span className='truncate'>
+                                          {student.course_program || "N/A"}
+                                        </span>
+                                      </div>
+                                    </div>
+                                  </div>
+                                </button>
+                              ))}
+                            </div>
+                          )}
                       </div>
                       {studentSearchError && (
                         <p className='text-sm text-red-600'>
@@ -1046,7 +1214,8 @@ const PaymentBillingManagement: React.FC = () => {
                         </p>
                       )}
                       <p className='text-xs text-gray-500'>
-                        Only enrolled students (status: active) can be selected
+                        Search by student number or name. Only enrolled students
+                        can be selected.
                       </p>
                     </div>
                   )}
@@ -1504,7 +1673,7 @@ const PaymentBillingManagement: React.FC = () => {
                   <Search className='absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5' />
                   <input
                     type='text'
-                    placeholder='Search transactions by ID or student...'
+                    placeholder='Search by AR number, ID, or student...'
                     value={transactionSearchTerm}
                     onChange={(e) => setTransactionSearchTerm(e.target.value)}
                     className='w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent'
@@ -1544,7 +1713,7 @@ const PaymentBillingManagement: React.FC = () => {
                       style={{ backgroundColor: colors.primary }}
                     >
                       <th className='px-4 py-3 text-left text-sm font-medium'>
-                        Order ID
+                        AR Number
                       </th>
                       <th className='px-4 py-3 text-left text-sm font-medium'>
                         Student
@@ -1573,6 +1742,9 @@ const PaymentBillingManagement: React.FC = () => {
                         const searchLower = transactionSearchTerm.toLowerCase();
                         return (
                           order.id.toString().includes(searchLower) ||
+                          (order.ar_number?.toLowerCase() || "").includes(
+                            searchLower,
+                          ) ||
                           (order.payment_type?.toLowerCase() || "").includes(
                             searchLower,
                           ) ||
@@ -1613,8 +1785,18 @@ const PaymentBillingManagement: React.FC = () => {
                               : "hover:bg-gray-50"
                           }`}
                         >
-                          <td className='px-4 py-3 text-sm font-medium text-gray-900'>
-                            #{order.id.toString().padStart(6, "0")}
+                          <td className='px-4 py-3 text-sm'>
+                            <div>
+                              <p className='font-medium text-gray-900'>
+                                {order.ar_number ||
+                                  `#${order.id.toString().padStart(6, "0")}`}
+                              </p>
+                              {order.ar_number && (
+                                <p className='text-xs text-gray-500'>
+                                  ID: {order.id}
+                                </p>
+                              )}
+                            </div>
                           </td>
                           <td className='px-4 py-3 text-sm text-gray-600'>
                             {order.student_name ? (
@@ -1785,9 +1967,13 @@ const PaymentBillingManagement: React.FC = () => {
                         : colors.primary,
                     }}
                   >
-                    Order #{selectedOrder.id.toString().padStart(6, "0")}
+                    {selectedOrder.ar_number ||
+                      `Order #${selectedOrder.id.toString().padStart(6, "0")}`}
                   </h2>
                   <p className='text-sm text-gray-500'>
+                    {selectedOrder.ar_number && (
+                      <span className='mr-2'>ID: {selectedOrder.id}</span>
+                    )}
                     {new Date(selectedOrder.order_date).toLocaleString()}
                   </p>
                 </div>
