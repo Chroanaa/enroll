@@ -94,6 +94,23 @@ export async function getEnrolledStudent(
   }
 }
 
+export async function searchEnrolledStudents(
+  query: string,
+): Promise<EnrolledStudent[]> {
+  try {
+    if (!query.trim()) {
+      return [];
+    }
+    const response = await axios.get(
+      `/api/auth/students/enrolled/search?query=${encodeURIComponent(query.trim())}`,
+    );
+    return response.data || [];
+  } catch (error: any) {
+    console.error("Error searching enrolled students:", error);
+    return [];
+  }
+}
+
 export async function getBillings(): Promise<Billing[]> {
   return cacheManager.getOrFetch(
     CACHE_KEYS.BILLINGS,
@@ -261,10 +278,8 @@ export async function deleteCategory(id: number): Promise<void> {
 }
 
 export async function createOrder(data: {
-  order_date?: Date;
   order_amount: number;
   billing_id?: number;
-  ar_number?: string;
   items: OrderItem[];
   payment_type: string;
   tendered_amount?: number;
@@ -285,11 +300,11 @@ export async function createOrder(data: {
 export interface EnrollmentOrderItem {
   enrollee_id: number;
   enrollee_name: string;
+  student_number?: string;
   amount: number;
 }
 
 export async function createEnrollmentOrder(data: {
-  order_date?: Date;
   order_amount: number;
   billing_id?: number;
   items: EnrollmentOrderItem[];
@@ -297,6 +312,7 @@ export async function createEnrollmentOrder(data: {
   tendered_amount?: number;
   change_amount?: number;
   transaction_ref?: string;
+  student_number?: string;
 }): Promise<any> {
   try {
     const response = await axios.post("/api/auth/orders/enrollment", data);

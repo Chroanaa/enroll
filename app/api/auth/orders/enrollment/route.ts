@@ -1,12 +1,12 @@
 import { NextResponse, NextRequest } from "next/server";
 import { prisma } from "@/app/lib/prisma";
+import { generateARNumber, getServerDate } from "@/app/utils/arNumberUtils";
 
 // Create a new enrollment order with order details and payment
 export async function POST(request: NextRequest) {
   try {
     const data = await request.json();
     const {
-      order_date,
       order_amount,
       billing_id,
       items,
@@ -14,18 +14,31 @@ export async function POST(request: NextRequest) {
       tendered_amount,
       change_amount,
       transaction_ref,
+      student_number,
     } = data;
+
+    // Get the first student number from items if not provided directly
+    const studentNum =
+      student_number ||
+      (items && items.length > 0 ? items[0].student_number : null);
+
+    // Generate AR number using server date (prevents tampering)
+    const arNumber = await generateARNumber(studentNum);
+
+    // Get server date for order_date to prevent tampering
+    const serverDate = await getServerDate();
 
     // Create order header for enrollment payment
     const orderHeader = await prisma.order_header.create({
       data: {
-        order_date: order_date ? new Date(order_date) : new Date(),
+        order_date: serverDate,
         order_amount: Number(order_amount),
         billing_id: billing_id ? Number(billing_id) : null,
-        ar_number: null,
+        ar_number: arNumber,
         isvoided: 0,
-        created_at: new Date(),
-        updated_at: new Date(),
+        student_number: studentNum || null,
+        created_at: serverDate,
+        updated_at: serverDate,
       },
     });
 
