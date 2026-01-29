@@ -1,11 +1,14 @@
 import axios from "axios";
 import { Section } from "../types";
+import { cacheManager, CACHE_KEYS, CACHE_TTL } from "./cache";
+
 export async function getSections(): Promise<Section[]> {
-  try {
-    const response = await axios.get("/api/auth/section");
-    return response.data || [];
-  } catch (error) {
-    console.error("Error fetching section data:", error);
-    throw error;
-  }
+  return cacheManager.getOrFetch(
+    CACHE_KEYS.SECTIONS,
+    async () => {
+      const response = await axios.get("/api/auth/section");
+      return response.data || [];
+    },
+    CACHE_TTL.LONG,
+  );
 }

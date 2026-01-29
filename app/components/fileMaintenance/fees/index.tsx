@@ -14,6 +14,7 @@ import { filterFees } from "./utils";
 import { getFees } from "@/app/utils/feesUtils";
 import { insertIntoReports } from "@/app/utils/reportsUtils";
 import { useSession } from "next-auth/react";
+import { invalidateRelatedCaches } from "@/app/utils/cache";
 const FeesManagement: React.FC = () => {
   const [fees, setFees] = useState<Fee[]>([]);
   const { data: session } = useSession();
@@ -101,6 +102,7 @@ const FeesManagement: React.FC = () => {
         }
 
         setFees((prev) => prev.map((f) => (f.id === feeData.id ? feeData : f)));
+        invalidateRelatedCaches("FEES");
         setEditingFee(null);
         setSuccessModal({
           isOpen: true,
@@ -127,6 +129,7 @@ const FeesManagement: React.FC = () => {
 
         const newFee = await response.json();
         setFees((prev) => [...prev, { ...feeData, id: newFee.id }]);
+        invalidateRelatedCaches("FEES");
         setIsAddModalOpen(false);
         setSuccessModal({
           isOpen: true,
@@ -177,6 +180,7 @@ const FeesManagement: React.FC = () => {
         setFees((prev) =>
           prev.filter((f) => f.id !== deleteConfirmation.feeId),
         );
+        invalidateRelatedCaches("FEES");
         setDeleteConfirmation({
           isOpen: false,
           feeId: null,

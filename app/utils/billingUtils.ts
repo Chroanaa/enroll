@@ -1,4 +1,10 @@
 import axios from "axios";
+import {
+  cacheManager,
+  CACHE_KEYS,
+  CACHE_TTL,
+  invalidateRelatedCaches,
+} from "./cache";
 
 export interface Billing {
   id: number;
@@ -89,23 +95,25 @@ export async function getEnrolledStudent(
 }
 
 export async function getBillings(): Promise<Billing[]> {
-  try {
-    const response = await axios.get("/api/auth/billing");
-    return response.data || [];
-  } catch (error) {
-    console.error("Error fetching billing data:", error);
-    throw error;
-  }
+  return cacheManager.getOrFetch(
+    CACHE_KEYS.BILLINGS,
+    async () => {
+      const response = await axios.get("/api/auth/billing");
+      return response.data || [];
+    },
+    CACHE_TTL.MEDIUM,
+  );
 }
 
 export async function getUnbilledEnrollees(): Promise<UnbilledEnrollee[]> {
-  try {
-    const response = await axios.get("/api/auth/billing?unbilled=true");
-    return response.data || [];
-  } catch (error) {
-    console.error("Error fetching unbilled enrollees:", error);
-    throw error;
-  }
+  return cacheManager.getOrFetch(
+    CACHE_KEYS.UNBILLED_ENROLLEES,
+    async () => {
+      const response = await axios.get("/api/auth/billing?unbilled=true");
+      return response.data || [];
+    },
+    CACHE_TTL.MEDIUM,
+  );
 }
 
 export async function createBilling(data: {
@@ -118,6 +126,7 @@ export async function createBilling(data: {
 }): Promise<Billing> {
   try {
     const response = await axios.post("/api/auth/billing", data);
+    invalidateRelatedCaches("BILLINGS");
     return response.data;
   } catch (error) {
     console.error("Error creating billing:", error);
@@ -131,6 +140,7 @@ export async function updateBilling(
 ): Promise<Billing> {
   try {
     const response = await axios.patch("/api/auth/billing", { id, ...data });
+    invalidateRelatedCaches("BILLINGS");
     return response.data;
   } catch (error) {
     console.error("Error updating billing:", error);
@@ -141,6 +151,7 @@ export async function updateBilling(
 export async function deleteBilling(id: number): Promise<void> {
   try {
     await axios.delete("/api/auth/billing", { data: id });
+    invalidateRelatedCaches("BILLINGS");
   } catch (error) {
     console.error("Error deleting billing:", error);
     throw error;
@@ -149,21 +160,102 @@ export async function deleteBilling(id: number): Promise<void> {
 
 // Product functions
 export async function getProducts(): Promise<Product[]> {
+  return cacheManager.getOrFetch(
+    CACHE_KEYS.PRODUCTS,
+    async () => {
+      const response = await axios.get("/api/auth/products");
+      return response.data || [];
+    },
+    CACHE_TTL.MEDIUM,
+  );
+}
+
+export async function getCategories(): Promise<Category[]> {
+  return cacheManager.getOrFetch(
+    CACHE_KEYS.CATEGORIES,
+    async () => {
+      const response = await axios.get("/api/auth/categories");
+      return response.data || [];
+    },
+    CACHE_TTL.MEDIUM,
+  );
+}
+
+// Product CRUD functions
+export async function createProduct(data: {
+  name: string;
+  category_id?: number;
+  quantity?: number;
+  price?: number;
+}): Promise<Product> {
   try {
-    const response = await axios.get("/api/auth/products");
-    return response.data || [];
+    const response = await axios.post("/api/auth/products", data);
+    invalidateRelatedCaches("PRODUCTS");
+    return response.data;
   } catch (error) {
-    console.error("Error fetching products:", error);
+    console.error("Error creating product:", error);
     throw error;
   }
 }
 
-export async function getCategories(): Promise<Category[]> {
+export async function updateProduct(
+  id: number,
+  data: Partial<Product>,
+): Promise<Product> {
   try {
-    const response = await axios.get("/api/auth/categories");
-    return response.data || [];
+    const response = await axios.patch("/api/auth/products", { id, ...data });
+    invalidateRelatedCaches("PRODUCTS");
+    return response.data;
   } catch (error) {
-    console.error("Error fetching categories:", error);
+    console.error("Error updating product:", error);
+    throw error;
+  }
+}
+
+export async function deleteProduct(id: number): Promise<void> {
+  try {
+    await axios.delete("/api/auth/products", { data: id });
+    invalidateRelatedCaches("PRODUCTS");
+  } catch (error) {
+    console.error("Error deleting product:", error);
+    throw error;
+  }
+}
+
+// Category CRUD functions
+export async function createCategory(data: {
+  name: string;
+}): Promise<Category> {
+  try {
+    const response = await axios.post("/api/auth/categories", data);
+    invalidateRelatedCaches("CATEGORIES");
+    return response.data;
+  } catch (error) {
+    console.error("Error creating category:", error);
+    throw error;
+  }
+}
+
+export async function updateCategory(
+  id: number,
+  data: Partial<Category>,
+): Promise<Category> {
+  try {
+    const response = await axios.patch("/api/auth/categories", { id, ...data });
+    invalidateRelatedCaches("CATEGORIES");
+    return response.data;
+  } catch (error) {
+    console.error("Error updating category:", error);
+    throw error;
+  }
+}
+
+export async function deleteCategory(id: number): Promise<void> {
+  try {
+    await axios.delete("/api/auth/categories", { data: id });
+    invalidateRelatedCaches("CATEGORIES");
+  } catch (error) {
+    console.error("Error deleting category:", error);
     throw error;
   }
 }
@@ -182,6 +274,7 @@ export async function createOrder(data: {
 }): Promise<any> {
   try {
     const response = await axios.post("/api/auth/orders", data);
+    invalidateRelatedCaches("ORDERS");
     return response.data;
   } catch (error) {
     console.error("Error creating order:", error);
@@ -207,6 +300,7 @@ export async function createEnrollmentOrder(data: {
 }): Promise<any> {
   try {
     const response = await axios.post("/api/auth/orders/enrollment", data);
+    invalidateRelatedCaches("ORDERS");
     return response.data;
   } catch (error) {
     console.error("Error creating enrollment order:", error);
@@ -260,15 +354,19 @@ export interface OrderWithDetails extends OrderHeader {
 }
 
 export async function getOrders(includeVoided = false): Promise<OrderHeader[]> {
-  try {
-    const response = await axios.get(
-      `/api/auth/orders${includeVoided ? "?includeVoided=true" : ""}`,
-    );
-    return response.data || [];
-  } catch (error) {
-    console.error("Error fetching orders:", error);
-    throw error;
-  }
+  const cacheKey = includeVoided
+    ? `${CACHE_KEYS.ORDERS}_voided`
+    : CACHE_KEYS.ORDERS;
+  return cacheManager.getOrFetch(
+    cacheKey,
+    async () => {
+      const response = await axios.get(
+        `/api/auth/orders${includeVoided ? "?includeVoided=true" : ""}`,
+      );
+      return response.data || [];
+    },
+    CACHE_TTL.SHORT,
+  );
 }
 
 export async function getOrderDetails(
@@ -286,6 +384,7 @@ export async function getOrderDetails(
 export async function voidOrder(orderId: number): Promise<any> {
   try {
     const response = await axios.patch("/api/auth/orders", { id: orderId });
+    invalidateRelatedCaches("ORDERS");
     return response.data;
   } catch (error) {
     console.error("Error voiding order:", error);

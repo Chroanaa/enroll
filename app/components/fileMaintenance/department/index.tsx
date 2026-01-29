@@ -15,6 +15,7 @@ import { getDepartments } from "@/app/utils/departmentUtils";
 import { getBuildings } from "@/app/utils/getBuildings";
 import { insertIntoReports } from "@/app/utils/reportsUtils";
 import { useSession } from "next-auth/react";
+import { invalidateRelatedCaches } from "@/app/utils/cache";
 const DepartmentManagement: React.FC = () => {
   const [departments, setDepartments] = useState<Department[]>([]);
   const [buildings, setBuildings] = useState<Building[]>([]);
@@ -130,6 +131,7 @@ const DepartmentManagement: React.FC = () => {
               : d,
           ),
         );
+        invalidateRelatedCaches("DEPARTMENTS");
         setEditingDepartment(null);
         setSuccessModal({
           isOpen: true,
@@ -162,6 +164,7 @@ const DepartmentManagement: React.FC = () => {
           ...prev,
           { ...departmentData, id: newDepartment.id, buildingName },
         ]);
+        invalidateRelatedCaches("DEPARTMENTS");
         setIsAddModalOpen(false);
         setSuccessModal({
           isOpen: true,
@@ -213,6 +216,7 @@ const DepartmentManagement: React.FC = () => {
         setDepartments((prev) =>
           prev.filter((d) => d.id !== deleteConfirmation.departmentId),
         );
+        invalidateRelatedCaches("DEPARTMENTS");
         setDeleteConfirmation({
           isOpen: false,
           departmentId: null,

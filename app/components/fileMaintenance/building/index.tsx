@@ -14,6 +14,7 @@ import BuildingForm from "./BuildingForm";
 import { filterBuildings } from "./utils";
 import { getBuildings } from "@/app/utils/getBuildings";
 import { insertIntoReports } from "@/app/utils/reportsUtils";
+import { invalidateRelatedCaches } from "@/app/utils/cache";
 const BuildingManagement: React.FC = () => {
   const { data: session } = useSession();
   const [buildings, setBuildings] = useState<Building[]>();
@@ -98,6 +99,7 @@ const BuildingManagement: React.FC = () => {
         setBuildings((prev) =>
           prev?.map((b) => (b.id === buildingData.id ? buildingData : b)),
         );
+        invalidateRelatedCaches("BUILDINGS");
         setEditingBuilding(null);
         setSuccessModal({
           isOpen: true,
@@ -127,6 +129,7 @@ const BuildingManagement: React.FC = () => {
           ...(prev || []),
           { ...buildingData, id: newBuilding.id },
         ]);
+        invalidateRelatedCaches("BUILDINGS");
         setIsAddModalOpen(false);
         setSuccessModal({
           isOpen: true,
@@ -178,6 +181,7 @@ const BuildingManagement: React.FC = () => {
         setBuildings((prev) =>
           prev?.filter((b) => b.id !== deleteConfirmation.buildingId),
         );
+        invalidateRelatedCaches("BUILDINGS");
         setDeleteConfirmation({
           isOpen: false,
           buildingId: null,

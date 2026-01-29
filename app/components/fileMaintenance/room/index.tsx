@@ -15,6 +15,7 @@ import { getRooms } from "@/app/utils/roomUtils";
 import { getBuildings } from "@/app/utils/getBuildings";
 import { insertIntoReports } from "@/app/utils/reportsUtils";
 import { useSession } from "next-auth/react";
+import { invalidateRelatedCaches } from "@/app/utils/cache";
 const RoomManagement: React.FC = () => {
   const [rooms, setRooms] = useState<Room[]>([]);
   const [buildings, setBuildings] = useState<Building[]>([]);
@@ -125,6 +126,7 @@ const RoomManagement: React.FC = () => {
             r.id === roomData.id ? { ...roomData, buildingName } : r,
           ),
         );
+        invalidateRelatedCaches("ROOMS");
         setEditingRoom(null);
         setSuccessModal({
           isOpen: true,
@@ -156,6 +158,7 @@ const RoomManagement: React.FC = () => {
           ...prev,
           { ...roomData, id: newRoom.id, buildingName },
         ]);
+        invalidateRelatedCaches("ROOMS");
         setIsAddModalOpen(false);
         setSuccessModal({
           isOpen: true,
@@ -206,6 +209,7 @@ const RoomManagement: React.FC = () => {
         setRooms((prev) =>
           prev.filter((r) => r.id !== deleteConfirmation.roomId),
         );
+        invalidateRelatedCaches("ROOMS");
         setDeleteConfirmation({
           isOpen: false,
           roomId: null,

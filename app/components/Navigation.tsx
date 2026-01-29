@@ -23,6 +23,7 @@ import {
   DoorOpen,
   FolderTree,
   TrendingUp,
+  Package,
 } from "lucide-react";
 import Image from "next/image";
 import { useSession, signOut } from "next-auth/react";
@@ -95,6 +96,12 @@ const Navigation: React.FC<NavigationProps> = ({
         id: "file-maintenance-fees",
         label: "Fees",
         icon: DollarSign,
+        allowedRoles: [ROLES.ADMIN, ROLES.CASHIER],
+      },
+      {
+        id: "file-maintenance-products",
+        label: "Products",
+        icon: Package,
         allowedRoles: [ROLES.ADMIN, ROLES.CASHIER],
       },
       {

@@ -1,11 +1,14 @@
 import axios from "axios";
 import { Department } from "../types";
+import { cacheManager, CACHE_KEYS, CACHE_TTL } from "./cache";
+
 export async function getDepartments(): Promise<Department[]> {
-  try {
-    const response = await axios.get("/api/auth/department");
-    return response.data || [];
-  } catch (error) {
-    console.error("Error fetching department data:", error);
-    throw error;
-  }
+  return cacheManager.getOrFetch(
+    CACHE_KEYS.DEPARTMENTS,
+    async () => {
+      const response = await axios.get("/api/auth/department");
+      return response.data || [];
+    },
+    CACHE_TTL.LONG,
+  );
 }

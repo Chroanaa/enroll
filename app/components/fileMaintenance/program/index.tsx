@@ -15,6 +15,7 @@ import { getPrograms } from "@/app/utils/programUtils";
 import { getDepartments } from "@/app/utils/departmentUtils";
 import { insertIntoReports } from "@/app/utils/reportsUtils";
 import { useSession } from "next-auth/react";
+import { invalidateRelatedCaches } from "@/app/utils/cache";
 const ProgramManagement: React.FC = () => {
   const [programs, setPrograms] = useState<Program[]>([]);
   const [departments, setDepartments] = useState<Department[]>([]);
@@ -126,6 +127,7 @@ const ProgramManagement: React.FC = () => {
             p.id === programData.id ? { ...programData, departmentName } : p,
           ),
         );
+        invalidateRelatedCaches("PROGRAMS");
         setEditingProgram(null);
         setSuccessModal({
           isOpen: true,
@@ -158,6 +160,7 @@ const ProgramManagement: React.FC = () => {
           ...prev,
           { ...programData, id: newProgram.id, departmentName },
         ]);
+        invalidateRelatedCaches("PROGRAMS");
         setIsAddModalOpen(false);
         setSuccessModal({
           isOpen: true,
@@ -208,6 +211,7 @@ const ProgramManagement: React.FC = () => {
         setPrograms((prev) =>
           prev.filter((p) => p.id !== deleteConfirmation.programId),
         );
+        invalidateRelatedCaches("PROGRAMS");
         setDeleteConfirmation({
           isOpen: false,
           programId: null,

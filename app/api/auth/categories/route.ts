@@ -56,3 +56,62 @@ export async function POST(request: NextRequest) {
     );
   }
 }
+
+// Update a category
+export async function PATCH(request: NextRequest) {
+  try {
+    const data = await request.json();
+    const { id, ...updateData } = data;
+
+    if (!id) {
+      return NextResponse.json(
+        { error: "Category ID is required" },
+        { status: 400 },
+      );
+    }
+
+    const cleanData: any = {
+      updated_at: new Date(),
+    };
+
+    if (updateData.name !== undefined) cleanData.name = updateData.name;
+
+    const updatedCategory = await prisma.category.update({
+      where: { id: Number(id) },
+      data: cleanData,
+    });
+
+    return NextResponse.json(updatedCategory);
+  } catch (error: any) {
+    console.error("Error updating category:", error);
+    return NextResponse.json(
+      {
+        error: error?.message || "Failed to update category",
+        details: error?.code || error,
+      },
+      { status: 500 },
+    );
+  }
+}
+
+// Delete a category
+export async function DELETE(request: NextRequest) {
+  try {
+    const id = await request.json();
+
+    const deletedCategory = await prisma.category.delete({
+      where: { id: Number(id) },
+    });
+
+    return NextResponse.json(deletedCategory);
+  } catch (error: any) {
+    console.error("Error deleting category:", error);
+    return NextResponse.json(
+      {
+        error: error?.message || "Failed to delete category",
+        details: error?.code || error,
+      },
+      { status: 500 },
+    );
+  }
+}

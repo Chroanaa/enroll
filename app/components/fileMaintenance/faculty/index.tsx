@@ -15,6 +15,7 @@ import { getFaculties } from "@/app/utils/facultyUtils";
 import { getDepartments } from "@/app/utils/departmentUtils";
 import { insertIntoReports } from "@/app/utils/reportsUtils";
 import { useSession } from "next-auth/react";
+import { invalidateRelatedCaches } from "@/app/utils/cache";
 const FacultyManagement: React.FC = () => {
   const [faculty, setFaculty] = useState<Faculty[]>([]);
   const [departments, setDepartments] = useState<Department[]>([]);
@@ -126,6 +127,7 @@ const FacultyManagement: React.FC = () => {
             f.id === facultyData.id ? { ...facultyData, departmentName } : f,
           ),
         );
+        invalidateRelatedCaches("FACULTIES");
         setEditingFaculty(null);
         setSuccessModal({
           isOpen: true,
@@ -158,6 +160,7 @@ const FacultyManagement: React.FC = () => {
           ...prev,
           { ...facultyData, id: newFaculty.id, departmentName },
         ]);
+        invalidateRelatedCaches("FACULTIES");
         setIsAddModalOpen(false);
         setSuccessModal({
           isOpen: true,
@@ -208,6 +211,7 @@ const FacultyManagement: React.FC = () => {
         setFaculty((prev) =>
           prev.filter((f) => f.id !== deleteConfirmation.facultyId),
         );
+        invalidateRelatedCaches("FACULTIES");
         setDeleteConfirmation({
           isOpen: false,
           facultyId: null,
