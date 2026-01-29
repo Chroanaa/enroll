@@ -7,6 +7,7 @@ export { default as Fees } from "./fees";
 export { default as Subject } from "./subject";
 export { default as Program } from "./program";
 export { default as Major } from "./major";
+export { default as Products } from "./products";
 
 
 

@@ -26,6 +26,7 @@ import {
   Faculty,
   Fees,
   Subject,
+  Products,
 } from "../components/fileMaintenance";
 import ProtectedRoute from "../components/ProtectedRoute";
 
@@ -85,6 +86,8 @@ export default function DashboardPage() {
         return <Faculty />;
       case "file-maintenance-fees":
         return <Fees />;
+      case "file-maintenance-products":
+        return <Products />;
       case "file-maintenance-subject":
         return <Subject />;
       default:

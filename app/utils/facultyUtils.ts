@@ -1,11 +1,14 @@
 import axios from "axios";
 import { Faculty } from "../types";
+import { cacheManager, CACHE_KEYS, CACHE_TTL } from "./cache";
+
 export async function getFaculties(): Promise<Faculty[]> {
-  try {
-    const response = await axios.get("/api/auth/faculty");
-    return response.data || [];
-  } catch (error) {
-    console.error("Error fetching faculty data:", error);
-    throw error;
-  }
+  return cacheManager.getOrFetch(
+    CACHE_KEYS.FACULTIES,
+    async () => {
+      const response = await axios.get("/api/auth/faculty");
+      return response.data || [];
+    },
+    CACHE_TTL.LONG,
+  );
 }

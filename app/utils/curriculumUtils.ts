@@ -1,11 +1,13 @@
 import axios from "axios";
+import { cacheManager, CACHE_KEYS, CACHE_TTL } from "./cache";
 
 export async function getCurriculums() {
-  try {
-    const response = await axios.get("/api/auth/curriculum");
-    return response.data || [];
-  } catch (error) {
-    console.error("Error fetching curriculum data:", error);
-    throw error;
-  }
+  return cacheManager.getOrFetch(
+    CACHE_KEYS.CURRICULUMS,
+    async () => {
+      const response = await axios.get("/api/auth/curriculum");
+      return response.data || [];
+    },
+    CACHE_TTL.LONG,
+  );
 }

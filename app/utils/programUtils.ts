@@ -1,11 +1,14 @@
 import axios from "axios";
 import { Program } from "../types";
+import { cacheManager, CACHE_KEYS, CACHE_TTL } from "./cache";
+
 export async function getPrograms(): Promise<Program[]> {
-  try {
-    const response = await axios.get("/api/auth/program");
-    return response.data || [];
-  } catch (error) {
-    console.error("Error fetching program data:", error);
-    throw error;
-  }
+  return cacheManager.getOrFetch(
+    CACHE_KEYS.PROGRAMS,
+    async () => {
+      const response = await axios.get("/api/auth/program");
+      return response.data || [];
+    },
+    CACHE_TTL.LONG,
+  );
 }

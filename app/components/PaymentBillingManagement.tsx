@@ -2022,8 +2022,7 @@ const PaymentBillingManagement: React.FC = () => {
                       await fetchOrders();
                       setSuccessModal({
                         isOpen: true,
-                        message: "Transaction Voided",
-                        details: `Order #${selectedOrder.id.toString().padStart(6, "0")} has been successfully voided.`,
+                        message: `Order #${selectedOrder.id.toString().padStart(6, "0")} has been successfully voided.`,
                       });
                     } catch (error) {
                       console.error("Error voiding order:", error);

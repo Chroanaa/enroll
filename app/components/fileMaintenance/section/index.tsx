@@ -15,6 +15,7 @@ import { getSections } from "../../../utils/getSection";
 import { getPrograms } from "@/app/utils/programUtils";
 import { useSession } from "next-auth/react";
 import { insertIntoReports } from "@/app/utils/reportsUtils";
+import { invalidateRelatedCaches } from "@/app/utils/cache";
 const SectionManagement: React.FC = () => {
   const [sections, setSections] = useState<Section[]>();
   const [programs, setPrograms] = useState<Program[]>([]);
@@ -127,6 +128,7 @@ const SectionManagement: React.FC = () => {
             s.id === sectionData.id ? { ...sectionData, programName } : s,
           ),
         );
+        invalidateRelatedCaches("SECTIONS");
         setEditingSection(null);
         setSuccessModal({
           isOpen: true,
@@ -158,6 +160,7 @@ const SectionManagement: React.FC = () => {
           ...prev,
           { ...sectionData, id: newSection.id, programName },
         ]);
+        invalidateRelatedCaches("SECTIONS");
         setIsAddModalOpen(false);
         setSuccessModal({
           isOpen: true,
@@ -208,6 +211,7 @@ const SectionManagement: React.FC = () => {
         setSections((prev = []) =>
           prev.filter((s) => s.id !== deleteConfirmation.sectionId),
         );
+        invalidateRelatedCaches("SECTIONS");
         setDeleteConfirmation({
           isOpen: false,
           sectionId: null,

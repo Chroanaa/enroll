@@ -14,6 +14,7 @@ import { getSubjects } from "@/app/utils/subjectUtils";
 import { getDepartments } from "@/app/utils/departmentUtils";
 import { insertIntoReports } from "@/app/utils/reportsUtils";
 import { useSession } from "next-auth/react";
+import { invalidateRelatedCaches } from "@/app/utils/cache";
 import { Department } from "../../../types";
 const SubjectManagement: React.FC = () => {
   const router = useRouter();
@@ -153,6 +154,7 @@ const SubjectManagement: React.FC = () => {
             (s) => !bulkDeleteConfirmation.subjectIds.includes(s.id),
           ),
         );
+        invalidateRelatedCaches("SUBJECTS");
         setSelectedSubjects([]);
         setShowCheckboxes(false);
         setBulkDeleteConfirmation({
@@ -197,6 +199,7 @@ const SubjectManagement: React.FC = () => {
         setSubjects((prev) =>
           (prev || []).filter((s) => s.id !== deleteConfirmation.subjectId),
         );
+        invalidateRelatedCaches("SUBJECTS");
         setDeleteConfirmation({
           isOpen: false,
           subjectId: null,

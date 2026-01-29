@@ -15,6 +15,7 @@ import { getMajors } from "@/app/utils/majorUtils";
 import { getPrograms } from "@/app/utils/programUtils";
 import { insertIntoReports } from "@/app/utils/reportsUtils";
 import { useSession } from "next-auth/react";
+import { invalidateRelatedCaches } from "@/app/utils/cache";
 const MajorManagement: React.FC = () => {
   const [majors, setMajors] = useState<Major[]>([]);
   const [programs, setPrograms] = useState<Program[]>([]);
@@ -124,6 +125,7 @@ const MajorManagement: React.FC = () => {
             m.id === majorData.id ? { ...majorData, programName } : m,
           ),
         );
+        invalidateRelatedCaches("MAJORS");
         setEditingMajor(null);
         setSuccessModal({
           isOpen: true,
@@ -155,6 +157,7 @@ const MajorManagement: React.FC = () => {
           ...prev,
           { ...majorData, id: newMajor.id, programName },
         ]);
+        invalidateRelatedCaches("MAJORS");
         setIsAddModalOpen(false);
         setSuccessModal({
           isOpen: true,
@@ -205,6 +208,7 @@ const MajorManagement: React.FC = () => {
         setMajors((prev) =>
           prev.filter((m) => m.id !== deleteConfirmation.majorId),
         );
+        invalidateRelatedCaches("MAJORS");
         setDeleteConfirmation({
           isOpen: false,
           majorId: null,
