@@ -24,6 +24,7 @@ interface FormRow {
   units_lab: number | "";
   lecture_hour: number | "";
   lab_hour: number | "";
+  fixedAmount: number | "";
   status: "active" | "inactive";
   activePreset?: "lecture" | "lab" | "pe" | null;
 }
@@ -49,6 +50,7 @@ const AddMultipleSubjectsPage: React.FC<AddMultipleSubjectsPageProps> = ({
     units_lab: "",
     lecture_hour: "",
     lab_hour: "",
+    fixedAmount: "",
     status: "active",
     activePreset: null,
   };
@@ -122,7 +124,8 @@ const AddMultipleSubjectsPage: React.FC<AddMultipleSubjectsPageProps> = ({
         row.units_lec !== "" ||
         row.units_lab !== "" ||
         row.lecture_hour !== "" ||
-        row.lab_hour !== ""
+        row.lab_hour !== "" ||
+        row.fixedAmount !== ""
       );
     });
   };
@@ -229,7 +232,8 @@ const AddMultipleSubjectsPage: React.FC<AddMultipleSubjectsPageProps> = ({
         row.units_lec ||
         row.units_lab ||
         row.lecture_hour ||
-        row.lab_hour;
+        row.lab_hour ||
+        row.fixedAmount;
 
       if (!hasData) {
         return; // Skip empty rows
@@ -250,6 +254,14 @@ const AddMultipleSubjectsPage: React.FC<AddMultipleSubjectsPageProps> = ({
           errors.push(
             `Row ${rowNum}: At least one credit or class hour is required.`
           );
+        }
+      }
+      
+      // Validate fixedAmount if provided
+      if (row.fixedAmount !== undefined && row.fixedAmount !== null && row.fixedAmount !== "") {
+        const amount = Number(row.fixedAmount);
+        if (isNaN(amount) || amount < 0) {
+          errors.push(`Row ${rowNum}: Fixed Amount must be a valid non-negative decimal number`);
         }
       }
     });
@@ -279,7 +291,8 @@ const AddMultipleSubjectsPage: React.FC<AddMultipleSubjectsPageProps> = ({
         row.units_lec ||
         row.units_lab ||
         row.lecture_hour ||
-        row.lab_hour;
+        row.lab_hour ||
+        row.fixedAmount;
       if (!hasData) return false;
 
       if (!row.code?.trim() || !row.name?.trim()) return false;
@@ -316,7 +329,8 @@ const AddMultipleSubjectsPage: React.FC<AddMultipleSubjectsPageProps> = ({
           row.units_lec ||
           row.units_lab ||
           row.lecture_hour ||
-          row.lab_hour;
+          row.lab_hour ||
+          row.fixedAmount;
         if (!hasData) return false;
 
         if (!row.code?.trim() || !row.name?.trim()) return false;
@@ -335,6 +349,7 @@ const AddMultipleSubjectsPage: React.FC<AddMultipleSubjectsPageProps> = ({
         units_lab: row.units_lab ? Number(row.units_lab) : 0,
         lecture_hour: row.lecture_hour ? Number(row.lecture_hour) : 0,
         lab_hour: row.lab_hour ? Number(row.lab_hour) : 0,
+        fixedAmount: row.fixedAmount && row.fixedAmount !== "" ? Number(row.fixedAmount) : undefined,
         status: row.status || "active",
       }));
 
@@ -378,7 +393,8 @@ const AddMultipleSubjectsPage: React.FC<AddMultipleSubjectsPageProps> = ({
       row.units_lec ||
       row.units_lab ||
       row.lecture_hour ||
-      row.lab_hour;
+      row.lab_hour ||
+      row.fixedAmount;
     if (!hasData) return false;
 
     if (!row.code?.trim() || !row.name?.trim()) return false;
@@ -469,6 +485,9 @@ const AddMultipleSubjectsPage: React.FC<AddMultipleSubjectsPageProps> = ({
                     </th>
                     <th className="px-3 py-2 text-left text-xs font-bold uppercase tracking-wider text-gray-600">
                       Lab Hours
+                    </th>
+                    <th className="px-3 py-2 text-left text-xs font-bold uppercase tracking-wider text-gray-600">
+                      Fixed Amount
                     </th>
                     <th className="px-3 py-2 text-left text-xs font-bold uppercase tracking-wider text-gray-600">
                       Status
@@ -750,6 +769,43 @@ const AddMultipleSubjectsPage: React.FC<AddMultipleSubjectsPageProps> = ({
                             }}
                             placeholder="0"
                           />
+                        </td>
+
+                        {/* Fixed Amount */}
+                        <td className="px-3 py-2">
+                          <div className="relative">
+                            <span className="absolute left-2 top-1/2 -translate-y-1/2 text-xs text-gray-400">
+                              ₱
+                            </span>
+                            <input
+                              type="number"
+                              step="0.01"
+                              min="0"
+                              value={row.fixedAmount}
+                              onChange={(e) =>
+                                updateRow(
+                                  row.id,
+                                  "fixedAmount",
+                                  e.target.value ? parseFloat(e.target.value) : ""
+                                )
+                              }
+                              className="w-full rounded-lg px-2 py-1.5 pl-6 pr-2 text-sm transition-all border-gray-200 focus:ring-2 focus:ring-offset-0"
+                              style={{
+                                border: "1px solid #E5E7EB",
+                                outline: "none",
+                                color: "#6B5B4F",
+                              }}
+                              onFocus={(e) => {
+                                e.currentTarget.style.borderColor = colors.secondary;
+                                e.currentTarget.style.boxShadow = `0 0 0 3px ${colors.secondary}20`;
+                              }}
+                              onBlur={(e) => {
+                                e.currentTarget.style.borderColor = "#E5E7EB";
+                                e.currentTarget.style.boxShadow = "none";
+                              }}
+                              placeholder="0.00"
+                            />
+                          </div>
                         </td>
 
                         {/* Status */}

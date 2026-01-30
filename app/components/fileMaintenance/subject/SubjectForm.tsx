@@ -31,6 +31,7 @@ const SubjectForm: React.FC<SubjectFormProps> = ({
       units_lab: 0,
       lecture_hour: 3,
       lab_hour: 0,
+      fixedAmount: undefined,
       status: "active",
     }
   );
@@ -53,6 +54,7 @@ const SubjectForm: React.FC<SubjectFormProps> = ({
       formData.units_lab !== initialFormData.current.units_lab ||
       formData.lecture_hour !== initialFormData.current.lecture_hour ||
       formData.lab_hour !== initialFormData.current.lab_hour ||
+      formData.fixedAmount !== initialFormData.current.fixedAmount ||
       formData.status !== initialFormData.current.status
     );
   };
@@ -88,6 +90,16 @@ const SubjectForm: React.FC<SubjectFormProps> = ({
     const hasHours = (formData.lecture_hour || 0) > 0 || (formData.lab_hour || 0) > 0;
 
     if (formData.code && formData.name && (hasCredits || hasHours)) {
+      // Validate fixedAmount if provided
+      if (formData.fixedAmount !== undefined && formData.fixedAmount !== null) {
+        const amount = Number(formData.fixedAmount);
+        if (isNaN(amount) || amount < 0) {
+          setValidationError("Fixed Amount must be a valid non-negative decimal number.");
+          setShowSaveConfirmation(false);
+          return;
+        }
+      }
+      
       // Only send fields that exist in the database schema
       const subjectData: Partial<Subject> = {
         code: formData.code.toUpperCase()!,
@@ -97,6 +109,9 @@ const SubjectForm: React.FC<SubjectFormProps> = ({
         units_lab: formData.units_lab || 0,
         lecture_hour: formData.lecture_hour || 0,
         lab_hour: formData.lab_hour || 0,
+        fixedAmount: formData.fixedAmount !== undefined && formData.fixedAmount !== null 
+          ? Number(formData.fixedAmount) 
+          : undefined,
         status: (formData.status as "active" | "inactive") || "active",
       };
       onSave({
@@ -537,7 +552,7 @@ const SubjectForm: React.FC<SubjectFormProps> = ({
               </div>
             </div>
 
-            {/* Status Section */}
+            {/* Status & Fixed Amount Section */}
             <div
               className='bg-white rounded-2xl p-6'
               style={{
@@ -546,6 +561,7 @@ const SubjectForm: React.FC<SubjectFormProps> = ({
               }}
             >
               <div className='grid grid-cols-1 md:grid-cols-2 gap-4'>
+                {/* Status - Left Side */}
                 <div>
                   <label
                     className='flex items-center gap-2 text-xs font-semibold mb-1.5'
@@ -553,35 +569,82 @@ const SubjectForm: React.FC<SubjectFormProps> = ({
                   >
                     Status <span className='text-red-500'>*</span>
                   </label>
-                <select
-                  value={formData.status || "active"}
-                  onChange={(e) =>
-                    setFormData({
-                      ...formData,
-                      status: e.target.value as "active" | "inactive",
-                    })
-                  }
-                  className='w-full rounded-lg px-3 py-2 text-sm transition-all border-gray-200 focus:ring-2 focus:ring-offset-0 bg-white'
-                  style={{
-                    border: "1px solid #E5E7EB",
-                    outline: "none",
-                    color: "#6B5B4F",
-                  }}
-                  onFocus={(e) => {
-                    e.currentTarget.style.borderColor = colors.secondary;
-                    e.currentTarget.style.boxShadow = `0 0 0 3px ${colors.secondary}20`;
-                  }}
-                  onBlur={(e) => {
-                    e.currentTarget.style.borderColor = "#E5E7EB";
-                    e.currentTarget.style.boxShadow = "none";
-                  }}
-                >
-                  <option value='active'>Active</option>
-                  <option value='inactive'>Inactive</option>
-                </select>
+                  <select
+                    value={formData.status || "active"}
+                    onChange={(e) =>
+                      setFormData({
+                        ...formData,
+                        status: e.target.value as "active" | "inactive",
+                      })
+                    }
+                    className='w-full rounded-lg px-3 py-2 text-sm transition-all border-gray-200 focus:ring-2 focus:ring-offset-0 bg-white'
+                    style={{
+                      border: "1px solid #E5E7EB",
+                      outline: "none",
+                      color: "#6B5B4F",
+                    }}
+                    onFocus={(e) => {
+                      e.currentTarget.style.borderColor = colors.secondary;
+                      e.currentTarget.style.boxShadow = `0 0 0 3px ${colors.secondary}20`;
+                    }}
+                    onBlur={(e) => {
+                      e.currentTarget.style.borderColor = "#E5E7EB";
+                      e.currentTarget.style.boxShadow = "none";
+                    }}
+                  >
+                    <option value='active'>Active</option>
+                    <option value='inactive'>Inactive</option>
+                  </select>
+                </div>
+
+                {/* Fixed Amount - Right Side */}
+                <div>
+                  <label
+                    className='flex items-center gap-2 text-xs font-semibold mb-1.5'
+                    style={{ color: colors.primary }}
+                  >
+                    Fixed Amount
+                  </label>
+                  <div className='relative'>
+                    <span className='absolute left-3 top-1/2 -translate-y-1/2 text-xs text-gray-400'>
+                      ₱
+                    </span>
+                    <input
+                      type='number'
+                      step='0.01'
+                      min='0'
+                      value={formData.fixedAmount !== undefined && formData.fixedAmount !== null ? formData.fixedAmount : ""}
+                      onChange={(e) => {
+                        setValidationError("");
+                        const value = e.target.value;
+                        setFormData({
+                          ...formData,
+                          fixedAmount: value === "" ? undefined : parseFloat(value),
+                        });
+                      }}
+                      className='w-full rounded-lg px-3 py-2 pl-8 pr-3 text-sm transition-all border-gray-200 focus:ring-2 focus:ring-offset-0'
+                      style={{
+                        border: "1px solid #E5E7EB",
+                        outline: "none",
+                        color: "#6B5B4F",
+                      }}
+                      onFocus={(e) => {
+                        e.currentTarget.style.borderColor = colors.secondary;
+                        e.currentTarget.style.boxShadow = `0 0 0 3px ${colors.secondary}20`;
+                      }}
+                      onBlur={(e) => {
+                        e.currentTarget.style.borderColor = "#E5E7EB";
+                        e.currentTarget.style.boxShadow = "none";
+                      }}
+                      placeholder='0.00'
+                    />
+                  </div>
+                  <p className='text-[10px] text-gray-500 mt-1'>
+                    Optional fixed monetary amount for this subject
+                  </p>
+                </div>
               </div>
             </div>
-          </div>
 
           {/* Validation Error */}
           {validationError && (

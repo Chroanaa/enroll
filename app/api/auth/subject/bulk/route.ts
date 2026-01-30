@@ -36,6 +36,17 @@ export async function POST(request: NextRequest) {
     // Remove id field if present (database will auto-generate it)
     const subjectsWithDefaults = subjectsData.map((subject) => {
       const { id, ...subjectWithoutId } = subject as any;
+      
+      // Validate fixedAmount if provided (must be non-negative)
+      let fixedAmount = null;
+      if (subject.fixedAmount !== undefined && subject.fixedAmount !== null) {
+        const amount = Number(subject.fixedAmount);
+        if (isNaN(amount) || amount < 0) {
+          throw new Error(`Subject ${subjectsData.indexOf(subject) + 1}: fixedAmount must be a valid non-negative decimal number`);
+        }
+        fixedAmount = amount;
+      }
+      
       return {
         ...subjectWithoutId,
         status: subject.status || "active",
@@ -44,6 +55,7 @@ export async function POST(request: NextRequest) {
         units_lab: subject.units_lab || null,
         lecture_hour: subject.lecture_hour || null,
         lab_hour: subject.lab_hour || null,
+        fixedAmount: fixedAmount,
       };
     });
 

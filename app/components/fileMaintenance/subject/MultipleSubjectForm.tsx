@@ -76,6 +76,15 @@ const MultipleSubjectForm: React.FC<MultipleSubjectFormProps> = ({
         required: false,
       },
       {
+        key: "fixedAmount",
+        label: "Fixed Amount",
+        type: "number",
+        placeholder: "0.00",
+        min: 0,
+        step: 0.01,
+        required: false,
+      },
+      {
         key: "status",
         label: "Status",
         type: "select",
@@ -94,6 +103,7 @@ const MultipleSubjectForm: React.FC<MultipleSubjectFormProps> = ({
       units_lab: "",
       lecture_hour: "",
       lab_hour: "",
+      fixedAmount: "",
       status: "active",
     },
     validateRow: (row: Record<string, any>, index: number): string[] => {
@@ -127,6 +137,14 @@ const MultipleSubjectForm: React.FC<MultipleSubjectFormProps> = ({
           `Row ${rowNum}: At least one unit (Lecture or Lab) is required`
         );
       }
+      
+      // Validate fixedAmount if provided
+      if (row.fixedAmount !== undefined && row.fixedAmount !== null && row.fixedAmount !== "") {
+        const amount = Number(row.fixedAmount);
+        if (isNaN(amount) || amount < 0) {
+          errors.push(`Row ${rowNum}: Fixed Amount must be a valid non-negative decimal number`);
+        }
+      }
 
       return errors;
     },
@@ -139,6 +157,7 @@ const MultipleSubjectForm: React.FC<MultipleSubjectFormProps> = ({
         units_lab: row.units_lab ? Number(row.units_lab) : undefined,
         lecture_hour: row.lecture_hour ? Number(row.lecture_hour) : undefined,
         lab_hour: row.lab_hour ? Number(row.lab_hour) : undefined,
+        fixedAmount: row.fixedAmount && row.fixedAmount !== "" ? Number(row.fixedAmount) : undefined,
         status: row.status || "active",
       };
     },
@@ -147,7 +166,8 @@ const MultipleSubjectForm: React.FC<MultipleSubjectFormProps> = ({
         row.code?.trim() ||
         row.name?.trim() ||
         row.units_lec ||
-        row.units_lab
+        row.units_lab ||
+        row.fixedAmount
       );
     },
   };

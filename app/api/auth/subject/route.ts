@@ -14,6 +14,18 @@ export async function POST(request: NextRequest) {
       );
     }
     
+    // Validate fixedAmount if provided (must be non-negative)
+    if (subjectData.fixedAmount !== undefined && subjectData.fixedAmount !== null) {
+      const fixedAmount = Number(subjectData.fixedAmount);
+      if (isNaN(fixedAmount) || fixedAmount < 0) {
+        return NextResponse.json(
+          { error: "fixedAmount must be a valid non-negative decimal number" },
+          { status: 400 }
+        );
+      }
+      subjectData.fixedAmount = fixedAmount;
+    }
+    
     // Set default status if not provided
     if (!subjectData.status) {
       subjectData.status = "active";
@@ -61,6 +73,18 @@ export async function PATCH(nextRequest: NextRequest) {
   try {
     const data = await nextRequest.json();
     const { id, ...updateData } = data;
+    
+    // Validate fixedAmount if provided (must be non-negative)
+    if (updateData.fixedAmount !== undefined && updateData.fixedAmount !== null) {
+      const fixedAmount = Number(updateData.fixedAmount);
+      if (isNaN(fixedAmount) || fixedAmount < 0) {
+        return NextResponse.json(
+          { error: "fixedAmount must be a valid non-negative decimal number" },
+          { status: 400 }
+        );
+      }
+      updateData.fixedAmount = fixedAmount;
+    }
     
     const updatedSubject = await prisma.subject.update({
       where: { id: Number(id) },

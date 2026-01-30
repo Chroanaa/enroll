@@ -79,6 +79,7 @@ export interface Subject {
   units_lab?: number;
   lecture_hour?: number;
   lab_hour?: number;
+  fixedAmount?: number;
   status: "active" | "inactive";
 }
 
