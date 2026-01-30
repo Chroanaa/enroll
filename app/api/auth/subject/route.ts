@@ -45,7 +45,13 @@ export async function POST(request: NextRequest) {
 }
 export async function GET() {
   try {
-    const subjects = await prisma.subject.findMany();
+    // Optimize query with ordering for consistent results
+    // Caching handles performance, ordering improves UX
+    const subjects = await prisma.subject.findMany({
+      orderBy: [
+        { code: 'asc' }
+      ],
+    });
     return NextResponse.json(subjects);
     } catch (error: any) {
     console.error("Error fetching subjects:", error);

@@ -14,27 +14,63 @@ import { getSubjects } from "@/app/utils/subjectUtils";
 import { getDepartments } from "@/app/utils/departmentUtils";
 import { insertIntoReports } from "@/app/utils/reportsUtils";
 import { useSession } from "next-auth/react";
-import { invalidateRelatedCaches } from "@/app/utils/cache";
+import { invalidateRelatedCaches, cacheManager, CACHE_KEYS } from "@/app/utils/cache";
 import { Department } from "../../../types";
 const SubjectManagement: React.FC = () => {
   const router = useRouter();
   const [subjects, setSubjects] = useState<Subject[]>();
   const [departments, setDepartments] = useState<Department[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
   const { data: session } = useSession();
+  
+  const fetchData = async () => {
+    try {
+      setIsLoading(true);
+      const subjectsData = await getSubjects();
+      const subjectsArray: Subject[] = Array.isArray(subjectsData)
+        ? subjectsData
+        : (Object.values(subjectsData) as Subject[]);
+      setSubjects(subjectsArray);
+    } catch (error) {
+      console.error("Failed to fetch data:", error);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   useEffect(() => {
-    const fetchData = async () => {
-      try {
-        const subjectsData = await getSubjects();
-        const subjectsArray: Subject[] = Array.isArray(subjectsData)
-          ? subjectsData
-          : (Object.values(subjectsData) as Subject[]);
-        setSubjects(subjectsArray);
-      } catch (error) {
-        console.error("Failed to fetch data:", error);
+    fetchData();
+  }, []);
+
+  // Refetch only when returning from edit page (cache was invalidated)
+  // Use a flag in sessionStorage to track when cache was invalidated
+  useEffect(() => {
+    const checkAndRefetch = () => {
+      // Check if cache was invalidated (stored in sessionStorage by edit page)
+      const cacheInvalidated = sessionStorage.getItem('subjectCacheInvalidated');
+      if (cacheInvalidated === 'true') {
+        // Clear the flag and refetch
+        sessionStorage.removeItem('subjectCacheInvalidated');
+        cacheManager.invalidate(CACHE_KEYS.SUBJECTS);
+        fetchData();
       }
     };
 
-    fetchData();
+    // Check on mount (in case user navigated back)
+    checkAndRefetch();
+
+    // Also check when window becomes visible (but only if cache was invalidated)
+    const handleVisibilityChange = () => {
+      if (!document.hidden) {
+        checkAndRefetch();
+      }
+    };
+
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+    
+    return () => {
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
+    };
   }, []);
 
   const [searchTerm, setSearchTerm] = useState("");
@@ -103,7 +139,8 @@ const SubjectManagement: React.FC = () => {
 
   const handlePageChange = (page: number) => {
     setCurrentPage(page);
-    window.scrollTo({ top: 0, behavior: "smooth" });
+    // Use instant scroll for faster page transitions
+    window.scrollTo({ top: 0, behavior: "auto" });
   };
 
   const handleDeleteSubject = (id: number) => {
@@ -389,6 +426,7 @@ const SubjectManagement: React.FC = () => {
             onDelete={handleDeleteSubject}
             selectedSubjects={showCheckboxes ? selectedSubjects : []}
             onSelectionChange={showCheckboxes ? setSelectedSubjects : undefined}
+            isLoading={isLoading}
           />
           <Pagination
             currentPage={currentPage}

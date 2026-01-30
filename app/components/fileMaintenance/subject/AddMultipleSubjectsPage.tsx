@@ -24,7 +24,7 @@ interface FormRow {
   units_lab: number | "";
   lecture_hour: number | "";
   lab_hour: number | "";
-  fixedAmount: number | "";
+  fixedAmount: number | "" | string;
   status: "active" | "inactive";
   activePreset?: "lecture" | "lab" | "pe" | null;
 }
@@ -91,6 +91,7 @@ const AddMultipleSubjectsPage: React.FC<AddMultipleSubjectsPageProps> = ({
       id: "1",
     },
   ]);
+  const [focusedFixedAmountRowId, setFocusedFixedAmountRowId] = useState<string | null>(null);
 
   const [errorModal, setErrorModal] = useState<{
     isOpen: boolean;
@@ -778,30 +779,63 @@ const AddMultipleSubjectsPage: React.FC<AddMultipleSubjectsPageProps> = ({
                               ₱
                             </span>
                             <input
-                              type="number"
-                              step="0.01"
-                              min="0"
-                              value={row.fixedAmount}
-                              onChange={(e) =>
-                                updateRow(
-                                  row.id,
-                                  "fixedAmount",
-                                  e.target.value ? parseFloat(e.target.value) : ""
-                                )
+                              type="text"
+                              value={
+                                focusedFixedAmountRowId === row.id
+                                  ? (typeof row.fixedAmount === 'string' 
+                                      ? row.fixedAmount 
+                                      : row.fixedAmount !== "" && row.fixedAmount !== undefined && row.fixedAmount !== null
+                                      ? row.fixedAmount.toString()
+                                      : "")
+                                  : row.fixedAmount !== "" && row.fixedAmount !== undefined && row.fixedAmount !== null
+                                  ? Number(row.fixedAmount).toLocaleString('en-US', {
+                                      minimumFractionDigits: 2,
+                                      maximumFractionDigits: 2,
+                                    })
+                                  : ""
                               }
+                              onChange={(e) => {
+                                const value = e.target.value.replace(/,/g, '');
+                                // Store as string during typing for natural editing
+                                updateRow(row.id, "fixedAmount", value === "" ? "" : value);
+                              }}
+                              onFocus={(e) => {
+                                setFocusedFixedAmountRowId(row.id);
+                                // Show raw value when focusing
+                                const currentValue = typeof row.fixedAmount === 'string'
+                                  ? row.fixedAmount
+                                  : row.fixedAmount !== "" && row.fixedAmount !== undefined && row.fixedAmount !== null
+                                  ? row.fixedAmount.toString()
+                                  : "";
+                                updateRow(row.id, "fixedAmount", currentValue);
+                                e.currentTarget.style.borderColor = colors.secondary;
+                                e.currentTarget.style.boxShadow = `0 0 0 3px ${colors.secondary}20`;
+                              }}
+                              onBlur={(e) => {
+                                setFocusedFixedAmountRowId(null);
+                                const rawValue = typeof row.fixedAmount === 'string' 
+                                  ? row.fixedAmount 
+                                  : row.fixedAmount?.toString() || "";
+                                const value = rawValue.replace(/,/g, '').trim();
+                                if (value === "" || value === ".") {
+                                  updateRow(row.id, "fixedAmount", "");
+                                } else {
+                                  const numValue = parseFloat(value);
+                                  if (!isNaN(numValue) && numValue >= 0) {
+                                    updateRow(row.id, "fixedAmount", numValue);
+                                  } else {
+                                    // Invalid input, revert to empty
+                                    updateRow(row.id, "fixedAmount", "");
+                                  }
+                                }
+                                e.currentTarget.style.borderColor = "#E5E7EB";
+                                e.currentTarget.style.boxShadow = "none";
+                              }}
                               className="w-full rounded-lg px-2 py-1.5 pl-6 pr-2 text-sm transition-all border-gray-200 focus:ring-2 focus:ring-offset-0"
                               style={{
                                 border: "1px solid #E5E7EB",
                                 outline: "none",
                                 color: "#6B5B4F",
-                              }}
-                              onFocus={(e) => {
-                                e.currentTarget.style.borderColor = colors.secondary;
-                                e.currentTarget.style.boxShadow = `0 0 0 3px ${colors.secondary}20`;
-                              }}
-                              onBlur={(e) => {
-                                e.currentTarget.style.borderColor = "#E5E7EB";
-                                e.currentTarget.style.boxShadow = "none";
                               }}
                               placeholder="0.00"
                             />

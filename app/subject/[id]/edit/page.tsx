@@ -65,6 +65,16 @@ export default function EditSubjectRoutePage() {
         const errorData = await response.json();
         throw new Error(errorData.error || "Failed to update subject");
       }
+      
+      // Invalidate cache to ensure fresh data on return
+      const { invalidateRelatedCaches } = await import("@/app/utils/cache");
+      invalidateRelatedCaches("SUBJECTS");
+      
+      // Set flag in sessionStorage to trigger refetch when returning to list
+      if (typeof window !== 'undefined') {
+        sessionStorage.setItem('subjectCacheInvalidated', 'true');
+      }
+      
       // Don't navigate here - let the component handle navigation after showing success modal
     } catch (error: any) {
       throw error;

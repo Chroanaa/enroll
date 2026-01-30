@@ -39,6 +39,8 @@ const AddSubjectPage: React.FC<AddSubjectPageProps> = ({
   const [showCancelWarning, setShowCancelWarning] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [validationError, setValidationError] = useState<string>("");
+  const [fixedAmountInput, setFixedAmountInput] = useState<string>("");
+  const [isFixedAmountFocused, setIsFixedAmountFocused] = useState(false);
 
   const [errorModal, setErrorModal] = useState<{
     isOpen: boolean;
@@ -622,31 +624,67 @@ const AddSubjectPage: React.FC<AddSubjectPageProps> = ({
                     ₱
                   </span>
                   <input
-                    type="number"
-                    step="0.01"
-                    min="0"
-                    value={formData.fixedAmount !== undefined && formData.fixedAmount !== null ? formData.fixedAmount : ""}
+                    type="text"
+                    value={
+                      isFixedAmountFocused
+                        ? fixedAmountInput
+                        : formData.fixedAmount !== undefined && formData.fixedAmount !== null
+                        ? formData.fixedAmount.toLocaleString('en-US', {
+                            minimumFractionDigits: 2,
+                            maximumFractionDigits: 2,
+                          })
+                        : ""
+                    }
                     onChange={(e) => {
                       setValidationError("");
-                      const value = e.target.value;
-                      setFormData({
-                        ...formData,
-                        fixedAmount: value === "" ? undefined : parseFloat(value),
-                      });
+                      const value = e.target.value.replace(/,/g, '');
+                      setFixedAmountInput(value);
+                    }}
+                    onFocus={(e) => {
+                      setIsFixedAmountFocused(true);
+                      // Set raw value when focusing
+                      setFixedAmountInput(
+                        formData.fixedAmount !== undefined && formData.fixedAmount !== null
+                          ? formData.fixedAmount.toString()
+                          : ""
+                      );
+                      e.currentTarget.style.borderColor = colors.secondary;
+                      e.currentTarget.style.boxShadow = `0 0 0 3px ${colors.secondary}20`;
+                    }}
+                    onBlur={(e) => {
+                      setIsFixedAmountFocused(false);
+                      const value = fixedAmountInput.replace(/,/g, '').trim();
+                      if (value === "" || value === ".") {
+                        setFormData({
+                          ...formData,
+                          fixedAmount: undefined,
+                        });
+                        setFixedAmountInput("");
+                      } else {
+                        const numValue = parseFloat(value);
+                        if (!isNaN(numValue) && numValue >= 0) {
+                          setFormData({
+                            ...formData,
+                            fixedAmount: numValue,
+                          });
+                          setFixedAmountInput(numValue.toString());
+                        } else {
+                          // Invalid input, revert to previous value
+                          setFixedAmountInput(
+                            formData.fixedAmount !== undefined && formData.fixedAmount !== null
+                              ? formData.fixedAmount.toString()
+                              : ""
+                          );
+                        }
+                      }
+                      e.currentTarget.style.borderColor = "#E5E7EB";
+                      e.currentTarget.style.boxShadow = "none";
                     }}
                     className="w-full rounded-lg px-3 py-2 pl-8 pr-3 text-sm transition-all border-gray-200 focus:ring-2 focus:ring-offset-0"
                     style={{
                       border: "1px solid #E5E7EB",
                       outline: "none",
                       color: "#6B5B4F",
-                    }}
-                    onFocus={(e) => {
-                      e.currentTarget.style.borderColor = colors.secondary;
-                      e.currentTarget.style.boxShadow = `0 0 0 3px ${colors.secondary}20`;
-                    }}
-                    onBlur={(e) => {
-                      e.currentTarget.style.borderColor = "#E5E7EB";
-                      e.currentTarget.style.boxShadow = "none";
                     }}
                     placeholder="0.00"
                   />

@@ -31,6 +31,7 @@ const EditSubjectPage: React.FC<EditSubjectPageProps> = ({
     lecture_hour: subject.lecture_hour || 0,
     lab_hour: subject.lab_hour || 0,
     status: subject.status || "active",
+    fixedAmount: subject.fixedAmount,
   });
 
   const [formData, setFormData] = useState<Partial<Subject>>(
@@ -40,6 +41,12 @@ const EditSubjectPage: React.FC<EditSubjectPageProps> = ({
   const [showCancelWarning, setShowCancelWarning] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [validationError, setValidationError] = useState<string>("");
+  const [fixedAmountInput, setFixedAmountInput] = useState<string>(
+    formData.fixedAmount !== undefined && formData.fixedAmount !== null
+      ? formData.fixedAmount.toString()
+      : ""
+  );
+  const [isFixedAmountFocused, setIsFixedAmountFocused] = useState(false);
 
   const [errorModal, setErrorModal] = useState<{
     isOpen: boolean;
@@ -68,7 +75,8 @@ const EditSubjectPage: React.FC<EditSubjectPageProps> = ({
       formData.units_lab !== initialFormData.current.units_lab ||
       formData.lecture_hour !== initialFormData.current.lecture_hour ||
       formData.lab_hour !== initialFormData.current.lab_hour ||
-      formData.status !== initialFormData.current.status
+      formData.status !== initialFormData.current.status ||
+      formData.fixedAmount !== initialFormData.current.fixedAmount
     );
   };
 
@@ -109,6 +117,16 @@ const EditSubjectPage: React.FC<EditSubjectPageProps> = ({
       const hasHours = (formData.lecture_hour || 0) > 0 || (formData.lab_hour || 0) > 0;
 
       if (formData.code && formData.name && (hasCredits || hasHours)) {
+        // Validate fixedAmount if provided
+        if (formData.fixedAmount !== undefined && formData.fixedAmount !== null) {
+          const amount = Number(formData.fixedAmount);
+          if (isNaN(amount) || amount < 0) {
+            setValidationError("Fixed Amount must be a valid non-negative decimal number.");
+            setIsSubmitting(false);
+            return;
+          }
+        }
+
         const subjectData: Subject = {
           id: subject.id,
           code: formData.code.toUpperCase()!,
@@ -119,6 +137,9 @@ const EditSubjectPage: React.FC<EditSubjectPageProps> = ({
           lecture_hour: formData.lecture_hour || 0,
           lab_hour: formData.lab_hour || 0,
           status: (formData.status as "active" | "inactive") || "active",
+          fixedAmount: formData.fixedAmount !== undefined && formData.fixedAmount !== null 
+            ? Number(formData.fixedAmount) 
+            : undefined,
         };
 
         await onSave(subjectData);
@@ -556,7 +577,7 @@ const EditSubjectPage: React.FC<EditSubjectPageProps> = ({
             </div>
           </div>
 
-          {/* Status Section */}
+          {/* Status & Fixed Amount Section */}
           <div
             className="bg-white rounded-2xl p-6"
             style={{
@@ -565,6 +586,7 @@ const EditSubjectPage: React.FC<EditSubjectPageProps> = ({
             }}
           >
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {/* Status - Left Side */}
               <div>
                 <label
                   className="flex items-center gap-2 text-xs font-semibold mb-1.5"
@@ -598,6 +620,89 @@ const EditSubjectPage: React.FC<EditSubjectPageProps> = ({
                   <option value="active">Active</option>
                   <option value="inactive">Inactive</option>
                 </select>
+              </div>
+
+              {/* Fixed Amount - Right Side */}
+              <div>
+                <label
+                  className="flex items-center gap-2 text-xs font-semibold mb-1.5"
+                  style={{ color: colors.primary }}
+                >
+                  Fixed Amount
+                </label>
+                <div className="relative">
+                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-xs text-gray-400">
+                    ₱
+                  </span>
+                  <input
+                    type="text"
+                    value={
+                      isFixedAmountFocused
+                        ? fixedAmountInput
+                        : formData.fixedAmount !== undefined && formData.fixedAmount !== null
+                        ? formData.fixedAmount.toLocaleString('en-US', {
+                            minimumFractionDigits: 2,
+                            maximumFractionDigits: 2,
+                          })
+                        : ""
+                    }
+                    onChange={(e) => {
+                      setValidationError("");
+                      const value = e.target.value.replace(/,/g, '');
+                      setFixedAmountInput(value);
+                    }}
+                    onFocus={(e) => {
+                      setIsFixedAmountFocused(true);
+                      // Set raw value when focusing
+                      setFixedAmountInput(
+                        formData.fixedAmount !== undefined && formData.fixedAmount !== null
+                          ? formData.fixedAmount.toString()
+                          : ""
+                      );
+                      e.currentTarget.style.borderColor = colors.secondary;
+                      e.currentTarget.style.boxShadow = `0 0 0 3px ${colors.secondary}20`;
+                    }}
+                    onBlur={(e) => {
+                      setIsFixedAmountFocused(false);
+                      const value = fixedAmountInput.replace(/,/g, '').trim();
+                      if (value === "" || value === ".") {
+                        setFormData({
+                          ...formData,
+                          fixedAmount: undefined,
+                        });
+                        setFixedAmountInput("");
+                      } else {
+                        const numValue = parseFloat(value);
+                        if (!isNaN(numValue) && numValue >= 0) {
+                          setFormData({
+                            ...formData,
+                            fixedAmount: numValue,
+                          });
+                          setFixedAmountInput(numValue.toString());
+                        } else {
+                          // Invalid input, revert to previous value
+                          setFixedAmountInput(
+                            formData.fixedAmount !== undefined && formData.fixedAmount !== null
+                              ? formData.fixedAmount.toString()
+                              : ""
+                          );
+                        }
+                      }
+                      e.currentTarget.style.borderColor = "#E5E7EB";
+                      e.currentTarget.style.boxShadow = "none";
+                    }}
+                    className="w-full rounded-lg px-3 py-2 pl-8 pr-3 text-sm transition-all border-gray-200 focus:ring-2 focus:ring-offset-0"
+                    style={{
+                      border: "1px solid #E5E7EB",
+                      outline: "none",
+                      color: "#6B5B4F",
+                    }}
+                    placeholder="0.00"
+                  />
+                </div>
+                <p className="text-[10px] text-gray-500 mt-1">
+                  Optional fixed monetary amount for this subject
+                </p>
               </div>
             </div>
           </div>

@@ -300,6 +300,7 @@ const CurriculumStructureTable: React.FC<CurriculumStructureTableProps> = ({
                   <th className="px-4 py-3">Course Code</th>
                   <th className="px-4 py-3">Descriptive Title</th>
                   <th className="px-4 py-3">Units</th>
+                  <th className="px-4 py-3">Fixed Amount</th>
                   <th className="px-4 py-3">Prerequisite</th>
                   <th className="px-4 py-3 text-right">Actions</th>
                 </tr>
@@ -328,6 +329,13 @@ const CurriculumStructureTable: React.FC<CurriculumStructureTableProps> = ({
                             ({course.lecture_hour || 0}h/{course.lab_hour || 0}h)
                           </span>
                         ) : null}
+                      </span>
+                    </td>
+                    <td className="px-4 py-3">
+                      <span className="text-sm font-medium text-gray-700">
+                        {course.fixedAmount !== undefined && course.fixedAmount !== null
+                          ? `₱${Number(course.fixedAmount).toFixed(2)}`
+                          : "-"}
                       </span>
                     </td>
                     <td className="px-4 py-3">

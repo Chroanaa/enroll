@@ -401,6 +401,11 @@ const SubjectSelectionModal: React.FC<SubjectSelectionModalProps> = ({
                             <span className="text-xs text-gray-500">
                               {totalUnits} units
                             </span>
+                            {subject.fixedAmount !== undefined && subject.fixedAmount !== null && (
+                              <span className="text-xs font-medium" style={{ color: colors.secondary }}>
+                                ₱{Number(subject.fixedAmount).toFixed(2)}
+                              </span>
+                            )}
                           </div>
                           <p className="text-xs text-gray-600 mt-0.5 truncate">
                             {subject.name}

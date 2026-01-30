@@ -214,6 +214,9 @@ const AddCurriculumPage: React.FC<AddCurriculumPageProps> = ({
           prerequisite: "",
           year_level: yearLevel,
           semester: semester,
+          fixedAmount: subject.fixedAmount !== undefined && subject.fixedAmount !== null 
+            ? Number(subject.fixedAmount) 
+            : undefined,
         };
       });
 

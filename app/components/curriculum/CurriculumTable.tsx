@@ -375,6 +375,10 @@ const CurriculumTable: React.FC<CurriculumTableProps> = ({
                                       className='border px-2 py-2 text-center print:px-1 print:py-0.5'
                                       style={{ borderColor: colors.tertiary }}
                                     >&nbsp;</td>
+                                    <td
+                                      className='border px-2 py-2 text-center print:px-1 print:py-0.5'
+                                      style={{ borderColor: colors.tertiary }}
+                                    >&nbsp;</td>
                                   </tr>
                                 );
                               }
@@ -435,6 +439,17 @@ const CurriculumTable: React.FC<CurriculumTableProps> = ({
                                       color: colors.primary
                                     }}
                                   >
+                                    {course.fixedAmount !== undefined && course.fixedAmount !== null
+                                      ? `₱${Number(course.fixedAmount).toFixed(2)}`
+                                      : "—"}
+                                  </td>
+                                  <td
+                                    className='border px-2 py-2 text-center print:px-1 print:py-0.5'
+                                    style={{
+                                      borderColor: colors.tertiary,
+                                      color: colors.primary
+                                    }}
+                                  >
                                     {course.prerequisite
                                       ? formatPrerequisites(
                                           parsePrerequisites(course.prerequisite, curriculum.courses),
@@ -469,6 +484,10 @@ const CurriculumTable: React.FC<CurriculumTableProps> = ({
                               >
                                 {calculateSemesterUnits(semesters[1])}
                               </td>
+                              <td
+                                className='border px-2 py-2 print:px-1 print:py-0.5'
+                                style={{ borderColor: colors.tertiary }}
+                              ></td>
                               <td
                                 className='border px-2 py-2 print:px-1 print:py-0.5'
                                 style={{ borderColor: colors.tertiary }}
@@ -602,6 +621,10 @@ const CurriculumTable: React.FC<CurriculumTableProps> = ({
                                       className='border px-2 py-2 text-center print:px-1 print:py-0.5'
                                       style={{ borderColor: colors.tertiary }}
                                     >&nbsp;</td>
+                                    <td
+                                      className='border px-2 py-2 text-center print:px-1 print:py-0.5'
+                                      style={{ borderColor: colors.tertiary }}
+                                    >&nbsp;</td>
                                   </tr>
                                 );
                               }
@@ -662,6 +685,17 @@ const CurriculumTable: React.FC<CurriculumTableProps> = ({
                                       color: colors.primary
                                     }}
                                   >
+                                    {course.fixedAmount !== undefined && course.fixedAmount !== null
+                                      ? `₱${Number(course.fixedAmount).toFixed(2)}`
+                                      : "—"}
+                                  </td>
+                                  <td
+                                    className='border px-2 py-2 text-center print:px-1 print:py-0.5'
+                                    style={{
+                                      borderColor: colors.tertiary,
+                                      color: colors.primary
+                                    }}
+                                  >
                                     {course.prerequisite
                                       ? formatPrerequisites(
                                           parsePrerequisites(course.prerequisite, curriculum.courses),
@@ -696,6 +730,10 @@ const CurriculumTable: React.FC<CurriculumTableProps> = ({
                               >
                                 {calculateSemesterUnits(semesters[2])}
                               </td>
+                              <td
+                                className='border px-2 py-2 print:px-1 print:py-0.5'
+                                style={{ borderColor: colors.tertiary }}
+                              ></td>
                               <td
                                 className='border px-2 py-2 print:px-1 print:py-0.5'
                                 style={{ borderColor: colors.tertiary }}

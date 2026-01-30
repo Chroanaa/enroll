@@ -220,6 +220,7 @@ export interface CurriculumCourse {
   prerequisite?: string;
   year_level: number;
   semester: 1 | 2;
+  fixedAmount?: number;
 }
 
 export interface Curriculum {

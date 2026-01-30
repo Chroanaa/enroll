@@ -59,6 +59,9 @@ export const createCourseFromForm = (
     prerequisite: courseForm.prerequisite || "",
     year_level: courseForm.year_level || 1,
     semester: courseForm.semester || 1,
+    fixedAmount: courseForm.fixedAmount !== undefined && courseForm.fixedAmount !== null 
+      ? Number(courseForm.fixedAmount) 
+      : undefined,
   };
 };
 

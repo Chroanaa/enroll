@@ -24,6 +24,9 @@ export async function POST(request: NextRequest) {
               prerequisite: course.prerequisite,
               year_level: course.year_level,
               semester: course.semester,
+              fixedAmount: course.fixedAmount !== undefined && course.fixedAmount !== null 
+                ? Number(course.fixedAmount) 
+                : null,
             })) || [],
         },
       },
@@ -71,6 +74,7 @@ export async function GET() {
         prerequisite: course.prerequisite,
         year_level: course.year_level,
         semester: course.semester,
+        fixedAmount: course.fixedAmount ? Number(course.fixedAmount) : undefined,
       })),
     }));
 
@@ -122,6 +126,9 @@ export async function PATCH(nextRequest: NextRequest) {
               prerequisite: course.prerequisite,
               year_level: course.year_level,
               semester: course.semester,
+              fixedAmount: course.fixedAmount !== undefined && course.fixedAmount !== null 
+                ? Number(course.fixedAmount) 
+                : null,
             })) || [],
         },
       },
@@ -152,6 +159,7 @@ export async function PATCH(nextRequest: NextRequest) {
         prerequisite: course.prerequisite,
         year_level: course.year_level,
         semester: course.semester,
+        fixedAmount: course.fixedAmount ? Number(course.fixedAmount) : undefined,
       })),
     };
 
