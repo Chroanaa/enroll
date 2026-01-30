@@ -112,6 +112,18 @@ const EditCurriculumPage: React.FC<EditCurriculumPageProps> = ({
     course: null,
   });
 
+  const [addSubjectsConfirmation, setAddSubjectsConfirmation] = useState<{
+    isOpen: boolean;
+    subjects: any[];
+    yearLevel: number;
+    semester: 1 | 2;
+  }>({
+    isOpen: false,
+    subjects: [],
+    yearLevel: 1,
+    semester: 1,
+  });
+
   const hasChanges = () => {
     const currentEffectiveYear = formatAcademicYear(effectiveYear);
     return (
@@ -210,29 +222,59 @@ const EditCurriculumPage: React.FC<EditCurriculumPageProps> = ({
   };
 
   const handleSubjectsSelected = (selectedSubjects: any[], yearLevel: number, semester: 1 | 2) => {
-    const newCourses: CurriculumCourse[] = selectedSubjects
-      .filter((subject) => {
-        return !courses.some((c) => c.subject_id === subject.id);
-      })
-      .map((subject) => {
-        return {
-          id: Date.now() + Math.random(),
-          subject_id: subject.id,
-          course_code: subject.code,
-          descriptive_title: subject.name,
-          units_lec: subject.units_lec || 0,
-          lecture_hour: subject.lecture_hour || 0,
-          lab_hour: subject.lab_hour || 0,
-          units_lab: subject.units_lab || 0,
-          units_total: (subject.units_lec || 0) + (subject.units_lab || 0),
-          prerequisite: "",
-          year_level: yearLevel,
-          semester: semester,
-        };
+    // Filter out subjects that are already in the curriculum
+    const newSubjects = selectedSubjects.filter((subject) => {
+      return !courses.some((c) => c.subject_id === subject.id);
+    });
+
+    if (newSubjects.length === 0) {
+      setErrorModal({
+        isOpen: true,
+        message: "No new subjects to add",
+        details: "All selected subjects are already in the curriculum.",
       });
+      setSubjectModal({ isOpen: false, yearLevel: 1, semester: 1 });
+      return;
+    }
+
+    // Show confirmation modal instead of adding directly
+    setAddSubjectsConfirmation({
+      isOpen: true,
+      subjects: newSubjects,
+      yearLevel,
+      semester,
+    });
+    setSubjectModal({ isOpen: false, yearLevel: 1, semester: 1 });
+  };
+
+  const handleConfirmAddSubjects = () => {
+    const { subjects, yearLevel, semester } = addSubjectsConfirmation;
+    
+    const newCourses: CurriculumCourse[] = subjects.map((subject) => {
+      return {
+        id: Date.now() + Math.random(),
+        subject_id: subject.id,
+        course_code: subject.code,
+        descriptive_title: subject.name,
+        units_lec: subject.units_lec || 0,
+        lecture_hour: subject.lecture_hour || 0,
+        lab_hour: subject.lab_hour || 0,
+        units_lab: subject.units_lab || 0,
+        units_total: (subject.units_lec || 0) + (subject.units_lab || 0),
+        prerequisite: "",
+        year_level: yearLevel,
+        semester: semester,
+      };
+    });
 
     setCourses([...courses, ...newCourses]);
-    setSubjectModal({ isOpen: false, yearLevel: 1, semester: 1 });
+    setAddSubjectsConfirmation({ isOpen: false, subjects: [], yearLevel: 1, semester: 1 });
+    
+    // Show success modal
+    setSuccessModal({
+      isOpen: true,
+      message: `${subjects.length} subject(s) have been successfully added to Year ${yearLevel} - Semester ${semester}.`,
+    });
   };
 
   const handleRemoveCourse = (courseId: number) => {
@@ -452,6 +494,42 @@ const EditCurriculumPage: React.FC<EditCurriculumPageProps> = ({
           }
           message={errorModal.message}
           details={errorModal.details}
+        />
+
+        {/* Add Subjects Confirmation Modal */}
+        <ConfirmationModal
+          isOpen={addSubjectsConfirmation.isOpen}
+          onClose={() =>
+            setAddSubjectsConfirmation({ isOpen: false, subjects: [], yearLevel: 1, semester: 1 })
+          }
+          onConfirm={handleConfirmAddSubjects}
+          title="Add Subjects to Curriculum"
+          message={
+            addSubjectsConfirmation.subjects.length > 0
+              ? (() => {
+                  const subjectCount = addSubjectsConfirmation.subjects.length;
+                  const yearLevel = addSubjectsConfirmation.yearLevel;
+                  const semester = addSubjectsConfirmation.semester;
+                  
+                  // Build highlighted subject list
+                  const maxShow = 10;
+                  const subjectsToShow = addSubjectsConfirmation.subjects.slice(0, maxShow);
+                  const remaining = subjectCount - maxShow;
+                  
+                  const subjectList = subjectsToShow
+                    .map((s) => `• ${s.code} - ${s.name}`)
+                    .join("\n");
+                  
+                  const moreText = remaining > 0 ? `\n... and ${remaining} more subject(s)` : "";
+                  
+                  return `Add ${subjectCount} subject(s) to Year ${yearLevel} - Semester ${semester}?\n\n${subjectList}${moreText}`;
+                })()
+              : `Add subjects to Year ${addSubjectsConfirmation.yearLevel} - Semester ${addSubjectsConfirmation.semester}?`
+          }
+          description={`The selected subjects will be added to the curriculum structure.`}
+          confirmText="Add Subjects"
+          cancelText="Cancel"
+          variant="info"
         />
       </div>
     </div>
