@@ -3,17 +3,20 @@ import { FolderTree, BookOpen, User, Users, Edit2, Trash2 } from "lucide-react";
 import { Section } from "../../../types";
 import { colors } from "../../../colors";
 import { getStatusColor } from "../utils";
+import TableSkeleton from "../../common/TableSkeleton";
 
 interface SectionTableProps {
   sections: (Section & { programName?: string })[];
   onEdit: (section: Section) => void;
   onDelete: (id: number) => void;
+  isLoading?: boolean;
 }
 
 const SectionTable: React.FC<SectionTableProps> = ({
   sections,
   onEdit,
   onDelete,
+  isLoading = false,
 }) => {
   return (
     <div className='bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden'>
@@ -47,7 +50,20 @@ const SectionTable: React.FC<SectionTableProps> = ({
             </tr>
           </thead>
           <tbody className='divide-y divide-gray-100'>
-            {sections.length === 0 ? (
+            {isLoading ? (
+              <TableSkeleton
+                rows={5}
+                columns={6}
+                columnConfigs={[
+                  { type: "avatar-text" }, // Section
+                  { type: "icon-text" }, // Program
+                  { type: "icon-text" }, // Advisor
+                  { type: "icon-text" }, // Student Count
+                  { type: "badge" }, // Status
+                  { type: "actions" }, // Actions
+                ]}
+              />
+            ) : sections.length === 0 ? (
               <tr>
                 <td colSpan={6} className='px-6 py-12 text-center text-gray-500'>
                   <div className='flex flex-col items-center justify-center gap-3'>

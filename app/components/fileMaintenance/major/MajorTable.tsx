@@ -3,17 +3,20 @@ import { BookOpen, Hash, GraduationCap, Edit2, Trash2 } from "lucide-react";
 import { Major } from "../../../types";
 import { colors } from "../../../colors";
 import { getStatusColor } from "../utils";
+import TableSkeleton from "../../common/TableSkeleton";
 
 interface MajorTableProps {
   majors: Major[];
   onEdit: (major: Major) => void;
   onDelete: (id: number) => void;
+  isLoading?: boolean;
 }
 
 const MajorTable: React.FC<MajorTableProps> = ({
   majors,
   onEdit,
   onDelete,
+  isLoading = false,
 }) => {
   return (
     <div className='bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden'>
@@ -44,7 +47,19 @@ const MajorTable: React.FC<MajorTableProps> = ({
             </tr>
           </thead>
           <tbody className='divide-y divide-gray-100'>
-            {majors.length === 0 ? (
+            {isLoading ? (
+              <TableSkeleton
+                rows={5}
+                columns={5}
+                columnConfigs={[
+                  { type: "text", width: "w-20" }, // Code
+                  { type: "avatar-text" }, // Major
+                  { type: "icon-text" }, // Program
+                  { type: "badge" }, // Status
+                  { type: "actions" }, // Actions
+                ]}
+              />
+            ) : majors.length === 0 ? (
               <tr>
                 <td colSpan={5} className='px-6 py-12 text-center text-gray-500'>
                   <div className='flex flex-col items-center justify-center gap-3'>

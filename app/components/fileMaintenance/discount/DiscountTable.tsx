@@ -1,31 +1,29 @@
 import React from "react";
 import {
-  DollarSign,
   Hash,
+  Percent,
   Calendar,
-  GraduationCap,
   Edit2,
   Trash2,
+  Tag,
 } from "lucide-react";
-import { Fee } from "../../../types";
+import { Discount } from "./utils";
 import { colors } from "../../../colors";
 import { getStatusColor } from "../utils";
-import { getCategoryColor, formatCurrency } from "./utils";
-
 import TableSkeleton from "../../common/TableSkeleton";
 
-interface FeesTableProps {
-  fees: Fee[];
-  onEdit: (fee: Fee) => void;
+interface DiscountTableProps {
+  discounts: Discount[];
+  onEdit: (discount: Discount) => void;
   onDelete: (id: number) => void;
   isLoading?: boolean;
 }
 
-const FeesTable: React.FC<FeesTableProps> = ({ fees, onEdit, onDelete, isLoading = false }) => {
+const DiscountTable: React.FC<DiscountTableProps> = ({ discounts, onEdit, onDelete, isLoading = false }) => {
   return (
     <div className='bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden'>
       <div className='overflow-x-auto'>
-        <table className='w-full min-w-[900px]'>
+        <table className='w-full min-w-[800px]'>
           <thead>
             <tr
               style={{
@@ -37,16 +35,10 @@ const FeesTable: React.FC<FeesTableProps> = ({ fees, onEdit, onDelete, isLoading
                 Code
               </th>
               <th className='px-6 py-4 text-left text-xs font-bold uppercase tracking-wider text-gray-600'>
-                Fee
+                Discount Name
               </th>
               <th className='px-6 py-4 text-left text-xs font-bold uppercase tracking-wider text-gray-600'>
-                Category
-              </th>
-              <th className='px-6 py-4 text-left text-xs font-bold uppercase tracking-wider text-gray-600'>
-                Amount
-              </th>
-              <th className='px-6 py-4 text-left text-xs font-bold uppercase tracking-wider text-gray-600'>
-                Academic Year
+                Percentage
               </th>
               <th className='px-6 py-4 text-left text-xs font-bold uppercase tracking-wider text-gray-600'>
                 Semester
@@ -63,32 +55,30 @@ const FeesTable: React.FC<FeesTableProps> = ({ fees, onEdit, onDelete, isLoading
             {isLoading ? (
               <TableSkeleton
                 rows={5}
-                columns={8}
+                columns={6}
                 columnConfigs={[
                   { type: "text", width: "w-20" }, // Code
-                  { type: "avatar-text" }, // Fee
-                  { type: "badge" }, // Category
-                  { type: "text", width: "w-24" }, // Amount
-                  { type: "icon-text" }, // Academic Year
+                  { type: "avatar-text" }, // Discount Name
+                  { type: "icon-text" }, // Percentage
                   { type: "icon-text" }, // Semester
                   { type: "badge" }, // Status
                   { type: "actions" }, // Actions
                 ]}
               />
-            ) : fees.length === 0 ? (
+            ) : discounts.length === 0 ? (
               <tr>
-                <td colSpan={8} className='px-6 py-12 text-center text-gray-500'>
+                <td colSpan={6} className='px-6 py-12 text-center text-gray-500'>
                   <div className='flex flex-col items-center justify-center gap-3'>
                     <div
                       className='p-3 rounded-full'
                       style={{ backgroundColor: `${colors.primary}05` }}
                     >
-                      <DollarSign
+                      <Percent
                         className='w-6 h-6'
                         style={{ color: colors.primary }}
                       />
                     </div>
-                    <p className='font-medium'>No fees found</p>
+                    <p className='font-medium'>No discounts found</p>
                     <p className='text-sm text-gray-400'>
                       Try adjusting your search or filters
                     </p>
@@ -96,18 +86,18 @@ const FeesTable: React.FC<FeesTableProps> = ({ fees, onEdit, onDelete, isLoading
                 </td>
               </tr>
             ) : (
-              fees.map((fee) => {
-                const statusStyles = getStatusColor(fee.status);
+              discounts.map((discount) => {
+                const statusStyles = getStatusColor(discount.status);
                 return (
                   <tr
-                    key={fee.id}
+                    key={discount.id}
                     className='group hover:bg-gray-50/50 transition-colors'
                   >
                     <td className='px-6 py-4 whitespace-nowrap'>
                       <div className='flex items-center gap-2'>
                         <Hash className='w-3.5 h-3.5 text-gray-400' />
                         <span className='text-sm font-medium text-gray-700'>
-                          {fee.code}
+                          {discount.code}
                         </span>
                       </div>
                     </td>
@@ -121,7 +111,7 @@ const FeesTable: React.FC<FeesTableProps> = ({ fees, onEdit, onDelete, isLoading
                               border: `1px solid ${colors.primary}10`,
                             }}
                           >
-                            <DollarSign
+                            <Tag
                               className='h-5 w-5'
                               style={{ color: colors.primary }}
                             />
@@ -132,44 +122,24 @@ const FeesTable: React.FC<FeesTableProps> = ({ fees, onEdit, onDelete, isLoading
                             className='text-sm font-semibold'
                             style={{ color: colors.primary }}
                           >
-                            {fee.name}
+                            {discount.name}
                           </div>
-                          {fee.description && (
-                            <div className='text-xs text-gray-500 mt-0.5 truncate max-w-[200px]'>
-                              {fee.description}
-                            </div>
-                          )}
                         </div>
                       </div>
                     </td>
                     <td className='px-6 py-4 whitespace-nowrap'>
-                      <span
-                        className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${getCategoryColor(
-                          fee.category
-                        )}`}
-                      >
-                        {fee.category.charAt(0).toUpperCase() +
-                          fee.category.slice(1)}
-                      </span>
-                    </td>
-                    <td className='px-6 py-4 whitespace-nowrap'>
-                      <span className='text-sm font-medium text-gray-700'>
-                        {formatCurrency(fee.amount)}
-                      </span>
-                    </td>
-                    <td className='px-6 py-4 whitespace-nowrap'>
                       <div className='flex items-center gap-2'>
-                        <Calendar className='w-3.5 h-3.5 text-gray-400' />
-                        <span className='text-sm text-gray-600'>
-                          {fee.academic_year}
+                        <Percent className='w-3.5 h-3.5 text-gray-400' />
+                        <span className='text-sm font-medium text-gray-700'>
+                          {discount.percentage}%
                         </span>
                       </div>
                     </td>
                     <td className='px-6 py-4 whitespace-nowrap'>
                       <div className='flex items-center gap-2'>
-                        <GraduationCap className='w-3.5 h-3.5 text-gray-400' />
+                        <Calendar className='w-3.5 h-3.5 text-gray-400' />
                         <span className='text-sm text-gray-600'>
-                          {fee.semester || "N/A"}
+                          {discount.semester}
                         </span>
                       </div>
                     </td>
@@ -186,21 +156,21 @@ const FeesTable: React.FC<FeesTableProps> = ({ fees, onEdit, onDelete, isLoading
                           className='w-1.5 h-1.5 rounded-full mr-1.5'
                           style={{ backgroundColor: statusStyles.text }}
                         />
-                        {fee.status.charAt(0).toUpperCase() +
-                          fee.status.slice(1)}
+                        {discount.status.charAt(0).toUpperCase() +
+                          discount.status.slice(1)}
                       </span>
                     </td>
                     <td className='px-6 py-4 whitespace-nowrap text-right text-sm font-medium'>
                       <div className='flex justify-end gap-2'>
                         <button
-                          onClick={() => onEdit(fee)}
+                          onClick={() => onEdit(discount)}
                           className='p-2 rounded-lg hover:bg-white hover:shadow-sm border border-transparent hover:border-gray-200 transition-all text-blue-600'
                           title='Edit'
                         >
                           <Edit2 className='w-4 h-4' />
                         </button>
                         <button
-                          onClick={() => onDelete(fee.id)}
+                          onClick={() => onDelete(discount.id)}
                           className='p-2 rounded-lg hover:bg-white hover:shadow-sm border border-transparent hover:border-gray-200 transition-all text-red-600'
                           title='Delete'
                         >
@@ -219,7 +189,5 @@ const FeesTable: React.FC<FeesTableProps> = ({ fees, onEdit, onDelete, isLoading
   );
 };
 
-export default FeesTable;
-
-
+export default DiscountTable;
 

@@ -18,10 +18,18 @@ import { invalidateRelatedCaches } from "@/app/utils/cache";
 const BuildingManagement: React.FC = () => {
   const { data: session } = useSession();
   const [buildings, setBuildings] = useState<Building[]>();
+  const [isLoading, setIsLoading] = useState(true);
   React.useEffect(() => {
     const fetchBuildings = async () => {
-      const data = await getBuildings();
-      setBuildings(Object.values(data));
+      try {
+        setIsLoading(true);
+        const data = await getBuildings();
+        setBuildings(Object.values(data));
+      } catch (error) {
+        console.error("Error fetching buildings:", error);
+      } finally {
+        setIsLoading(false);
+      }
     };
     fetchBuildings();
   }, []);
@@ -269,6 +277,7 @@ const BuildingManagement: React.FC = () => {
             buildings={paginatedBuildings}
             onEdit={setEditingBuilding}
             onDelete={handleDeleteBuilding}
+            isLoading={isLoading}
           />
           <Pagination
             currentPage={currentPage}

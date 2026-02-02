@@ -25,6 +25,7 @@ import {
   Major,
   Faculty,
   Fees,
+  Discount,
   Subject,
   Products,
 } from "../components/fileMaintenance";
@@ -86,6 +87,8 @@ export default function DashboardPage() {
         return <Faculty />;
       case "file-maintenance-fees":
         return <Fees />;
+      case "file-maintenance-discount":
+        return <Discount />;
       case "file-maintenance-products":
         return <Products />;
       case "file-maintenance-subject":

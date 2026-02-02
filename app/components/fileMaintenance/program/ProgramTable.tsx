@@ -3,17 +3,20 @@ import { GraduationCap, Hash, Building2, Edit2, Trash2 } from "lucide-react";
 import { Program } from "../../../types";
 import { colors } from "../../../colors";
 import { getStatusColor } from "../utils";
+import TableSkeleton from "../../common/TableSkeleton";
 
 interface ProgramTableProps {
   programs: Program[];
   onEdit: (program: Program) => void;
   onDelete: (id: number) => void;
+  isLoading?: boolean;
 }
 
 const ProgramTable: React.FC<ProgramTableProps> = ({
   programs,
   onEdit,
   onDelete,
+  isLoading = false,
 }) => {
   return (
     <div className='bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden'>
@@ -47,7 +50,20 @@ const ProgramTable: React.FC<ProgramTableProps> = ({
             </tr>
           </thead>
           <tbody className='divide-y divide-gray-100'>
-            {programs.length === 0 ? (
+            {isLoading ? (
+              <TableSkeleton
+                rows={5}
+                columns={6}
+                columnConfigs={[
+                  { type: "text", width: "w-20" }, // Code
+                  { type: "avatar-text" }, // Program
+                  { type: "icon-text" }, // Department
+                  { type: "text", width: "w-16" }, // Duration
+                  { type: "badge" }, // Status
+                  { type: "actions" }, // Actions
+                ]}
+              />
+            ) : programs.length === 0 ? (
               <tr>
                 <td colSpan={6} className='px-6 py-12 text-center text-gray-500'>
                   <div className='flex flex-col items-center justify-center gap-3'>

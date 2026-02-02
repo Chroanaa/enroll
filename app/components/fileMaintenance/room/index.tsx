@@ -19,10 +19,12 @@ import { invalidateRelatedCaches } from "@/app/utils/cache";
 const RoomManagement: React.FC = () => {
   const [rooms, setRooms] = useState<Room[]>([]);
   const [buildings, setBuildings] = useState<Building[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
   const { data: session } = useSession();
   React.useEffect(() => {
     async function fetchData() {
       try {
+        setIsLoading(true);
         const [roomsData, buildingsData] = await Promise.all([
           getRooms(),
           getBuildings(),
@@ -43,6 +45,8 @@ const RoomManagement: React.FC = () => {
         );
       } catch (error) {
         console.error("Error fetching data:", error);
+      } finally {
+        setIsLoading(false);
       }
     }
     fetchData();
@@ -314,6 +318,7 @@ const RoomManagement: React.FC = () => {
             rooms={paginatedRooms}
             onEdit={setEditingRoom}
             onDelete={handleDeleteRoom}
+            isLoading={isLoading}
           />
           <Pagination
             currentPage={currentPage}

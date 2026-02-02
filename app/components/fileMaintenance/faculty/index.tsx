@@ -19,10 +19,12 @@ import { invalidateRelatedCaches } from "@/app/utils/cache";
 const FacultyManagement: React.FC = () => {
   const [faculty, setFaculty] = useState<Faculty[]>([]);
   const [departments, setDepartments] = useState<Department[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
   const { data: session } = useSession();
   useEffect(() => {
     const fetchData = async () => {
       try {
+        setIsLoading(true);
         const [facultyData, departmentsData] = await Promise.all([
           getFaculties(),
           getDepartments(),
@@ -43,6 +45,8 @@ const FacultyManagement: React.FC = () => {
         setFaculty(facultyWithDepartmentNames);
       } catch (error) {
         console.error("Error fetching data:", error);
+      } finally {
+        setIsLoading(false);
       }
     };
     fetchData();
@@ -312,6 +316,7 @@ const FacultyManagement: React.FC = () => {
             faculty={paginatedFaculty}
             onEdit={setEditingFaculty}
             onDelete={handleDeleteFaculty}
+            isLoading={isLoading}
           />
           <Pagination
             currentPage={currentPage}
