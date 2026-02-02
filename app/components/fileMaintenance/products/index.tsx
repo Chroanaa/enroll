@@ -1,11 +1,13 @@
 "use client";
 import React, { useState, useMemo, useEffect } from "react";
-import { Plus, Search, Package, Edit, Trash2, Tag, X } from "lucide-react";
+import { Plus, Package, Tag, Edit, Trash2 } from "lucide-react";
 import { colors } from "../../../colors";
 import ConfirmationModal from "../../common/ConfirmationModal";
 import SuccessModal from "../../common/SuccessModal";
 import ErrorModal from "../../common/ErrorModal";
+import SearchFilters from "../../common/SearchFilters";
 import Pagination from "../../common/Pagination";
+import TableSkeleton from "../../common/TableSkeleton";
 import {
   Product,
   Category,
@@ -390,323 +392,403 @@ const ProductsManagement: React.FC = () => {
   };
 
   return (
-    <div className='p-4 sm:p-6 bg-gray-50 min-h-screen'>
-      <div className='max-w-6xl mx-auto w-full'>
+    <div
+      className='min-h-screen p-6 font-sans'
+      style={{ backgroundColor: colors.paper }}
+    >
+      <div className='max-w-7xl mx-auto w-full space-y-6'>
         {/* Header */}
-        <div className='mb-6'>
-          <h1
-            className='text-2xl font-bold mb-2'
-            style={{ color: colors.primary }}
-          >
-            Products & Categories
-          </h1>
-          <p style={{ color: colors.primary }}>
-            Manage products and categories for the Point of Sale system.
-          </p>
-        </div>
-
-        {/* Tabs and Actions */}
-        <div className='bg-white rounded-lg shadow-sm border border-gray-100 p-4 mb-4'>
-          <div className='flex flex-col md:flex-row gap-4 items-center justify-between'>
-            <div className='flex gap-2'>
-              <button
-                onClick={() => setActiveTab("products")}
-                className={`px-4 py-2 rounded-lg font-medium transition-colors flex items-center gap-2 ${
-                  activeTab === "products"
-                    ? "text-white"
-                    : "bg-gray-100 text-gray-700 hover:bg-gray-200"
-                }`}
-                style={
-                  activeTab === "products"
-                    ? { backgroundColor: colors.secondary }
-                    : {}
-                }
-              >
-                <Package className='w-4 h-4' />
-                Products
-              </button>
-              <button
-                onClick={() => setActiveTab("categories")}
-                className={`px-4 py-2 rounded-lg font-medium transition-colors flex items-center gap-2 ${
-                  activeTab === "categories"
-                    ? "text-white"
-                    : "bg-gray-100 text-gray-700 hover:bg-gray-200"
-                }`}
-                style={
-                  activeTab === "categories"
-                    ? { backgroundColor: colors.secondary }
-                    : {}
-                }
-              >
-                <Tag className='w-4 h-4' />
-                Categories
-              </button>
-            </div>
-            <div className='flex gap-3 w-full md:w-auto'>
-              <div className='flex-1 md:flex-none relative'>
-                <Search className='absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5' />
-                <input
-                  type='text'
-                  placeholder={`Search ${activeTab}...`}
-                  value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
-                  className='w-full md:w-64 pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent'
-                />
-              </div>
-              <button
-                onClick={() =>
-                  activeTab === "products"
-                    ? openProductModal()
-                    : openCategoryModal()
-                }
-                className='px-4 py-2 rounded-lg text-white font-medium flex items-center gap-2 hover:opacity-90 transition-opacity'
-                style={{ backgroundColor: colors.secondary }}
-              >
-                <Plus className='w-4 h-4' />
+        <div className='flex flex-col md:flex-row md:items-center justify-between gap-4'>
+          <div>
+            <h1
+              className='text-3xl font-bold tracking-tight'
+              style={{ color: colors.primary }}
+            >
+              Products & Categories
+            </h1>
+            <p className='text-gray-500 mt-1'>
+              Manage products and categories for the Point of Sale system.
+            </p>
+          </div>
+          <div className='flex gap-2'>
+            <button
+              onClick={() => setActiveTab("products")}
+              className={`px-4 py-2 rounded-lg font-medium transition-colors flex items-center gap-2 ${
+                activeTab === "products"
+                  ? "text-white"
+                  : "bg-gray-100 text-gray-700 hover:bg-gray-200"
+              }`}
+              style={
+                activeTab === "products"
+                  ? { backgroundColor: colors.secondary }
+                  : {}
+              }
+            >
+              <Package className='w-4 h-4' />
+              Products
+            </button>
+            <button
+              onClick={() => setActiveTab("categories")}
+              className={`px-4 py-2 rounded-lg font-medium transition-colors flex items-center gap-2 ${
+                activeTab === "categories"
+                  ? "text-white"
+                  : "bg-gray-100 text-gray-700 hover:bg-gray-200"
+              }`}
+              style={
+                activeTab === "categories"
+                  ? { backgroundColor: colors.secondary }
+                  : {}
+              }
+            >
+              <Tag className='w-4 h-4' />
+              Categories
+            </button>
+            <button
+              onClick={() =>
+                activeTab === "products"
+                  ? openProductModal()
+                  : openCategoryModal()
+              }
+              disabled={isLoading}
+              className='flex items-center gap-2 px-5 py-3 text-white rounded-xl transition-all shadow-lg shadow-blue-900/20 hover:shadow-xl hover:scale-105 active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100'
+              style={{ backgroundColor: colors.secondary }}
+            >
+              <Plus className='w-5 h-5' />
+              <span className='font-medium'>
                 Add {activeTab === "products" ? "Product" : "Category"}
-              </button>
-            </div>
+              </span>
+            </button>
           </div>
         </div>
 
+        {/* Search and Filters */}
+        <SearchFilters
+          searchTerm={searchTerm}
+          onSearchChange={setSearchTerm}
+          searchPlaceholder={`Search ${activeTab}...`}
+          filters={[]}
+        />
+
         {/* Products Table */}
         {activeTab === "products" && (
-          <div className='bg-white rounded-lg shadow-sm border border-gray-100 overflow-hidden'>
-            <div className='overflow-x-auto'>
-              <table className='w-full'>
-                <thead>
-                  <tr
-                    className='text-white'
-                    style={{ backgroundColor: colors.primary }}
-                  >
-                    <th className='px-4 py-3 text-left text-sm font-medium'>
-                      Product Name
-                    </th>
-                    <th className='px-4 py-3 text-left text-sm font-medium'>
-                      Category
-                    </th>
-                    <th className='px-4 py-3 text-right text-sm font-medium'>
-                      Price
-                    </th>
-                    <th className='px-4 py-3 text-right text-sm font-medium'>
-                      Stock
-                    </th>
-                    <th className='px-4 py-3 text-center text-sm font-medium'>
-                      Actions
-                    </th>
-                  </tr>
-                </thead>
-                <tbody className='divide-y divide-gray-200'>
-                  {isLoading ? (
-                    <tr>
-                      <td colSpan={5} className='px-4 py-8 text-center'>
-                        <div className='animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900 mx-auto'></div>
-                        <p className='mt-2 text-gray-600'>
-                          Loading products...
-                        </p>
-                      </td>
+          <div>
+            <div className='bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden'>
+              <div className='overflow-x-auto'>
+                <table className='w-full min-w-[800px]'>
+                  <thead>
+                    <tr
+                      style={{
+                        backgroundColor: `${colors.primary}05`,
+                        borderBottom: `1px solid ${colors.primary}10`,
+                      }}
+                    >
+                      <th className='px-6 py-4 text-left text-xs font-bold uppercase tracking-wider text-gray-600'>
+                        Product Name
+                      </th>
+                      <th className='px-6 py-4 text-left text-xs font-bold uppercase tracking-wider text-gray-600'>
+                        Category
+                      </th>
+                      <th className='px-6 py-4 text-right text-xs font-bold uppercase tracking-wider text-gray-600'>
+                        Price
+                      </th>
+                      <th className='px-6 py-4 text-right text-xs font-bold uppercase tracking-wider text-gray-600'>
+                        Stock
+                      </th>
+                      <th className='px-6 py-4 text-right text-xs font-bold uppercase tracking-wider text-gray-600'>
+                        Actions
+                      </th>
                     </tr>
-                  ) : paginatedProducts.length === 0 ? (
-                    <tr>
-                      <td
-                        colSpan={5}
-                        className='px-4 py-8 text-center text-gray-500'
-                      >
-                        <Package className='w-12 h-12 mx-auto text-gray-400 mb-2' />
-                        <p className='text-lg font-medium'>No products found</p>
-                        <p className='text-sm'>
-                          Click "Add Product" to create a new product.
-                        </p>
-                      </td>
-                    </tr>
-                  ) : (
-                    paginatedProducts.map((product) => (
-                      <tr key={product.id} className='hover:bg-gray-50'>
-                        <td className='px-4 py-3'>
-                          <div className='flex items-center gap-3'>
-                            <Package className='w-5 h-5 text-gray-400' />
-                            <span className='font-medium text-gray-900'>
-                              {product.name}
-                            </span>
-                          </div>
-                        </td>
-                        <td className='px-4 py-3'>
-                          {product.category?.name ? (
-                            <span className='inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-800'>
-                              {product.category.name}
-                            </span>
-                          ) : (
-                            <span className='text-gray-400'>-</span>
-                          )}
-                        </td>
-                        <td className='px-4 py-3 text-right font-medium'>
-                          {formatAmount(Number(product.price))}
-                        </td>
-                        <td className='px-4 py-3 text-right'>
-                          <span
-                            className={`font-medium ${
-                              (product.quantity || 0) > 0
-                                ? "text-green-600"
-                                : "text-red-600"
-                            }`}
-                          >
-                            {product.quantity || 0}
-                          </span>
-                        </td>
-                        <td className='px-4 py-3'>
-                          <div className='flex items-center justify-center gap-2'>
-                            <button
-                              onClick={() => openProductModal(product)}
-                              className='p-2 rounded-lg hover:bg-blue-50 text-blue-600 transition-colors'
-                              title='Edit Product'
+                  </thead>
+                  <tbody className='divide-y divide-gray-100'>
+                    {isLoading ? (
+                      <TableSkeleton
+                        rows={5}
+                        columns={5}
+                        columnConfigs={[
+                          { type: "avatar-text" }, // Product Name
+                          { type: "badge" }, // Category
+                          { type: "text" }, // Price
+                          { type: "text" }, // Stock
+                          { type: "actions" }, // Actions
+                        ]}
+                      />
+                    ) : paginatedProducts.length === 0 ? (
+                      <tr>
+                        <td
+                          colSpan={5}
+                          className='px-6 py-12 text-center text-gray-500'
+                        >
+                          <div className='flex flex-col items-center justify-center gap-3'>
+                            <div
+                              className='p-3 rounded-full'
+                              style={{ backgroundColor: `${colors.primary}05` }}
                             >
-                              <Edit className='w-4 h-4' />
-                            </button>
-                            <button
-                              onClick={() =>
-                                setDeleteProductConfirmation({
-                                  isOpen: true,
-                                  productId: product.id,
-                                  productName: product.name || "",
-                                })
-                              }
-                              className='p-2 rounded-lg hover:bg-red-50 text-red-600 transition-colors'
-                              title='Delete Product'
-                            >
-                              <Trash2 className='w-4 h-4' />
-                            </button>
+                              <Package
+                                className='w-6 h-6'
+                                style={{ color: colors.primary }}
+                              />
+                            </div>
+                            <p className='font-medium'>No products found</p>
+                            <p className='text-sm text-gray-400'>
+                              Try adjusting your search or filters
+                            </p>
                           </div>
                         </td>
                       </tr>
-                    ))
-                  )}
-                </tbody>
-              </table>
-            </div>
-            {filteredProducts.length > itemsPerPage && (
-              <div className='px-4 py-3 border-t border-gray-200'>
-                <Pagination
-                  currentPage={currentPage}
-                  totalPages={totalPages}
-                  onPageChange={handlePageChange}
-                  itemsPerPage={itemsPerPage}
-                  onItemsPerPageChange={setItemsPerPage}
-                  totalItems={filteredProducts.length}
-                />
+                    ) : (
+                      paginatedProducts.map((product) => (
+                        <tr
+                          key={product.id}
+                          className='group hover:bg-gray-50/50 transition-colors'
+                        >
+                          <td className='px-6 py-4 whitespace-nowrap'>
+                            <div className='flex items-center'>
+                              <div className='flex-shrink-0 h-10 w-10'>
+                                <div
+                                  className='h-10 w-10 rounded-xl flex items-center justify-center shadow-sm'
+                                  style={{
+                                    backgroundColor: "white",
+                                    border: `1px solid ${colors.primary}10`,
+                                  }}
+                                >
+                                  <Package
+                                    className='h-5 w-5'
+                                    style={{ color: colors.primary }}
+                                  />
+                                </div>
+                              </div>
+                              <div className='ml-4'>
+                                <div
+                                  className='text-sm font-semibold'
+                                  style={{ color: colors.primary }}
+                                >
+                                  {product.name}
+                                </div>
+                              </div>
+                            </div>
+                          </td>
+                          <td className='px-6 py-4 whitespace-nowrap'>
+                            {product.category?.name ? (
+                              <span
+                                className='inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium border'
+                                style={{
+                                  backgroundColor: `${colors.primary}10`,
+                                  color: colors.primary,
+                                  borderColor: `${colors.primary}20`,
+                                }}
+                              >
+                                {product.category.name}
+                              </span>
+                            ) : (
+                              <span className='text-sm text-gray-400'>-</span>
+                            )}
+                          </td>
+                          <td className='px-6 py-4 whitespace-nowrap text-right'>
+                            <span className='text-sm font-medium text-gray-700'>
+                              {formatAmount(Number(product.price))}
+                            </span>
+                          </td>
+                          <td className='px-6 py-4 whitespace-nowrap text-right'>
+                            <span
+                              className={`text-sm font-medium ${
+                                (product.quantity || 0) > 0
+                                  ? "text-green-600"
+                                  : "text-red-600"
+                              }`}
+                            >
+                              {product.quantity || 0}
+                            </span>
+                          </td>
+                          <td className='px-6 py-4 whitespace-nowrap text-right text-sm font-medium'>
+                            <div className='flex justify-end gap-2'>
+                              <button
+                                onClick={() => openProductModal(product)}
+                                className='p-2 rounded-lg hover:bg-white hover:shadow-sm border border-transparent hover:border-gray-200 transition-all text-blue-600'
+                                title='Edit'
+                              >
+                                <Edit className='w-4 h-4' />
+                              </button>
+                              <button
+                                onClick={() =>
+                                  setDeleteProductConfirmation({
+                                    isOpen: true,
+                                    productId: product.id,
+                                    productName: product.name || "",
+                                  })
+                                }
+                                className='p-2 rounded-lg hover:bg-white hover:shadow-sm border border-transparent hover:border-gray-200 transition-all text-red-600'
+                                title='Delete'
+                              >
+                                <Trash2 className='w-4 h-4' />
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      ))
+                    )}
+                  </tbody>
+                </table>
               </div>
-            )}
+            </div>
+            <Pagination
+              currentPage={currentPage}
+              totalPages={totalPages}
+              itemsPerPage={itemsPerPage}
+              totalItems={filteredProducts.length}
+              itemName='products'
+              onPageChange={handlePageChange}
+              onItemsPerPageChange={setItemsPerPage}
+            />
           </div>
         )}
 
         {/* Categories Table */}
         {activeTab === "categories" && (
-          <div className='bg-white rounded-lg shadow-sm border border-gray-100 overflow-hidden'>
-            <div className='overflow-x-auto'>
-              <table className='w-full'>
-                <thead>
-                  <tr
-                    className='text-white'
-                    style={{ backgroundColor: colors.primary }}
-                  >
-                    <th className='px-4 py-3 text-left text-sm font-medium'>
-                      Category Name
-                    </th>
-                    <th className='px-4 py-3 text-right text-sm font-medium'>
-                      Products Count
-                    </th>
-                    <th className='px-4 py-3 text-center text-sm font-medium'>
-                      Actions
-                    </th>
-                  </tr>
-                </thead>
-                <tbody className='divide-y divide-gray-200'>
-                  {isLoading ? (
-                    <tr>
-                      <td colSpan={3} className='px-4 py-8 text-center'>
-                        <div className='animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900 mx-auto'></div>
-                        <p className='mt-2 text-gray-600'>
-                          Loading categories...
-                        </p>
-                      </td>
+          <div>
+            <div className='bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden'>
+              <div className='overflow-x-auto'>
+                <table className='w-full min-w-[800px]'>
+                  <thead>
+                    <tr
+                      style={{
+                        backgroundColor: `${colors.primary}05`,
+                        borderBottom: `1px solid ${colors.primary}10`,
+                      }}
+                    >
+                      <th className='px-6 py-4 text-left text-xs font-bold uppercase tracking-wider text-gray-600'>
+                        Category Name
+                      </th>
+                      <th className='px-6 py-4 text-right text-xs font-bold uppercase tracking-wider text-gray-600'>
+                        Products Count
+                      </th>
+                      <th className='px-6 py-4 text-right text-xs font-bold uppercase tracking-wider text-gray-600'>
+                        Actions
+                      </th>
                     </tr>
-                  ) : paginatedCategories.length === 0 ? (
-                    <tr>
-                      <td
-                        colSpan={3}
-                        className='px-4 py-8 text-center text-gray-500'
-                      >
-                        <Tag className='w-12 h-12 mx-auto text-gray-400 mb-2' />
-                        <p className='text-lg font-medium'>
-                          No categories found
-                        </p>
-                        <p className='text-sm'>
-                          Click "Add Category" to create a new category.
-                        </p>
-                      </td>
-                    </tr>
-                  ) : (
-                    paginatedCategories.map((category) => (
-                      <tr key={category.id} className='hover:bg-gray-50'>
-                        <td className='px-4 py-3'>
-                          <div className='flex items-center gap-3'>
-                            <Tag className='w-5 h-5 text-gray-400' />
-                            <span className='font-medium text-gray-900'>
-                              {category.name}
-                            </span>
-                          </div>
-                        </td>
-                        <td className='px-4 py-3 text-right'>
-                          <span className='inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium bg-gray-100 text-gray-800'>
-                            {
-                              products.filter(
-                                (p) => p.category_id === category.id,
-                              ).length
-                            }{" "}
-                            products
-                          </span>
-                        </td>
-                        <td className='px-4 py-3'>
-                          <div className='flex items-center justify-center gap-2'>
-                            <button
-                              onClick={() => openCategoryModal(category)}
-                              className='p-2 rounded-lg hover:bg-blue-50 text-blue-600 transition-colors'
-                              title='Edit Category'
+                  </thead>
+                  <tbody className='divide-y divide-gray-100'>
+                    {isLoading ? (
+                      <TableSkeleton
+                        rows={5}
+                        columns={3}
+                        columnConfigs={[
+                          { type: "avatar-text" }, // Category Name
+                          { type: "badge" }, // Products Count
+                          { type: "actions" }, // Actions
+                        ]}
+                      />
+                    ) : paginatedCategories.length === 0 ? (
+                      <tr>
+                        <td
+                          colSpan={3}
+                          className='px-6 py-12 text-center text-gray-500'
+                        >
+                          <div className='flex flex-col items-center justify-center gap-3'>
+                            <div
+                              className='p-3 rounded-full'
+                              style={{ backgroundColor: `${colors.primary}05` }}
                             >
-                              <Edit className='w-4 h-4' />
-                            </button>
-                            <button
-                              onClick={() =>
-                                setDeleteCategoryConfirmation({
-                                  isOpen: true,
-                                  categoryId: category.id,
-                                  categoryName: category.name || "",
-                                })
-                              }
-                              className='p-2 rounded-lg hover:bg-red-50 text-red-600 transition-colors'
-                              title='Delete Category'
-                            >
-                              <Trash2 className='w-4 h-4' />
-                            </button>
+                              <Tag
+                                className='w-6 h-6'
+                                style={{ color: colors.primary }}
+                              />
+                            </div>
+                            <p className='font-medium'>No categories found</p>
+                            <p className='text-sm text-gray-400'>
+                              Try adjusting your search or filters
+                            </p>
                           </div>
                         </td>
                       </tr>
-                    ))
-                  )}
-                </tbody>
-              </table>
-            </div>
-            {filteredCategories.length > itemsPerPage && (
-              <div className='px-4 py-3 border-t border-gray-200'>
-                <Pagination
-                  currentPage={currentPage}
-                  totalPages={totalPages}
-                  onPageChange={handlePageChange}
-                  itemsPerPage={itemsPerPage}
-                  onItemsPerPageChange={setItemsPerPage}
-                  totalItems={filteredCategories.length}
-                />
+                    ) : (
+                      paginatedCategories.map((category) => (
+                        <tr
+                          key={category.id}
+                          className='group hover:bg-gray-50/50 transition-colors'
+                        >
+                          <td className='px-6 py-4 whitespace-nowrap'>
+                            <div className='flex items-center'>
+                              <div className='flex-shrink-0 h-10 w-10'>
+                                <div
+                                  className='h-10 w-10 rounded-xl flex items-center justify-center shadow-sm'
+                                  style={{
+                                    backgroundColor: "white",
+                                    border: `1px solid ${colors.primary}10`,
+                                  }}
+                                >
+                                  <Tag
+                                    className='h-5 w-5'
+                                    style={{ color: colors.primary }}
+                                  />
+                                </div>
+                              </div>
+                              <div className='ml-4'>
+                                <div
+                                  className='text-sm font-semibold'
+                                  style={{ color: colors.primary }}
+                                >
+                                  {category.name}
+                                </div>
+                              </div>
+                            </div>
+                          </td>
+                          <td className='px-6 py-4 whitespace-nowrap text-right'>
+                            <span
+                              className='inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium border'
+                              style={{
+                                backgroundColor: `${colors.primary}10`,
+                                color: colors.primary,
+                                borderColor: `${colors.primary}20`,
+                              }}
+                            >
+                              {
+                                products.filter(
+                                  (p) => p.category_id === category.id,
+                                ).length
+                              }{" "}
+                              products
+                            </span>
+                          </td>
+                          <td className='px-6 py-4 whitespace-nowrap text-right text-sm font-medium'>
+                            <div className='flex justify-end gap-2'>
+                              <button
+                                onClick={() => openCategoryModal(category)}
+                                className='p-2 rounded-lg hover:bg-white hover:shadow-sm border border-transparent hover:border-gray-200 transition-all text-blue-600'
+                                title='Edit'
+                              >
+                                <Edit className='w-4 h-4' />
+                              </button>
+                              <button
+                                onClick={() =>
+                                  setDeleteCategoryConfirmation({
+                                    isOpen: true,
+                                    categoryId: category.id,
+                                    categoryName: category.name || "",
+                                  })
+                                }
+                                className='p-2 rounded-lg hover:bg-white hover:shadow-sm border border-transparent hover:border-gray-200 transition-all text-red-600'
+                                title='Delete'
+                              >
+                                <Trash2 className='w-4 h-4' />
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      ))
+                    )}
+                  </tbody>
+                </table>
               </div>
-            )}
+            </div>
+            <Pagination
+              currentPage={currentPage}
+              totalPages={totalPages}
+              itemsPerPage={itemsPerPage}
+              totalItems={filteredCategories.length}
+              itemName='categories'
+              onPageChange={handlePageChange}
+              onItemsPerPageChange={setItemsPerPage}
+            />
           </div>
         )}
       </div>

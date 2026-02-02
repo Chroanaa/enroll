@@ -371,3 +371,63 @@ model shsProgram {
   @@index([is_custom], map: "idx_shs_programs_is_custom")
   @@map("shs_programs")
 }
+
+model discount {
+  id          Int                  @id @default(autoincrement())
+  code        String               @db.VarChar(50)
+  name        String               @db.VarChar(255)
+  percentage  Decimal              @db.Decimal(5, 2)
+  semester    String               @db.VarChar(20)
+  status      String               @db.VarChar(10)
+  created_at  DateTime             @default(now()) @db.Timestamp(6)
+  assessments student_assessment[]
+
+  @@index([status, semester], map: "idx_discount_status_semester")
+}
+
+model student_assessment {
+  id               Int               @id @default(autoincrement())
+  student_number   String            @db.VarChar(20)
+  academic_year    String            @db.VarChar(20)
+  semester         Int
+  gross_tuition    Decimal           @db.Decimal(10, 2)
+  discount_id      Int?
+  discount_percent Decimal?          @db.Decimal(5, 2)
+  discount_amount  Decimal?          @db.Decimal(10, 2)
+  net_tuition      Decimal           @db.Decimal(10, 2)
+  total_fees       Decimal           @db.Decimal(10, 2)
+  total_due        Decimal           @db.Decimal(10, 2)
+  created_at       DateTime          @default(now()) @db.Timestamp(6)
+  fees             assessment_fee[]
+  discount         discount?         @relation(fields: [discount_id], references: [id], onUpdate: NoAction)
+  payments         student_payment[]
+
+  @@unique([student_number, academic_year, semester], map: "idx_assessment_unique")
+  @@index([student_number], map: "idx_assessment_student")
+  @@index([academic_year, semester], map: "idx_assessment_term")
+}
+
+model assessment_fee {
+  id            Int                @id @default(autoincrement())
+  assessment_id Int
+  fee_id        Int?
+  fee_name      String             @db.VarChar(255)
+  fee_category  String             @db.VarChar(20)
+  amount        Decimal            @db.Decimal(10, 2)
+  assessment    student_assessment @relation(fields: [assessment_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@index([assessment_id], map: "idx_assessment_fee_assessment")
+}
+
+model student_payment {
+  id            Int                @id @default(autoincrement())
+  assessment_id Int
+  amount_paid   Decimal            @db.Decimal(10, 2)
+  payment_type  String             @db.VarChar(50)
+  payment_date  DateTime           @default(now()) @db.Timestamp(6)
+  reference_no  String?            @db.VarChar(100)
+  assessment    student_assessment @relation(fields: [assessment_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@index([assessment_id], map: "idx_payment_assessment")
+  @@index([payment_date], map: "idx_payment_date")
+}

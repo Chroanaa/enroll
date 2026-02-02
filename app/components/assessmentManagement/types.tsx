@@ -28,6 +28,7 @@ export interface EnrolledSubject {
   prerequisite?: string;
   year_level: number;
   semester: number;
+  fixedAmount?: number;
   subject?: {
     id: number;
     code: string;

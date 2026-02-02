@@ -169,7 +169,8 @@ export async function GET(request: NextRequest) {
         cc.lecture_hour,
         cc.lab_hour,
         cc.prerequisite,
-        cc.year_level as curriculum_year_level
+        cc.year_level as curriculum_year_level,
+        cc."fixedAmount" as fixed_amount
       FROM enrolled_subjects es
       LEFT JOIN curriculum_course cc ON es.curriculum_course_id = cc.id
       WHERE es.student_number = ${studentNumber}
@@ -259,6 +260,7 @@ export async function GET(request: NextRequest) {
         prerequisite: prerequisiteText,
         year_level: es.curriculum_year_level || es.year_level,
         semester: es.semester,
+        fixedAmount: es.fixed_amount ? Number(es.fixed_amount) : undefined,
       };
     });
 

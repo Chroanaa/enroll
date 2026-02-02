@@ -3,17 +3,20 @@ import { Building2, Hash, MapPin, Layers, Edit2, Trash2 } from "lucide-react";
 import { Building } from "../../../types";
 import { colors } from "../../../colors";
 import { getStatusColor } from "../utils";
+import TableSkeleton from "../../common/TableSkeleton";
 
 interface BuildingTableProps {
   buildings: Building[];
   onEdit: (building: Building) => void;
   onDelete: (id: number) => void;
+  isLoading?: boolean;
 }
 
 const BuildingTable: React.FC<BuildingTableProps> = ({
   buildings,
   onEdit,
   onDelete,
+  isLoading = false,
 }) => {
   return (
     <div className='bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden'>
@@ -47,7 +50,20 @@ const BuildingTable: React.FC<BuildingTableProps> = ({
             </tr>
           </thead>
           <tbody className='divide-y divide-gray-100'>
-            {buildings.length === 0 ? (
+            {isLoading ? (
+              <TableSkeleton
+                rows={5}
+                columns={6}
+                columnConfigs={[
+                  { type: "text", width: "w-20" }, // Code
+                  { type: "avatar-text" }, // Building
+                  { type: "icon-text" }, // Address
+                  { type: "icon-text" }, // Floors
+                  { type: "badge" }, // Status
+                  { type: "actions" }, // Actions
+                ]}
+              />
+            ) : buildings.length === 0 ? (
               <tr>
                 <td colSpan={6} className='px-6 py-12 text-center text-gray-500'>
                   <div className='flex flex-col items-center justify-center gap-3'>

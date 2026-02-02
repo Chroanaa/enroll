@@ -4,17 +4,20 @@ import { Faculty } from "../../../types";
 import { colors } from "../../../colors";
 import { getStatusColor } from "../utils";
 import { getPositionColor } from "./utils";
+import TableSkeleton from "../../common/TableSkeleton";
 
 interface FacultyTableProps {
   faculty: Faculty[];
   onEdit: (faculty: Faculty) => void;
   onDelete: (id: number) => void;
+  isLoading?: boolean;
 }
 
 const FacultyTable: React.FC<FacultyTableProps> = ({
   faculty,
   onEdit,
   onDelete,
+  isLoading = false,
 }) => {
   return (
     <div className='bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden'>
@@ -51,7 +54,21 @@ const FacultyTable: React.FC<FacultyTableProps> = ({
             </tr>
           </thead>
           <tbody className='divide-y divide-gray-100'>
-            {faculty.length === 0 ? (
+            {isLoading ? (
+              <TableSkeleton
+                rows={5}
+                columns={7}
+                columnConfigs={[
+                  { type: "text", width: "w-24" }, // Employee ID
+                  { type: "avatar-text" }, // Faculty
+                  { type: "text", width: "w-32" }, // Contact
+                  { type: "icon-text" }, // Department
+                  { type: "badge" }, // Position
+                  { type: "badge" }, // Status
+                  { type: "actions" }, // Actions
+                ]}
+              />
+            ) : faculty.length === 0 ? (
               <tr>
                 <td colSpan={7} className='px-6 py-12 text-center text-gray-500'>
                   <div className='flex flex-col items-center justify-center gap-3'>

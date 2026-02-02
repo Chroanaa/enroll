@@ -1,71 +1,65 @@
 "use client";
 import React, { useState, useMemo, useEffect } from "react";
 import { Plus } from "lucide-react";
-import { Section, Program } from "../../../types";
 import { colors } from "../../../colors";
 import ConfirmationModal from "../../common/ConfirmationModal";
 import SuccessModal from "../../common/SuccessModal";
 import ErrorModal from "../../common/ErrorModal";
 import SearchFilters from "../../common/SearchFilters";
 import Pagination from "../../common/Pagination";
-import SectionTable from "./SectionTable";
-import SectionForm from "./SectionForm";
-import { filterSections } from "./utils";
-import { getSections } from "../../../utils/getSection";
-import { getPrograms } from "@/app/utils/programUtils";
+import DiscountTable from "./DiscountTable";
+import DiscountForm from "./DiscountForm";
+import { filterDiscounts, Discount } from "./utils";
 import { useSession } from "next-auth/react";
 import { insertIntoReports } from "@/app/utils/reportsUtils";
-import { invalidateRelatedCaches } from "@/app/utils/cache";
-const SectionManagement: React.FC = () => {
-  const [sections, setSections] = useState<Section[]>();
-  const [programs, setPrograms] = useState<Program[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
+
+const DiscountManagement: React.FC = () => {
+  const [discounts, setDiscounts] = useState<Discount[]>([]);
   const { data: session } = useSession();
-  React.useEffect(() => {
-    async function fetchData() {
+  const [isLoading, setIsLoading] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
+
+  useEffect(() => {
+    const fetchDiscounts = async () => {
+      setIsLoading(true);
       try {
-        setIsLoading(true);
-        const [sectionsData, programsData] = await Promise.all([
-          getSections(),
-          getPrograms(),
-        ]);
-        const programsArray: Program[] = Array.isArray(programsData)
-          ? programsData
-          : Object.values(programsData);
-        setPrograms(programsArray);
-        const sectionsArray: Section[] = Array.isArray(sectionsData)
-          ? sectionsData
-          : Object.values(sectionsData);
-        setSections(
-          sectionsArray.map((section) => ({
-            ...section,
-            programName:
-              programsArray.find((p) => p.id === section.program_id)?.name ||
-              "",
-          })),
-        );
+        const response = await fetch("/api/auth/discounts");
+        if (response.ok) {
+          const data = await response.json();
+          setDiscounts(data);
+        } else {
+          throw new Error("Failed to fetch discounts");
+        }
       } catch (error) {
-        console.error("Error fetching data:", error);
+        console.error("Error fetching discounts:", error);
+        setErrorModal({
+          isOpen: true,
+          message: "Failed to load discounts",
+          details: "Please refresh the page and try again.",
+        });
       } finally {
         setIsLoading(false);
       }
-    }
-    fetchData();
+    };
+    fetchDiscounts();
   }, []);
+
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState<
     "all" | "active" | "inactive"
   >("all");
-  const [editingSection, setEditingSection] = useState<Section | null>(null);
+  const [semesterFilter, setSemesterFilter] = useState<string>("all");
+  const [editingDiscount, setEditingDiscount] = useState<Discount | null>(null);
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [deleteConfirmation, setDeleteConfirmation] = useState<{
     isOpen: boolean;
-    sectionId: number | null;
-    sectionName: string;
+    discountId: number | null;
+    discountName: string;
   }>({
     isOpen: false,
-    sectionId: null,
-    sectionName: "",
+    discountId: null,
+    discountName: "",
   });
   const [successModal, setSuccessModal] = useState<{
     isOpen: boolean;
@@ -86,92 +80,95 @@ const SectionManagement: React.FC = () => {
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage, setItemsPerPage] = useState(10);
 
-  const filteredSections = useMemo(
-    () => filterSections(sections || [], searchTerm, statusFilter),
-    [sections, searchTerm, statusFilter],
+  const filteredDiscounts = useMemo(
+    () => filterDiscounts(discounts, searchTerm, statusFilter, semesterFilter),
+    [discounts, searchTerm, statusFilter, semesterFilter],
   );
 
   // Pagination calculations
-  const totalPages = Math.ceil(filteredSections.length / itemsPerPage);
+  const totalPages = Math.ceil(filteredDiscounts.length / itemsPerPage);
   const startIndex = (currentPage - 1) * itemsPerPage;
   const endIndex = startIndex + itemsPerPage;
-  const paginatedSections = filteredSections.slice(startIndex, endIndex);
+  const paginatedDiscounts = filteredDiscounts.slice(startIndex, endIndex);
 
   // Reset to page 1 when filters change
   useEffect(() => {
     setCurrentPage(1);
-  }, [searchTerm, statusFilter]);
+  }, [searchTerm, statusFilter, semesterFilter]);
 
   const handlePageChange = (page: number) => {
     setCurrentPage(page);
     window.scrollTo({ top: 0, behavior: "smooth" });
   };
 
-  const handleSaveSection = async (
-    sectionData: Section & { programName?: string },
-  ) => {
+  const handleSaveDiscount = async (discountData: Discount) => {
+    if (isSubmitting) return; // Prevent multiple clicks
+    
+    setIsSubmitting(true);
     try {
-      if (editingSection) {
-        const response = await fetch("/api/auth/section", {
-          method: "PATCH",
+      if (editingDiscount) {
+        const response = await fetch("/api/auth/discounts", {
+          method: "PUT",
           headers: {
             "Content-Type": "application/json",
           },
-          body: JSON.stringify(sectionData),
+          body: JSON.stringify({
+            id: discountData.id,
+            code: discountData.code,
+            name: discountData.name,
+            percentage: discountData.percentage,
+            semester: discountData.semester,
+            status: discountData.status,
+          }),
         });
 
         if (!response.ok) {
           const errorData = await response.json();
-          throw new Error(errorData.error || "Failed to update section");
+          throw new Error(errorData.error || "Failed to update discount");
         }
 
-        const programName =
-          programs.find((p) => p.id === sectionData.program_id)?.name || "";
-        setSections((prev) =>
-          prev?.map((s) =>
-            s.id === sectionData.id ? { ...sectionData, programName } : s,
-          ),
+        setDiscounts((prev) =>
+          prev.map((d) => (d.id === discountData.id ? discountData : d))
         );
-        invalidateRelatedCaches("SECTIONS");
-        setEditingSection(null);
+        setEditingDiscount(null);
         setSuccessModal({
           isOpen: true,
-          message: `Section "${sectionData.section_name}" has been updated successfully.`,
+          message: `Discount "${discountData.name}" has been updated successfully.`,
         });
         insertIntoReports({
-          action: `User ${session?.user.name} Edited the Section ${sectionData.section_name}`,
+          action: `User ${session?.user.name} Edited the Discount ${discountData.name}`,
           user_id: Number(session?.user.id),
           created_at: new Date(),
         });
       } else {
-        const response = await fetch("/api/auth/section", {
+        const response = await fetch("/api/auth/discounts", {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
           },
-          body: JSON.stringify(sectionData),
+          body: JSON.stringify({
+            code: discountData.code,
+            name: discountData.name,
+            percentage: discountData.percentage,
+            semester: discountData.semester,
+            status: discountData.status,
+          }),
         });
 
         if (!response.ok) {
           const errorData = await response.json();
-          throw new Error(errorData.error || "Failed to create section");
+          throw new Error(errorData.error || "Failed to create discount");
         }
 
-        const newSection = await response.json();
-        const programName =
-          programs.find((p) => p.id === sectionData.program_id)?.name || "";
-        setSections((prev = []) => [
-          ...prev,
-          { ...sectionData, id: newSection.id, programName },
-        ]);
-        invalidateRelatedCaches("SECTIONS");
+        const newDiscount = await response.json();
+        setDiscounts((prev) => [...prev, newDiscount]);
         setIsAddModalOpen(false);
         setSuccessModal({
           isOpen: true,
-          message: `Section "${sectionData.section_name}" has been created successfully.`,
+          message: `Discount "${discountData.name}" has been created successfully.`,
         });
         insertIntoReports({
-          action: `User ${session?.user.name} Created the Section ${sectionData.section_name}`,
+          action: `User ${session?.user.name} Created the Discount ${discountData.name}`,
           user_id: Number(session?.user.id),
           created_at: new Date(),
         });
@@ -179,69 +176,71 @@ const SectionManagement: React.FC = () => {
     } catch (error: any) {
       setErrorModal({
         isOpen: true,
-        message: error.message || "An error occurred while saving the section.",
+        message: error.message || "An error occurred while saving the discount.",
         details: "Please check your input and try again.",
       });
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
-  const handleDeleteSection = (id: number) => {
-    const section = sections?.find((s) => s.id === id);
-    if (section) {
+  const handleDeleteDiscount = (id: number) => {
+    const discount = discounts.find((d) => d.id === id);
+    if (discount) {
       setDeleteConfirmation({
         isOpen: true,
-        sectionId: id,
-        sectionName: section.section_name || "",
+        discountId: id,
+        discountName: discount.name,
       });
     }
   };
 
-  const confirmDeleteSection = async () => {
-    if (deleteConfirmation.sectionId) {
+  const confirmDeleteDiscount = async () => {
+    if (deleteConfirmation.discountId && !isDeleting) {
+      setIsDeleting(true);
       try {
-        const response = await fetch("/api/auth/section", {
-          method: "DELETE",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify(deleteConfirmation.sectionId),
-        });
+        const response = await fetch(
+          `/api/auth/discounts?id=${deleteConfirmation.discountId}`,
+          {
+            method: "DELETE",
+          }
+        );
 
         if (!response.ok) {
           const errorData = await response.json();
-          throw new Error(errorData.error || "Failed to delete section");
+          throw new Error(errorData.error || "Failed to delete discount");
         }
 
-        setSections((prev = []) =>
-          prev.filter((s) => s.id !== deleteConfirmation.sectionId),
+        setDiscounts((prev) =>
+          prev.filter((d) => d.id !== deleteConfirmation.discountId)
         );
-        invalidateRelatedCaches("SECTIONS");
         setDeleteConfirmation({
           isOpen: false,
-          sectionId: null,
-          sectionName: "",
+          discountId: null,
+          discountName: "",
         });
         setSuccessModal({
           isOpen: true,
-          message: `Section "${deleteConfirmation.sectionName}" has been deleted successfully.`,
+          message: `Discount "${deleteConfirmation.discountName}" has been deleted successfully.`,
         });
         insertIntoReports({
-          action: `This Subject: ${deleteConfirmation.sectionName} Was deleted By ${session?.user.name}`,
+          action: `This Discount: ${deleteConfirmation.discountName} Was deleted By ${session?.user.name}`,
           user_id: Number(session?.user.id),
           created_at: new Date(),
         });
       } catch (error: any) {
         setErrorModal({
           isOpen: true,
-          message:
-            error.message || "An error occurred while deleting the section.",
+          message: error.message || "An error occurred while deleting the discount.",
           details: "Please try again.",
         });
         setDeleteConfirmation({
           isOpen: false,
-          sectionId: null,
-          sectionName: "",
+          discountId: null,
+          discountName: "",
         });
+      } finally {
+        setIsDeleting(false);
       }
     }
   };
@@ -259,19 +258,20 @@ const SectionManagement: React.FC = () => {
               className='text-3xl font-bold tracking-tight'
               style={{ color: colors.primary }}
             >
-              Section Management
+              Discount Management
             </h1>
             <p className='text-gray-500 mt-1'>
-              Manage section information and settings
+              Manage discount policies and rules
             </p>
           </div>
           <button
             onClick={() => setIsAddModalOpen(true)}
-            className='flex items-center gap-2 px-5 py-3 text-white rounded-xl transition-all shadow-lg shadow-blue-900/20 hover:shadow-xl hover:scale-105 active:scale-95'
+            disabled={isSubmitting || isDeleting}
+            className='flex items-center gap-2 px-5 py-3 text-white rounded-xl transition-all shadow-lg shadow-blue-900/20 hover:shadow-xl hover:scale-105 active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100'
             style={{ backgroundColor: colors.secondary }}
           >
             <Plus className='w-5 h-5' />
-            <span className='font-medium'>Add Section</span>
+            <span className='font-medium'>Add Discount</span>
           </button>
         </div>
 
@@ -279,8 +279,18 @@ const SectionManagement: React.FC = () => {
         <SearchFilters
           searchTerm={searchTerm}
           onSearchChange={setSearchTerm}
-          searchPlaceholder='Search sections...'
+          searchPlaceholder='Search discounts...'
           filters={[
+            {
+              value: semesterFilter,
+              onChange: (value) => setSemesterFilter(value as string),
+              options: [
+                { value: "all", label: "All Semesters" },
+                { value: "First", label: "First Semester" },
+                { value: "Second", label: "Second Semester" },
+              ],
+              placeholder: "All Semesters",
+            },
             {
               value: statusFilter,
               onChange: (value) =>
@@ -297,34 +307,35 @@ const SectionManagement: React.FC = () => {
           ]}
         />
 
-        {/* Sections Table */}
+        {/* Discounts Table */}
         <div>
-          <SectionTable
-            sections={paginatedSections}
-            onEdit={setEditingSection}
-            onDelete={handleDeleteSection}
+          <DiscountTable
+            discounts={paginatedDiscounts}
+            onEdit={setEditingDiscount}
+            onDelete={handleDeleteDiscount}
             isLoading={isLoading}
           />
           <Pagination
             currentPage={currentPage}
             totalPages={totalPages}
             itemsPerPage={itemsPerPage}
-            totalItems={filteredSections.length}
-            itemName='sections'
+            totalItems={filteredDiscounts.length}
+            itemName='discounts'
             onPageChange={handlePageChange}
             onItemsPerPageChange={setItemsPerPage}
           />
         </div>
 
-        {/* Add/Edit Section Form */}
-        {(isAddModalOpen || editingSection) && (
-          <SectionForm
-            section={editingSection}
-            onSave={handleSaveSection}
+        {/* Add/Edit Discount Form */}
+        {(isAddModalOpen || editingDiscount) && (
+          <DiscountForm
+            discount={editingDiscount}
+            onSave={handleSaveDiscount}
             onCancel={() => {
-              setEditingSection(null);
+              setEditingDiscount(null);
               setIsAddModalOpen(false);
             }}
+            isLoading={isSubmitting}
           />
         )}
 
@@ -334,17 +345,18 @@ const SectionManagement: React.FC = () => {
           onClose={() =>
             setDeleteConfirmation({
               isOpen: false,
-              sectionId: null,
-              sectionName: "",
+              discountId: null,
+              discountName: "",
             })
           }
-          onConfirm={confirmDeleteSection}
-          title='Delete Section'
-          message={`Are you sure you want to delete "${deleteConfirmation.sectionName}"?`}
+          onConfirm={confirmDeleteDiscount}
+          title='Delete Discount'
+          message={`Are you sure you want to delete "${deleteConfirmation.discountName}"?`}
           description='This action cannot be undone. All associated data will be permanently removed.'
-          confirmText='Delete Section'
+          confirmText='Delete Discount'
           cancelText='Cancel'
           variant='danger'
+          isLoading={isDeleting}
         />
 
         {/* Success Modal */}
@@ -370,4 +382,5 @@ const SectionManagement: React.FC = () => {
   );
 };
 
-export default SectionManagement;
+export default DiscountManagement;
+

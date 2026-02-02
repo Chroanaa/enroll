@@ -24,6 +24,7 @@ import {
   FolderTree,
   TrendingUp,
   Package,
+  Percent,
 } from "lucide-react";
 import Image from "next/image";
 import { useSession, signOut } from "next-auth/react";
@@ -99,10 +100,22 @@ const Navigation: React.FC<NavigationProps> = ({
         allowedRoles: [ROLES.ADMIN, ROLES.CASHIER],
       },
       {
+        id: "file-maintenance-discount",
+        label: "Discount",
+        icon: Percent,
+        allowedRoles: [ROLES.ADMIN, ROLES.CASHIER],
+      },
+      {
         id: "file-maintenance-products",
         label: "Products",
         icon: Package,
         allowedRoles: [ROLES.ADMIN, ROLES.CASHIER],
+      },
+      {
+        id: "file-maintenance-schools-programs",
+        label: "Schools & Programs",
+        icon: GraduationCap,
+        allowedRoles: [ROLES.ADMIN, ROLES.REGISTRAR],
       },
       {
         id: "file-maintenance-subject",

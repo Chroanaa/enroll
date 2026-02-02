@@ -3,17 +3,20 @@ import { Network, Hash, Building2, User, Edit2, Trash2 } from "lucide-react";
 import { Department } from "../../../types";
 import { colors } from "../../../colors";
 import { getStatusColor } from "../utils";
+import TableSkeleton from "../../common/TableSkeleton";
 
 interface DepartmentTableProps {
   departments: Department[];
   onEdit: (department: Department) => void;
   onDelete: (id: number) => void;
+  isLoading?: boolean;
 }
 
 const DepartmentTable: React.FC<DepartmentTableProps> = ({
   departments,
   onEdit,
   onDelete,
+  isLoading = false,
 }) => {
   return (
     <div className='bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden'>
@@ -47,7 +50,20 @@ const DepartmentTable: React.FC<DepartmentTableProps> = ({
             </tr>
           </thead>
           <tbody className='divide-y divide-gray-100'>
-            {departments.length === 0 ? (
+            {isLoading ? (
+              <TableSkeleton
+                rows={5}
+                columns={6}
+                columnConfigs={[
+                  { type: "text", width: "w-20" }, // Code
+                  { type: "avatar-text" }, // Department
+                  { type: "icon-text" }, // Building
+                  { type: "icon-text" }, // Head
+                  { type: "badge" }, // Status
+                  { type: "actions" }, // Actions
+                ]}
+              />
+            ) : departments.length === 0 ? (
               <tr>
                 <td colSpan={6} className='px-6 py-12 text-center text-gray-500'>
                   <div className='flex flex-col items-center justify-center gap-3'>

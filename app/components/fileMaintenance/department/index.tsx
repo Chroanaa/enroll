@@ -19,10 +19,12 @@ import { invalidateRelatedCaches } from "@/app/utils/cache";
 const DepartmentManagement: React.FC = () => {
   const [departments, setDepartments] = useState<Department[]>([]);
   const [buildings, setBuildings] = useState<Building[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
   const { data: session } = useSession();
   React.useEffect(() => {
     async function fetchData() {
       try {
+        setIsLoading(true);
         const [departmentsData, buildingsData] = await Promise.all([
           getDepartments(),
           getBuildings(),
@@ -44,6 +46,8 @@ const DepartmentManagement: React.FC = () => {
         );
       } catch (error) {
         console.error("Error fetching data:", error);
+      } finally {
+        setIsLoading(false);
       }
     }
     fetchData();
@@ -304,6 +308,7 @@ const DepartmentManagement: React.FC = () => {
             departments={paginatedDepartments}
             onEdit={setEditingDepartment}
             onDelete={handleDeleteDepartment}
+            isLoading={isLoading}
           />
           <Pagination
             currentPage={currentPage}

@@ -19,10 +19,12 @@ import { invalidateRelatedCaches } from "@/app/utils/cache";
 const MajorManagement: React.FC = () => {
   const [majors, setMajors] = useState<Major[]>([]);
   const [programs, setPrograms] = useState<Program[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
   const { data: session } = useSession();
   useEffect(() => {
     const fetchData = async () => {
       try {
+        setIsLoading(true);
         const [majorsData, programsData] = await Promise.all([
           getMajors(),
           getPrograms(),
@@ -43,6 +45,8 @@ const MajorManagement: React.FC = () => {
         setMajors(majorsWithProgramNames);
       } catch (error) {
         console.error("Error fetching data:", error);
+      } finally {
+        setIsLoading(false);
       }
     };
     fetchData();
@@ -296,6 +300,7 @@ const MajorManagement: React.FC = () => {
             majors={paginatedMajors}
             onEdit={setEditingMajor}
             onDelete={handleDeleteMajor}
+            isLoading={isLoading}
           />
           <Pagination
             currentPage={currentPage}

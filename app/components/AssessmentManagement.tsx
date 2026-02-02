@@ -8,6 +8,7 @@ import { useAcademicTerm } from "../hooks/useAcademicTerm";
 import SuccessModal from "./common/SuccessModal";
 import ErrorModal from "./common/ErrorModal";
 import StudentSearchModal from "./common/StudentSearchModal";
+import ConfirmationModal from "./common/ConfirmationModal";
 import type { Fee, PaymentDetail, EnrolledSubject } from "./assessmentManagement/types";
 import { StudentInfoSection } from "./assessmentManagement/StudentInfoSection";
 import { EnrolledSubjectsTab } from "./assessmentManagement/EnrolledSubjectsTab";
@@ -26,7 +27,8 @@ const AssessmentManagement: React.FC = () => {
   const [programId, setProgramId] = useState<number | null>(null);
   const [studentNumber, setStudentNumber] = useState("");
   const [tuitionPerUnit, setTuitionPerUnit] = useState("570");
-  const [totalUnits, setTotalUnits] = useState(0);
+  const [totalUnits, setTotalUnits] = useState(0); // Regular units only (excludes fixed amount subjects)
+  const [fixedAmountTotal, setFixedAmountTotal] = useState(0); // Total of fixed amount subjects
   const [isFetchingStudent, setIsFetchingStudent] = useState(false);
   const [studentFetchError, setStudentFetchError] = useState("");
 
@@ -47,6 +49,25 @@ const AssessmentManagement: React.FC = () => {
   const [netTuition, setNetTuition] = useState(0);
   const [dynamicFees, setDynamicFees] = useState<{ [key: number]: number }>({});
   const [totalFees, setTotalFees] = useState(0);
+
+  // Discount Management
+  interface Discount {
+    id: number;
+    code: string;
+    name: string;
+    percentage: number;
+    semester: string;
+    status: string;
+  }
+  const [selectedDiscount, setSelectedDiscount] = useState<Discount | null>(null);
+  const [availableDiscounts, setAvailableDiscounts] = useState<Discount[]>([]);
+  const [isDiscountModalOpen, setIsDiscountModalOpen] = useState(false);
+  const [eligibleDiscounts, setEligibleDiscounts] = useState<Discount[]>([]);
+  const [recommendedDiscount, setRecommendedDiscount] = useState<Discount | null>(null);
+  const [enrollmentData, setEnrollmentData] = useState<{
+    admission_status: string | null;
+    remarks: string | null;
+  } | null>(null);
 
   // Installment Basis
   const [downPayment, setDownPayment] = useState(0);
@@ -128,6 +149,25 @@ const AssessmentManagement: React.FC = () => {
     return trimmed.length >= 5;
   };
 
+  // Helper function to calculate regular units and fixed amount total from subjects
+  const calculateUnitsAndFixedAmounts = (subjects: EnrolledSubject[]) => {
+    let regularUnits = 0;
+    let fixedAmountSum = 0;
+
+    subjects.forEach((subject) => {
+      // Check if subject has fixed amount (not null, not undefined, and > 0)
+      if (subject.fixedAmount !== undefined && subject.fixedAmount !== null && subject.fixedAmount > 0) {
+        // Exclude from regular units, add to fixed amount total
+        fixedAmountSum += subject.fixedAmount;
+      } else {
+        // Include in regular units for tuition calculation
+        regularUnits += subject.units_total || 0;
+      }
+    });
+
+    return { regularUnits, fixedAmountSum };
+  };
+
   // Function to fetch student information by student number
   const fetchStudentByNumber = async (studentNum: string) => {
     if (!isValidStudentNumber(studentNum)) {
@@ -138,8 +178,12 @@ const AssessmentManagement: React.FC = () => {
     // Reset assessment/enrollment-related state before loading a new student
     setEnrolledSubjects([]);
     setTotalUnits(0);
+    setFixedAmountTotal(0);
     setSubjectsError("");
     setIsResidentReturnee(false);
+    setSelectedDiscount(null);
+    setDiscount(0);
+    setEnrollmentData(null);
 
     setIsFetchingStudent(true);
     setStudentFetchError("");
@@ -177,6 +221,12 @@ const AssessmentManagement: React.FC = () => {
           setProgramId(null);
         }
 
+        // Store enrollment data for discount eligibility
+        setEnrollmentData({
+          admission_status: data.admission_status || null,
+          remarks: data.remarks || null,
+        });
+
         // Check if student is resident/returnee using comprehensive check
         try {
           const statusResponse = await fetch(`/api/auth/students/check-status?studentNumber=${studentNum.trim()}`);
@@ -206,6 +256,7 @@ const AssessmentManagement: React.FC = () => {
         setProgramId(null);
         setEnrolledSubjects([]);
         setTotalUnits(0);
+        setFixedAmountTotal(0);
         setIsResidentReturnee(false);
       }
     } catch (error) {
@@ -216,6 +267,7 @@ const AssessmentManagement: React.FC = () => {
       setProgramId(null);
       setEnrolledSubjects([]);
       setTotalUnits(0);
+      setFixedAmountTotal(0);
       setIsResidentReturnee(false);
     } finally {
       setIsFetchingStudent(false);
@@ -244,11 +296,9 @@ const AssessmentManagement: React.FC = () => {
           if (enrolledData.success && enrolledData.data && enrolledData.data.length > 0) {
             // Student has existing enrolled subjects for this term, use them
             setEnrolledSubjects(enrolledData.data);
-            const total = enrolledData.data.reduce(
-              (sum: number, course: EnrolledSubject) => sum + (course.units_total || 0),
-              0
-            );
-            setTotalUnits(total);
+            const { regularUnits, fixedAmountSum } = calculateUnitsAndFixedAmounts(enrolledData.data);
+            setTotalUnits(regularUnits);
+            setFixedAmountTotal(fixedAmountSum);
             setIsLoadingSubjects(false);
             return; // Exit early - we have enrolled subjects
           }
@@ -266,11 +316,9 @@ const AssessmentManagement: React.FC = () => {
         const curriculumData = await curriculumResponse.json();
         if (curriculumData.success && curriculumData.data.courses) {
           setEnrolledSubjects(curriculumData.data.courses);
-          const total = curriculumData.data.courses.reduce(
-            (sum: number, course: EnrolledSubject) => sum + (course.units_total || 0),
-            0
-          );
-          setTotalUnits(total);
+          const { regularUnits, fixedAmountSum } = calculateUnitsAndFixedAmounts(curriculumData.data.courses);
+          setTotalUnits(regularUnits);
+          setFixedAmountTotal(fixedAmountSum);
 
           // Auto-save curriculum subjects to enrolled_subjects ONLY for resident/returnee
           // This allows them to start with curriculum and modify later
@@ -298,18 +346,21 @@ const AssessmentManagement: React.FC = () => {
           setSubjectsError("No subjects found in curriculum for this program and semester");
           setEnrolledSubjects([]);
           setTotalUnits(0);
+          setFixedAmountTotal(0);
         }
       } else {
         const errorData = await curriculumResponse.json();
         setSubjectsError(errorData.error || "Failed to fetch subjects");
         setEnrolledSubjects([]);
         setTotalUnits(0);
+        setFixedAmountTotal(0);
       }
     } catch (error) {
       console.error("Error fetching enrolled subjects:", error);
       setSubjectsError("Failed to fetch enrolled subjects");
       setEnrolledSubjects([]);
       setTotalUnits(0);
+      setFixedAmountTotal(0);
     } finally {
       setIsLoadingSubjects(false);
     }
@@ -396,6 +447,7 @@ const AssessmentManagement: React.FC = () => {
         prerequisite: course.prerequisite || null,
         year_level: course.year_level,
         semester: semesterNum,
+        fixedAmount: course.fixedAmount,
       }));
 
       // Add new subjects to enrolled list (avoid duplicates by curriculum_course_id or course_code)
@@ -412,12 +464,10 @@ const AssessmentManagement: React.FC = () => {
 
       setEnrolledSubjects(updated);
 
-      // Recalculate total units
-      const total = updated.reduce(
-        (sum: number, course: EnrolledSubject) => sum + (course.units_total || 0),
-        0
-      );
-      setTotalUnits(total);
+      // Recalculate regular units and fixed amount total
+      const { regularUnits, fixedAmountSum } = calculateUnitsAndFixedAmounts(updated);
+      setTotalUnits(regularUnits);
+      setFixedAmountTotal(fixedAmountSum);
     } catch (error) {
       console.error("Error adding subjects:", error);
       setErrorModal({
@@ -437,23 +487,19 @@ const AssessmentManagement: React.FC = () => {
   const handleRemoveSubject = (subjectId: number) => {
     const updated = enrolledSubjects.filter(s => s.id !== subjectId);
     setEnrolledSubjects(updated);
-    // Recalculate total units
-    const total = updated.reduce(
-      (sum: number, course: EnrolledSubject) => sum + (course.units_total || 0),
-      0
-    );
-    setTotalUnits(total);
+    // Recalculate regular units and fixed amount total
+    const { regularUnits, fixedAmountSum } = calculateUnitsAndFixedAmounts(updated);
+    setTotalUnits(regularUnits);
+    setFixedAmountTotal(fixedAmountSum);
   };
 
   // Restore original subjects (used when canceling edit mode or switching tabs)
   const handleRestoreSubjects = (subjects: EnrolledSubject[]) => {
     setEnrolledSubjects(subjects);
-    // Recalculate total units
-    const total = subjects.reduce(
-      (sum: number, course: EnrolledSubject) => sum + (course.units_total || 0),
-      0
-    );
-    setTotalUnits(total);
+    // Recalculate regular units and fixed amount total
+    const { regularUnits, fixedAmountSum } = calculateUnitsAndFixedAmounts(subjects);
+    setTotalUnits(regularUnits);
+    setFixedAmountTotal(fixedAmountSum);
   };
 
   // Fetch subjects when program ID and current term are available
@@ -465,6 +511,7 @@ const AssessmentManagement: React.FC = () => {
     } else {
       setEnrolledSubjects([]);
       setTotalUnits(0);
+      setFixedAmountTotal(0);
     }
   }, [programId, currentTerm, isResidentReturnee, studentNumber]);
 
@@ -498,6 +545,7 @@ const AssessmentManagement: React.FC = () => {
       setProgramId(null);
       setEnrolledSubjects([]);
       setTotalUnits(0);
+      setFixedAmountTotal(0);
       setSubjectsError("");
       setIsResidentReturnee(false);
     }
@@ -513,6 +561,126 @@ const AssessmentManagement: React.FC = () => {
     }
   }, [totalUnits, tuitionPerUnit]);
 
+  // Fetch discounts when modal opens
+  const fetchDiscounts = async (semester: string) => {
+    try {
+      const response = await fetch(`/api/auth/discounts?semester=${semester}`);
+      if (response.ok) {
+        const discounts = await response.json();
+        setAvailableDiscounts(discounts);
+        return discounts;
+      }
+    } catch (error) {
+      console.error("Error fetching discounts:", error);
+    }
+    return [];
+  };
+
+  // Determine eligible discounts based on enrollment data
+  const determineEligibleDiscounts = (discounts: Discount[]): Discount[] => {
+    if (!enrollmentData) return discounts;
+
+    const { admission_status, remarks } = enrollmentData;
+    const eligible: Discount[] = [];
+
+    discounts.forEach((discount) => {
+      // Check discount code patterns
+      const code = discount.code.toUpperCase();
+      
+      // FT discounts (Full-Time/Dean Lister) - check admission_status
+      if (code.startsWith("FT")) {
+        if (admission_status && admission_status.toUpperCase().includes("FT")) {
+          eligible.push(discount);
+        }
+      }
+      
+      // HH discounts (Employee) - check remarks
+      if (code.startsWith("HH")) {
+        if (remarks) {
+          const remarksUpper = remarks.toUpperCase();
+          if (remarksUpper.includes("HH1") || remarksUpper.includes("HH2")) {
+            // Check if discount code matches remark
+            if (code.includes("HH1") && remarksUpper.includes("HH1")) {
+              eligible.push(discount);
+            } else if (code.includes("HH2") && remarksUpper.includes("HH2")) {
+              eligible.push(discount);
+            }
+          }
+        }
+      }
+    });
+
+    return eligible.length > 0 ? eligible : discounts; // If no specific match, show all (admin can override)
+  };
+
+  // Recommend highest percentage discount
+  const getRecommendedDiscount = (discounts: Discount[]): Discount | null => {
+    if (discounts.length === 0) return null;
+    return discounts.reduce((highest, current) => 
+      Number(current.percentage) > Number(highest.percentage) ? current : highest
+    );
+  };
+
+  // Handle discount selection click
+  const handleDiscountSelectClick = async () => {
+    if (!currentTerm) {
+      setErrorModal({
+        isOpen: true,
+        message: "Academic term not available",
+      });
+      return;
+    }
+
+    const semester = currentTerm.semester === "First" ? "First" : "Second";
+    const discounts = await fetchDiscounts(semester);
+    const eligible = determineEligibleDiscounts(discounts);
+    setEligibleDiscounts(eligible);
+    
+    const recommended = getRecommendedDiscount(eligible);
+    setRecommendedDiscount(recommended);
+    
+    setIsDiscountModalOpen(true);
+  };
+
+  // Temporary state for modal selection (before confirmation)
+  const [tempSelectedDiscount, setTempSelectedDiscount] = useState<Discount | null>(null);
+
+  // Handle discount selection from modal
+  const handleDiscountSelect = (discount: Discount | null) => {
+    setSelectedDiscount(discount);
+    
+    if (discount) {
+      // Calculate discount amount
+      const discountPercent = Number(discount.percentage);
+      const discountAmount = tuition * (discountPercent / 100);
+      setDiscount(discountAmount);
+    } else {
+      // Remove discount
+      setDiscount(0);
+    }
+    
+    setIsDiscountModalOpen(false);
+    setTempSelectedDiscount(null);
+  };
+
+  // Initialize temp selection when modal opens
+  useEffect(() => {
+    if (isDiscountModalOpen) {
+      setTempSelectedDiscount(selectedDiscount);
+    }
+  }, [isDiscountModalOpen, selectedDiscount]);
+
+  // Recalculate discount when tuition or selected discount changes
+  useEffect(() => {
+    if (selectedDiscount && tuition > 0) {
+      const discountPercent = Number(selectedDiscount.percentage);
+      const discountAmount = tuition * (discountPercent / 100);
+      setDiscount(discountAmount);
+    } else if (!selectedDiscount) {
+      setDiscount(0);
+    }
+  }, [tuition, selectedDiscount]);
+
   useEffect(() => {
     // Calculate net tuition
     const net = tuition - discount;
@@ -522,16 +690,18 @@ const AssessmentManagement: React.FC = () => {
     const dynamicFeesTotal = Object.values(dynamicFees).reduce((sum, amount) => sum + amount, 0);
 
     // Calculate total fees (cash basis)
-    const total = net + dynamicFeesTotal;
+    // Includes: Net Tuition + Dynamic Fees + Fixed Amount Subjects Total
+    const total = net + dynamicFeesTotal + fixedAmountTotal;
     setTotalFees(total);
 
     // Calculate installment basis
+    // Fixed amount subjects are already included in cash basis before installment deduction
     const installmentNet = total - downPayment;
     setNet(installmentNet);
     const insurance = installmentNet * 0.05;
     setInsuranceCharge(insurance);
     setTotalInstallment(installmentNet + insurance);
-  }, [tuition, discount, dynamicFees, downPayment]);
+  }, [tuition, discount, dynamicFees, downPayment, fixedAmountTotal]);
 
   const fetchFees = async () => {
     try {
@@ -684,6 +854,8 @@ const AssessmentManagement: React.FC = () => {
                   discount={discount}
                   setDiscount={setDiscount}
                   netTuition={netTuition}
+                  fixedAmountTotal={fixedAmountTotal}
+                  enrolledSubjects={enrolledSubjects}
                   fees={fees}
                   dynamicFees={dynamicFees}
                   setDynamicFees={setDynamicFees}
@@ -693,6 +865,8 @@ const AssessmentManagement: React.FC = () => {
                   net={net}
                   insuranceCharge={insuranceCharge}
                   totalInstallment={totalInstallment}
+                  selectedDiscount={selectedDiscount}
+                  onDiscountSelectClick={handleDiscountSelectClick}
                 />
               )}
 
@@ -739,6 +913,103 @@ const AssessmentManagement: React.FC = () => {
         isOpen={isStudentSearchModalOpen}
         onClose={() => setIsStudentSearchModalOpen(false)}
         onSelect={handleStudentSelect}
+      />
+
+      {/* Discount Selection Modal */}
+      <ConfirmationModal
+        isOpen={isDiscountModalOpen}
+        onClose={() => {
+          setIsDiscountModalOpen(false);
+          setTempSelectedDiscount(null);
+        }}
+        onConfirm={() => {
+          // Apply the temporarily selected discount
+          setSelectedDiscount(tempSelectedDiscount);
+          handleDiscountSelect(tempSelectedDiscount);
+        }}
+        title="Select Discount"
+        message=""
+        variant="info"
+        confirmText="Confirm"
+        cancelText="Cancel"
+        customContent={
+          <div className="space-y-3">
+            <p className="text-sm font-medium" style={{ color: colors.primary }}>
+              Select a discount to apply:
+            </p>
+            <div className="space-y-2 max-h-96 overflow-y-auto">
+              {/* No discount option */}
+              <label
+                className={`flex items-center gap-3 p-3 rounded-lg border cursor-pointer transition-all ${
+                  !tempSelectedDiscount
+                    ? "border-blue-500 bg-blue-50"
+                    : "border-gray-200 hover:bg-gray-50"
+                }`}
+              >
+                <input
+                  type="radio"
+                  name="discount"
+                  checked={!tempSelectedDiscount}
+                  onChange={() => setTempSelectedDiscount(null)}
+                  className="w-4 h-4"
+                  style={{ accentColor: colors.secondary }}
+                />
+                <span className="text-sm font-medium" style={{ color: colors.primary }}>
+                  None Selected
+                </span>
+              </label>
+
+              {/* Discount options */}
+              {eligibleDiscounts.map((discount) => {
+                const isRecommended = recommendedDiscount?.id === discount.id;
+                const isSelected = tempSelectedDiscount?.id === discount.id;
+                
+                return (
+                  <label
+                    key={discount.id}
+                    className={`flex items-center gap-3 p-3 rounded-lg border cursor-pointer transition-all ${
+                      isSelected
+                        ? "border-blue-500 bg-blue-50"
+                        : isRecommended
+                        ? "border-green-300 bg-green-50"
+                        : "border-gray-200 hover:bg-gray-50"
+                    }`}
+                  >
+                    <input
+                      type="radio"
+                      name="discount"
+                      checked={isSelected}
+                      onChange={() => setTempSelectedDiscount(discount)}
+                      className="w-4 h-4"
+                      style={{ accentColor: colors.secondary }}
+                    />
+                    <div className="flex-1">
+                      <div className="flex items-center gap-2">
+                        <span className="text-sm font-medium" style={{ color: colors.primary }}>
+                          {discount.percentage}% - {discount.code} - {discount.name}
+                        </span>
+                        {isRecommended && (
+                          <span
+                            className="px-2 py-0.5 text-xs font-semibold rounded-full text-white"
+                            style={{ backgroundColor: "#059669" }}
+                          >
+                            Recommended
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                  </label>
+                );
+              })}
+
+              {eligibleDiscounts.length === 0 && (
+                <p className="text-sm text-gray-500 text-center py-4">
+                  No discounts available for this semester
+                </p>
+              )}
+            </div>
+          </div>
+        }
       />
 
     </div>

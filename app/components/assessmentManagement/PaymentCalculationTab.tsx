@@ -1,7 +1,16 @@
 import React from "react";
-import { DollarSign, CreditCard } from "lucide-react";
+import { DollarSign, CreditCard, Plus } from "lucide-react";
 import { colors } from "../../colors";
-import type { Fee } from "./types";
+import type { Fee, EnrolledSubject } from "./types";
+
+interface Discount {
+  id: number;
+  code: string;
+  name: string;
+  percentage: number;
+  semester: string;
+  status: string;
+}
 
 interface PaymentCalculationTabProps {
   tuitionPerUnit: string;
@@ -10,6 +19,8 @@ interface PaymentCalculationTabProps {
   discount: number;
   setDiscount: (value: number) => void;
   netTuition: number;
+  fixedAmountTotal: number;
+  enrolledSubjects: EnrolledSubject[];
   fees: Fee[];
   dynamicFees: { [key: number]: number };
   setDynamicFees: React.Dispatch<
@@ -21,6 +32,8 @@ interface PaymentCalculationTabProps {
   net: number;
   insuranceCharge: number;
   totalInstallment: number;
+  selectedDiscount: Discount | null;
+  onDiscountSelectClick: () => void;
 }
 
 export const PaymentCalculationTab: React.FC<PaymentCalculationTabProps> = ({
@@ -30,6 +43,8 @@ export const PaymentCalculationTab: React.FC<PaymentCalculationTabProps> = ({
   discount,
   setDiscount,
   netTuition,
+  fixedAmountTotal,
+  enrolledSubjects,
   fees,
   dynamicFees,
   setDynamicFees,
@@ -39,7 +54,16 @@ export const PaymentCalculationTab: React.FC<PaymentCalculationTabProps> = ({
   net,
   insuranceCharge,
   totalInstallment,
+  selectedDiscount,
+  onDiscountSelectClick,
 }) => {
+  // Filter subjects with fixed amounts
+  const fixedAmountSubjects = enrolledSubjects.filter(
+    (subject) =>
+      subject.fixedAmount !== undefined &&
+      subject.fixedAmount !== null &&
+      subject.fixedAmount > 0
+  );
   return (
     <div className="animate-in fade-in slide-in-from-top-2 duration-300">
       <div className="flex items-center justify-between mb-6">
@@ -136,6 +160,7 @@ export const PaymentCalculationTab: React.FC<PaymentCalculationTabProps> = ({
                 value: discount,
                 setValue: setDiscount,
                 key: "discount",
+                isDiscount: true,
               },
               {
                 label: "Net Tuition",
@@ -159,31 +184,88 @@ export const PaymentCalculationTab: React.FC<PaymentCalculationTabProps> = ({
                 >
                   {item.label}
                 </span>
+                {item.isDiscount ? (
+                  <div className="flex items-center gap-2">
+                    <div
+                      className="px-3 py-2 rounded-lg border text-right text-sm bg-white/50 min-w-[128px]"
+                      style={{
+                        borderColor: colors.tertiary + "30",
+                        color: colors.primary,
+                      }}
+                    >
+                      {selectedDiscount
+                        ? `${selectedDiscount.percentage}% - ${selectedDiscount.code} (${selectedDiscount.name})`
+                        : "None Selected"}
+                    </div>
+                    <button
+                      onClick={onDiscountSelectClick}
+                      className="p-2 rounded-lg border hover:bg-gray-50 transition-colors"
+                      style={{
+                        borderColor: colors.secondary + "30",
+                        color: colors.secondary,
+                      }}
+                      title="Select Discount"
+                    >
+                      <Plus className="w-4 h-4" />
+                    </button>
+                  </div>
+                ) : (
+                  <input
+                    type="number"
+                    value={item.value || ""}
+                    onChange={(e) =>
+                      !item.readonly &&
+                      item.setValue(parseFloat(e.target.value) || 0)
+                    }
+                    readOnly={item.readonly}
+                    className="w-32 px-3 py-2 rounded-lg border text-right text-sm bg-white/50"
+                    style={{
+                      borderColor: colors.tertiary + "30",
+                      color: colors.primary,
+                    }}
+                    onFocus={(e) => {
+                      if (!item.readonly) {
+                        e.currentTarget.style.borderColor = colors.secondary;
+                        e.currentTarget.style.boxShadow = `0 0 0 3px ${colors.secondary}10`;
+                      }
+                    }}
+                    onBlur={(e) => {
+                      if (!item.readonly) {
+                        e.currentTarget.style.borderColor =
+                          colors.tertiary + "30";
+                        e.currentTarget.style.boxShadow = "none";
+                      }
+                    }}
+                    placeholder="0.00"
+                  />
+                )}
+              </div>
+            ))}
+
+            {/* Fixed Amount Subjects - Individual List */}
+            {fixedAmountSubjects.map((subject) => (
+              <div
+                key={subject.id}
+                className="flex justify-between items-center py-2 px-3 rounded-lg border"
+                style={{
+                  borderColor: colors.accent + "10",
+                  backgroundColor: colors.accent + "05",
+                }}
+              >
+                <span
+                  className="text-sm font-medium"
+                  style={{ color: colors.primary }}
+                >
+                  {subject.course_code || subject.descriptive_title}
+                </span>
                 <input
                   type="number"
-                  value={item.value || ""}
-                  onChange={(e) =>
-                    !item.readonly &&
-                    item.setValue(parseFloat(e.target.value) || 0)
-                  }
-                  readOnly={item.readonly}
+                  value={subject.fixedAmount || ""}
+                  readOnly
                   className="w-32 px-3 py-2 rounded-lg border text-right text-sm bg-white/50"
                   style={{
                     borderColor: colors.tertiary + "30",
                     color: colors.primary,
-                  }}
-                  onFocus={(e) => {
-                    if (!item.readonly) {
-                      e.currentTarget.style.borderColor = colors.secondary;
-                      e.currentTarget.style.boxShadow = `0 0 0 3px ${colors.secondary}10`;
-                    }
-                  }}
-                  onBlur={(e) => {
-                    if (!item.readonly) {
-                      e.currentTarget.style.borderColor =
-                        colors.tertiary + "30";
-                      e.currentTarget.style.boxShadow = "none";
-                    }
                   }}
                   placeholder="0.00"
                 />

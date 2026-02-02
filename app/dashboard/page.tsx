@@ -25,8 +25,10 @@ import {
   Major,
   Faculty,
   Fees,
+  Discount,
   Subject,
   Products,
+  SchoolsPrograms,
 } from "../components/fileMaintenance";
 import ProtectedRoute from "../components/ProtectedRoute";
 
@@ -86,10 +88,14 @@ export default function DashboardPage() {
         return <Faculty />;
       case "file-maintenance-fees":
         return <Fees />;
+      case "file-maintenance-discount":
+        return <Discount />;
       case "file-maintenance-products":
         return <Products />;
       case "file-maintenance-subject":
         return <Subject />;
+      case "file-maintenance-schools-programs":
+        return <SchoolsPrograms />;
       default:
         return <Dashboard />;
     }

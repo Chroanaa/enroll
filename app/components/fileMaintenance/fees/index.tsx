@@ -17,14 +17,18 @@ import { useSession } from "next-auth/react";
 import { invalidateRelatedCaches } from "@/app/utils/cache";
 const FeesManagement: React.FC = () => {
   const [fees, setFees] = useState<Fee[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
   const { data: session } = useSession();
   useEffect(() => {
     const fetchFees = async () => {
       try {
+        setIsLoading(true);
         const data = await getFees();
         setFees(data);
       } catch (error) {
         console.error("Error fetching fees:", error);
+      } finally {
+        setIsLoading(false);
       }
     };
     fetchFees();
@@ -280,6 +284,7 @@ const FeesManagement: React.FC = () => {
             fees={paginatedFees}
             onEdit={setEditingFee}
             onDelete={handleDeleteFee}
+            isLoading={isLoading}
           />
           <Pagination
             currentPage={currentPage}

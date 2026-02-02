@@ -10,14 +10,16 @@ import {
 import { Room } from "../../../types";
 import { colors } from "../../../colors";
 import { getRoomStatusColor, getTypeColor } from "./utils";
+import TableSkeleton from "../../common/TableSkeleton";
 
 interface RoomTableProps {
   rooms: (Room & { buildingName?: string })[];
   onEdit: (room: Room) => void;
   onDelete: (id: number) => void;
+  isLoading?: boolean;
 }
 
-const RoomTable: React.FC<RoomTableProps> = ({ rooms, onEdit, onDelete }) => {
+const RoomTable: React.FC<RoomTableProps> = ({ rooms, onEdit, onDelete, isLoading = false }) => {
   return (
     <div className='bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden'>
       <div className='overflow-x-auto'>
@@ -53,7 +55,21 @@ const RoomTable: React.FC<RoomTableProps> = ({ rooms, onEdit, onDelete }) => {
             </tr>
           </thead>
           <tbody className='divide-y divide-gray-100'>
-            {rooms.length === 0 ? (
+            {isLoading ? (
+              <TableSkeleton
+                rows={5}
+                columns={7}
+                columnConfigs={[
+                  { type: "avatar-text" }, // Room Number
+                  { type: "icon-text" }, // Building
+                  { type: "badge" }, // Type
+                  { type: "icon-text" }, // Floor
+                  { type: "icon-text" }, // Capacity
+                  { type: "badge" }, // Status
+                  { type: "actions" }, // Actions
+                ]}
+              />
+            ) : rooms.length === 0 ? (
               <tr>
                 <td colSpan={7} className='px-6 py-12 text-center text-gray-500'>
                   <div className='flex flex-col items-center justify-center gap-3'>
