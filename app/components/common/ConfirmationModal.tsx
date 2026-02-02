@@ -12,13 +12,14 @@ interface ConfirmationModalProps {
   onClose: () => void;
   onConfirm: () => void;
   title?: string;
-  message: string;
+  message?: string;
   description?: string;
   confirmText?: string;
   cancelText?: string;
   variant?: ConfirmationVariant;
   icon?: React.ReactNode;
   isLoading?: boolean;
+  customContent?: React.ReactNode; // For injecting custom content (e.g., discount selection)
 }
 
 const ConfirmationModal: React.FC<ConfirmationModalProps> = ({
@@ -33,6 +34,7 @@ const ConfirmationModal: React.FC<ConfirmationModalProps> = ({
   variant = "danger",
   icon,
   isLoading = false,
+  customContent,
 }) => {
   if (!isOpen) return null;
 
@@ -177,70 +179,74 @@ const ConfirmationModal: React.FC<ConfirmationModalProps> = ({
 
         {/* Content */}
         <div className='p-6'>
-          <div className='mb-6'>
-            <div
-              className='text-base font-medium whitespace-pre-line'
-              style={{ color: colors.primary }}
-            >
-              {(() => {
-                const lines = message.split('\n');
-                const subjectLines: number[] = [];
-                const regularLines: { index: number; line: string }[] = [];
-                
-                // Separate subject lines from regular lines
-                lines.forEach((line, index) => {
-                  if (line.trim().startsWith('•')) {
-                    subjectLines.push(index);
-                  } else {
-                    regularLines.push({ index, line });
-                  }
-                });
-                
-                return (
-                  <>
-                    {/* Regular message lines */}
-                    {regularLines.map(({ index, line }) => (
-                      <p key={index} className={index === 0 ? 'mb-3' : 'mb-2'}>
-                        {line}
-                      </p>
-                    ))}
-                    
-                    {/* Subject list with scrollable container */}
-                    {subjectLines.length > 0 && (
-                      <div 
-                        className='mt-3 max-h-64 overflow-y-auto pr-2 space-y-1.5'
-                        style={{
-                          scrollbarWidth: 'thin',
-                          scrollbarColor: `${variantStyles.iconColor}40 transparent`,
-                        }}
-                      >
-                        {subjectLines.map((lineIndex) => {
-                          const line = lines[lineIndex];
-                          return (
-                            <div
-                              key={lineIndex}
-                              className='py-1.5 px-3 rounded-lg bg-blue-50 border border-blue-200'
-                              style={{ 
-                                backgroundColor: `${variantStyles.iconColor}10`,
-                                borderColor: `${variantStyles.iconColor}30`,
-                              }}
-                            >
-                              <span className='text-sm font-semibold' style={{ color: variantStyles.iconColor }}>
-                                {line.replace('•', '').trim().split(' - ')[0]}
-                              </span>
-                              <span className='text-sm text-gray-700 ml-2'>
-                                - {line.split(' - ').slice(1).join(' - ')}
-                              </span>
-                            </div>
-                          );
-                        })}
-                      </div>
-                    )}
-                  </>
-                );
-              })()}
+          {customContent ? (
+            <div className='mb-6'>{customContent}</div>
+          ) : message ? (
+            <div className='mb-6'>
+              <div
+                className='text-base font-medium whitespace-pre-line'
+                style={{ color: colors.primary }}
+              >
+                {(() => {
+                  const lines = message.split('\n');
+                  const subjectLines: number[] = [];
+                  const regularLines: { index: number; line: string }[] = [];
+                  
+                  // Separate subject lines from regular lines
+                  lines.forEach((line, index) => {
+                    if (line.trim().startsWith('•')) {
+                      subjectLines.push(index);
+                    } else {
+                      regularLines.push({ index, line });
+                    }
+                  });
+                  
+                  return (
+                    <>
+                      {/* Regular message lines */}
+                      {regularLines.map(({ index, line }) => (
+                        <p key={index} className={index === 0 ? 'mb-3' : 'mb-2'}>
+                          {line}
+                        </p>
+                      ))}
+                      
+                      {/* Subject list with scrollable container */}
+                      {subjectLines.length > 0 && (
+                        <div 
+                          className='mt-3 max-h-64 overflow-y-auto pr-2 space-y-1.5'
+                          style={{
+                            scrollbarWidth: 'thin',
+                            scrollbarColor: `${variantStyles.iconColor}40 transparent`,
+                          }}
+                        >
+                          {subjectLines.map((lineIndex) => {
+                            const line = lines[lineIndex];
+                            return (
+                              <div
+                                key={lineIndex}
+                                className='py-1.5 px-3 rounded-lg bg-blue-50 border border-blue-200'
+                                style={{ 
+                                  backgroundColor: `${variantStyles.iconColor}10`,
+                                  borderColor: `${variantStyles.iconColor}30`,
+                                }}
+                              >
+                                <span className='text-sm font-semibold' style={{ color: variantStyles.iconColor }}>
+                                  {line.replace('•', '').trim().split(' - ')[0]}
+                                </span>
+                                <span className='text-sm text-gray-700 ml-2'>
+                                  - {line.split(' - ').slice(1).join(' - ')}
+                                </span>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      )}
+                    </>
+                  );
+                })()}
+              </div>
             </div>
-          </div>
+          ) : null}
 
           {/* Action Buttons */}
           <div

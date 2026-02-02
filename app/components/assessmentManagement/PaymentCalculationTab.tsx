@@ -1,7 +1,16 @@
 import React from "react";
-import { DollarSign, CreditCard } from "lucide-react";
+import { DollarSign, CreditCard, Plus } from "lucide-react";
 import { colors } from "../../colors";
 import type { Fee, EnrolledSubject } from "./types";
+
+interface Discount {
+  id: number;
+  code: string;
+  name: string;
+  percentage: number;
+  semester: string;
+  status: string;
+}
 
 interface PaymentCalculationTabProps {
   tuitionPerUnit: string;
@@ -23,6 +32,8 @@ interface PaymentCalculationTabProps {
   net: number;
   insuranceCharge: number;
   totalInstallment: number;
+  selectedDiscount: Discount | null;
+  onDiscountSelectClick: () => void;
 }
 
 export const PaymentCalculationTab: React.FC<PaymentCalculationTabProps> = ({
@@ -43,6 +54,8 @@ export const PaymentCalculationTab: React.FC<PaymentCalculationTabProps> = ({
   net,
   insuranceCharge,
   totalInstallment,
+  selectedDiscount,
+  onDiscountSelectClick,
 }) => {
   // Filter subjects with fixed amounts
   const fixedAmountSubjects = enrolledSubjects.filter(
@@ -147,6 +160,7 @@ export const PaymentCalculationTab: React.FC<PaymentCalculationTabProps> = ({
                 value: discount,
                 setValue: setDiscount,
                 key: "discount",
+                isDiscount: true,
               },
               {
                 label: "Net Tuition",
@@ -170,34 +184,61 @@ export const PaymentCalculationTab: React.FC<PaymentCalculationTabProps> = ({
                 >
                   {item.label}
                 </span>
-                <input
-                  type="number"
-                  value={item.value || ""}
-                  onChange={(e) =>
-                    !item.readonly &&
-                    item.setValue(parseFloat(e.target.value) || 0)
-                  }
-                  readOnly={item.readonly}
-                  className="w-32 px-3 py-2 rounded-lg border text-right text-sm bg-white/50"
-                  style={{
-                    borderColor: colors.tertiary + "30",
-                    color: colors.primary,
-                  }}
-                  onFocus={(e) => {
-                    if (!item.readonly) {
-                      e.currentTarget.style.borderColor = colors.secondary;
-                      e.currentTarget.style.boxShadow = `0 0 0 3px ${colors.secondary}10`;
+                {item.isDiscount ? (
+                  <div className="flex items-center gap-2">
+                    <div
+                      className="px-3 py-2 rounded-lg border text-right text-sm bg-white/50 min-w-[128px]"
+                      style={{
+                        borderColor: colors.tertiary + "30",
+                        color: colors.primary,
+                      }}
+                    >
+                      {selectedDiscount
+                        ? `${selectedDiscount.percentage}% - ${selectedDiscount.code} (${selectedDiscount.name})`
+                        : "None Selected"}
+                    </div>
+                    <button
+                      onClick={onDiscountSelectClick}
+                      className="p-2 rounded-lg border hover:bg-gray-50 transition-colors"
+                      style={{
+                        borderColor: colors.secondary + "30",
+                        color: colors.secondary,
+                      }}
+                      title="Select Discount"
+                    >
+                      <Plus className="w-4 h-4" />
+                    </button>
+                  </div>
+                ) : (
+                  <input
+                    type="number"
+                    value={item.value || ""}
+                    onChange={(e) =>
+                      !item.readonly &&
+                      item.setValue(parseFloat(e.target.value) || 0)
                     }
-                  }}
-                  onBlur={(e) => {
-                    if (!item.readonly) {
-                      e.currentTarget.style.borderColor =
-                        colors.tertiary + "30";
-                      e.currentTarget.style.boxShadow = "none";
-                    }
-                  }}
-                  placeholder="0.00"
-                />
+                    readOnly={item.readonly}
+                    className="w-32 px-3 py-2 rounded-lg border text-right text-sm bg-white/50"
+                    style={{
+                      borderColor: colors.tertiary + "30",
+                      color: colors.primary,
+                    }}
+                    onFocus={(e) => {
+                      if (!item.readonly) {
+                        e.currentTarget.style.borderColor = colors.secondary;
+                        e.currentTarget.style.boxShadow = `0 0 0 3px ${colors.secondary}10`;
+                      }
+                    }}
+                    onBlur={(e) => {
+                      if (!item.readonly) {
+                        e.currentTarget.style.borderColor =
+                          colors.tertiary + "30";
+                        e.currentTarget.style.boxShadow = "none";
+                      }
+                    }}
+                    placeholder="0.00"
+                  />
+                )}
               </div>
             ))}
 
