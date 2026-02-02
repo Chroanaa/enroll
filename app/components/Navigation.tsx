@@ -112,6 +112,12 @@ const Navigation: React.FC<NavigationProps> = ({
         allowedRoles: [ROLES.ADMIN, ROLES.CASHIER],
       },
       {
+        id: "file-maintenance-schools-programs",
+        label: "Schools & Programs",
+        icon: GraduationCap,
+        allowedRoles: [ROLES.ADMIN, ROLES.REGISTRAR],
+      },
+      {
         id: "file-maintenance-subject",
         label: "Subject",
         icon: BookOpen,

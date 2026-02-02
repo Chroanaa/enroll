@@ -28,6 +28,7 @@ import {
   Discount,
   Subject,
   Products,
+  SchoolsPrograms,
 } from "../components/fileMaintenance";
 import ProtectedRoute from "../components/ProtectedRoute";
 
@@ -93,6 +94,8 @@ export default function DashboardPage() {
         return <Products />;
       case "file-maintenance-subject":
         return <Subject />;
+      case "file-maintenance-schools-programs":
+        return <SchoolsPrograms />;
       default:
         return <Dashboard />;
     }

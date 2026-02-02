@@ -245,20 +245,6 @@ const DiscountManagement: React.FC = () => {
     }
   };
 
-  if (isLoading) {
-    return (
-      <div
-        className='min-h-screen p-6 font-sans flex items-center justify-center'
-        style={{ backgroundColor: colors.paper }}
-      >
-        <div className='text-center'>
-          <div className='w-8 h-8 border-4 border-blue-500 border-t-transparent rounded-full animate-spin mx-auto mb-4' />
-          <p style={{ color: colors.primary }}>Loading discounts...</p>
-        </div>
-      </div>
-    );
-  }
-
   return (
     <div
       className='min-h-screen p-6 font-sans'
