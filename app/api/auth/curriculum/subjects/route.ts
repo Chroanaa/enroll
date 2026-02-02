@@ -178,6 +178,7 @@ export async function GET(request: NextRequest) {
           prerequisite: prerequisiteText,
           year_level: course.year_level,
           semester: course.semester,
+          fixedAmount: course.fixedAmount ? Number(course.fixedAmount) : undefined,
           subject: subject,
         };
       })

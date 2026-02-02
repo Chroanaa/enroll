@@ -26,7 +26,8 @@ const AssessmentManagement: React.FC = () => {
   const [programId, setProgramId] = useState<number | null>(null);
   const [studentNumber, setStudentNumber] = useState("");
   const [tuitionPerUnit, setTuitionPerUnit] = useState("570");
-  const [totalUnits, setTotalUnits] = useState(0);
+  const [totalUnits, setTotalUnits] = useState(0); // Regular units only (excludes fixed amount subjects)
+  const [fixedAmountTotal, setFixedAmountTotal] = useState(0); // Total of fixed amount subjects
   const [isFetchingStudent, setIsFetchingStudent] = useState(false);
   const [studentFetchError, setStudentFetchError] = useState("");
 
@@ -128,6 +129,25 @@ const AssessmentManagement: React.FC = () => {
     return trimmed.length >= 5;
   };
 
+  // Helper function to calculate regular units and fixed amount total from subjects
+  const calculateUnitsAndFixedAmounts = (subjects: EnrolledSubject[]) => {
+    let regularUnits = 0;
+    let fixedAmountSum = 0;
+
+    subjects.forEach((subject) => {
+      // Check if subject has fixed amount (not null, not undefined, and > 0)
+      if (subject.fixedAmount !== undefined && subject.fixedAmount !== null && subject.fixedAmount > 0) {
+        // Exclude from regular units, add to fixed amount total
+        fixedAmountSum += subject.fixedAmount;
+      } else {
+        // Include in regular units for tuition calculation
+        regularUnits += subject.units_total || 0;
+      }
+    });
+
+    return { regularUnits, fixedAmountSum };
+  };
+
   // Function to fetch student information by student number
   const fetchStudentByNumber = async (studentNum: string) => {
     if (!isValidStudentNumber(studentNum)) {
@@ -138,6 +158,7 @@ const AssessmentManagement: React.FC = () => {
     // Reset assessment/enrollment-related state before loading a new student
     setEnrolledSubjects([]);
     setTotalUnits(0);
+    setFixedAmountTotal(0);
     setSubjectsError("");
     setIsResidentReturnee(false);
 
@@ -206,6 +227,7 @@ const AssessmentManagement: React.FC = () => {
         setProgramId(null);
         setEnrolledSubjects([]);
         setTotalUnits(0);
+        setFixedAmountTotal(0);
         setIsResidentReturnee(false);
       }
     } catch (error) {
@@ -216,6 +238,7 @@ const AssessmentManagement: React.FC = () => {
       setProgramId(null);
       setEnrolledSubjects([]);
       setTotalUnits(0);
+      setFixedAmountTotal(0);
       setIsResidentReturnee(false);
     } finally {
       setIsFetchingStudent(false);
@@ -244,11 +267,9 @@ const AssessmentManagement: React.FC = () => {
           if (enrolledData.success && enrolledData.data && enrolledData.data.length > 0) {
             // Student has existing enrolled subjects for this term, use them
             setEnrolledSubjects(enrolledData.data);
-            const total = enrolledData.data.reduce(
-              (sum: number, course: EnrolledSubject) => sum + (course.units_total || 0),
-              0
-            );
-            setTotalUnits(total);
+            const { regularUnits, fixedAmountSum } = calculateUnitsAndFixedAmounts(enrolledData.data);
+            setTotalUnits(regularUnits);
+            setFixedAmountTotal(fixedAmountSum);
             setIsLoadingSubjects(false);
             return; // Exit early - we have enrolled subjects
           }
@@ -266,11 +287,9 @@ const AssessmentManagement: React.FC = () => {
         const curriculumData = await curriculumResponse.json();
         if (curriculumData.success && curriculumData.data.courses) {
           setEnrolledSubjects(curriculumData.data.courses);
-          const total = curriculumData.data.courses.reduce(
-            (sum: number, course: EnrolledSubject) => sum + (course.units_total || 0),
-            0
-          );
-          setTotalUnits(total);
+          const { regularUnits, fixedAmountSum } = calculateUnitsAndFixedAmounts(curriculumData.data.courses);
+          setTotalUnits(regularUnits);
+          setFixedAmountTotal(fixedAmountSum);
 
           // Auto-save curriculum subjects to enrolled_subjects ONLY for resident/returnee
           // This allows them to start with curriculum and modify later
@@ -298,18 +317,21 @@ const AssessmentManagement: React.FC = () => {
           setSubjectsError("No subjects found in curriculum for this program and semester");
           setEnrolledSubjects([]);
           setTotalUnits(0);
+          setFixedAmountTotal(0);
         }
       } else {
         const errorData = await curriculumResponse.json();
         setSubjectsError(errorData.error || "Failed to fetch subjects");
         setEnrolledSubjects([]);
         setTotalUnits(0);
+        setFixedAmountTotal(0);
       }
     } catch (error) {
       console.error("Error fetching enrolled subjects:", error);
       setSubjectsError("Failed to fetch enrolled subjects");
       setEnrolledSubjects([]);
       setTotalUnits(0);
+      setFixedAmountTotal(0);
     } finally {
       setIsLoadingSubjects(false);
     }
@@ -396,6 +418,7 @@ const AssessmentManagement: React.FC = () => {
         prerequisite: course.prerequisite || null,
         year_level: course.year_level,
         semester: semesterNum,
+        fixedAmount: course.fixedAmount,
       }));
 
       // Add new subjects to enrolled list (avoid duplicates by curriculum_course_id or course_code)
@@ -412,12 +435,10 @@ const AssessmentManagement: React.FC = () => {
 
       setEnrolledSubjects(updated);
 
-      // Recalculate total units
-      const total = updated.reduce(
-        (sum: number, course: EnrolledSubject) => sum + (course.units_total || 0),
-        0
-      );
-      setTotalUnits(total);
+      // Recalculate regular units and fixed amount total
+      const { regularUnits, fixedAmountSum } = calculateUnitsAndFixedAmounts(updated);
+      setTotalUnits(regularUnits);
+      setFixedAmountTotal(fixedAmountSum);
     } catch (error) {
       console.error("Error adding subjects:", error);
       setErrorModal({
@@ -437,23 +458,19 @@ const AssessmentManagement: React.FC = () => {
   const handleRemoveSubject = (subjectId: number) => {
     const updated = enrolledSubjects.filter(s => s.id !== subjectId);
     setEnrolledSubjects(updated);
-    // Recalculate total units
-    const total = updated.reduce(
-      (sum: number, course: EnrolledSubject) => sum + (course.units_total || 0),
-      0
-    );
-    setTotalUnits(total);
+    // Recalculate regular units and fixed amount total
+    const { regularUnits, fixedAmountSum } = calculateUnitsAndFixedAmounts(updated);
+    setTotalUnits(regularUnits);
+    setFixedAmountTotal(fixedAmountSum);
   };
 
   // Restore original subjects (used when canceling edit mode or switching tabs)
   const handleRestoreSubjects = (subjects: EnrolledSubject[]) => {
     setEnrolledSubjects(subjects);
-    // Recalculate total units
-    const total = subjects.reduce(
-      (sum: number, course: EnrolledSubject) => sum + (course.units_total || 0),
-      0
-    );
-    setTotalUnits(total);
+    // Recalculate regular units and fixed amount total
+    const { regularUnits, fixedAmountSum } = calculateUnitsAndFixedAmounts(subjects);
+    setTotalUnits(regularUnits);
+    setFixedAmountTotal(fixedAmountSum);
   };
 
   // Fetch subjects when program ID and current term are available
@@ -465,6 +482,7 @@ const AssessmentManagement: React.FC = () => {
     } else {
       setEnrolledSubjects([]);
       setTotalUnits(0);
+      setFixedAmountTotal(0);
     }
   }, [programId, currentTerm, isResidentReturnee, studentNumber]);
 
@@ -498,6 +516,7 @@ const AssessmentManagement: React.FC = () => {
       setProgramId(null);
       setEnrolledSubjects([]);
       setTotalUnits(0);
+      setFixedAmountTotal(0);
       setSubjectsError("");
       setIsResidentReturnee(false);
     }
@@ -522,16 +541,18 @@ const AssessmentManagement: React.FC = () => {
     const dynamicFeesTotal = Object.values(dynamicFees).reduce((sum, amount) => sum + amount, 0);
 
     // Calculate total fees (cash basis)
-    const total = net + dynamicFeesTotal;
+    // Includes: Net Tuition + Dynamic Fees + Fixed Amount Subjects Total
+    const total = net + dynamicFeesTotal + fixedAmountTotal;
     setTotalFees(total);
 
     // Calculate installment basis
+    // Fixed amount subjects are already included in cash basis before installment deduction
     const installmentNet = total - downPayment;
     setNet(installmentNet);
     const insurance = installmentNet * 0.05;
     setInsuranceCharge(insurance);
     setTotalInstallment(installmentNet + insurance);
-  }, [tuition, discount, dynamicFees, downPayment]);
+  }, [tuition, discount, dynamicFees, downPayment, fixedAmountTotal]);
 
   const fetchFees = async () => {
     try {
@@ -684,6 +705,8 @@ const AssessmentManagement: React.FC = () => {
                   discount={discount}
                   setDiscount={setDiscount}
                   netTuition={netTuition}
+                  fixedAmountTotal={fixedAmountTotal}
+                  enrolledSubjects={enrolledSubjects}
                   fees={fees}
                   dynamicFees={dynamicFees}
                   setDynamicFees={setDynamicFees}

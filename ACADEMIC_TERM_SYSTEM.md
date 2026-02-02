@@ -55,7 +55,7 @@ Query parameters:
 - `includePrevious=true` - Include previous semester info
 
 Response:
-
+  
 ```json
 {
   "success": true,
