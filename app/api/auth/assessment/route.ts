@@ -27,11 +27,12 @@ export async function GET(request: NextRequest) {
       include: {
         discount: true,
         fees: true,
-        payments: {
+        payment_schedules: {
           orderBy: {
-            payment_date: "desc",
+            due_date: "asc",
           },
         },
+        // Payments are handled by Payment Module - not included in assessment response
       },
     });
 
@@ -39,18 +40,9 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: "Assessment not found" }, { status: 404 });
     }
 
-    // Calculate remaining balance
-    const totalPaid = assessment.payments.reduce(
-      (sum: number, payment: any) => sum + Number(payment.amount_paid),
-      0
-    );
-    const remainingBalance = Number(assessment.total_due) - totalPaid;
-
-    return NextResponse.json({
-      ...assessment,
-      total_paid: totalPaid,
-      remaining_balance: remainingBalance,
-    });
+    // Assessment API only returns assessment data
+    // Payment balances should be calculated by payment module
+    return NextResponse.json(assessment);
   } catch (error: any) {
     console.error("Error fetching assessment:", error);
     return NextResponse.json(
@@ -71,19 +63,41 @@ export async function POST(request: NextRequest) {
       studentNumber,
       academicYear,
       semester,
+      // Financial fields
       grossTuition,
       discountId,
       discountPercent,
       discountAmount,
       netTuition,
       totalFees,
+      fixedAmountTotal,
+      baseTotal,
+      // Payment mode fields
+      paymentMode,
+      downPayment,
+      insuranceAmount,
+      totalDueCash,
+      totalDueInstallment,
       totalDue,
+      // Related data
       fees, // Array of { feeId, feeName, feeCategory, amount }
+      paymentSchedule, // Array of { label, dueDate, amount } for installment mode
+      // Status
+      mode, // 'draft' | 'finalize'
+      userId, // For audit trail
     } = body;
 
+    // Validation
     if (!studentNumber || !academicYear || semester === undefined) {
       return NextResponse.json(
         { error: "Missing required fields: studentNumber, academicYear, semester" },
+        { status: 400 }
+      );
+    }
+
+    if (!paymentMode || !['cash', 'installment'].includes(paymentMode)) {
+      return NextResponse.json(
+        { error: "Invalid or missing payment_mode. Must be 'cash' or 'installment'" },
         { status: 400 }
       );
     }
@@ -92,6 +106,7 @@ export async function POST(request: NextRequest) {
       grossTuition === undefined ||
       netTuition === undefined ||
       totalFees === undefined ||
+      baseTotal === undefined ||
       totalDue === undefined
     ) {
       return NextResponse.json(
@@ -100,10 +115,35 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // Validate payment mode specific fields
+    if (paymentMode === 'installment') {
+      // Note: Down payment validation is handled by Payment Module
+      if (!paymentSchedule || paymentSchedule.length !== 3) {
+        return NextResponse.json(
+          { error: "Payment schedule must have exactly 3 installments" },
+          { status: 400 }
+        );
+      }
+      // Validate installment amounts sum
+      const scheduleSum = paymentSchedule.reduce(
+        (sum: number, s: any) => sum + parseFloat(s.amount || 0),
+        0
+      );
+      const expectedTotal = totalDueInstallment || totalDue;
+      if (Math.abs(scheduleSum - expectedTotal) > 0.01) {
+        return NextResponse.json(
+          { error: `Installment amounts must sum to ${expectedTotal}. Current sum: ${scheduleSum}` },
+          { status: 400 }
+        );
+      }
+    }
+
     // Use transaction to ensure data integrity
+    // Add timeout to prevent P2028 errors (default is 5 seconds, increase to 10 seconds)
     let isUpdate = false;
     const result = await prisma.$transaction(async (tx) => {
-      // Check if assessment already exists
+      // Check if assessment already exists (using unique constraint)
+      // This will find ANY assessment with this combination, including cancelled ones
       const existing = await tx.student_assessment.findUnique({
         where: {
           student_number_academic_year_semester: {
@@ -115,9 +155,21 @@ export async function POST(request: NextRequest) {
       });
 
       let assessment;
+      const saveMode = mode || 'draft';
+      const assessmentStatus = saveMode === 'finalize' ? 'finalized' : 'draft';
+
       if (existing) {
         isUpdate = true;
-        // Update existing assessment
+        
+        // Calculate next version if reassessing (finalized -> draft)
+        const existingStatus = (existing as any).status || 'draft';
+        const existingVersion = (existing as any).version || 1;
+        const nextVersion = existingStatus === 'finalized' && saveMode === 'draft'
+          ? existingVersion + 1
+          : existingVersion;
+
+        // Update existing assessment (respects unique constraint)
+        // This handles all cases: draft updates, finalized updates, cancelled reactivation
         assessment = await tx.student_assessment.update({
           where: { id: existing.id },
           data: {
@@ -127,16 +179,21 @@ export async function POST(request: NextRequest) {
             discount_amount: discountAmount ? parseFloat(discountAmount) : null,
             net_tuition: parseFloat(netTuition),
             total_fees: parseFloat(totalFees),
+            fixed_amount_total: fixedAmountTotal ? parseFloat(fixedAmountTotal) : 0,
+            base_total: parseFloat(baseTotal),
+            payment_mode: paymentMode,
+            down_payment: null, // Down payment handled by Payment Module
+            insurance_amount: paymentMode === 'installment' && insuranceAmount !== undefined ? parseFloat(insuranceAmount) : null,
+            total_due_cash: paymentMode === 'cash' ? parseFloat(totalDueCash || totalDue) : null,
+            total_due_installment: paymentMode === 'installment' ? parseFloat(totalDueInstallment || totalDue) : null,
             total_due: parseFloat(totalDue),
+            status: assessmentStatus,
+            version: nextVersion,
+            finalized_at: saveMode === 'finalize' ? new Date() : (existingStatus === 'finalized' && saveMode === 'draft' ? null : (existing as any).finalized_at),
           },
         });
-
-        // Delete existing fee snapshots
-        await tx.assessment_fee.deleteMany({
-          where: { assessment_id: assessment.id },
-        });
       } else {
-        // Create new assessment
+        // No assessment exists, create new one
         assessment = await tx.student_assessment.create({
           data: {
             student_number: studentNumber,
@@ -148,10 +205,25 @@ export async function POST(request: NextRequest) {
             discount_amount: discountAmount ? parseFloat(discountAmount) : null,
             net_tuition: parseFloat(netTuition),
             total_fees: parseFloat(totalFees),
+            fixed_amount_total: fixedAmountTotal ? parseFloat(fixedAmountTotal) : 0,
+            base_total: parseFloat(baseTotal),
+            payment_mode: paymentMode,
+            down_payment: null, // Down payment handled by Payment Module
+            insurance_amount: paymentMode === 'installment' && insuranceAmount !== undefined ? parseFloat(insuranceAmount) : null,
+            total_due_cash: paymentMode === 'cash' ? parseFloat(totalDueCash || totalDue) : null,
+            total_due_installment: paymentMode === 'installment' ? parseFloat(totalDueInstallment || totalDue) : null,
             total_due: parseFloat(totalDue),
+            status: assessmentStatus,
+            version: 1,
+            finalized_at: saveMode === 'finalize' ? new Date() : null,
           },
         });
       }
+
+      // Delete existing fee snapshots
+      await tx.assessment_fee.deleteMany({
+        where: { assessment_id: assessment.id },
+      });
 
       // Create fee snapshots
       if (fees && Array.isArray(fees) && fees.length > 0) {
@@ -166,18 +238,97 @@ export async function POST(request: NextRequest) {
         });
       }
 
+      // Handle Payment Schedule (only for installment mode)
+      if (paymentMode === 'installment') {
+        // Delete existing payment schedule
+        await tx.payment_schedule.deleteMany({
+          where: { assessment_id: assessment.id },
+        });
+
+        // Create payment schedule
+        if (paymentSchedule && paymentSchedule.length > 0) {
+          const today = new Date();
+          today.setHours(0, 0, 0, 0); // Set to start of day
+
+          await tx.payment_schedule.createMany({
+            data: paymentSchedule.map((schedule: any) => {
+              let dueDate: Date;
+              
+              // Validate and parse the date
+              if (schedule.dueDate && schedule.dueDate !== '' && schedule.dueDate !== 'Invalid Date') {
+                const parsedDate = new Date(schedule.dueDate);
+                if (!isNaN(parsedDate.getTime())) {
+                  dueDate = parsedDate;
+                } else {
+                  // Invalid date string, use today
+                  dueDate = new Date(today);
+                }
+              } else {
+                // No date provided, use today
+                dueDate = new Date(today);
+              }
+
+              return {
+                assessment_id: assessment.id,
+                label: schedule.label,
+                due_date: dueDate,
+                amount: parseFloat(schedule.amount),
+                is_paid: false,
+              };
+            }),
+          });
+        }
+      } else {
+        // Delete payment schedule if switching from installment to cash
+        await tx.payment_schedule.deleteMany({
+          where: { assessment_id: assessment.id },
+        });
+      }
+
+      // Create audit trail entry
+      if (userId) {
+        try {
+          await tx.assessment_audit.create({
+            data: {
+              assessment_id: assessment.id,
+              action: isUpdate ? 'updated' : 'created',
+              changed_fields: JSON.stringify(Object.keys(body)),
+              previous_values: existing ? JSON.stringify(existing) : null,
+              new_values: JSON.stringify(body),
+              user_id: userId,
+            },
+          });
+        } catch (auditError) {
+          // Log but don't fail the transaction if audit fails
+          console.error("Error creating audit trail:", auditError);
+        }
+      }
+
       // Fetch complete assessment with relations
+      // Note: Payments are handled by Payment Module, not included here
       return await tx.student_assessment.findUnique({
         where: { id: assessment.id },
         include: {
           discount: true,
           fees: true,
-          payments: true,
+          payment_schedules: {
+            orderBy: {
+              due_date: "asc",
+            },
+          },
+          // Payments excluded - use Payment Module API to get payment data
         },
       });
+    }, {
+      maxWait: 10000, // Maximum time to wait for a transaction slot (10 seconds)
+      timeout: 15000, // Maximum time the transaction can run (15 seconds)
     });
 
-    return NextResponse.json(result, { status: isUpdate ? 200 : 201 });
+    return NextResponse.json({
+      success: true,
+      data: result,
+      message: isUpdate ? 'Assessment updated successfully' : 'Assessment created successfully',
+    }, { status: isUpdate ? 200 : 201 });
   } catch (error: any) {
     console.error("Error saving assessment:", error);
     return NextResponse.json(
@@ -189,4 +340,3 @@ export async function POST(request: NextRequest) {
     );
   }
 }
-

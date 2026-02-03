@@ -49,165 +49,33 @@ export const PaymentScheduleTab: React.FC<PaymentScheduleTabProps> = ({
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        {/* Payment Details */}
+        {/* Note: Payment recording is handled by Payment Module */}
         <div
           className="p-5 rounded-xl border shadow-sm"
           style={{
             borderColor: colors.accent + "20",
-            backgroundColor: "white",
+            backgroundColor: colors.accent + "05",
           }}
         >
-          <div
-            className="flex items-center gap-3 mb-5 pb-3 border-b"
-            style={{ borderColor: colors.accent + "10" }}
-          >
-            <div
-              className="p-2 rounded-lg"
-              style={{ backgroundColor: colors.accent + "15" }}
-            >
-              <Receipt
-                className="w-4 h-4"
-                style={{ color: colors.secondary }}
-              />
-            </div>
+          <div className="text-center py-8">
+            <Receipt
+              className="w-12 h-12 mx-auto mb-4 opacity-50"
+              style={{ color: colors.tertiary }}
+            />
             <h3
-              className="text-lg font-bold tracking-tight"
+              className="text-lg font-bold mb-2"
               style={{ color: colors.primary }}
             >
-              Payment Details
+              Payment Recording
             </h3>
-          </div>
-          <div
-            className="border rounded-xl overflow-hidden"
-            style={{ borderColor: colors.accent + "20" }}
-          >
-            <table className="w-full text-sm">
-              <thead>
-                <tr style={{ backgroundColor: colors.accent + "08" }}>
-                  <th
-                    className="px-4 py-3 text-left border-r font-semibold"
-                    style={{
-                      borderColor: colors.accent + "20",
-                      color: colors.primary,
-                    }}
-                  >
-                    Payment Date
-                  </th>
-                  <th
-                    className="px-4 py-3 text-left border-r font-semibold"
-                    style={{
-                      borderColor: colors.accent + "20",
-                      color: colors.primary,
-                    }}
-                  >
-                    O.R. Number
-                  </th>
-                  <th
-                    className="px-4 py-3 text-left border-r font-semibold"
-                    style={{
-                      borderColor: colors.accent + "20",
-                      color: colors.primary,
-                    }}
-                  >
-                    Amount Paid
-                  </th>
-                  <th
-                    className="px-4 py-3 text-left font-semibold"
-                    style={{ color: colors.primary }}
-                  >
-                    Balance
-                  </th>
-                </tr>
-              </thead>
-              <tbody>
-                {[1, 2, 3, 4, 5].map((row) => (
-                  <tr
-                    key={row}
-                    className="border-b hover:bg-white/50 transition-colors"
-                    style={{ borderColor: colors.accent + "10" }}
-                  >
-                    <td
-                      className="px-4 py-3 border-r"
-                      style={{ borderColor: colors.accent + "20" }}
-                    >
-                      <input
-                        type="date"
-                        className="w-full border-none outline-none bg-transparent text-sm rounded-lg px-2 py-1 hover:bg-white/50 focus:bg-white focus:ring-2 focus:ring-offset-0 transition-all"
-                        style={{
-                          color: colors.primary,
-                        }}
-                        onFocus={(e) => {
-                          e.currentTarget.style.backgroundColor = "white";
-                          e.currentTarget.style.boxShadow = `0 0 0 3px ${colors.secondary}10`;
-                        }}
-                        onBlur={(e) => {
-                          e.currentTarget.style.backgroundColor =
-                            "transparent";
-                          e.currentTarget.style.boxShadow = "none";
-                        }}
-                      />
-                    </td>
-                    <td
-                      className="px-4 py-3 border-r"
-                      style={{ borderColor: colors.accent + "20" }}
-                    >
-                      <input
-                        type="text"
-                        className="w-full border-none outline-none bg-transparent text-sm rounded-lg px-2 py-1 hover:bg-white/50 focus:bg-white focus:ring-2 focus:ring-offset-0 transition-all"
-                        style={{ color: colors.primary }}
-                        onFocus={(e) => {
-                          e.currentTarget.style.backgroundColor = "white";
-                          e.currentTarget.style.boxShadow = `0 0 0 3px ${colors.secondary}10`;
-                        }}
-                        onBlur={(e) => {
-                          e.currentTarget.style.backgroundColor =
-                            "transparent";
-                          e.currentTarget.style.boxShadow = "none";
-                        }}
-                        placeholder="O.R. #"
-                      />
-                    </td>
-                    <td
-                      className="px-4 py-3 border-r"
-                      style={{ borderColor: colors.accent + "20" }}
-                    >
-                      <input
-                        type="number"
-                        className="w-full border-none outline-none bg-transparent text-right text-sm rounded-lg px-2 py-1 hover:bg-white/50 focus:bg-white focus:ring-2 focus:ring-offset-0 transition-all"
-                        style={{ color: colors.primary }}
-                        onFocus={(e) => {
-                          e.currentTarget.style.backgroundColor = "white";
-                          e.currentTarget.style.boxShadow = `0 0 0 3px ${colors.secondary}10`;
-                        }}
-                        onBlur={(e) => {
-                          e.currentTarget.style.backgroundColor =
-                            "transparent";
-                          e.currentTarget.style.boxShadow = "none";
-                        }}
-                        placeholder="0.00"
-                      />
-                    </td>
-                    <td className="px-4 py-3">
-                      <input
-                        type="number"
-                        className="w-full border-none outline-none bg-transparent text-right text-sm rounded-lg px-2 py-1 hover:bg-white/50 focus:bg-white focus:ring-2 focus:ring-offset-0 transition-all"
-                        style={{ color: colors.primary }}
-                        onFocus={(e) => {
-                          e.currentTarget.style.backgroundColor = "white";
-                          e.currentTarget.style.boxShadow = `0 0 0 3px ${colors.secondary}10`;
-                        }}
-                        onBlur={(e) => {
-                          e.currentTarget.style.backgroundColor =
-                            "transparent";
-                          e.currentTarget.style.boxShadow = "none";
-                        }}
-                        placeholder="0.00"
-                      />
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+            <p
+              className="text-sm"
+              style={{ color: colors.tertiary }}
+            >
+              Payment processing is handled by the Payment Module.
+              <br />
+              Use the Payment Management section to record payments.
+            </p>
           </div>
         </div>
 

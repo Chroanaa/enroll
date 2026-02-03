@@ -1,7 +1,7 @@
 "use client";
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useMemo, useCallback } from "react";
 import { useSearchParams } from "next/navigation";
-import { Calculator } from "lucide-react";
+import { Calculator, CheckCircle2 } from "lucide-react";
 import { colors } from "../colors";
 import { defaultFormStyles } from "../utils/formStyles";
 import { useAcademicTerm } from "../hooks/useAcademicTerm";
@@ -9,11 +9,20 @@ import SuccessModal from "./common/SuccessModal";
 import ErrorModal from "./common/ErrorModal";
 import StudentSearchModal from "./common/StudentSearchModal";
 import ConfirmationModal from "./common/ConfirmationModal";
+import AssessmentSummaryModal, { AssessmentSummaryData } from "./common/AssessmentSummaryModal";
 import type { Fee, PaymentDetail, EnrolledSubject } from "./assessmentManagement/types";
 import { StudentInfoSection } from "./assessmentManagement/StudentInfoSection";
 import { EnrolledSubjectsTab } from "./assessmentManagement/EnrolledSubjectsTab";
 import { PaymentCalculationTab } from "./assessmentManagement/PaymentCalculationTab";
-import { PaymentScheduleTab } from "./assessmentManagement/PaymentScheduleTab";
+// PaymentScheduleTab removed - functionality moved to PaymentCalculationTab
+import {
+  calculateAssessment,
+  calculateRegularUnits,
+  calculateFixedAmountTotal,
+  distributeInstallmentsEqually,
+  validateInstallmentSchedule,
+  formatCurrency,
+} from "../utils/assessmentCalculations";
 
 const AssessmentManagement: React.FC = () => {
   const searchParams = useSearchParams();
@@ -41,7 +50,24 @@ const AssessmentManagement: React.FC = () => {
   const [isResidentReturnee, setIsResidentReturnee] = useState(false);
 
   // Tab Management
-  const [activeTab, setActiveTab] = useState<"subjects" | "payment" | "schedule" | "details">("subjects");
+  const [activeTab, setActiveTab] = useState<"subjects" | "payment">("subjects");
+  
+  // Payment Schedule (loaded from existing assessment)
+  const [paymentSchedules, setPaymentSchedules] = useState<Array<{
+    id?: number;
+    label: string;
+    dueDate: string;
+    amount: number;
+    isPaid?: boolean;
+  }>>([]);
+  
+  // Track if assessment has been saved to show summary
+  const [showSummary, setShowSummary] = useState(false);
+  
+  // Assessment Summary Modal
+  const [isSummaryModalOpen, setIsSummaryModalOpen] = useState(false);
+  const [isSavingAssessment, setIsSavingAssessment] = useState(false);
+  const [isAssessmentSaved, setIsAssessmentSaved] = useState(false);
 
   // Cash Basis
   const [tuition, setTuition] = useState(0);
@@ -69,11 +95,16 @@ const AssessmentManagement: React.FC = () => {
     remarks: string | null;
   } | null>(null);
 
-  // Installment Basis
-  const [downPayment, setDownPayment] = useState(0);
-  const [net, setNet] = useState(0);
+  // Payment Mode
+  const [paymentMode, setPaymentMode] = useState<'cash' | 'installment'>('cash');
+  
+  // Installment Basis (Assessment only calculates total, payment module handles down payment)
   const [insuranceCharge, setInsuranceCharge] = useState(0);
   const [totalInstallment, setTotalInstallment] = useState(0);
+  
+  // Base Total (before payment mode)
+  const [baseTotal, setBaseTotal] = useState(0);
+  const [totalDueCash, setTotalDueCash] = useState(0);
 
   // Payment Details
   const [paymentDetails, setPaymentDetails] = useState<PaymentDetail[]>([]);
@@ -116,8 +147,8 @@ const AssessmentManagement: React.FC = () => {
     const urlTab = searchParams.get('tab') as 'subjects' | 'payment' | 'schedule' | null;
     
     // Set active tab from URL parameter, default to 'subjects'
-    if (urlTab && ['subjects', 'payment', 'schedule'].includes(urlTab)) {
-      setActiveTab(urlTab);
+    if (urlTab && ['subjects', 'payment'].includes(urlTab)) {
+      setActiveTab(urlTab as "subjects" | "payment");
     } else {
       setActiveTab('subjects');
     }
@@ -258,6 +289,7 @@ const AssessmentManagement: React.FC = () => {
         setTotalUnits(0);
         setFixedAmountTotal(0);
         setIsResidentReturnee(false);
+        setShowSummary(false);
       }
     } catch (error) {
       console.error("Error fetching student:", error);
@@ -269,8 +301,58 @@ const AssessmentManagement: React.FC = () => {
       setTotalUnits(0);
       setFixedAmountTotal(0);
       setIsResidentReturnee(false);
+      setShowSummary(false);
     } finally {
       setIsFetchingStudent(false);
+    }
+  };
+
+  // Load existing assessment and populate payment schedules
+  const loadExistingAssessment = async () => {
+    if (!studentNumber || !currentTerm) return;
+
+    try {
+      const response = await fetch(
+        `/api/auth/assessment?studentNumber=${encodeURIComponent(studentNumber)}&academicYear=${encodeURIComponent(currentTerm.academicYear)}&semester=${currentTerm.semester}`
+      );
+
+      if (response.ok) {
+        const assessment = await response.json();
+        
+        // Populate payment schedules if they exist
+        if (assessment.payment_schedules && assessment.payment_schedules.length > 0) {
+          const schedules = assessment.payment_schedules.map((schedule: any) => ({
+            id: schedule.id,
+            label: schedule.label,
+            dueDate: schedule.due_date ? new Date(schedule.due_date).toISOString().split('T')[0] : '',
+            amount: Number(schedule.amount),
+            isPaid: schedule.is_paid || false,
+          }));
+          setPaymentSchedules(schedules);
+          
+          // Also populate the individual state for editing
+          const prelim = schedules.find((s: any) => s.label === 'Prelim');
+          const midterm = schedules.find((s: any) => s.label === 'Midterm');
+          const finals = schedules.find((s: any) => s.label === 'Finals');
+          
+          if (prelim) {
+            setPrelimDate(prelim.dueDate);
+            setPrelimAmount(prelim.amount);
+          }
+          if (midterm) {
+            setMidtermDate(midterm.dueDate);
+            setMidtermAmount(midterm.amount);
+          }
+          if (finals) {
+            setFinalsDate(finals.dueDate);
+            setFinalsAmount(finals.amount);
+          }
+        } else {
+          setPaymentSchedules([]);
+        }
+      }
+    } catch (error) {
+      console.error("Error loading existing assessment:", error);
     }
   };
 
@@ -300,6 +382,8 @@ const AssessmentManagement: React.FC = () => {
             setTotalUnits(regularUnits);
             setFixedAmountTotal(fixedAmountSum);
             setIsLoadingSubjects(false);
+            // Load existing assessment after subjects are loaded
+            await loadExistingAssessment();
             return; // Exit early - we have enrolled subjects
           }
         }
@@ -581,7 +665,7 @@ const AssessmentManagement: React.FC = () => {
     }
   }, [studentNumber]);
 
-  // Calculate tuition based on total units when totalUnits changes
+  // Calculate gross tuition based on total units when totalUnits changes
   useEffect(() => {
     if (totalUnits > 0 && tuitionPerUnit) {
       const tuitionAmount = totalUnits * parseFloat(tuitionPerUnit);
@@ -711,38 +795,74 @@ const AssessmentManagement: React.FC = () => {
     }
   }, [tuition, selectedDiscount]);
 
+  // Main calculation effect - uses new calculation utilities
   useEffect(() => {
-    // Calculate net tuition
-    const net = tuition - discount;
-    setNetTuition(net);
+    // Use the calculation utility function
+    const results = calculateAssessment({
+      enrolledSubjects,
+      tuitionPerUnit: parseFloat(tuitionPerUnit) || 0,
+      discountPercentage: selectedDiscount ? Number(selectedDiscount.percentage) : 0,
+      dynamicFees,
+      paymentMode,
+      // Note: downPayment is handled by Payment Module, not Assessment
+    });
 
-    // Calculate total of dynamic fees
-    const dynamicFeesTotal = Object.values(dynamicFees).reduce((sum, amount) => sum + amount, 0);
+    // Update all calculated values
+    setDiscount(results.discountAmount);
+    setNetTuition(results.netTuition);
+    setBaseTotal(results.baseTotal);
+    setTotalFees(results.dynamicFeesTotal);
+    
+    // Payment mode specific calculations
+    if (paymentMode === 'cash') {
+      setTotalDueCash(results.totalDueCash);
+      setInsuranceCharge(0);
+      setTotalInstallment(0);
+    } else {
+      setTotalDueCash(0);
+      setInsuranceCharge(results.insuranceAmount || 0);
+      setTotalInstallment(results.totalInstallment || 0);
+      
+      // Auto-distribute installments if total changes
+      if (results.totalInstallment) {
+        const distributed = distributeInstallmentsEqually(results.totalInstallment);
+        setPrelimAmount(distributed.prelim);
+        setMidtermAmount(distributed.midterm);
+        setFinalsAmount(distributed.finals);
+        
+        // Set default dates to today if not already set
+        const today = new Date().toISOString().split('T')[0];
+        if (!prelimDate) {
+          setPrelimDate(today);
+        }
+        if (!midtermDate) {
+          setMidtermDate(today);
+        }
+        if (!finalsDate) {
+          setFinalsDate(today);
+        }
+      }
+    }
+  }, [
+    enrolledSubjects,
+    tuitionPerUnit,
+    selectedDiscount,
+    dynamicFees,
+    paymentMode,
+    fixedAmountTotal,
+  ]);
 
-    // Calculate total fees (cash basis)
-    // Includes: Net Tuition + Dynamic Fees + Fixed Amount Subjects Total
-    const total = net + dynamicFeesTotal + fixedAmountTotal;
-    setTotalFees(total);
-
-    // Calculate installment basis
-    // Fixed amount subjects are already included in cash basis before installment deduction
-    const installmentNet = total - downPayment;
-    setNet(installmentNet);
-    const insurance = installmentNet * 0.05;
-    setInsuranceCharge(insurance);
-    setTotalInstallment(installmentNet + insurance);
-  }, [tuition, discount, dynamicFees, downPayment, fixedAmountTotal]);
-
+  // Optimized fee fetching with caching
   const fetchFees = async () => {
     try {
-      const response = await fetch("/api/auth/fees");
-      const data = await response.json();
-      console.log("All fees fetched:", data);
-      console.log("Active non-tuition fees:", data.filter((fee: Fee) => 
-        fee.status?.toLowerCase() === "active" && 
-        fee.category?.toLowerCase() !== "tuition"
-      ));
-      setFees(data || []);
+      const response = await fetch("/api/auth/fees", {
+        cache: 'force-cache', // Cache fees for better performance
+        next: { revalidate: 300 }, // Revalidate every 5 minutes
+      });
+      if (response.ok) {
+        const data = await response.json();
+        setFees(data || []);
+      }
     } catch (error) {
       console.error("Error fetching fees:", error);
     } finally {
@@ -760,6 +880,237 @@ const AssessmentManagement: React.FC = () => {
 
   const handleSaveSubjects = async (): Promise<boolean> => {
     return await saveEnrolledSubjects();
+  };
+
+  // Prepare assessment summary data - Memoized for performance
+  const prepareSummaryData = useMemo((): AssessmentSummaryData | null => {
+    if (!studentNumber || !studentName || !currentTerm) {
+      return null;
+    }
+
+    // Prepare fees array from dynamicFees - optimized
+    const feesArray = fees
+      .filter(fee => fee.status?.toLowerCase() === "active")
+      .map(fee => ({
+        id: fee.id,
+        name: fee.name,
+        category: fee.category || "",
+        amount: dynamicFees[fee.id] || 0,
+      }))
+      .filter(fee => fee.amount > 0);
+
+    return {
+      studentName,
+      studentNumber,
+      academicYear: currentTerm.academicYear,
+      semester: currentTerm.semester,
+      totalUnits,
+      tuitionPerUnit: parseFloat(tuitionPerUnit) || 0,
+      grossTuition: tuition,
+      discount: selectedDiscount ? {
+        id: selectedDiscount.id,
+        code: selectedDiscount.code,
+        name: selectedDiscount.name,
+        percentage: selectedDiscount.percentage,
+      } : null,
+      discountAmount: discount,
+      netTuition,
+      fees: feesArray,
+      totalFees,
+      fixedAmountTotal,
+      paymentMode,
+      totalDueCash,
+      insuranceAmount: insuranceCharge,
+      totalInstallment,
+      baseTotal,
+    };
+  }, [
+    studentNumber,
+    studentName,
+    currentTerm,
+    totalUnits,
+    tuitionPerUnit,
+    tuition,
+    selectedDiscount,
+    discount,
+    netTuition,
+    fees,
+    dynamicFees,
+    totalFees,
+    fixedAmountTotal,
+    paymentMode,
+    totalDueCash,
+    insuranceCharge,
+    totalInstallment,
+    baseTotal,
+  ]);
+
+  // Check if assessment can be saved - Memoized for performance
+  const canSaveAssessment = useMemo((): boolean => {
+    if (!studentNumber || !programId || !currentTerm) {
+      return false;
+    }
+    if (enrolledSubjects.length === 0) {
+      return false;
+    }
+    if (paymentMode === 'installment') {
+      // Validate installment schedule
+      const validation = validateInstallmentSchedule(
+        prelimAmount,
+        midtermAmount,
+        finalsAmount,
+        totalInstallment
+      );
+      if (!validation.valid) {
+        return false;
+      }
+    }
+    return true;
+  }, [studentNumber, programId, currentTerm, enrolledSubjects.length, paymentMode, prelimAmount, midtermAmount, finalsAmount, totalInstallment]);
+
+  // Save assessment with all financial data - Always finalizes
+  const handleSaveAssessment = async (): Promise<boolean> => {
+    if (!studentNumber || !programId || !currentTerm) {
+      setErrorModal({
+        isOpen: true,
+        message: "Please enter student information first",
+      });
+      return false;
+    }
+
+    // Validate installment schedule if in installment mode
+    if (paymentMode === 'installment') {
+      const validation = validateInstallmentSchedule(
+        prelimAmount,
+        midtermAmount,
+        finalsAmount,
+        totalInstallment
+      );
+      if (!validation.valid) {
+        setErrorModal({
+          isOpen: true,
+          message: validation.error || "Invalid installment schedule",
+        });
+        return false;
+      }
+      // Note: Down payment validation is handled by Payment Module
+    }
+
+    try {
+      const semesterNum = currentTerm.semester === "First" ? 1 : 2;
+      
+      // Prepare fee snapshots
+      const feeSnapshots = fees
+        .filter(fee => fee.status?.toLowerCase() === "active" && fee.category?.toLowerCase() !== "tuition")
+        .map(fee => ({
+          feeId: fee.id,
+          feeName: fee.name,
+          feeCategory: fee.category || "miscellaneous",
+          amount: dynamicFees[fee.id] || Number(fee.amount),
+        }));
+
+      // Prepare payment schedule (only for installment mode)
+      const paymentSchedule = paymentMode === 'installment' ? [
+        { label: "Prelim", dueDate: prelimDate, amount: prelimAmount },
+        { label: "Midterm", dueDate: midtermDate, amount: midtermAmount },
+        { label: "Finals", dueDate: finalsDate, amount: finalsAmount },
+      ] : [];
+
+      const response = await fetch("/api/auth/assessment", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          studentNumber: studentNumber.trim(),
+          academicYear: currentTerm.academicYear,
+          semester: semesterNum,
+          grossTuition: tuition,
+          discountId: selectedDiscount?.id || null,
+          discountPercent: selectedDiscount ? Number(selectedDiscount.percentage) : null,
+          discountAmount: discount,
+          netTuition: netTuition,
+          totalFees: totalFees,
+          fixedAmountTotal: fixedAmountTotal,
+          baseTotal: baseTotal,
+          paymentMode: paymentMode,
+          downPayment: null, // Down payment handled by Payment Module
+          insuranceAmount: paymentMode === 'installment' ? insuranceCharge : null,
+          totalDueCash: paymentMode === 'cash' ? totalDueCash : null,
+          totalDueInstallment: paymentMode === 'installment' ? totalInstallment : null,
+          totalDue: paymentMode === 'cash' ? totalDueCash : totalInstallment,
+          fees: feeSnapshots,
+          paymentSchedule: paymentSchedule,
+          mode: 'finalize', // Always finalize when saving from modal
+        }),
+      });
+
+      if (response.ok) {
+        const result = await response.json();
+        setSuccessModal({
+          isOpen: true,
+          message: result.message || "Assessment finalized successfully!",
+        });
+        // Show summary after successful save
+        setShowSummary(true);
+        // Mark assessment as saved to disable editing
+        setIsAssessmentSaved(true);
+        // Reload payment schedules after saving
+        if (paymentMode === 'installment') {
+          await loadExistingAssessment();
+        }
+        return true;
+      } else {
+        const errorData = await response.json();
+        setErrorModal({
+          isOpen: true,
+          message: errorData.error || "Failed to save assessment",
+        });
+        return false;
+      }
+    } catch (error) {
+      console.error("Error saving assessment:", error);
+      setErrorModal({
+        isOpen: true,
+        message: "Failed to save assessment",
+        details: error instanceof Error ? error.message : "Unknown error occurred",
+      });
+      return false;
+    }
+  };
+
+  // Handle payment mode change
+  const handlePaymentModeChange = (newMode: 'cash' | 'installment') => {
+    if (newMode === 'installment' && paymentMode === 'cash') {
+      // Initialize installment schedule with default values
+      if (totalInstallment > 0) {
+        const distributed = distributeInstallmentsEqually(totalInstallment);
+        setPrelimAmount(distributed.prelim);
+        setMidtermAmount(distributed.midterm);
+        setFinalsAmount(distributed.finals);
+        
+        // Set default dates to today if not already set
+        const today = new Date().toISOString().split('T')[0];
+        if (!prelimDate) {
+          setPrelimDate(today);
+        }
+        if (!midtermDate) {
+          setMidtermDate(today);
+        }
+        if (!finalsDate) {
+          setFinalsDate(today);
+        }
+      }
+    } else if (newMode === 'cash' && paymentMode === 'installment') {
+      // Clear installment schedule
+      setPrelimAmount(0);
+      setMidtermAmount(0);
+      setFinalsAmount(0);
+      setPrelimDate("");
+      setMidtermDate("");
+      setFinalsDate("");
+    }
+    setPaymentMode(newMode);
   };
 
   if (loading) {
@@ -827,13 +1178,12 @@ const AssessmentManagement: React.FC = () => {
                 {[
                   { id: "subjects", label: "Enrolled Subjects" },
                   { id: "payment", label: "Payment Calculation" },
-                  { id: "schedule", label: "Payment Schedule" },
                 ].map((tab) => {
                   const isActive = activeTab === tab.id;
                   return (
                     <button
                       key={tab.id}
-                      onClick={() => setActiveTab(tab.id as any)}
+                      onClick={() => setActiveTab(tab.id as "subjects" | "payment")}
                       className={`flex items-center gap-2 px-6 py-3 rounded-t-xl font-semibold text-sm transition-all duration-200 relative ${
                         isActive ? "shadow-sm" : "hover:bg-gray-50"
                       }`}
@@ -890,18 +1240,14 @@ const AssessmentManagement: React.FC = () => {
                   dynamicFees={dynamicFees}
                   setDynamicFees={setDynamicFees}
                   totalFees={totalFees}
-                  downPayment={downPayment}
-                  setDownPayment={setDownPayment}
-                  net={net}
+                  baseTotal={baseTotal}
+                  paymentMode={paymentMode}
+                  onPaymentModeChange={handlePaymentModeChange}
                   insuranceCharge={insuranceCharge}
                   totalInstallment={totalInstallment}
+                  totalDueCash={totalDueCash}
                   selectedDiscount={selectedDiscount}
                   onDiscountSelectClick={handleDiscountSelectClick}
-                />
-              )}
-
-              {activeTab === "schedule" && (
-                <PaymentScheduleTab
                   prelimDate={prelimDate}
                   setPrelimDate={setPrelimDate}
                   prelimAmount={prelimAmount}
@@ -914,9 +1260,35 @@ const AssessmentManagement: React.FC = () => {
                   setFinalsDate={setFinalsDate}
                   finalsAmount={finalsAmount}
                   setFinalsAmount={setFinalsAmount}
+                  paymentSchedules={paymentSchedules}
+                  showSummary={showSummary}
                 />
               )}
             </div>
+
+            {/* Action Buttons */}
+            {programId && currentTerm && (
+              <div className="px-6 py-4 border-t flex items-center justify-end gap-3" style={{ borderColor: colors.accent + "10" }}>
+                {isAssessmentSaved && (
+                  <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg" style={{ backgroundColor: "#D1FAE5" }}>
+                    <CheckCircle2 className="w-4 h-4" style={{ color: "#059669" }} />
+                    <span className="text-sm font-semibold" style={{ color: "#047857" }}>
+                      Assessment Saved
+                    </span>
+                  </div>
+                )}
+                <button
+                  onClick={() => setIsSummaryModalOpen(true)}
+                  disabled={!canSaveAssessment || isAssessmentSaved}
+                  className="px-6 py-2 rounded-lg font-semibold text-sm text-white transition-all hover:shadow-md disabled:opacity-50 disabled:cursor-not-allowed"
+                  style={{
+                    backgroundColor: colors.secondary,
+                  }}
+                >
+                  {isAssessmentSaved ? "View Summary" : "Review Assessment"}
+                </button>
+              </div>
+            )}
           </div>
         )}
       </div>
@@ -943,6 +1315,46 @@ const AssessmentManagement: React.FC = () => {
         isOpen={isStudentSearchModalOpen}
         onClose={() => setIsStudentSearchModalOpen(false)}
         onSelect={handleStudentSelect}
+      />
+
+      {/* Assessment Summary Modal */}
+      <AssessmentSummaryModal
+        isOpen={isSummaryModalOpen}
+        onClose={() => {
+          setIsSummaryModalOpen(false);
+          // Reset saved state when closing (unless assessment was actually saved)
+          if (!isAssessmentSaved) {
+            setIsSavingAssessment(false);
+          }
+        }}
+        data={prepareSummaryData}
+        isLoading={isSavingAssessment}
+        canSave={canSaveAssessment && !isAssessmentSaved}
+        isSaved={isAssessmentSaved}
+        onConfirm={async () => {
+          if (isSavingAssessment || isAssessmentSaved) return;
+          
+          setIsSavingAssessment(true);
+          try {
+            const success = await handleSaveAssessment();
+            if (success) {
+              setIsAssessmentSaved(true);
+              // Keep modal open to show success state
+              // Auto-close after 2.5 seconds, but keep assessment locked
+              setTimeout(() => {
+                setIsSummaryModalOpen(false);
+                setIsSavingAssessment(false);
+                // Keep isAssessmentSaved = true to lock fields
+                // Assessment remains locked until user selects a new student
+              }, 2500);
+            } else {
+              setIsSavingAssessment(false);
+            }
+          } catch (error) {
+            console.error("Error saving assessment:", error);
+            setIsSavingAssessment(false);
+          }
+        }}
       />
 
       {/* Discount Selection Modal */}

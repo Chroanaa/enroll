@@ -1,5 +1,5 @@
 import React from "react";
-import { DollarSign, CreditCard, Plus } from "lucide-react";
+import { DollarSign, CreditCard, Plus, Calendar, CheckCircle } from "lucide-react";
 import { colors } from "../../colors";
 import type { Fee, EnrolledSubject } from "./types";
 
@@ -27,13 +27,35 @@ interface PaymentCalculationTabProps {
     React.SetStateAction<{ [key: number]: number }>
   >;
   totalFees: number;
-  downPayment: number;
-  setDownPayment: (value: number) => void;
-  net: number;
+  baseTotal: number;
+  paymentMode: 'cash' | 'installment';
+  onPaymentModeChange: (mode: 'cash' | 'installment') => void;
   insuranceCharge: number;
   totalInstallment: number;
+  totalDueCash: number;
   selectedDiscount: Discount | null;
   onDiscountSelectClick: () => void;
+  // Payment Schedule props
+  prelimDate: string;
+  setPrelimDate: (value: string) => void;
+  prelimAmount: number;
+  setPrelimAmount: (value: number) => void;
+  midtermDate: string;
+  setMidtermDate: (value: string) => void;
+  midtermAmount: number;
+  setMidtermAmount: (value: number) => void;
+  finalsDate: string;
+  setFinalsDate: (value: string) => void;
+  finalsAmount: number;
+  setFinalsAmount: (value: number) => void;
+  paymentSchedules: Array<{
+    id?: number;
+    label: string;
+    dueDate: string;
+    amount: number;
+    isPaid?: boolean;
+  }>;
+  showSummary?: boolean;
 }
 
 export const PaymentCalculationTab: React.FC<PaymentCalculationTabProps> = ({
@@ -49,13 +71,28 @@ export const PaymentCalculationTab: React.FC<PaymentCalculationTabProps> = ({
   dynamicFees,
   setDynamicFees,
   totalFees,
-  downPayment,
-  setDownPayment,
-  net,
+  baseTotal,
+  paymentMode,
+  onPaymentModeChange,
   insuranceCharge,
   totalInstallment,
+  totalDueCash,
   selectedDiscount,
   onDiscountSelectClick,
+  prelimDate,
+  setPrelimDate,
+  prelimAmount,
+  setPrelimAmount,
+  midtermDate,
+  setMidtermDate,
+  midtermAmount,
+  setMidtermAmount,
+  finalsDate,
+  setFinalsDate,
+  finalsAmount,
+  setFinalsAmount,
+  paymentSchedules,
+  showSummary = false,
 }) => {
   // Filter subjects with fixed amounts
   const fixedAmountSubjects = enrolledSubjects.filter(
@@ -112,6 +149,39 @@ export const PaymentCalculationTab: React.FC<PaymentCalculationTabProps> = ({
               e.currentTarget.style.boxShadow = "none";
             }}
           />
+        </div>
+      </div>
+
+      {/* Payment Mode Selection */}
+      <div className="mb-6 p-4 rounded-xl border" style={{ borderColor: colors.accent + "20", backgroundColor: "white" }}>
+        <label className="block text-sm font-semibold mb-3" style={{ color: colors.primary }}>
+          Payment Mode
+        </label>
+        <div className="flex gap-4">
+          <label className="flex items-center gap-2 cursor-pointer">
+            <input
+              type="radio"
+              name="paymentMode"
+              value="cash"
+              checked={paymentMode === 'cash'}
+              onChange={() => onPaymentModeChange('cash')}
+              className="w-4 h-4"
+              style={{ accentColor: colors.secondary }}
+            />
+            <span className="text-sm font-medium" style={{ color: colors.primary }}>Cash Basis</span>
+          </label>
+          <label className="flex items-center gap-2 cursor-pointer">
+            <input
+              type="radio"
+              name="paymentMode"
+              value="installment"
+              checked={paymentMode === 'installment'}
+              onChange={() => onPaymentModeChange('installment')}
+              className="w-4 h-4"
+              style={{ accentColor: colors.secondary }}
+            />
+            <span className="text-sm font-medium" style={{ color: colors.primary }}>Installment Basis</span>
+          </label>
         </div>
       </div>
 
@@ -382,23 +452,10 @@ export const PaymentCalculationTab: React.FC<PaymentCalculationTabProps> = ({
           <div className="space-y-3">
             {[
               {
-                label: "Total Fees",
-                value: totalFees,
+                label: "Base Total",
+                value: baseTotal,
                 setValue: () => {},
-                key: "totalFeesInst",
-                readonly: true,
-              },
-              {
-                label: "D. Payment",
-                value: downPayment,
-                setValue: setDownPayment,
-                key: "downPayment",
-              },
-              {
-                label: "Net",
-                value: net,
-                setValue: () => {},
-                key: "net",
+                key: "baseTotal",
                 readonly: true,
               },
               {
@@ -471,8 +528,236 @@ export const PaymentCalculationTab: React.FC<PaymentCalculationTabProps> = ({
               </div>
             ))}
           </div>
+
+          {/* Payment Schedule - Inside Installment Basis section */}
+          {paymentMode === 'installment' && (
+            <div className="mt-6">
+              <div
+                className="flex items-center gap-3 mb-4 pb-3 border-b"
+                style={{ borderColor: colors.accent + "10" }}
+              >
+                <div
+                  className="p-2 rounded-lg"
+                  style={{ backgroundColor: colors.accent + "15" }}
+                >
+                  <Calendar
+                    className="w-4 h-4"
+                    style={{ color: colors.secondary }}
+                  />
+                </div>
+                <h4
+                  className="text-base font-bold tracking-tight"
+                  style={{ color: colors.primary }}
+                >
+                  Payment Schedule
+                </h4>
+              </div>
+              <div
+                className="border rounded-xl overflow-hidden"
+                style={{ borderColor: colors.accent + "20" }}
+              >
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr style={{ backgroundColor: colors.accent + "08" }}>
+                      <th
+                        className="px-4 py-3 text-left border-r font-semibold"
+                        style={{
+                          borderColor: colors.accent + "20",
+                          color: colors.primary,
+                        }}
+                      >
+                        Term
+                      </th>
+                      <th
+                        className="px-4 py-3 text-left border-r font-semibold"
+                        style={{
+                          borderColor: colors.accent + "20",
+                          color: colors.primary,
+                        }}
+                      >
+                        Date
+                      </th>
+                      <th
+                        className="px-4 py-3 text-left border-r font-semibold"
+                        style={{
+                          borderColor: colors.accent + "20",
+                          color: colors.primary,
+                        }}
+                      >
+                        Amount
+                      </th>
+                      <th
+                        className="px-4 py-3 text-left font-semibold"
+                        style={{ color: colors.primary }}
+                      >
+                        Status
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {[
+                      {
+                        term: "PRELIM",
+                        date: prelimDate,
+                        setDate: setPrelimDate,
+                        amount: prelimAmount,
+                        setAmount: setPrelimAmount,
+                      },
+                      {
+                        term: "MIDTERM",
+                        date: midtermDate,
+                        setDate: setMidtermDate,
+                        amount: midtermAmount,
+                        setAmount: setMidtermAmount,
+                      },
+                      {
+                        term: "FINALS",
+                        date: finalsDate,
+                        setDate: setFinalsDate,
+                        amount: finalsAmount,
+                        setAmount: setFinalsAmount,
+                      },
+                    ].map((item) => {
+                      // Find if this schedule item is paid from paymentSchedules
+                      const scheduleItem = paymentSchedules.find(
+                        (s) => s.label === item.term
+                      );
+                      const isPaid = scheduleItem?.isPaid || false;
+
+                      return (
+                        <tr
+                          key={item.term}
+                          className="border-b hover:bg-white/50 transition-colors"
+                          style={{ borderColor: colors.accent + "10" }}
+                        >
+                          <td
+                            className="px-4 py-3 border-r font-semibold"
+                            style={{
+                              borderColor: colors.accent + "20",
+                              color: colors.secondary,
+                            }}
+                          >
+                            {item.term}
+                          </td>
+                          <td
+                            className="px-4 py-3 border-r"
+                            style={{ borderColor: colors.accent + "20" }}
+                          >
+                            <input
+                              type="date"
+                              value={item.date}
+                              onChange={(e) => item.setDate(e.target.value)}
+                              className="w-full border-none outline-none bg-transparent text-sm rounded-lg px-2 py-1 hover:bg-white/50 focus:bg-white focus:ring-2 focus:ring-offset-0 transition-all"
+                              style={{ color: colors.primary }}
+                              onFocus={(e) => {
+                                e.currentTarget.style.backgroundColor = "white";
+                                e.currentTarget.style.boxShadow = `0 0 0 3px ${colors.secondary}10`;
+                              }}
+                              onBlur={(e) => {
+                                e.currentTarget.style.backgroundColor =
+                                  "transparent";
+                                e.currentTarget.style.boxShadow = "none";
+                              }}
+                            />
+                          </td>
+                          <td
+                            className="px-4 py-3 border-r"
+                            style={{ borderColor: colors.accent + "20" }}
+                          >
+                            <input
+                              type="number"
+                              value={item.amount || ""}
+                              onChange={(e) =>
+                                item.setAmount(parseFloat(e.target.value) || 0)
+                              }
+                              className="w-full border-none outline-none bg-transparent text-right text-sm rounded-lg px-2 py-1 hover:bg-white/50 focus:bg-white focus:ring-2 focus:ring-offset-0 transition-all"
+                              style={{ color: colors.primary }}
+                              onFocus={(e) => {
+                                e.currentTarget.style.backgroundColor = "white";
+                                e.currentTarget.style.boxShadow = `0 0 0 3px ${colors.secondary}10`;
+                              }}
+                              onBlur={(e) => {
+                                e.currentTarget.style.backgroundColor =
+                                  "transparent";
+                                e.currentTarget.style.boxShadow = "none";
+                              }}
+                              placeholder="0.00"
+                            />
+                          </td>
+                          <td className="px-4 py-3">
+                            {isPaid ? (
+                              <div className="flex items-center gap-2">
+                                <CheckCircle
+                                  className="w-4 h-4"
+                                  style={{ color: "#10b981" }}
+                                />
+                                <span
+                                  className="text-xs font-semibold"
+                                  style={{ color: "#10b981" }}
+                                >
+                                  Paid
+                                </span>
+                              </div>
+                            ) : (
+                              <span
+                                className="text-xs font-medium"
+                                style={{ color: colors.tertiary }}
+                              >
+                                Unpaid
+                              </span>
+                            )}
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
         </div>
       </div>
+
+      {/* Summary Card - Only show after save */}
+      {showSummary && (
+        <div className="mt-6 p-5 rounded-xl border shadow-sm" style={{ borderColor: colors.secondary + "30", backgroundColor: colors.accent + "05" }}>
+          <h4 className="text-lg font-bold mb-4" style={{ color: colors.primary }}>Summary</h4>
+          <div className="space-y-2">
+            <div className="flex justify-between items-center py-2">
+              <span className="text-sm font-medium" style={{ color: colors.primary }}>Gross Tuition:</span>
+              <span className="text-sm font-semibold" style={{ color: colors.primary }}>₱{tuition.toFixed(2)}</span>
+            </div>
+            <div className="flex justify-between items-center py-2">
+              <span className="text-sm font-medium" style={{ color: colors.primary }}>Discount:</span>
+              <span className="text-sm font-semibold" style={{ color: colors.secondary }}>-₱{discount.toFixed(2)}</span>
+            </div>
+            <div className="flex justify-between items-center py-2">
+              <span className="text-sm font-medium" style={{ color: colors.primary }}>Net Tuition:</span>
+              <span className="text-sm font-semibold" style={{ color: colors.primary }}>₱{netTuition.toFixed(2)}</span>
+            </div>
+            <div className="flex justify-between items-center py-2">
+              <span className="text-sm font-medium" style={{ color: colors.primary }}>Dynamic Fees:</span>
+              <span className="text-sm font-semibold" style={{ color: colors.primary }}>₱{totalFees.toFixed(2)}</span>
+            </div>
+            {fixedAmountTotal > 0 && (
+              <div className="flex justify-between items-center py-2">
+                <span className="text-sm font-medium" style={{ color: colors.primary }}>Additional Fees:</span>
+                <span className="text-sm font-semibold" style={{ color: colors.primary }}>₱{fixedAmountTotal.toFixed(2)}</span>
+              </div>
+            )}
+            <div className="border-t pt-2 mt-2" style={{ borderColor: colors.accent + "20" }}>
+              <div className="flex justify-between items-center py-2">
+                <span className="text-base font-bold" style={{ color: colors.secondary }}>
+                  {paymentMode === 'cash' ? 'TOTAL DUE (Cash):' : 'TOTAL DUE (Installment):'}
+                </span>
+                <span className="text-lg font-bold" style={{ color: colors.secondary }}>
+                  ₱{paymentMode === 'cash' ? totalDueCash.toFixed(2) : totalInstallment.toFixed(2)}
+                </span>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
