@@ -1,6 +1,36 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/app/lib/prisma";
 
+/**
+ * Convert semester value to integer (1 or 2)
+ * Accepts: "First", "Second", "first", "second", 1, 2, or string "1", "2"
+ */
+function convertSemesterToInt(semester: string | number): number {
+  if (typeof semester === "number") {
+    if (semester === 1 || semester === 2) {
+      return semester;
+    }
+    throw new Error("Semester must be 1 or 2");
+  }
+
+  const semesterStr = String(semester).trim();
+  
+  if (semesterStr === "First" || semesterStr.toLowerCase() === "first") {
+    return 1;
+  }
+  if (semesterStr === "Second" || semesterStr.toLowerCase() === "second") {
+    return 2;
+  }
+  
+  // Try parsing as integer
+  const parsed = parseInt(semesterStr);
+  if (!isNaN(parsed) && (parsed === 1 || parsed === 2)) {
+    return parsed;
+  }
+  
+  throw new Error("Invalid semester. Must be 'First', 'Second', 1, or 2");
+}
+
 // GET - Fetch assessment for a student and term
 export async function GET(request: NextRequest) {
   try {
@@ -16,12 +46,23 @@ export async function GET(request: NextRequest) {
       );
     }
 
+    // Convert semester string ("First" or "Second") to integer (1 or 2)
+    let semesterNum: number;
+    try {
+      semesterNum = convertSemesterToInt(semester);
+    } catch (error: any) {
+      return NextResponse.json(
+        { error: error.message || "Invalid semester value" },
+        { status: 400 }
+      );
+    }
+
     const assessment = await prisma.student_assessment.findUnique({
       where: {
         student_number_academic_year_semester: {
           student_number: studentNumber,
           academic_year: academicYear,
-          semester: parseInt(semester),
+          semester: semesterNum,
         },
       },
       include: {
@@ -95,6 +136,17 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // Convert semester to integer (1 or 2)
+    let semesterNum: number;
+    try {
+      semesterNum = convertSemesterToInt(semester);
+    } catch (error: any) {
+      return NextResponse.json(
+        { error: error.message || "Invalid semester value" },
+        { status: 400 }
+      );
+    }
+
     if (!paymentMode || !['cash', 'installment'].includes(paymentMode)) {
       return NextResponse.json(
         { error: "Invalid or missing payment_mode. Must be 'cash' or 'installment'" },
@@ -149,7 +201,7 @@ export async function POST(request: NextRequest) {
           student_number_academic_year_semester: {
             student_number: studentNumber,
             academic_year: academicYear,
-            semester: parseInt(semester),
+            semester: semesterNum,
           },
         },
       });
@@ -198,7 +250,7 @@ export async function POST(request: NextRequest) {
           data: {
             student_number: studentNumber,
             academic_year: academicYear,
-            semester: parseInt(semester),
+            semester: semesterNum,
             gross_tuition: parseFloat(grossTuition),
             discount_id: discountId || null,
             discount_percent: discountPercent ? parseFloat(discountPercent) : null,

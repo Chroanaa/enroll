@@ -27,6 +27,7 @@ export async function POST(request: NextRequest) {
     const department = formData.get("department") as string | null;
     const course_program = formData.get("course_program") as string | null;
     const major_id = formData.get("major_id") as string | null;
+    const year_level = formData.get("year_level") as string | null;
     const requirementsStr = formData.get("requirements") as string | null;
     const requirements = requirementsStr ? JSON.parse(requirementsStr) : [];
     const family_name = formData.get("family_name") as string | null;
@@ -222,11 +223,12 @@ export async function POST(request: NextRequest) {
       data: {
         student_number: student_number || null,
         admission_date: admission_date ? new Date(admission_date) : null,
-        admission_status: admission_status || null,
+        admission_status: "Resident", // Always set to "Resident" for all enrollments
         term: term || null,
         department: finalDepartmentId,
         course_program: finalCourseProgram,
         major_id: finalMajorId,
+        year_level: year_level ? parseInt(year_level) : null,
         photo: photoPath,
         requirements: requirements || [],
         family_name: family_name ? family_name.trim().toUpperCase() : null,
@@ -348,6 +350,7 @@ export async function PATCH(nextRequest: NextRequest) {
         term: data.term || null,
         department: data.department,
         course_program: data.course_program || null,
+        year_level: data.year_level ? parseInt(String(data.year_level)) : null,
         requirements: data.requirements || [],
         family_name: data.family_name || null,
         first_name: data.first_name || null,

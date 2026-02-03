@@ -103,6 +103,8 @@ model enrollment {
   student_number           String?   @db.VarChar(20)
   academic_year            String?   @db.VarChar(20)
   major_id                 Int?
+  year_level               Int?      @default(1)
+  academic_status          String?   @default("regular") @db.VarChar(50)
 }
 
 /// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.

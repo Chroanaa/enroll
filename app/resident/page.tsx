@@ -13,6 +13,7 @@ import {
   History,
   School,
   LayoutDashboard,
+  GraduationCap,
 } from "lucide-react";
 import { colors } from "../colors";
 import SuccessModal from "../components/common/SuccessModal";
@@ -37,10 +38,10 @@ interface StudentData {
   department?: number;
   course_program?: string;
   major_id?: number;
+  year_level?: number;
   term?: string;
   academic_year?: string;
   admission_date?: string;
-  admission_status?: string;
   sex?: string;
   civil_status?: string;
   birthdate?: string;
@@ -68,7 +69,6 @@ interface StudentData {
 interface EnrollmentHistory {
   id: number;
   term: string;
-  admission_status: string;
   admission_date: string | null;
   department?: number;
   course_program?: string;
@@ -96,7 +96,26 @@ function ResidentPortalContent() {
   const [enrollmentId, setEnrollmentId] = useState<number | null>(null);
   const [term, setTerm] = useState("");
   const [academicYear, setAcademicYear] = useState("");
-  const [admissionStatus, setAdmissionStatus] = useState("");
+  const [yearLevel, setYearLevel] = useState<number>(1);
+
+  // Initialize with current term when available
+  useEffect(() => {
+    if (currentTerm) {
+      // If no student data loaded yet, initialize with current term
+      if (!studentData) {
+        if (!term) {
+          setTerm(currentTerm.semesterCode);
+        }
+        if (!academicYear) {
+          setAcademicYear(currentTerm.academicYear);
+        }
+      }
+      // If student data is loaded but academic year is empty, use current term
+      else if (studentData && !academicYear) {
+        setAcademicYear(currentTerm.academicYear);
+      }
+    }
+  }, [currentTerm, studentData]);
 
   const handleSearchStudent = async (studentNum?: string) => {
     const studentNumberToSearch = studentNum || inputStudentNumber.trim();
@@ -123,16 +142,10 @@ function ResidentPortalContent() {
         setStudentNumber(studentNumberToSearch);
         setInputStudentNumber(studentNumberToSearch);
         setEnrollmentId(data.enrollment_id || null);
-        // Pre-fill form with existing data
-        // Set term and academic year from current term if not in data
-        if (currentTerm && !data.term) {
-          setTerm(currentTerm.semesterCode);
-          setAcademicYear(currentTerm.academicYear);
-        } else {
-          setTerm(data.term || "");
-          setAcademicYear(data.academic_year || "");
-        }
-        setAdmissionStatus(data.admission_status || "");
+        // Pre-fill form with existing data from backend, default to current term if not available
+        setTerm(data.term || currentTerm?.semesterCode || "");
+        setAcademicYear(data.academic_year || currentTerm?.academicYear || "");
+        setYearLevel(data.year_level || 1);
         // Fetch enrollment history
         fetchEnrollmentHistory(studentNumberToSearch);
       } else {
@@ -191,7 +204,7 @@ function ResidentPortalContent() {
           department: studentData?.department,
           course_program: studentData?.course_program,
           major_id: studentData?.major_id,
-          admission_status: admissionStatus || undefined,
+          year_level: yearLevel || undefined,
         }),
       });
 
@@ -222,18 +235,55 @@ function ResidentPortalContent() {
     setEnrollmentId(null);
     setTerm("");
     setAcademicYear("");
-    setAdmissionStatus("");
+    setYearLevel(1);
     setErrorMessage("");
     setShowError(false);
   };
 
-  // Update term and academic year when currentTerm changes
-  useEffect(() => {
-    if (currentTerm && !studentData) {
-      setTerm(currentTerm.semesterCode);
-      setAcademicYear(currentTerm.academicYear);
+  // Compute year level display
+  const getYearLevelDisplay = (): string => {
+    if (!studentData) return "N/A";
+    
+    // If year_level exists in database, use it
+    if (studentData.year_level) {
+      const level = studentData.year_level;
+      if (level === 1) return "1st Year";
+      if (level === 2) return "2nd Year";
+      if (level === 3) return "3rd Year";
+      if (level === 4) return "4th Year";
+      if (level === 5) return "5th Year";
+      return `${level}th Year`;
     }
-  }, [currentTerm, studentData]);
+    
+    // Compute dynamically based on admission year and current academic year
+    if (studentData.academic_year && studentData.admission_date) {
+      try {
+        const admissionDate = new Date(studentData.admission_date);
+        const admissionYear = admissionDate.getFullYear();
+        const currentYear = new Date().getFullYear();
+        
+        // Parse academic year (e.g., "2024-2025")
+        const [academicStart] = studentData.academic_year.split("-").map(Number);
+        
+        // Calculate years difference
+        const yearsDiff = academicStart - admissionYear;
+        const computedLevel = yearsDiff + 1;
+        
+        if (computedLevel >= 1 && computedLevel <= 5) {
+          if (computedLevel === 1) return "1st Year";
+          if (computedLevel === 2) return "2nd Year";
+          if (computedLevel === 3) return "3rd Year";
+          if (computedLevel === 4) return "4th Year";
+          if (computedLevel === 5) return "5th Year";
+          return `${computedLevel}th Year`;
+        }
+      } catch (error) {
+        console.error("Error computing year level:", error);
+      }
+    }
+    
+    return "N/A";
+  };
 
   // Get Program/Major display text
   const getProgramMajorDisplay = () => {
@@ -468,6 +518,25 @@ function ResidentPortalContent() {
                       </div>
                     </div>
 
+                    <div className='flex items-start gap-3 p-3 rounded-xl bg-gray-50'>
+                      <GraduationCap
+                        size={18}
+                        className='mt-0.5'
+                        style={{ color: colors.tertiary }}
+                      />
+                      <div>
+                        <p className='text-xs font-semibold text-gray-500 uppercase tracking-wider'>
+                          Year Level
+                        </p>
+                        <p
+                          className='text-sm font-medium leading-tight mt-0.5'
+                          style={{ color: colors.primary }}
+                        >
+                          {getYearLevelDisplay()}
+                        </p>
+                      </div>
+                    </div>
+
                     <div className='grid grid-cols-1 gap-3'>
                       {studentData.email_address && (
                         <div className='flex items-center gap-3'>
@@ -636,15 +705,20 @@ function ResidentPortalContent() {
                             e.currentTarget.style.boxShadow = "none";
                           }}
                         >
-                          <option value=''>Select Term</option>
                           {currentTerm && (
                             <option value={currentTerm.semesterCode}>
                               {currentTerm.semester} Semester (Current)
                             </option>
                           )}
-                          <option value='first'>First Semester</option>
-                          <option value='second'>Second Semester</option>
-                          <option value='summer'>Summer</option>
+                          {/* Only show options that are NOT the current term */}
+                          {(!currentTerm || currentTerm.semesterCode !== "first") && (
+                            <option value='first'>First Semester</option>
+                          )}
+                          {(!currentTerm || currentTerm.semesterCode !== "second") && (
+                            <option value='second'>Second Semester</option>
+                          )}
+                          {/* Summer is always available as it's not part of the standard semester cycle */}
+
                         </select>
                         <div className='absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none text-gray-400'>
                           <ChevronRight size={16} className='rotate-90' />
@@ -681,7 +755,6 @@ function ResidentPortalContent() {
                             e.currentTarget.style.boxShadow = "none";
                           }}
                         >
-                          <option value=''>Select Academic Year</option>
                           {currentTerm && (
                             <option value={currentTerm.academicYear}>
                               {currentTerm.academicYear} (Current)
@@ -691,6 +764,10 @@ function ResidentPortalContent() {
                             const startYear = new Date().getFullYear() - 1 + i;
                             const endYear = startYear + 1;
                             const academicYearValue = `${startYear}-${endYear}`;
+                            // Don't show if it matches current term's academic year (already shown above)
+                            if (currentTerm && academicYearValue === currentTerm.academicYear) {
+                              return null;
+                            }
                             return (
                               <option
                                 key={academicYearValue}
@@ -707,61 +784,46 @@ function ResidentPortalContent() {
                       </div>
                     </div>
 
-                    {/* Admission Status */}
-                    <div className='space-y-2 md:col-span-2'>
+                    {/* Year Level */}
+                    <div className='space-y-2'>
                       <label
                         className='text-sm font-semibold flex items-center gap-2'
                         style={{ color: colors.primary }}
                       >
-                        <User size={16} style={{ color: colors.secondary }} />
-                        Admission Status
+                        <School size={16} style={{ color: colors.secondary }} />
+                        Year Level
                       </label>
-                      <div className='grid grid-cols-1 sm:grid-cols-3 gap-3'>
-                        {["new", "transferee", "returning"].map((status) => (
-                          <label
-                            key={status}
-                            className={`relative flex items-center justify-center p-4 rounded-xl border-2 cursor-pointer transition-all ${admissionStatus === status
-                              ? "bg-orange-50"
-                              : "bg-white hover:bg-gray-50"
-                              }`}
-                            style={{
-                              borderColor:
-                                admissionStatus === status
-                                  ? colors.secondary
-                                  : colors.tertiary + "30",
-                            }}
-                          >
-                            <input
-                              type='radio'
-                              name='admissionStatus'
-                              value={status}
-                              checked={admissionStatus === status}
-                              onChange={(e) => setAdmissionStatus(e.target.value)}
-                              className='sr-only'
-                            />
-                            <span
-                              className='font-medium capitalize'
-                              style={{
-                                color:
-                                  admissionStatus === status
-                                    ? colors.secondary
-                                    : colors.primary,
-                              }}
-                            >
-                              {status}
-                            </span>
-                            {admissionStatus === status && (
-                              <div className='absolute top-2 right-2'>
-                                <CheckCircle
-                                  size={16}
-                                  style={{ color: colors.secondary }}
-                                />
-                              </div>
-                            )}
-                          </label>
-                        ))}
+                      <div className='relative'>
+                        <select
+                          value={yearLevel}
+                          onChange={(e) => setYearLevel(parseInt(e.target.value))}
+                          className='w-full px-4 py-3 rounded-xl border transition-all focus:outline-none focus:ring-4 appearance-none cursor-pointer bg-white'
+                          style={{
+                            borderColor: colors.tertiary + "30",
+                            color: colors.primary,
+                          }}
+                          onFocus={(e) => {
+                            e.currentTarget.style.borderColor = colors.secondary;
+                            e.currentTarget.style.boxShadow = `0 0 0 4px ${colors.secondary}10`;
+                          }}
+                          onBlur={(e) => {
+                            e.currentTarget.style.borderColor =
+                              colors.tertiary + "30";
+                            e.currentTarget.style.boxShadow = "none";
+                          }}
+                        >
+                          <option value='1'>1st Year</option>
+                          <option value='2'>2nd Year</option>
+                          <option value='3'>3rd Year</option>
+                          <option value='4'>4th Year</option>
+                          <option value='5'>5th Year</option>
+                        </select>
+                        <div className='absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none text-gray-400'>
+                          <ChevronRight size={16} className='rotate-90' />
+                        </div>
                       </div>
                     </div>
+
                   </div>
 
                   <div className='pt-6 border-t border-gray-100'>

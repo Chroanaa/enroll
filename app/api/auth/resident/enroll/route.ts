@@ -8,6 +8,7 @@ interface ResidentEnrollmentData {
   department?: number;
   course_program?: string;
   major_id?: number;
+  year_level?: number;
   academic_year?: string;
   remarks?: string;
   emergency_contact_name?: string;
@@ -105,6 +106,38 @@ export async function POST(request: NextRequest) {
       }
     }
 
+    // Auto-set admission_status to "Resident" for all re-enrollments
+    updateData.admission_status = "Resident";
+
+    // Auto-increment year level logic:
+    // Only increment when: Previous Term = Second Semester AND New Term = First Semester AND Academic Year changes
+    if (data.term && data.academic_year && enrollmentToUpdate.term && enrollmentToUpdate.academic_year) {
+      const previousTerm = enrollmentToUpdate.term.toLowerCase();
+      const newTerm = data.term.toLowerCase();
+      const previousAcademicYear = enrollmentToUpdate.academic_year;
+      const newAcademicYear = data.academic_year;
+
+      // Check if we're moving from 2nd Sem to 1st Sem with a new academic year
+      const isSecondToFirst = previousTerm === "second" && newTerm === "first";
+      const isNewAcademicYear = previousAcademicYear !== newAcademicYear;
+
+      if (isSecondToFirst && isNewAcademicYear) {
+        // Increment year level
+        const currentYearLevel = enrollmentToUpdate.year_level || 1;
+        const newYearLevel = Math.min(currentYearLevel + 1, 5); // Cap at 5th year
+        updateData.year_level = newYearLevel;
+      } else if (data.year_level !== undefined) {
+        // If year_level is explicitly provided, use it
+        updateData.year_level = data.year_level;
+      } else {
+        // Otherwise, keep the existing year level
+        updateData.year_level = enrollmentToUpdate.year_level;
+      }
+    } else if (data.year_level !== undefined) {
+      // If year_level is explicitly provided, use it
+      updateData.year_level = data.year_level;
+    }
+
     // Only update fields that are provided in the request
     if (data.term !== undefined) updateData.term = data.term;
     if (data.academic_year !== undefined) updateData.academic_year = data.academic_year;
@@ -115,7 +148,7 @@ export async function POST(request: NextRequest) {
     if (data.emergency_relationship !== undefined) updateData.emergency_relationship = data.emergency_relationship;
     if (data.emergency_contact_number !== undefined) updateData.emergency_contact_number = data.emergency_contact_number;
     if (data.remarks !== undefined) updateData.remarks = data.remarks;
-    if (data.admission_status !== undefined) updateData.admission_status = data.admission_status;
+    // admission_status is always set to "Resident" above, don't allow frontend to override
     if (data.sex !== undefined) updateData.sex = data.sex;
     if (data.civil_status !== undefined) updateData.civil_status = data.civil_status;
     if (data.birthdate !== undefined) updateData.birthdate = data.birthdate ? new Date(data.birthdate) : null;

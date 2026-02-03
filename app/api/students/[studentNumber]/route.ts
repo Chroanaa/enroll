@@ -162,6 +162,7 @@ export async function GET(
       department: enrollment.department,
       course_program: enrollment.course_program,
       major_id: enrollment.major_id,
+      year_level: enrollment.year_level,
       term: enrollment.term,
       academic_year: enrollment.academic_year,
       admission_date: enrollment.admission_date,

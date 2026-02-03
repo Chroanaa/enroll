@@ -436,6 +436,79 @@ const AdmissionInformation: React.FC<EnrollmentPageProps> = ({
               )}
             </div>
 
+            {/* Year Level - Only show for transferees */}
+            {formData.admission_status === "transferee" && (
+              <div className='group'>
+                <label
+                  className='flex items-center gap-2 text-sm font-semibold mb-2 ml-1'
+                  style={{ color: colors.primary }}
+                >
+                  <GraduationCap
+                    className='w-4 h-4'
+                    style={{ color: colors.secondary }}
+                  />
+                  Year Level <span className='text-red-500'>*</span>
+                </label>
+                <div className='relative'>
+                  <select
+                    name='year_level'
+                    data-field='year_level'
+                    value={formData.year_level || 1}
+                    onChange={(e) =>
+                      handleInputChange("year_level", e.target.value)
+                    }
+                    className={`${inputClasses} appearance-none cursor-pointer ${fieldErrors.year_level ? "border-red-500" : ""}`}
+                    style={{
+                      borderColor: fieldErrors.year_level
+                        ? "#ef4444"
+                        : colors.tertiary + "30",
+                      color: colors.primary,
+                    }}
+                    onFocus={(e) => {
+                      e.currentTarget.style.borderColor =
+                        fieldErrors.year_level ? "#ef4444" : colors.secondary;
+                      e.currentTarget.style.boxShadow = `0 0 0 4px ${fieldErrors.year_level ? "#ef444410" : colors.secondary + "10"}`;
+                    }}
+                    onBlur={(e) => {
+                      e.currentTarget.style.borderColor =
+                        fieldErrors.year_level
+                          ? "#ef4444"
+                          : colors.tertiary + "30";
+                      e.currentTarget.style.boxShadow = "none";
+                    }}
+                  >
+                    <option value='1'>1st Year</option>
+                    <option value='2'>2nd Year</option>
+                    <option value='3'>3rd Year</option>
+                    <option value='4'>4th Year</option>
+                    <option value='5'>5th Year</option>
+                  </select>
+                  <div className='absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none opacity-50'>
+                    <svg
+                      width='12'
+                      height='12'
+                      viewBox='0 0 12 12'
+                      fill='none'
+                      xmlns='http://www.w3.org/2000/svg'
+                    >
+                      <path
+                        d='M2.5 4.5L6 8L9.5 4.5'
+                        stroke='currentColor'
+                        strokeWidth='1.5'
+                        strokeLinecap='round'
+                        strokeLinejoin='round'
+                      />
+                    </svg>
+                  </div>
+                </div>
+                {fieldErrors.year_level && (
+                  <p className='text-red-500 text-xs mt-1 ml-1'>
+                    {fieldErrors.year_level}
+                  </p>
+                )}
+              </div>
+            )}
+
             <div className='group'>
               <label
                 className='flex items-center gap-2 text-sm font-semibold mb-2 ml-1'

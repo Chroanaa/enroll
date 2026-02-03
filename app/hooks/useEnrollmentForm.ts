@@ -11,6 +11,7 @@ export interface EnrollmentFormData {
   department: number;
   course_program: string;
   major_id: number;
+  year_level: number;
   photo: File | null;
 
   // Page 2: Admission Requirements
@@ -64,6 +65,7 @@ const initialFormData: EnrollmentFormData = {
   department: 0,
   course_program: "",
   major_id: 0,
+  year_level: 1,
   photo: null,
   academic_year: getCurrentAcademicYear(), // Set to current academic year by default
 
@@ -360,8 +362,13 @@ export const useEnrollmentForm = () => {
       }
     }
     
-    const newFormData = { ...formData, [field]: processedValue };
-    setFormData(newFormData);
+    // Auto-set year_level to 1 when admission_status is "new"
+    let updatedFormData = { ...formData, [field]: processedValue };
+    if (field === "admission_status" && value === "new") {
+      updatedFormData.year_level = 1;
+    }
+    
+    setFormData(updatedFormData);
 
     // Clear error for this field when user starts typing
     if (fieldErrors[field]) {
@@ -385,6 +392,15 @@ export const useEnrollmentForm = () => {
         family_name: newFormData.family_name,
         middle_name: newFormData.middle_name,
         birthdate: newFormData.birthdate,
+      });
+    }
+    
+    // Clear year_level error when admission_status changes
+    if (field === "admission_status" && fieldErrors.year_level) {
+      setFieldErrors((prev) => {
+        const newErrors = { ...prev };
+        delete newErrors.year_level;
+        return newErrors;
       });
     }
   };
@@ -530,11 +546,17 @@ export const useEnrollmentForm = () => {
     setSubmitError(null);
     setSubmitSuccess(false);
 
+    // Auto-set year_level to 1 for new students
+    const finalFormData = { ...formData };
+    if (finalFormData.admission_status === "new") {
+      finalFormData.year_level = 1;
+    }
+
     // Create FormData to handle file upload
     const submitData = new FormData();
 
     // Append all form fields
-    Object.entries(formData).forEach(([key, value]) => {
+    Object.entries(finalFormData).forEach(([key, value]) => {
       if (key === "photo") {
         // Handle photo file separately
         if (value instanceof File) {
@@ -548,6 +570,11 @@ export const useEnrollmentForm = () => {
         submitData.append(key, JSON.stringify(value));
       } else if (key === "major_id") {
         // Handle major_id as number
+        if (value !== null && value !== undefined && value !== 0) {
+          submitData.append(key, String(value));
+        }
+      } else if (key === "year_level") {
+        // Handle year_level as number
         if (value !== null && value !== undefined && value !== 0) {
           submitData.append(key, String(value));
         }
@@ -744,6 +771,10 @@ export const useEnrollmentForm = () => {
     }
     if (!formData.term) {
       errors.term = "Please select a term";
+    }
+    // Year level is required for transferees
+    if (formData.admission_status === "transferee" && (!formData.year_level || formData.year_level === 0)) {
+      errors.year_level = "Please select a year level";
     }
     if (!formData.academic_year?.trim()) {
       errors.academic_year = "Academic year is required";
