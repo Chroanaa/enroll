@@ -308,13 +308,16 @@ const AssessmentManagement: React.FC = () => {
 
       // Fallback: Fetch from curriculum if no enrolled subjects exist
       // This happens for new students or when enrolled_subjects is empty
+      console.log("Fetching curriculum subjects for programId:", programIdValue, "semester:", semesterNum);
       const curriculumResponse = await fetch(
         `/api/auth/curriculum/subjects?programId=${programIdValue}&semester=${semesterNum}`
       );
 
       if (curriculumResponse.ok) {
         const curriculumData = await curriculumResponse.json();
-        if (curriculumData.success && curriculumData.data.courses) {
+        console.log("Curriculum response:", curriculumData);
+        if (curriculumData.success && curriculumData.data && curriculumData.data.courses && curriculumData.data.courses.length > 0) {
+          console.log("Found", curriculumData.data.courses.length, "curriculum courses");
           setEnrolledSubjects(curriculumData.data.courses);
           const { regularUnits, fixedAmountSum } = calculateUnitsAndFixedAmounts(curriculumData.data.courses);
           setTotalUnits(regularUnits);
@@ -343,14 +346,24 @@ const AssessmentManagement: React.FC = () => {
             }
           }
         } else {
-          setSubjectsError("No subjects found in curriculum for this program and semester");
+          const errorMsg = curriculumData.error || "No subjects found in curriculum for this program and semester";
+          console.warn("Curriculum fetch returned no courses:", errorMsg);
+          setSubjectsError(errorMsg);
           setEnrolledSubjects([]);
           setTotalUnits(0);
           setFixedAmountTotal(0);
         }
       } else {
-        const errorData = await curriculumResponse.json();
-        setSubjectsError(errorData.error || "Failed to fetch subjects");
+        let errorMessage = "Failed to fetch subjects from curriculum";
+        try {
+          const errorData = await curriculumResponse.json();
+          errorMessage = errorData.error || errorMessage;
+        } catch (parseError) {
+          // If response is not JSON, use status text
+          errorMessage = `Failed to fetch curriculum: ${curriculumResponse.status} ${curriculumResponse.statusText}`;
+        }
+        console.error("Curriculum fetch failed:", errorMessage, "Status:", curriculumResponse.status);
+        setSubjectsError(errorMessage);
         setEnrolledSubjects([]);
         setTotalUnits(0);
         setFixedAmountTotal(0);
@@ -504,16 +517,33 @@ const AssessmentManagement: React.FC = () => {
 
   // Fetch subjects when program ID and current term are available
   useEffect(() => {
-    if (programId && currentTerm) {
+    if (programId && currentTerm && !termLoading) {
       // Map semester: "First" -> 1, "Second" -> 2
       const semesterNum = currentTerm.semester === "First" ? 1 : 2;
+      console.log("Triggering fetchEnrolledSubjects with:", {
+        programId,
+        semesterNum,
+        academicYear: currentTerm.academicYear,
+        studentNumber,
+        isResidentReturnee
+      });
       fetchEnrolledSubjects(programId, semesterNum);
     } else {
-      setEnrolledSubjects([]);
-      setTotalUnits(0);
-      setFixedAmountTotal(0);
+      if (!programId) {
+        console.log("Waiting for programId...");
+      }
+      if (!currentTerm) {
+        console.log("Waiting for currentTerm...", { termLoading });
+      }
+      // Don't clear subjects if we're just waiting for data to load
+      if (!programId || (!currentTerm && !termLoading)) {
+        setEnrolledSubjects([]);
+        setTotalUnits(0);
+        setFixedAmountTotal(0);
+      }
     }
-  }, [programId, currentTerm, isResidentReturnee, studentNumber]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [programId, currentTerm, termLoading, isResidentReturnee, studentNumber]);
 
   // Handle student selection from modal
   const handleStudentSelect = (selectedStudentNumber: string) => {
