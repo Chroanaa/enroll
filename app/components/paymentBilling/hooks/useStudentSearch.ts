@@ -10,6 +10,7 @@ export const useStudentSearch = () => {
   const [showStudentDropdown, setShowStudentDropdown] = useState(false);
   const studentSearchRef = useRef<HTMLDivElement>(null);
   const searchDebounceRef = useRef<NodeJS.Timeout | null>(null);
+  const onStudentSelectCallbackRef = useRef<((student: EnrolledStudent) => void) | null>(null);
 
   // Debounced student search for autocomplete
   const handleStudentInputChange = useCallback((value: string) => {
@@ -50,6 +51,11 @@ export const useStudentSearch = () => {
     setStudentSearchResults([]);
     setShowStudentDropdown(false);
     setStudentSearchError("");
+    
+    // Call the callback if provided (for automatic financial summary fetch)
+    if (onStudentSelectCallbackRef.current) {
+      onStudentSelectCallbackRef.current(student);
+    }
   };
 
   // Search enrolled student by student number (fallback for Enter key)
@@ -71,14 +77,25 @@ export const useStudentSearch = () => {
         setStudentNumberInput("");
         setStudentSearchResults([]);
         setStudentSearchError("");
+        
+        // Call the callback if provided (for automatic financial summary fetch)
+        if (onStudentSelectCallbackRef.current) {
+          onStudentSelectCallbackRef.current(student);
+        }
       } else {
         // If no exact match, search and show dropdown
         const results = await searchEnrolledStudents(studentNumberInput.trim());
         if (results.length === 1) {
           // If only one result, auto-select it
-          setSelectedStudent(results[0]);
+          const selectedStudent = results[0];
+          setSelectedStudent(selectedStudent);
           setStudentNumberInput("");
           setStudentSearchResults([]);
+          
+          // Call the callback if provided (for automatic financial summary fetch)
+          if (onStudentSelectCallbackRef.current) {
+            onStudentSelectCallbackRef.current(selectedStudent);
+          }
         } else if (results.length > 1) {
           setStudentSearchResults(results);
           setShowStudentDropdown(true);
@@ -101,6 +118,10 @@ export const useStudentSearch = () => {
     setStudentSearchResults([]);
     setShowStudentDropdown(false);
   };
+
+  const setOnStudentSelectCallback = useCallback((callback: ((student: EnrolledStudent) => void) | null) => {
+    onStudentSelectCallbackRef.current = callback;
+  }, []);
 
   // Click outside to close dropdown
   useEffect(() => {
@@ -141,6 +162,7 @@ export const useStudentSearch = () => {
     handleStudentSearch,
     handleStudentSelect,
     clearSelectedStudent,
+    setOnStudentSelectCallback,
   };
 };
 

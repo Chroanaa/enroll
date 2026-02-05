@@ -15,6 +15,7 @@ import {
   Product,
   Category,
   OrderWithDetails,
+  EnrolledStudent,
   getProducts,
   getCategories,
   createOrder,
@@ -54,6 +55,46 @@ const PaymentBillingManagement: React.FC = () => {
   const studentSearchHook = useStudentSearch();
   const financialSummaryHook = useFinancialSummary();
   const transactionsHook = useTransactions();
+
+  // Set up automatic financial summary fetch when student is selected from dropdown
+  useEffect(() => {
+    // Only set up callback if hooks are properly initialized
+    if (studentSearchHook?.setOnStudentSelectCallback && financialSummaryHook?.setStudentNumberSearch) {
+      // Enable auto-fetch mode for reactive financial summary loading
+      financialSummaryHook.enableAutoFetch((message, details) => {
+        setErrorModal({ isOpen: true, message, details });
+      });
+
+      studentSearchHook.setOnStudentSelectCallback((student: EnrolledStudent) => {
+        // Add comprehensive null check to prevent runtime errors
+        if (!student || !student.student_number || typeof student.student_number !== 'string') {
+          console.warn("Student selection callback called with invalid student data:", student);
+          return;
+        }
+        
+        // Set the student number in financial summary hook
+        // The useEffect in useFinancialSummary will automatically trigger the fetch
+        financialSummaryHook.setStudentNumberSearch(student.student_number);
+        
+        // Show success message for student selection
+        const studentName = [student.first_name, student.middle_name, student.family_name]
+          .filter(Boolean)
+          .join(' ') || student.student_number;
+        
+        setSuccessModal({
+          isOpen: true,
+          message: `Student ${studentName} selected. Loading financial summary...`,
+        });
+      });
+    }
+
+    // Cleanup function to disable auto-fetch when component unmounts
+    return () => {
+      if (financialSummaryHook?.disableAutoFetch) {
+        financialSummaryHook.disableAutoFetch();
+      }
+    };
+  }, [studentSearchHook, financialSummaryHook]);
 
   // Error and success modals
   const [successModal, setSuccessModal] = useState<{
@@ -372,8 +413,15 @@ const PaymentBillingManagement: React.FC = () => {
         isOpen={isStudentSearchModalOpen}
         onClose={() => setIsStudentSearchModalOpen(false)}
         onSelect={(studentNumber) => {
+          // Set the student number - the useEffect will automatically trigger the fetch
           financialSummaryHook.setStudentNumberSearch(studentNumber);
           setIsStudentSearchModalOpen(false);
+          
+          // Show success message
+          setSuccessModal({
+            isOpen: true,
+            message: `Student ${studentNumber} selected. Loading financial summary...`,
+          });
         }}
       />
 
