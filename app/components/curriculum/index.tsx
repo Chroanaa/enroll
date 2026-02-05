@@ -11,22 +11,57 @@ import ConfirmationModal from "../common/ConfirmationModal";
 import SuccessModal from "../common/SuccessModal";
 import ErrorModal from "../common/ErrorModal";
 import Pagination from "../common/Pagination";
-import { getCurriculums } from "@/app/utils/curriculumUtils";
+import { getCurriculums, getCurriculumsFresh } from "@/app/utils/curriculumUtils";
 const CurriculumManagement: React.FC = () => {
   const router = useRouter();
   const [curriculumList, setCurriculumList] = useState<Curriculum[]>([]);
 
-  // Initialize with mock BSIT curriculum data
+  // Function to fetch curriculums
+  const fetchCurriculums = async () => {
+    try {
+      const data = await getCurriculums();
+      setCurriculumList(data);
+    } catch (error) {
+      console.error("Failed to fetch curriculums:", error);
+    }
+  };
+
+  // Function to force fresh fetch (bypasses cache)
+  const fetchCurriculumsFresh = async () => {
+    try {
+      const data = await getCurriculumsFresh();
+      setCurriculumList(data);
+    } catch (error) {
+      console.error("Failed to fetch curriculums:", error);
+    }
+  };
+
+  // Initialize with curriculum data
   useEffect(() => {
-    const fetchCurriculums = async () => {
-      try {
-        const data = await getCurriculums();
-        setCurriculumList(data);
-      } catch (error) {
-        console.error("Failed to fetch curriculums:", error);
+    fetchCurriculums();
+  }, []);
+
+  // Refetch data when page becomes visible (handles navigation back)
+  useEffect(() => {
+    const handleVisibilityChange = () => {
+      if (!document.hidden) {
+        // Page became visible, force fresh fetch
+        fetchCurriculumsFresh();
       }
     };
-    fetchCurriculums();
+
+    const handleFocus = () => {
+      // Window gained focus, force fresh fetch
+      fetchCurriculumsFresh();
+    };
+
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    window.addEventListener('focus', handleFocus);
+    
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+      window.removeEventListener('focus', handleFocus);
+    };
   }, []);
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState<
@@ -109,11 +144,12 @@ const CurriculumManagement: React.FC = () => {
 
         if (response.ok) {
           const updatedCurriculum = await response.json();
-          setCurriculumList((prev) =>
-            prev.map((c) =>
-              c.id === updatedCurriculum.id ? updatedCurriculum : c
-            )
-          );
+          
+          // Invalidate cache and refetch data
+          const { invalidateRelatedCaches } = await import("@/app/utils/cache");
+          invalidateRelatedCaches("CURRICULUMS");
+          await fetchCurriculumsFresh();
+          
           setEditingCurriculum(null);
           setSuccessModal({
             isOpen: true,
@@ -138,7 +174,12 @@ const CurriculumManagement: React.FC = () => {
 
         if (response.ok) {
           const newCurriculum = await response.json();
-          setCurriculumList((prev) => [...prev, newCurriculum]);
+          
+          // Invalidate cache and refetch data
+          const { invalidateRelatedCaches } = await import("@/app/utils/cache");
+          invalidateRelatedCaches("CURRICULUMS");
+          await fetchCurriculumsFresh();
+          
           setSuccessModal({
             isOpen: true,
             message: `Curriculum "${curriculumData.program_name}" has been created successfully.`,
@@ -186,9 +227,11 @@ const CurriculumManagement: React.FC = () => {
         });
 
         if (response.ok) {
-          setCurriculumList((prev) =>
-            prev.filter((c) => c.id !== deleteConfirmation.curriculumId)
-          );
+          // Invalidate cache and refetch data
+          const { invalidateRelatedCaches } = await import("@/app/utils/cache");
+          invalidateRelatedCaches("CURRICULUMS");
+          await fetchCurriculumsFresh();
+          
           setDeleteConfirmation({
             isOpen: false,
             curriculumId: null,
@@ -266,14 +309,26 @@ const CurriculumManagement: React.FC = () => {
               units, and prerequisite subjects
             </p>
           </div>
-          <button
-            onClick={() => router.push("/curriculum/new")}
-            className='flex items-center gap-2 px-5 py-3 text-white rounded-xl transition-all shadow-lg shadow-blue-900/20 hover:shadow-xl hover:scale-105 active:scale-95'
-            style={{ backgroundColor: colors.secondary }}
-          >
-            <Plus className='w-5 h-5' />
-            <span className='font-medium'>Add Curriculum</span>
-          </button>
+          <div className='flex items-center gap-3'>
+            <button
+              onClick={fetchCurriculumsFresh}
+              className='flex items-center gap-2 px-4 py-2 text-gray-600 border border-gray-300 rounded-lg transition-all hover:bg-gray-50'
+              title='Refresh curriculum list'
+            >
+              <svg className='w-4 h-4' fill='none' stroke='currentColor' viewBox='0 0 24 24'>
+                <path strokeLinecap='round' strokeLinejoin='round' strokeWidth={2} d='M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15' />
+              </svg>
+              Refresh
+            </button>
+            <button
+              onClick={() => router.push("/curriculum/new")}
+              className='flex items-center gap-2 px-5 py-3 text-white rounded-xl transition-all shadow-lg shadow-blue-900/20 hover:shadow-xl hover:scale-105 active:scale-95'
+              style={{ backgroundColor: colors.secondary }}
+            >
+              <Plus className='w-5 h-5' />
+              <span className='font-medium'>Add Curriculum</span>
+            </button>
+          </div>
         </div>
 
         {/* Search and Filters */}

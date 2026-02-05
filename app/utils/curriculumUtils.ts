@@ -11,3 +11,13 @@ export async function getCurriculums() {
     CACHE_TTL.LONG,
   );
 }
+
+export async function getCurriculumsFresh() {
+  // Force fresh fetch by invalidating cache first
+  cacheManager.invalidate(CACHE_KEYS.CURRICULUMS);
+  return getCurriculums();
+}
+
+export function invalidateCurriculumsCache() {
+  cacheManager.invalidate(CACHE_KEYS.CURRICULUMS);
+}

@@ -32,6 +32,10 @@ export default function NewCurriculumPage() {
       });
 
       if (response.ok) {
+        // Invalidate curriculum cache to ensure fresh data
+        const { invalidateCurriculumsCache } = await import("@/app/utils/curriculumUtils");
+        invalidateCurriculumsCache();
+        
         router.push("/dashboard?view=curriculum");
       } else {
         const errorData = await response.json();
