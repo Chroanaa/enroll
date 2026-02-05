@@ -74,3 +74,31 @@ select option {
 .hide-scrollbar::-webkit-scrollbar {
   display: none;  /* Chrome, Safari and Opera */
 }
+
+/* Smooth loading animations */
+@keyframes spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@keyframes pulse-slow {
+  0%, 100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.6;
+  }
+}
+
+/* Enhanced spinner animation */
+.animate-spin-smooth {
+  animation: spin 0.8s linear infinite;
+}
+
+.animate-pulse-slow {
+  animation: pulse-slow 1.5s ease-in-out infinite;
+}

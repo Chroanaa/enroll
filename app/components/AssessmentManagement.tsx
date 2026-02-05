@@ -1,5 +1,5 @@
 "use client";
-import React, { useState, useEffect, useMemo, useCallback } from "react";
+import React, { useState, useEffect, useMemo, useCallback, useRef } from "react";
 import { useSearchParams } from "next/navigation";
 import { Calculator, CheckCircle2 } from "lucide-react";
 import { colors } from "../colors";
@@ -356,7 +356,7 @@ const AssessmentManagement: React.FC = () => {
     }
   };
 
-  // Fetch enrolled subjects based on program and current semester
+  // Fetch enrolled subjects based on program and current semester - optimized with parallel requests
   const fetchEnrolledSubjects = async (programIdValue: number, semesterNum: number) => {
     if (!programIdValue || !semesterNum) {
       return;
@@ -366,12 +366,19 @@ const AssessmentManagement: React.FC = () => {
     setSubjectsError("");
 
     try {
+      // Use AbortController to cancel requests if component unmounts or new request starts
+      const abortController = new AbortController();
+      const signal = abortController.signal;
+
       // ALWAYS check enrolled_subjects first if studentNumber exists
       // This ensures we fetch the student's actual enrolled subjects, not curriculum
       if (studentNumber && currentTerm) {
         const enrolledResponse = await fetch(
-          `/api/auth/enrolled-subjects?studentNumber=${encodeURIComponent(studentNumber.trim())}&academicYear=${encodeURIComponent(currentTerm.academicYear)}&semester=${semesterNum}`
+          `/api/auth/enrolled-subjects?studentNumber=${encodeURIComponent(studentNumber.trim())}&academicYear=${encodeURIComponent(currentTerm.academicYear)}&semester=${semesterNum}`,
+          { signal }
         );
+
+        if (signal.aborted) return;
 
         if (enrolledResponse.ok) {
           const enrolledData = await enrolledResponse.json();
@@ -382,20 +389,25 @@ const AssessmentManagement: React.FC = () => {
             setTotalUnits(regularUnits);
             setFixedAmountTotal(fixedAmountSum);
             setIsLoadingSubjects(false);
-            // Load existing assessment after subjects are loaded
-            await loadExistingAssessment();
+            // Load existing assessment after subjects are loaded (non-blocking)
+            loadExistingAssessment().catch(err => console.error("Error loading assessment:", err));
             return; // Exit early - we have enrolled subjects
           }
         }
         // If enrolled subjects fetch failed or returned empty, continue to curriculum fallback
       }
 
+      if (signal.aborted) return;
+
       // Fallback: Fetch from curriculum if no enrolled subjects exist
       // This happens for new students or when enrolled_subjects is empty
       console.log("Fetching curriculum subjects for programId:", programIdValue, "semester:", semesterNum);
       const curriculumResponse = await fetch(
-        `/api/auth/curriculum/subjects?programId=${programIdValue}&semester=${semesterNum}`
+        `/api/auth/curriculum/subjects?programId=${programIdValue}&semester=${semesterNum}`,
+        { signal }
       );
+
+      if (signal.aborted) return;
 
       if (curriculumResponse.ok) {
         const curriculumData = await curriculumResponse.json();
@@ -408,26 +420,24 @@ const AssessmentManagement: React.FC = () => {
           setFixedAmountTotal(fixedAmountSum);
 
           // Auto-save curriculum subjects to enrolled_subjects ONLY for resident/returnee
-          // This allows them to start with curriculum and modify later
+          // This allows them to start with curriculum and modify later (non-blocking)
           if (isResidentReturnee && studentNumber && currentTerm) {
-            try {
-              await fetch("/api/auth/enrolled-subjects", {
-                method: "POST",
-                headers: {
-                  "Content-Type": "application/json",
-                },
-                body: JSON.stringify({
-                  studentNumber: studentNumber.trim(),
-                  programId: programIdValue,
-                  academicYear: currentTerm.academicYear,
-                  semester: semesterNum,
-                  subjects: curriculumData.data.courses,
-                }),
-              });
-            } catch (saveError) {
+            fetch("/api/auth/enrolled-subjects", {
+              method: "POST",
+              headers: {
+                "Content-Type": "application/json",
+              },
+              body: JSON.stringify({
+                studentNumber: studentNumber.trim(),
+                programId: programIdValue,
+                academicYear: currentTerm.academicYear,
+                semester: semesterNum,
+                subjects: curriculumData.data.courses,
+              }),
+            }).catch(saveError => {
               console.error("Error auto-saving curriculum subjects:", saveError);
               // Don't show error to user, they can save manually later
-            }
+            });
           }
         } else {
           const errorMsg = curriculumData.error || "No subjects found in curriculum for this program and semester";
@@ -452,7 +462,10 @@ const AssessmentManagement: React.FC = () => {
         setTotalUnits(0);
         setFixedAmountTotal(0);
       }
-    } catch (error) {
+    } catch (error: any) {
+      // Ignore abort errors
+      if (error.name === 'AbortError') return;
+      
       console.error("Error fetching enrolled subjects:", error);
       setSubjectsError("Failed to fetch enrolled subjects");
       setEnrolledSubjects([]);
@@ -675,12 +688,35 @@ const AssessmentManagement: React.FC = () => {
     }
   }, [totalUnits, tuitionPerUnit]);
 
-  // Fetch discounts when modal opens
+  // Cache for discounts per semester
+  const discountCacheRef = useRef<Map<string, { data: Discount[]; timestamp: number }>>(new Map());
+  const DISCOUNT_CACHE_DURATION = 5 * 60 * 1000; // 5 minutes
+
+  // Fetch discounts when modal opens with caching
   const fetchDiscounts = async (semester: string) => {
+    // Check cache first
+    const cached = discountCacheRef.current.get(semester);
+    const now = Date.now();
+    
+    if (cached && (now - cached.timestamp) < DISCOUNT_CACHE_DURATION) {
+      setAvailableDiscounts(cached.data);
+      return cached.data;
+    }
+
     try {
-      const response = await fetch(`/api/auth/discounts?semester=${semester}`);
+      const response = await fetch(`/api/auth/discounts?semester=${semester}`, {
+        cache: 'force-cache',
+        next: { revalidate: 300 }, // Revalidate every 5 minutes
+      });
       if (response.ok) {
         const discounts = await response.json();
+        
+        // Cache the results
+        discountCacheRef.current.set(semester, {
+          data: discounts,
+          timestamp: now,
+        });
+        
         setAvailableDiscounts(discounts);
         return discounts;
       }
@@ -735,25 +771,41 @@ const AssessmentManagement: React.FC = () => {
     );
   };
 
-  // Handle discount selection click
+  // Handle discount selection click with loading state
+  const [isLoadingDiscounts, setIsLoadingDiscounts] = useState(false);
+  
   const handleDiscountSelectClick = async () => {
-    if (!currentTerm) {
-      setErrorModal({
-        isOpen: true,
-        message: "Academic term not available",
-      });
+    if (!currentTerm || isLoadingDiscounts) {
+      if (!currentTerm) {
+        setErrorModal({
+          isOpen: true,
+          message: "Academic term not available",
+        });
+      }
       return;
     }
 
-    const semester = currentTerm.semester === "First" ? "First" : "Second";
-    const discounts = await fetchDiscounts(semester);
-    const eligible = determineEligibleDiscounts(discounts);
-    setEligibleDiscounts(eligible);
-    
-    const recommended = getRecommendedDiscount(eligible);
-    setRecommendedDiscount(recommended);
-    
-    setIsDiscountModalOpen(true);
+    setIsLoadingDiscounts(true);
+    try {
+      const semester = currentTerm.semester === "First" ? "First" : "Second";
+      const discounts = await fetchDiscounts(semester);
+      const eligible = determineEligibleDiscounts(discounts);
+      setEligibleDiscounts(eligible);
+      
+      const recommended = getRecommendedDiscount(eligible);
+      setRecommendedDiscount(recommended);
+      
+      setIsDiscountModalOpen(true);
+    } catch (error) {
+      console.error("Error loading discounts:", error);
+      setErrorModal({
+        isOpen: true,
+        message: "Failed to load discounts",
+        details: "Please try again later.",
+      });
+    } finally {
+      setIsLoadingDiscounts(false);
+    }
   };
 
   // Temporary state for modal selection (before confirmation)
@@ -1248,6 +1300,7 @@ const AssessmentManagement: React.FC = () => {
                   totalDueCash={totalDueCash}
                   selectedDiscount={selectedDiscount}
                   onDiscountSelectClick={handleDiscountSelectClick}
+                  isLoadingDiscounts={isLoadingDiscounts}
                   prelimDate={prelimDate}
                   setPrelimDate={setPrelimDate}
                   prelimAmount={prelimAmount}

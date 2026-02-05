@@ -35,6 +35,7 @@ interface PaymentCalculationTabProps {
   totalDueCash: number;
   selectedDiscount: Discount | null;
   onDiscountSelectClick: () => void;
+  isLoadingDiscounts?: boolean;
   // Payment Schedule props
   prelimDate: string;
   setPrelimDate: (value: string) => void;
@@ -79,6 +80,7 @@ export const PaymentCalculationTab: React.FC<PaymentCalculationTabProps> = ({
   totalDueCash,
   selectedDiscount,
   onDiscountSelectClick,
+  isLoadingDiscounts = false,
   prelimDate,
   setPrelimDate,
   prelimAmount,
@@ -269,14 +271,19 @@ export const PaymentCalculationTab: React.FC<PaymentCalculationTabProps> = ({
                     </div>
                     <button
                       onClick={onDiscountSelectClick}
-                      className="p-2 rounded-lg border hover:bg-gray-50 transition-colors"
+                      disabled={isLoadingDiscounts}
+                      className="p-2 rounded-lg border hover:bg-gray-50 transition-all disabled:opacity-50 disabled:cursor-not-allowed relative"
                       style={{
                         borderColor: colors.secondary + "30",
                         color: colors.secondary,
                       }}
                       title="Select Discount"
                     >
-                      <Plus className="w-4 h-4" />
+                      {isLoadingDiscounts ? (
+                        <div className="w-4 h-4 border-2 border-current border-t-transparent rounded-full animate-spin" />
+                      ) : (
+                        <Plus className="w-4 h-4" />
+                      )}
                     </button>
                   </div>
                 ) : (

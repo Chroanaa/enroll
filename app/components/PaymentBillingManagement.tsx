@@ -35,10 +35,15 @@ import { colors } from "../colors";
 import ConfirmationModal from "./common/ConfirmationModal";
 import SuccessModal from "./common/SuccessModal";
 import ErrorModal from "./common/ErrorModal";
+import StudentSearchModal from "./common/StudentSearchModal";
+import PaymentBillingHeader from "./paymentBilling/Header";
+import { ProductsTabContent } from "./paymentBilling/ProductsTabContent";
+import { OrderDetailsModal } from "./paymentBilling/OrderDetailsModal";
+import { VoidTransactionModal } from "./paymentBilling/VoidTransactionModal";
+import { ProductCheckoutModal } from "./paymentBilling/ProductCheckoutModal";
 import Pagination from "./common/Pagination";
 import {
   Billing,
-  UnbilledEnrollee,
   Product,
   Category,
   CartItem,
@@ -46,12 +51,9 @@ import {
   OrderWithDetails,
   EnrolledStudent,
   getBillings,
-  getUnbilledEnrollees,
   getProducts,
   getCategories,
-  createBilling,
   createOrder,
-  createEnrollmentOrder,
   deleteBilling,
   getOrders,
   getOrderDetails,
@@ -61,6 +63,7 @@ import {
 } from "../utils/billingUtils";
 import { insertIntoReports } from "../utils/reportsUtils";
 import { useSession } from "next-auth/react";
+import { useAcademicTermContext } from "../contexts/AcademicTermContext";
 
 type PaymentType = "cash" | "gcash" | "bank_transfer";
 type ActiveTab = "products" | "enrollments" | "transactions";
@@ -77,15 +80,14 @@ interface PaymentFormData {
 
 const PaymentBillingManagement: React.FC = () => {
   const { data: session } = useSession();
+  const { currentTerm } = useAcademicTermContext();
+  const hasInitializedTermDefaults = useRef(false);
 
   // Tab state
   const [activeTab, setActiveTab] = useState<ActiveTab>("products");
 
   // Data states
   const [billings, setBillings] = useState<Billing[]>([]);
-  const [unbilledEnrollees, setUnbilledEnrollees] = useState<
-    UnbilledEnrollee[]
-  >([]);
   const [products, setProducts] = useState<Product[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -113,24 +115,17 @@ const PaymentBillingManagement: React.FC = () => {
   const studentSearchRef = useRef<HTMLDivElement>(null);
   const searchDebounceRef = useRef<NodeJS.Timeout | null>(null);
 
-  // Enrollment cart states
-  const [enrollmentCart, setEnrollmentCart] = useState<UnbilledEnrollee[]>([]);
-  const [enrollmentPaymentType, setEnrollmentPaymentType] =
-    useState<PaymentType>("cash");
-  const [enrollmentTenderedAmount, setEnrollmentTenderedAmount] = useState("");
-  const [enrollmentReferenceNo, setEnrollmentReferenceNo] = useState("");
-  const [isEnrollmentCheckoutModalOpen, setIsEnrollmentCheckoutModalOpen] =
-    useState(false);
-  const [isEnrolleeConfirmModalOpen, setIsEnrolleeConfirmModalOpen] =
-    useState(false);
-  const [selectedEnrollee, setSelectedEnrollee] =
-    useState<UnbilledEnrollee | null>(null);
-  const [enrolleeAmount, setEnrolleeAmount] = useState("");
-  const [enrolleeSearchTerm, setEnrolleeSearchTerm] = useState("");
+  // Student Financial Summary states
+  const [studentNumberSearch, setStudentNumberSearch] = useState("");
+  const [academicYearSearch, setAcademicYearSearch] = useState("");
+  const [semesterSearch, setSemesterSearch] = useState<1 | 2>(1);
+  const [financialSummary, setFinancialSummary] = useState<any>(null);
+  const [isLoadingFinancialSummary, setIsLoadingFinancialSummary] = useState(false);
 
   // Modal states
-  const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [isCheckoutModalOpen, setIsCheckoutModalOpen] = useState(false);
+  const [isStudentSearchModalOpen, setIsStudentSearchModalOpen] =
+    useState(false);
 
   // Transactions states
   const [orders, setOrders] = useState<OrderHeader[]>([]);
@@ -185,6 +180,18 @@ const PaymentBillingManagement: React.FC = () => {
     details: "",
   });
 
+  // Default search values based on the current academic term
+  useEffect(() => {
+    if (!currentTerm || hasInitializedTermDefaults.current) return;
+
+    const semesterValue = currentTerm.semester === "First" ? 1 : 2;
+    setAcademicYearSearch((prev) =>
+      prev.trim() ? prev : currentTerm.academicYear,
+    );
+    setSemesterSearch(semesterValue);
+    hasInitializedTermDefaults.current = true;
+  }, [currentTerm]);
+
   // Fetch data
   useEffect(() => {
     fetchData();
@@ -199,15 +206,13 @@ const PaymentBillingManagement: React.FC = () => {
   const fetchData = async () => {
     setIsLoading(true);
     try {
-      const [billingsData, unbilledData, productsData, categoriesData] =
+      const [billingsData, productsData, categoriesData] =
         await Promise.all([
           getBillings(),
-          getUnbilledEnrollees(),
           getProducts(),
           getCategories(),
         ]);
       setBillings(billingsData);
-      setUnbilledEnrollees(unbilledData);
       setProducts(productsData);
       setCategories(categoriesData);
     } catch (error) {
@@ -274,6 +279,31 @@ const PaymentBillingManagement: React.FC = () => {
     const tendered = parseFloat(tenderedAmount) || 0;
     return tendered - cartTotal;
   }, [tenderedAmount, cartTotal]);
+
+  const handleVoidTransactionConfirm = async () => {
+    if (!selectedOrder) return;
+
+    try {
+      setIsLoading(true);
+      await voidOrder(selectedOrder.id);
+      setIsVoidConfirmModalOpen(false);
+      setSelectedOrder(null);
+      await fetchOrders();
+      setSuccessModal({
+        isOpen: true,
+        message: `Order #${selectedOrder.id.toString().padStart(6, "0")} has been successfully voided.`,
+      });
+    } catch (error) {
+      console.error("Error voiding order:", error);
+      setErrorModal({
+        isOpen: true,
+        message: "Failed to void transaction",
+        details: "Please try again.",
+      });
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   // Pagination calculations
   const totalPages = Math.ceil(filteredBillings.length / itemsPerPage);
@@ -479,181 +509,41 @@ const PaymentBillingManagement: React.FC = () => {
     setPaymentType("cash");
   };
 
-  // Enrollment cart functions
-  const handleEnrolleeDoubleClick = (enrollee: UnbilledEnrollee) => {
-    // Check if already in cart
-    if (enrollmentCart.find((e) => e.id === enrollee.id)) {
+  // Fetch student financial summary
+  const fetchFinancialSummary = async () => {
+    if (!studentNumberSearch || !academicYearSearch) {
       setErrorModal({
         isOpen: true,
-        message: "Already in Cart",
-        details: `${enrollee.family_name}, ${enrollee.first_name} is already in your cart.`,
-      });
-      return;
-    }
-    setSelectedEnrollee(enrollee);
-    setEnrolleeAmount("");
-    setIsEnrolleeConfirmModalOpen(true);
-  };
-
-  const handleConfirmAddEnrolleeToCart = () => {
-    if (
-      !selectedEnrollee ||
-      !enrolleeAmount ||
-      parseFloat(enrolleeAmount) <= 0
-    ) {
-      setErrorModal({
-        isOpen: true,
-        message: "Invalid Amount",
-        details: "Please enter a valid payment amount.",
+        message: "Missing Information",
+        details: "Please enter student number and academic year.",
       });
       return;
     }
 
-    // Add enrollee to cart with amount
-    const enrolleeWithAmount = {
-      ...selectedEnrollee,
-      paymentAmount: parseFloat(enrolleeAmount),
-    };
-    setEnrollmentCart((prev) => [...prev, enrolleeWithAmount as any]);
-    setIsEnrolleeConfirmModalOpen(false);
-    setSelectedEnrollee(null);
-    setEnrolleeAmount("");
-  };
-
-  const removeFromEnrollmentCart = (enrolleeId: number) => {
-    setEnrollmentCart((prev) => prev.filter((e) => e.id !== enrolleeId));
-  };
-
-  const clearEnrollmentCart = () => {
-    setEnrollmentCart([]);
-    setEnrollmentTenderedAmount("");
-    setEnrollmentReferenceNo("");
-    setEnrollmentPaymentType("cash");
-  };
-
-  const enrollmentCartTotal = useMemo(() => {
-    return enrollmentCart.reduce((total, item: any) => {
-      return total + (item.paymentAmount || 0);
-    }, 0);
-  }, [enrollmentCart]);
-
-  const enrollmentChangeAmount = useMemo(() => {
-    const tendered = parseFloat(enrollmentTenderedAmount) || 0;
-    return tendered - enrollmentCartTotal;
-  }, [enrollmentTenderedAmount, enrollmentCartTotal]);
-
-  // Filter unbilled enrollees for search
-  const filteredUnbilledEnrollees = useMemo(() => {
-    if (!enrolleeSearchTerm) return unbilledEnrollees;
-    const searchLower = enrolleeSearchTerm.toLowerCase();
-    return unbilledEnrollees.filter((enrollee) => {
-      const fullName =
-        `${enrollee.family_name || ""} ${enrollee.first_name || ""} ${enrollee.middle_name || ""}`.toLowerCase();
-      const studentNum = (enrollee.student_number || "").toLowerCase();
-      return fullName.includes(searchLower) || studentNum.includes(searchLower);
-    });
-  }, [unbilledEnrollees, enrolleeSearchTerm]);
-
-  // Handle enrollment cart checkout
-  const handleEnrollmentCheckout = async () => {
-    if (enrollmentCart.length === 0) {
-      setErrorModal({
-        isOpen: true,
-        message: "Empty Cart",
-        details: "Please add enrollees to cart before checkout.",
-      });
-      return;
-    }
-
-    if (
-      enrollmentPaymentType === "cash" &&
-      (!enrollmentTenderedAmount ||
-        parseFloat(enrollmentTenderedAmount) < enrollmentCartTotal)
-    ) {
-      setErrorModal({
-        isOpen: true,
-        message: "Insufficient Amount",
-        details: "Tendered amount must be equal to or greater than the total.",
-      });
-      return;
-    }
-
-    if (
-      (enrollmentPaymentType === "gcash" ||
-        enrollmentPaymentType === "bank_transfer") &&
-      !enrollmentReferenceNo
-    ) {
-      setErrorModal({
-        isOpen: true,
-        message: "Reference Required",
-        details: "Please enter the reference number for electronic payments.",
-      });
-      return;
-    }
+    setIsLoadingFinancialSummary(true);
+    setFinancialSummary(null);
 
     try {
-      // Prepare order items for enrollment order
-      const orderItems = (enrollmentCart as any[]).map((enrollee) => ({
-        enrollee_id: enrollee.id,
-        enrollee_name:
-          `${enrollee.family_name || ""}, ${enrollee.first_name || ""}`.trim(),
-        student_number: enrollee.student_number || undefined,
-        amount: enrollee.paymentAmount,
-      }));
+      const response = await fetch(
+        `/api/auth/assessment/financial-summary?student_number=${encodeURIComponent(studentNumberSearch)}&academic_year=${encodeURIComponent(academicYearSearch)}&semester=${semesterSearch}`
+      );
 
-      // Get the first student number for AR number generation
-      const firstStudentNumber =
-        (enrollmentCart as any[]).length > 0
-          ? (enrollmentCart as any[])[0].student_number
-          : undefined;
-
-      // Create enrollment order (order_header, order_details, payment_details)
-      await createEnrollmentOrder({
-        order_amount: enrollmentCartTotal,
-        items: orderItems,
-        payment_type: enrollmentPaymentType,
-        tendered_amount:
-          enrollmentPaymentType === "cash"
-            ? parseFloat(enrollmentTenderedAmount)
-            : enrollmentCartTotal,
-        change_amount:
-          enrollmentPaymentType === "cash" ? enrollmentChangeAmount : 0,
-        transaction_ref: enrollmentReferenceNo || undefined,
-        student_number: firstStudentNumber,
-      });
-
-      // Process each enrollee payment (create billing records)
-      for (const enrollee of enrollmentCart as any[]) {
-        await createBilling({
-          enrollee_id: enrollee.id,
-          term: enrollee.term || undefined,
-          payment_type: enrollmentPaymentType,
-          amount: enrollee.paymentAmount,
-          reference_no: enrollmentReferenceNo || undefined,
-          user_id: session?.user?.id ? Number(session.user.id) : undefined,
-        });
-
-        insertIntoReports({
-          action: `User ${session?.user?.name} processed payment of ₱${enrollee.paymentAmount} (${enrollmentPaymentType}) for ${enrollee.family_name}, ${enrollee.first_name}`,
-          user_id: Number(session?.user?.id),
-          created_at: new Date(),
-        });
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.message || errorData.error || "Failed to fetch financial summary");
       }
 
-      setSuccessModal({
-        isOpen: true,
-        message: `Successfully processed ${enrollmentCart.length} payment(s)! ${enrollmentPaymentType === "cash" ? `Change: ₱${enrollmentChangeAmount.toFixed(2)}` : ""}`,
-      });
-
-      clearEnrollmentCart();
-      setIsEnrollmentCheckoutModalOpen(false);
-      fetchData();
+      const data = await response.json();
+      setFinancialSummary(data.data);
     } catch (error: any) {
+      console.error("Error fetching financial summary:", error);
       setErrorModal({
         isOpen: true,
-        message: "Checkout Failed",
-        details: error.response?.data?.error || "Please try again.",
+        message: "Failed to Load Financial Summary",
+        details: error.message || "Please check the student number, academic year, and semester.",
       });
+    } finally {
+      setIsLoadingFinancialSummary(false);
     }
   };
 
@@ -892,7 +782,10 @@ const PaymentBillingManagement: React.FC = () => {
 
   const formatAmount = (amount: number | null | undefined) => {
     if (amount === null || amount === undefined) return "₱0.00";
-    return `₱${Number(amount).toLocaleString("en-PH", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+    return `₱${Number(amount).toLocaleString("en-PH", {
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    })}`;
   };
 
   const formatDate = (dateStr: string | null) => {
@@ -905,761 +798,290 @@ const PaymentBillingManagement: React.FC = () => {
   };
 
   return (
-    <div className='p-4 sm:p-6 bg-gray-50 min-h-screen'>
+    <div
+      className='p-4 sm:p-6 min-h-screen'
+      style={{ backgroundColor: colors.paper }}
+    >
       <div className='max-w-7xl mx-auto w-full'>
-        {/* Header */}
-        <div className='mb-6'>
-          <h1
-            className='text-2xl font-bold mb-2'
-            style={{ color: colors.primary }}
-          >
-            Point of Sale System
-          </h1>
-          <p style={{ color: colors.primary }}>
-            Process product sales and enrollment payments
-          </p>
-        </div>
-
-        {/* Tab Navigation */}
-        <div className='bg-white rounded-lg shadow-sm border border-gray-100 mb-6'>
-          <div className='flex border-b border-gray-200'>
-            <button
-              onClick={() => setActiveTab("products")}
-              className={`flex-1 flex items-center justify-center gap-2 px-6 py-4 font-medium transition-colors ${
-                activeTab === "products"
-                  ? "border-b-2 text-white"
-                  : "text-gray-500 hover:text-gray-700 hover:bg-gray-50"
-              }`}
-              style={
-                activeTab === "products"
-                  ? {
-                      borderColor: colors.secondary,
-                      backgroundColor: colors.secondary,
-                    }
-                  : {}
-              }
-            >
-              <Package className='w-5 h-5' />
-              Products POS
-            </button>
-            <button
-              onClick={() => setActiveTab("enrollments")}
-              className={`flex-1 flex items-center justify-center gap-2 px-6 py-4 font-medium transition-colors ${
-                activeTab === "enrollments"
-                  ? "border-b-2 text-white"
-                  : "text-gray-500 hover:text-gray-700 hover:bg-gray-50"
-              }`}
-              style={
-                activeTab === "enrollments"
-                  ? {
-                      borderColor: colors.secondary,
-                      backgroundColor: colors.secondary,
-                    }
-                  : {}
-              }
-            >
-              <Users className='w-5 h-5' />
-              Enrollment Payments
-            </button>
-            <button
-              onClick={() => setActiveTab("transactions")}
-              className={`flex-1 flex items-center justify-center gap-2 px-6 py-4 font-medium transition-colors ${
-                activeTab === "transactions"
-                  ? "border-b-2 text-white"
-                  : "text-gray-500 hover:text-gray-700 hover:bg-gray-50"
-              }`}
-              style={
-                activeTab === "transactions"
-                  ? {
-                      borderColor: colors.secondary,
-                      backgroundColor: colors.secondary,
-                    }
-                  : {}
-              }
-            >
-              <FileText className='w-5 h-5' />
-              Transactions
-            </button>
-          </div>
-        </div>
+        <PaymentBillingHeader activeTab={activeTab} onTabChange={setActiveTab} />
 
         {/* Products Tab Content */}
         {activeTab === "products" && (
-          <div className='grid grid-cols-1 lg:grid-cols-3 gap-6'>
-            {/* Products Grid */}
-            <div className='lg:col-span-2'>
-              {/* Search and Filter */}
-              <div className='bg-white rounded-lg shadow-sm border border-gray-100 p-4 mb-4'>
-                <div className='flex flex-col md:flex-row gap-4'>
-                  <div className='flex-1 relative'>
-                    <Search className='absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5' />
-                    <input
-                      type='text'
-                      placeholder='Search products...'
-                      value={productSearchTerm}
-                      onChange={(e) => setProductSearchTerm(e.target.value)}
-                      className='w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent'
-                    />
-                  </div>
-                  <select
-                    value={selectedCategory}
-                    onChange={(e) => setSelectedCategory(e.target.value)}
-                    className='px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent'
-                  >
-                    <option value='all'>All Categories</option>
-                    {categories.map((cat) => (
-                      <option key={cat.id} value={cat.id}>
-                        {cat.name}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-              </div>
-
-              {/* Products Grid */}
-              <div className='bg-white rounded-lg shadow-sm border border-gray-100 p-4'>
-                {isLoading ? (
-                  <div className='p-8 text-center'>
-                    <div className='animate-spin rounded-full h-12 w-12 border-b-2 border-gray-900 mx-auto'></div>
-                    <p className='mt-4 text-gray-600'>Loading products...</p>
-                  </div>
-                ) : filteredProducts.length === 0 ? (
-                  <div className='p-8 text-center'>
-                    <Package className='mx-auto h-16 w-16 text-gray-400 mb-4' />
-                    <h3 className='text-lg font-semibold text-gray-900 mb-2'>
-                      No Products Found
-                    </h3>
-                    <p className='text-gray-600'>
-                      {productSearchTerm || selectedCategory !== "all"
-                        ? "No products match your search criteria."
-                        : "No products available."}
-                    </p>
-                  </div>
-                ) : (
-                  <div className='grid grid-cols-2 md:grid-cols-3 gap-4'>
-                    {filteredProducts.map((product) => (
-                      <button
-                        key={product.id}
-                        onClick={() => addToCart(product)}
-                        className={`p-4 rounded-lg border-2 transition-all text-left hover:shadow-md ${
-                          product.quantity && product.quantity > 0
-                            ? "border-gray-200 hover:border-blue-300 bg-white"
-                            : "border-gray-200 bg-gray-100 cursor-not-allowed opacity-60"
-                        }`}
-                        disabled={!product.quantity || product.quantity <= 0}
-                      >
-                        <div className='flex items-start justify-between mb-2'>
-                          <Package className='w-8 h-8 text-gray-400' />
-                          {product.category?.name && (
-                            <span className='text-xs px-2 py-1 bg-gray-100 rounded-full text-gray-600'>
-                              {product.category.name}
-                            </span>
-                          )}
-                        </div>
-                        <h3 className='font-medium text-gray-900 mb-1 line-clamp-2'>
-                          {product.name}
-                        </h3>
-                        <p
-                          className='text-lg font-bold'
-                          style={{ color: colors.secondary }}
-                        >
-                          {formatAmount(Number(product.price))}
-                        </p>
-                        <p
-                          className={`text-sm mt-1 ${product.quantity && product.quantity > 0 ? "text-gray-500" : "text-red-500"}`}
-                        >
-                          {product.quantity && product.quantity > 0
-                            ? `Stock: ${product.quantity}`
-                            : "Out of Stock"}
-                        </p>
-                      </button>
-                    ))}
-                  </div>
-                )}
-              </div>
-            </div>
-
-            {/* Cart */}
-            <div className='lg:col-span-1'>
-              {/* Student Search */}
-              <div className='bg-white rounded-lg shadow-sm border border-gray-100 mb-4'>
-                <div
-                  className='p-4 border-b border-gray-200'
-                  style={{ backgroundColor: `${colors.primary}08` }}
-                >
-                  <div className='flex items-center gap-2'>
-                    <User
-                      className='w-5 h-5'
-                      style={{ color: colors.secondary }}
-                    />
-                    <h2 className='font-bold' style={{ color: colors.primary }}>
-                      Student
-                    </h2>
-                  </div>
-                </div>
-                <div className='p-4'>
-                  {selectedStudent ? (
-                    <div className='bg-green-50 border border-green-200 rounded-lg p-3'>
-                      <div className='flex items-start justify-between'>
-                        <div>
-                          <p className='font-medium text-green-800'>
-                            {selectedStudent.family_name},{" "}
-                            {selectedStudent.first_name}{" "}
-                            {selectedStudent.middle_name || ""}
-                          </p>
-                          <p className='text-sm text-green-600'>
-                            {selectedStudent.student_number}
-                          </p>
-                          <p className='text-xs text-green-600'>
-                            {selectedStudent.course_program}
-                          </p>
-                        </div>
-                        <button
-                          onClick={clearSelectedStudent}
-                          className='text-green-600 hover:text-green-800'
-                        >
-                          <X className='w-4 h-4' />
-                        </button>
-                      </div>
-                    </div>
-                  ) : (
-                    <div className='space-y-2' ref={studentSearchRef}>
-                      <div className='relative'>
-                        <div className='flex gap-2'>
-                          <div className='relative flex-1'>
-                            <Search className='absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4' />
-                            <input
-                              type='text'
-                              placeholder='Search by name or student number...'
-                              value={studentNumberInput}
-                              onChange={(e) =>
-                                handleStudentInputChange(e.target.value)
-                              }
-                              onFocus={() => {
-                                if (studentSearchResults.length > 0) {
-                                  setShowStudentDropdown(true);
-                                }
-                              }}
-                              onKeyDown={(e) => {
-                                if (e.key === "Enter") {
-                                  e.preventDefault();
-                                  handleStudentSearch();
-                                }
-                                if (e.key === "Escape") {
-                                  setShowStudentDropdown(false);
-                                }
-                              }}
-                              className='w-full pl-9 pr-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent'
-                            />
-                            {studentSearchLoading && (
-                              <Loader2 className='absolute right-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400 animate-spin' />
-                            )}
-                          </div>
-                          <button
-                            onClick={handleStudentSearch}
-                            disabled={studentSearchLoading}
-                            className='px-3 py-2 rounded-lg text-white text-sm font-medium hover:opacity-90 transition-opacity disabled:opacity-50'
-                            style={{ backgroundColor: colors.secondary }}
-                          >
-                            {studentSearchLoading ? "..." : "Search"}
-                          </button>
-                        </div>
-
-                        {/* Autocomplete Dropdown */}
-                        {showStudentDropdown &&
-                          studentSearchResults.length > 0 && (
-                            <div className='absolute z-50 w-full mt-1 bg-white border border-gray-200 rounded-lg shadow-lg max-h-64 overflow-y-auto'>
-                              {studentSearchResults.map((student) => (
-                                <button
-                                  key={student.id}
-                                  onClick={() => handleStudentSelect(student)}
-                                  className='w-full px-4 py-3 text-left hover:bg-blue-50 border-b border-gray-100 last:border-b-0 transition-colors'
-                                >
-                                  <div className='flex items-center gap-3'>
-                                    <div
-                                      className='w-8 h-8 rounded-full flex items-center justify-center text-white text-sm font-medium'
-                                      style={{
-                                        backgroundColor: colors.secondary,
-                                      }}
-                                    >
-                                      {(
-                                        student.first_name?.[0] || ""
-                                      ).toUpperCase()}
-                                    </div>
-                                    <div className='flex-1 min-w-0'>
-                                      <p className='font-medium text-gray-900 truncate'>
-                                        {student.family_name},{" "}
-                                        {student.first_name}{" "}
-                                        {student.middle_name || ""}
-                                      </p>
-                                      <div className='flex items-center gap-2 text-xs text-gray-500'>
-                                        <span className='font-mono'>
-                                          {student.student_number}
-                                        </span>
-                                        <span>•</span>
-                                        <span className='truncate'>
-                                          {student.course_program || "N/A"}
-                                        </span>
-                                      </div>
-                                    </div>
-                                  </div>
-                                </button>
-                              ))}
-                            </div>
-                          )}
-                      </div>
-                      {studentSearchError && (
-                        <p className='text-sm text-red-600'>
-                          {studentSearchError}
-                        </p>
-                      )}
-                      <p className='text-xs text-gray-500'>
-                        Search by student number or name. Only enrolled students
-                        can be selected.
-                      </p>
-                    </div>
-                  )}
-                </div>
-              </div>
-
-              <div className='bg-white rounded-lg shadow-sm border border-gray-100 sticky top-4'>
-                {/* Cart Header */}
-                <div
-                  className='p-4 border-b border-gray-200'
-                  style={{ backgroundColor: `${colors.primary}08` }}
-                >
-                  <div className='flex items-center justify-between'>
-                    <div className='flex items-center gap-2'>
-                      <ShoppingCart
-                        className='w-5 h-5'
-                        style={{ color: colors.secondary }}
-                      />
-                      <h2
-                        className='font-bold'
-                        style={{ color: colors.primary }}
-                      >
-                        Cart ({cart.length})
-                      </h2>
-                    </div>
-                    {cart.length > 0 && (
-                      <button
-                        onClick={clearCart}
-                        className='text-sm text-red-600 hover:text-red-800'
-                      >
-                        Clear All
-                      </button>
-                    )}
-                  </div>
-                </div>
-
-                {/* Cart Items */}
-                <div className='p-4 max-h-[400px] overflow-y-auto'>
-                  {cart.length === 0 ? (
-                    <div className='text-center py-8 text-gray-500'>
-                      <ShoppingCart className='w-12 h-12 mx-auto mb-2 text-gray-300' />
-                      <p>Cart is empty</p>
-                    </div>
-                  ) : (
-                    <div className='space-y-3'>
-                      {cart.map((item) => (
-                        <div
-                          key={item.product.id}
-                          className='flex items-center gap-3 p-3 bg-gray-50 rounded-lg'
-                        >
-                          <div className='flex-1'>
-                            <p className='font-medium text-gray-900 text-sm line-clamp-1'>
-                              {item.product.name}
-                            </p>
-                            <p
-                              className='text-sm'
-                              style={{ color: colors.secondary }}
-                            >
-                              {formatAmount(Number(item.product.price))}
-                            </p>
-                          </div>
-                          <div className='flex items-center gap-2'>
-                            <button
-                              onClick={() =>
-                                updateCartQuantity(
-                                  item.product.id,
-                                  item.quantity - 1,
-                                )
-                              }
-                              className='p-1 rounded-full bg-gray-200 hover:bg-gray-300'
-                            >
-                              <Minus className='w-4 h-4' />
-                            </button>
-                            <span className='w-8 text-center font-medium'>
-                              {item.quantity}
-                            </span>
-                            <button
-                              onClick={() =>
-                                updateCartQuantity(
-                                  item.product.id,
-                                  item.quantity + 1,
-                                )
-                              }
-                              className='p-1 rounded-full bg-gray-200 hover:bg-gray-300'
-                            >
-                              <Plus className='w-4 h-4' />
-                            </button>
-                            <button
-                              onClick={() => removeFromCart(item.product.id)}
-                              className='p-1 rounded-full text-red-500 hover:bg-red-100 ml-2'
-                            >
-                              <Trash2 className='w-4 h-4' />
-                            </button>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </div>
-
-                {/* Cart Total & Checkout */}
-                {cart.length > 0 && (
-                  <div className='p-4 border-t border-gray-200'>
-                    <div className='flex items-center justify-between mb-4'>
-                      <span
-                        className='text-lg font-bold'
-                        style={{ color: colors.primary }}
-                      >
-                        Total:
-                      </span>
-                      <span
-                        className='text-2xl font-bold'
-                        style={{ color: colors.secondary }}
-                      >
-                        {formatAmount(cartTotal)}
-                      </span>
-                    </div>
-                    <button
-                      onClick={() => setIsCheckoutModalOpen(true)}
-                      className='w-full py-3 rounded-lg text-white font-bold flex items-center justify-center gap-2 transition-colors hover:opacity-90'
-                      style={{ backgroundColor: colors.secondary }}
-                    >
-                      <Receipt className='w-5 h-5' />
-                      Checkout
-                    </button>
-                  </div>
-                )}
-              </div>
-            </div>
-          </div>
+          <ProductsTabContent
+            categories={categories}
+            filteredProducts={filteredProducts}
+            isLoading={isLoading}
+            productSearchTerm={productSearchTerm}
+            setProductSearchTerm={setProductSearchTerm}
+            selectedCategory={selectedCategory}
+            setSelectedCategory={setSelectedCategory}
+            addToCart={addToCart}
+            studentSearchRef={studentSearchRef}
+            selectedStudent={selectedStudent}
+            clearSelectedStudent={clearSelectedStudent}
+            studentNumberInput={studentNumberInput}
+            handleStudentInputChange={handleStudentInputChange}
+            handleStudentSearch={handleStudentSearch}
+            studentSearchResults={studentSearchResults}
+            showStudentDropdown={showStudentDropdown}
+            setShowStudentDropdown={setShowStudentDropdown}
+            studentSearchLoading={studentSearchLoading}
+            studentSearchError={studentSearchError}
+            handleStudentSelect={handleStudentSelect}
+            cart={cart}
+            clearCart={clearCart}
+            updateCartQuantity={updateCartQuantity}
+            removeFromCart={removeFromCart}
+            cartTotal={cartTotal}
+            setIsCheckoutModalOpen={setIsCheckoutModalOpen}
+            formatAmount={formatAmount}
+          />
         )}
 
-        {/* Enrollments Tab Content */}
+        {/* Student Payments Tab Content */}
         {activeTab === "enrollments" && (
-          <div className='grid grid-cols-1 lg:grid-cols-3 gap-6'>
-            {/* Unpaid Enrollees Table */}
-            <div className='lg:col-span-2'>
-              {/* Stats Cards */}
-              <div className='grid grid-cols-1 md:grid-cols-3 gap-4 mb-4'>
-                <div className='bg-white rounded-lg shadow-sm border border-gray-100 p-4'>
-                  <div className='flex items-center justify-between'>
-                    <div>
-                      <p className='text-sm text-gray-500'>Total Paid</p>
-                      <p
-                        className='text-2xl font-bold'
-                        style={{ color: colors.primary }}
-                      >
-                        {billings.length}
-                      </p>
-                    </div>
-                    <div
-                      className='p-3 rounded-lg'
-                      style={{ backgroundColor: `${colors.secondary}20` }}
+          <div className='space-y-6'>
+            {/* Search Section */}
+            <div className='bg-white rounded-lg shadow-sm border border-gray-100 p-6'>
+              <h2 className='text-lg font-bold mb-4' style={{ color: colors.primary }}>
+                Search Student Financial Summary
+              </h2>
+              <div className='grid grid-cols-1 md:grid-cols-3 gap-4'>
+                <div>
+                  <label className='block text-sm font-medium text-gray-700 mb-2'>
+                    Student Number
+                  </label>
+                  <div className='flex gap-2'>
+                    <input
+                      type='text'
+                      value={studentNumberSearch}
+                      onChange={(e) => setStudentNumberSearch(e.target.value)}
+                      placeholder='Enter student number'
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter") {
+                          e.preventDefault();
+                          fetchFinancialSummary();
+                        }
+                      }}
+                      className='w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent'
+                    />
+                    <button
+                      type='button'
+                      onClick={() => setIsStudentSearchModalOpen(true)}
+                      className='px-3 py-2 rounded-lg text-white font-medium flex items-center gap-2 hover:opacity-90 transition-colors'
+                      style={{ backgroundColor: colors.secondary }}
                     >
-                      <CreditCard
-                        className='w-6 h-6'
-                        style={{ color: colors.secondary }}
-                      />
-                    </div>
+                      <Search className='w-4 h-4' />
+                      Browse
+                    </button>
                   </div>
+                  <p className='text-xs text-gray-500 mt-1'>
+                    Use the browse option to search by name with major/program filters.
+                  </p>
                 </div>
-
-                <div className='bg-white rounded-lg shadow-sm border border-gray-100 p-4'>
-                  <div className='flex items-center justify-between'>
-                    <div>
-                      <p className='text-sm text-gray-500'>Pending Payments</p>
-                      <p className='text-2xl font-bold text-orange-600'>
-                        {unbilledEnrollees.length}
-                      </p>
-                    </div>
-                    <div className='p-3 rounded-lg bg-orange-100'>
-                      <Users className='w-6 h-6 text-orange-600' />
-                    </div>
-                  </div>
-                </div>
-
-                <div className='bg-white rounded-lg shadow-sm border border-gray-100 p-4'>
-                  <div className='flex items-center justify-between'>
-                    <div>
-                      <p className='text-sm text-gray-500'>In Cart</p>
-                      <p className='text-2xl font-bold text-blue-600'>
-                        {enrollmentCart.length}
-                      </p>
-                    </div>
-                    <div className='p-3 rounded-lg bg-blue-100'>
-                      <ShoppingCart className='w-6 h-6 text-blue-600' />
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              {/* Search */}
-              <div className='bg-white rounded-lg shadow-sm border border-gray-100 p-4 mb-4'>
-                <div className='relative'>
-                  <Search className='absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5' />
+                <div>
+                  <label className='block text-sm font-medium text-gray-700 mb-2'>
+                    Academic Year
+                  </label>
                   <input
                     type='text'
-                    placeholder='Search unpaid enrollees by name or student number...'
-                    value={enrolleeSearchTerm}
-                    onChange={(e) => setEnrolleeSearchTerm(e.target.value)}
-                    className='w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent'
+                    value={academicYearSearch}
+                    onChange={(e) => setAcademicYearSearch(e.target.value)}
+                    placeholder='e.g., 2024-2025'
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") {
+                        e.preventDefault();
+                        fetchFinancialSummary();
+                      }
+                    }}
+                    className='w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent'
                   />
+                  <p className='text-xs text-gray-500 mt-1'>
+                    Press Enter to search.
+                  </p>
+                </div>
+                <div>
+                  <label className='block text-sm font-medium text-gray-700 mb-2'>
+                    Semester
+                  </label>
+                  <select
+                    value={semesterSearch}
+                    onChange={(e) => setSemesterSearch(parseInt(e.target.value) as 1 | 2)}
+                    className='w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent'
+                  >
+                    <option value={1}>First Semester</option>
+                    <option value={2}>Second Semester</option>
+                  </select>
+                  {isLoadingFinancialSummary && (
+                    <p className='text-xs text-gray-500 mt-1 flex items-center gap-2'>
+                      <Loader2 className='w-3.5 h-3.5 animate-spin' />
+                      Loading...
+                    </p>
+                  )}
                 </div>
               </div>
+            </div>
 
-              {/* Unpaid Enrollees Table */}
-              <div className='bg-white rounded-lg shadow-sm border border-gray-100 overflow-hidden'>
-                {isLoading ? (
-                  <div className='p-8 text-center'>
-                    <div className='animate-spin rounded-full h-12 w-12 border-b-2 border-gray-900 mx-auto'></div>
-                    <p className='mt-4 text-gray-600'>Loading enrollees...</p>
-                  </div>
-                ) : filteredUnbilledEnrollees.length === 0 ? (
-                  <div className='p-8 text-center'>
-                    <Users className='mx-auto h-16 w-16 text-gray-400 mb-4' />
-                    <h3 className='text-lg font-semibold text-gray-900 mb-2'>
-                      No Unpaid Enrollees
-                    </h3>
-                    <p className='text-gray-600'>
-                      {enrolleeSearchTerm
-                        ? "No enrollees match your search criteria."
-                        : "All enrollees have been paid."}
-                    </p>
-                  </div>
-                ) : (
-                  <>
-                    <div className='px-4 py-3 bg-orange-50 border-b border-orange-100'>
-                      <p className='text-sm text-orange-700 flex items-center gap-2'>
-                        <Users className='w-4 h-4' />
-                        Double-click a row to add the enrollee to your payment
-                        cart
+            {/* Financial Summary Display */}
+            {financialSummary && (
+              <div className='space-y-6'>
+                {/* Assessment Summary */}
+                <div className='bg-white rounded-lg shadow-sm border border-gray-100 p-6'>
+                  <h3 className='text-lg font-bold mb-4' style={{ color: colors.primary }}>
+                    Assessment Summary
+                  </h3>
+                  <div className='grid grid-cols-2 md:grid-cols-4 gap-4'>
+                    <div>
+                      <p className='text-sm text-gray-500 mb-1'>Gross Tuition</p>
+                      <p className='text-lg font-semibold' style={{ color: colors.secondary }}>
+                        {formatAmount(financialSummary.assessment_summary?.gross_tuition || 0)}
                       </p>
                     </div>
-                    <div className='overflow-x-auto max-h-[500px] overflow-y-auto'>
+                    <div>
+                      <p className='text-sm text-gray-500 mb-1'>Discount</p>
+                      <p className='text-lg font-semibold text-green-600'>
+                        -{formatAmount(financialSummary.assessment_summary?.discount_amount || 0)}
+                      </p>
+                    </div>
+                    <div>
+                      <p className='text-sm text-gray-500 mb-1'>Net Tuition</p>
+                      <p className='text-lg font-semibold' style={{ color: colors.secondary }}>
+                        {formatAmount(financialSummary.assessment_summary?.net_tuition || 0)}
+                      </p>
+                    </div>
+                    <div>
+                      <p className='text-sm text-gray-500 mb-1'>Total Fees</p>
+                      <p className='text-lg font-semibold' style={{ color: colors.secondary }}>
+                        {formatAmount(financialSummary.assessment_summary?.total_fees || 0)}
+                      </p>
+                    </div>
+                    <div>
+                      <p className='text-sm text-gray-500 mb-1'>Fixed Amount</p>
+                      <p className='text-lg font-semibold' style={{ color: colors.secondary }}>
+                        {formatAmount(financialSummary.assessment_summary?.fixed_amount_total || 0)}
+                      </p>
+                    </div>
+                    <div>
+                      <p className='text-sm text-gray-500 mb-1'>Base Total</p>
+                      <p className='text-lg font-semibold' style={{ color: colors.secondary }}>
+                        {formatAmount(financialSummary.assessment_summary?.base_total || 0)}
+                      </p>
+                    </div>
+                    <div>
+                      <p className='text-sm text-gray-500 mb-1'>Payment Mode</p>
+                      <p className='text-lg font-semibold capitalize'>
+                        {financialSummary.assessment_summary?.payment_mode || "N/A"}
+                      </p>
+                    </div>
+                    <div>
+                      <p className='text-sm text-gray-500 mb-1'>Total Due</p>
+                      <p className='text-lg font-semibold text-orange-600'>
+                        {formatAmount(financialSummary.assessment_summary?.total_due || 0)}
+                      </p>
+                    </div>
+                  </div>
+                  {financialSummary.assessment_summary?.payment_mode === "installment" && (
+                    <div className='mt-4 pt-4 border-t border-gray-200'>
+                      <p className='text-sm text-gray-500 mb-1'>Down Payment</p>
+                      <p className='text-lg font-semibold' style={{ color: colors.secondary }}>
+                        {formatAmount(financialSummary.assessment_summary?.down_payment || 0)}
+                      </p>
+                    </div>
+                  )}
+                </div>
+
+                {/* Installment Schedule */}
+                {financialSummary.assessment_summary?.payment_mode === "installment" && financialSummary.installment_schedule && financialSummary.installment_schedule.length > 0 && (
+                  <div className='bg-white rounded-lg shadow-sm border border-gray-100 p-6'>
+                    <h3 className='text-lg font-bold mb-4' style={{ color: colors.primary }}>
+                      Installment Schedule
+                    </h3>
+                    <div className='overflow-x-auto'>
                       <table className='w-full'>
-                        <thead className='bg-gray-50 border-b border-gray-200 sticky top-0'>
-                          <tr>
-                            <th className='px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider'>
-                              Student
-                            </th>
-                            <th className='px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider'>
-                              Student Number
-                            </th>
-                            <th className='px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider'>
-                              Program
-                            </th>
-                            <th className='px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider'>
-                              Term
-                            </th>
-                            <th className='px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider'>
-                              Status
-                            </th>
+                        <thead>
+                          <tr className='bg-gray-50 border-b border-gray-200'>
+                            <th className='px-4 py-3 text-left text-sm font-medium text-gray-700'>Label</th>
+                            <th className='px-4 py-3 text-left text-sm font-medium text-gray-700'>Due Date</th>
+                            <th className='px-4 py-3 text-right text-sm font-medium text-gray-700'>Amount</th>
+                            <th className='px-4 py-3 text-center text-sm font-medium text-gray-700'>Status</th>
                           </tr>
                         </thead>
                         <tbody className='divide-y divide-gray-200'>
-                          {filteredUnbilledEnrollees.map((enrollee) => {
-                            const isInCart = enrollmentCart.find(
-                              (e) => e.id === enrollee.id,
-                            );
-                            return (
-                              <tr
-                                key={enrollee.id}
-                                onDoubleClick={() =>
-                                  handleEnrolleeDoubleClick(enrollee)
-                                }
-                                className={`transition-colors cursor-pointer ${
-                                  isInCart
-                                    ? "bg-green-50 opacity-60"
-                                    : "hover:bg-orange-50"
-                                }`}
-                                title={
-                                  isInCart
-                                    ? "Already in cart"
-                                    : "Double-click to add to cart"
-                                }
-                              >
-                                <td className='px-6 py-4 whitespace-nowrap'>
-                                  <div className='flex items-center gap-3'>
-                                    <div
-                                      className='p-2 rounded-lg'
-                                      style={{
-                                        backgroundColor: isInCart
-                                          ? "#dcfce7"
-                                          : `${colors.secondary}15`,
-                                      }}
-                                    >
-                                      <User
-                                        className='w-5 h-5'
-                                        style={{
-                                          color: isInCart
-                                            ? "#16a34a"
-                                            : colors.secondary,
-                                        }}
-                                      />
-                                    </div>
-                                    <span className='text-sm font-medium text-gray-900'>
-                                      {`${enrollee.family_name || ""}, ${enrollee.first_name || ""} ${enrollee.middle_name || ""}`.trim()}
-                                    </span>
-                                  </div>
-                                </td>
-                                <td className='px-6 py-4 whitespace-nowrap'>
-                                  <span className='text-sm text-gray-600'>
-                                    {enrollee.student_number || "N/A"}
+                          {financialSummary.installment_schedule.map((schedule: any, index: number) => (
+                            <tr key={index} className='hover:bg-gray-50'>
+                              <td className='px-4 py-3 text-sm font-medium text-gray-900'>
+                                {schedule.label}
+                              </td>
+                              <td className='px-4 py-3 text-sm text-gray-600'>
+                                {new Date(schedule.due_date).toLocaleDateString()}
+                              </td>
+                              <td className='px-4 py-3 text-sm text-right font-semibold' style={{ color: colors.secondary }}>
+                                {formatAmount(schedule.amount || 0)}
+                              </td>
+                              <td className='px-4 py-3 text-center'>
+                                {schedule.is_paid ? (
+                                  <span className='inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800'>
+                                    Paid
                                   </span>
-                                </td>
-                                <td className='px-6 py-4 whitespace-nowrap'>
-                                  <span className='text-sm text-gray-600'>
-                                    {enrollee.course_program || "N/A"}
+                                ) : (
+                                  <span className='inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-orange-100 text-orange-800'>
+                                    Unpaid
                                   </span>
-                                </td>
-                                <td className='px-6 py-4 whitespace-nowrap'>
-                                  <span className='text-sm text-gray-600'>
-                                    {enrollee.term || "N/A"}
-                                  </span>
-                                </td>
-                                <td className='px-6 py-4 whitespace-nowrap'>
-                                  {isInCart ? (
-                                    <span className='inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800'>
-                                      In Cart
-                                    </span>
-                                  ) : (
-                                    <span className='inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-orange-100 text-orange-800'>
-                                      Unpaid
-                                    </span>
-                                  )}
-                                </td>
-                              </tr>
-                            );
-                          })}
+                                )}
+                              </td>
+                            </tr>
+                          ))}
                         </tbody>
                       </table>
                     </div>
-                  </>
-                )}
-              </div>
-            </div>
-
-            {/* Enrollment Cart */}
-            <div className='lg:col-span-1'>
-              <div className='bg-white rounded-lg shadow-sm border border-gray-100 sticky top-4'>
-                {/* Cart Header */}
-                <div
-                  className='p-4 border-b border-gray-200'
-                  style={{ backgroundColor: `${colors.primary}08` }}
-                >
-                  <div className='flex items-center justify-between'>
-                    <div className='flex items-center gap-2'>
-                      <ShoppingCart
-                        className='w-5 h-5'
-                        style={{ color: colors.secondary }}
-                      />
-                      <h2
-                        className='font-bold'
-                        style={{ color: colors.primary }}
-                      >
-                        Payment Cart ({enrollmentCart.length})
-                      </h2>
-                    </div>
-                    {enrollmentCart.length > 0 && (
-                      <button
-                        onClick={clearEnrollmentCart}
-                        className='text-sm text-red-600 hover:text-red-800'
-                      >
-                        Clear All
-                      </button>
-                    )}
                   </div>
-                </div>
+                )}
 
-                {/* Cart Items */}
-                <div className='p-4 max-h-[400px] overflow-y-auto'>
-                  {enrollmentCart.length === 0 ? (
-                    <div className='text-center py-8 text-gray-500'>
-                      <ShoppingCart className='w-12 h-12 mx-auto mb-2 text-gray-300' />
-                      <p>Cart is empty</p>
-                      <p className='text-sm mt-1'>
-                        Double-click an enrollee to add
+                {/* Payment Summary */}
+                <div className='bg-white rounded-lg shadow-sm border border-gray-100 p-6'>
+                  <h3 className='text-lg font-bold mb-4' style={{ color: colors.primary }}>
+                    Payment Summary
+                  </h3>
+                  <div className='grid grid-cols-1 md:grid-cols-3 gap-6'>
+                    <div>
+                      <p className='text-sm text-gray-500 mb-1'>Total Paid</p>
+                      <p className='text-2xl font-bold text-green-600'>
+                        {formatAmount(financialSummary.payment_summary?.total_paid || 0)}
                       </p>
                     </div>
-                  ) : (
-                    <div className='space-y-3'>
-                      {(enrollmentCart as any[]).map((enrollee) => (
-                        <div
-                          key={enrollee.id}
-                          className='flex items-center gap-3 p-3 bg-gray-50 rounded-lg'
-                        >
-                          <div className='flex-1'>
-                            <p className='font-medium text-gray-900 text-sm line-clamp-1'>
-                              {`${enrollee.family_name || ""}, ${enrollee.first_name || ""}`}
-                            </p>
-                            <p className='text-xs text-gray-500'>
-                              {enrollee.student_number || "N/A"} •{" "}
-                              {enrollee.term || "N/A"}
-                            </p>
-                            <p
-                              className='text-sm font-semibold mt-1'
-                              style={{ color: colors.secondary }}
-                            >
-                              {formatAmount(enrollee.paymentAmount)}
-                            </p>
-                          </div>
-                          <button
-                            onClick={() =>
-                              removeFromEnrollmentCart(enrollee.id)
-                            }
-                            className='p-1 rounded-full text-red-500 hover:bg-red-100'
-                          >
-                            <Trash2 className='w-4 h-4' />
-                          </button>
-                        </div>
-                      ))}
+                    <div>
+                      <p className='text-sm text-gray-500 mb-1'>Remaining Balance</p>
+                      <p className='text-2xl font-bold text-red-600'>
+                        {formatAmount(financialSummary.payment_summary?.remaining_balance || 0)}
+                      </p>
                     </div>
-                  )}
-                </div>
-
-                {/* Cart Total & Checkout */}
-                {enrollmentCart.length > 0 && (
-                  <div className='p-4 border-t border-gray-200'>
-                    <div className='flex items-center justify-between mb-4'>
-                      <span
-                        className='text-lg font-bold'
-                        style={{ color: colors.primary }}
-                      >
-                        Total:
-                      </span>
-                      <span
-                        className='text-2xl font-bold'
-                        style={{ color: colors.secondary }}
-                      >
-                        {formatAmount(enrollmentCartTotal)}
-                      </span>
+                    <div>
+                      <p className='text-sm text-gray-500 mb-1'>Payment Status</p>
+                      <p className={`text-2xl font-bold ${
+                        financialSummary.payment_summary?.payment_status === "Fully Paid" ? "text-green-600" :
+                        financialSummary.payment_summary?.payment_status === "Partial" ? "text-orange-600" :
+                        "text-red-600"
+                      }`}>
+                        {financialSummary.payment_summary?.payment_status || "N/A"}
+                      </p>
                     </div>
-                    <button
-                      onClick={() => setIsEnrollmentCheckoutModalOpen(true)}
-                      className='w-full py-3 rounded-lg text-white font-bold flex items-center justify-center gap-2 transition-colors hover:opacity-90'
-                      style={{ backgroundColor: colors.secondary }}
-                    >
-                      <Receipt className='w-5 h-5' />
-                      Process Payment
-                    </button>
                   </div>
-                )}
+                </div>
               </div>
-            </div>
+            )}
+
+            {/* No Results Message */}
+            {!financialSummary && !isLoadingFinancialSummary && (
+              <div className='bg-white rounded-lg shadow-sm border border-gray-100 p-12 text-center'>
+                <FileText className='w-16 h-16 mx-auto mb-4 text-gray-400' />
+                <h3 className='text-lg font-semibold text-gray-900 mb-2'>
+                  No Financial Summary
+                </h3>
+                <p className='text-gray-600'>
+                  Enter student number, academic year, and semester to view financial summary.
+                </p>
+              </div>
+            )}
           </div>
         )}
 
@@ -1917,568 +1339,46 @@ const PaymentBillingManagement: React.FC = () => {
       </div>
 
       {/* Order Details Modal */}
-      {isOrderDetailsModalOpen && selectedOrder && (
-        <div
-          className='fixed inset-0 flex items-center justify-center p-4 z-50 backdrop-blur-sm'
-          style={{ backgroundColor: "rgba(0,0,0,0.4)" }}
-          onClick={() => setIsOrderDetailsModalOpen(false)}
-        >
-          <div
-            className='rounded-2xl shadow-2xl w-full max-w-2xl overflow-hidden flex flex-col max-h-[90vh] animate-in fade-in zoom-in duration-200'
-            style={{ backgroundColor: "white" }}
-            onClick={(e) => e.stopPropagation()}
-          >
-            {/* Modal Header */}
-            <div
-              className='px-6 py-4 flex items-center justify-between border-b'
-              style={{
-                backgroundColor: selectedOrder.isvoided
-                  ? "#FEF2F2"
-                  : `${colors.primary}08`,
-                borderColor: selectedOrder.isvoided
-                  ? "#FECACA"
-                  : `${colors.primary}15`,
-              }}
-            >
-              <div className='flex items-center gap-3'>
-                <div
-                  className='p-2 rounded-lg'
-                  style={{
-                    backgroundColor: selectedOrder.isvoided
-                      ? "#FEE2E2"
-                      : `${colors.secondary}20`,
-                  }}
-                >
-                  <FileText
-                    className='w-5 h-5'
-                    style={{
-                      color: selectedOrder.isvoided
-                        ? "#DC2626"
-                        : colors.secondary,
-                    }}
-                  />
-                </div>
-                <div>
-                  <h2
-                    className='text-xl font-bold'
-                    style={{
-                      color: selectedOrder.isvoided
-                        ? "#DC2626"
-                        : colors.primary,
-                    }}
-                  >
-                    {selectedOrder.ar_number ||
-                      `Order #${selectedOrder.id.toString().padStart(6, "0")}`}
-                  </h2>
-                  <p className='text-sm text-gray-500'>
-                    {selectedOrder.ar_number && (
-                      <span className='mr-2'>ID: {selectedOrder.id}</span>
-                    )}
-                    {new Date(selectedOrder.order_date).toLocaleString()}
-                  </p>
-                </div>
-              </div>
-              <div className='flex items-center gap-2'>
-                {selectedOrder.isvoided && (
-                  <span className='inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-red-100 text-red-800'>
-                    VOIDED
-                  </span>
-                )}
-                <button
-                  onClick={() => setIsOrderDetailsModalOpen(false)}
-                  className='p-2 rounded-full hover:bg-gray-100 transition-colors text-gray-400 hover:text-gray-600'
-                >
-                  <X className='w-5 h-5' />
-                </button>
-              </div>
-            </div>
-
-            {/* Modal Body */}
-            <div className='p-6 overflow-y-auto space-y-6'>
-              {/* Student Info */}
-              {selectedOrder.student_name && (
-                <div className='bg-blue-50 border border-blue-200 rounded-lg p-4'>
-                  <div className='flex items-center gap-3'>
-                    <div className='p-2 rounded-lg bg-blue-100'>
-                      <User className='w-5 h-5 text-blue-600' />
-                    </div>
-                    <div>
-                      <p className='font-medium text-blue-900'>
-                        {selectedOrder.student_name}
-                      </p>
-                      <p className='text-sm text-blue-700'>
-                        {selectedOrder.student_number}
-                      </p>
-                      {selectedOrder.student_program && (
-                        <p className='text-xs text-blue-600'>
-                          {selectedOrder.student_program}
-                        </p>
-                      )}
-                    </div>
-                  </div>
-                </div>
-              )}
-
-              {/* Order Items */}
-              <div>
-                <h3 className='font-medium text-gray-900 mb-3'>Order Items</h3>
-                <div className='bg-gray-50 rounded-lg overflow-hidden'>
-                  <table className='w-full'>
-                    <thead>
-                      <tr className='border-b border-gray-200'>
-                        <th className='px-4 py-2 text-left text-sm font-medium text-gray-600'>
-                          Item
-                        </th>
-                        <th className='px-4 py-2 text-center text-sm font-medium text-gray-600'>
-                          Qty
-                        </th>
-                        <th className='px-4 py-2 text-right text-sm font-medium text-gray-600'>
-                          Price
-                        </th>
-                        <th className='px-4 py-2 text-right text-sm font-medium text-gray-600'>
-                          Total
-                        </th>
-                      </tr>
-                    </thead>
-                    <tbody className='divide-y divide-gray-200'>
-                      {selectedOrder.order_details?.map((detail, index) => (
-                        <tr key={index}>
-                          <td className='px-4 py-3 text-sm text-gray-900'>
-                            {detail.product_name || "Item"}
-                          </td>
-                          <td className='px-4 py-3 text-sm text-gray-600 text-center'>
-                            {detail.quantity || 0}
-                          </td>
-                          <td className='px-4 py-3 text-sm text-gray-600 text-right'>
-                            {formatAmount(detail.selling_price || 0)}
-                          </td>
-                          <td
-                            className='px-4 py-3 text-sm font-medium text-right'
-                            style={{ color: colors.secondary }}
-                          >
-                            {formatAmount(detail.total || 0)}
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              </div>
-
-              {/* Payment Details */}
-              <div className='grid grid-cols-2 gap-4'>
-                <div className='bg-gray-50 rounded-lg p-4'>
-                  <p className='text-sm text-gray-500 mb-1'>Payment Method</p>
-                  <p className='font-medium text-gray-900'>
-                    {selectedOrder.payment_type || "N/A"}
-                  </p>
-                </div>
-                <div className='bg-gray-50 rounded-lg p-4'>
-                  <p className='text-sm text-gray-500 mb-1'>Total Amount</p>
-                  <p
-                    className='font-medium text-xl'
-                    style={{ color: colors.secondary }}
-                  >
-                    {formatAmount(selectedOrder.order_amount || 0)}
-                  </p>
-                </div>
-              </div>
-
-              {/* Payment Details */}
-              {selectedOrder.payment_details && (
-                <div>
-                  <h3 className='font-medium text-gray-900 mb-3'>
-                    Payment Details
-                  </h3>
-                  <div className='bg-gray-50 rounded-lg p-4 space-y-2'>
-                    <div className='flex justify-between text-sm'>
-                      <span className='text-gray-600'>Payment Method</span>
-                      <span className='font-medium text-gray-900'>
-                        {selectedOrder.payment_details.payment_type_name ||
-                          "N/A"}
-                      </span>
-                    </div>
-                    <div className='flex justify-between text-sm'>
-                      <span className='text-gray-600'>Amount Paid</span>
-                      <span
-                        className='font-medium'
-                        style={{ color: colors.secondary }}
-                      >
-                        {formatAmount(
-                          selectedOrder.payment_details.amount || 0,
-                        )}
-                      </span>
-                    </div>
-                    {selectedOrder.payment_details.tendered_amount && (
-                      <div className='flex justify-between text-sm'>
-                        <span className='text-gray-600'>Tendered Amount</span>
-                        <span className='font-medium text-gray-900'>
-                          {formatAmount(
-                            selectedOrder.payment_details.tendered_amount,
-                          )}
-                        </span>
-                      </div>
-                    )}
-                    {selectedOrder.payment_details.change_amount && (
-                      <div className='flex justify-between text-sm'>
-                        <span className='text-gray-600'>Change</span>
-                        <span className='font-medium text-gray-900'>
-                          {formatAmount(
-                            selectedOrder.payment_details.change_amount,
-                          )}
-                        </span>
-                      </div>
-                    )}
-                    {selectedOrder.payment_details.transaction_ref && (
-                      <div className='flex justify-between text-sm'>
-                        <span className='text-gray-600'>Reference No.</span>
-                        <span className='font-medium text-gray-900'>
-                          {selectedOrder.payment_details.transaction_ref}
-                        </span>
-                      </div>
-                    )}
-                  </div>
-                </div>
-              )}
-            </div>
-
-            {/* Modal Footer */}
-            {!selectedOrder.isvoided && (
-              <div className='px-6 py-4 border-t border-gray-200 flex justify-end'>
-                <button
-                  onClick={() => {
-                    setIsOrderDetailsModalOpen(false);
-                    setIsVoidConfirmModalOpen(true);
-                  }}
-                  className='px-4 py-2 rounded-lg text-white font-medium flex items-center gap-2 bg-red-600 hover:bg-red-700 transition-colors'
-                >
-                  <Ban className='w-4 h-4' />
-                  Void Transaction
-                </button>
-              </div>
-            )}
-          </div>
-        </div>
-      )}
+      <OrderDetailsModal
+        isOpen={isOrderDetailsModalOpen}
+        order={selectedOrder}
+        onClose={() => setIsOrderDetailsModalOpen(false)}
+        onRequestVoid={() => {
+          setIsOrderDetailsModalOpen(false);
+          setIsVoidConfirmModalOpen(true);
+        }}
+        formatAmount={formatAmount}
+      />
 
       {/* Void Confirmation Modal */}
-      {isVoidConfirmModalOpen && selectedOrder && (
-        <div
-          className='fixed inset-0 flex items-center justify-center p-4 z-50 backdrop-blur-sm'
-          style={{ backgroundColor: "rgba(0,0,0,0.4)" }}
-          onClick={() => setIsVoidConfirmModalOpen(false)}
-        >
-          <div
-            className='rounded-2xl shadow-2xl w-full max-w-md overflow-hidden animate-in fade-in zoom-in duration-200'
-            style={{ backgroundColor: "white" }}
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div className='p-6'>
-              <div className='w-12 h-12 rounded-full bg-red-100 flex items-center justify-center mx-auto mb-4'>
-                <Ban className='w-6 h-6 text-red-600' />
-              </div>
-              <h3 className='text-lg font-bold text-gray-900 text-center mb-2'>
-                Void Transaction?
-              </h3>
-              <p className='text-sm text-gray-600 text-center mb-6'>
-                Are you sure you want to void Order #
-                {selectedOrder.id.toString().padStart(6, "0")}? This action will
-                mark the transaction as voided and cannot be undone.
-              </p>
-              <p
-                className='text-center font-bold text-xl mb-6'
-                style={{ color: colors.secondary }}
-              >
-                Amount: {formatAmount(selectedOrder.order_amount || 0)}
-              </p>
-              <div className='flex gap-3'>
-                <button
-                  onClick={() => setIsVoidConfirmModalOpen(false)}
-                  className='flex-1 px-4 py-2 border border-gray-300 rounded-lg text-gray-700 font-medium hover:bg-gray-50 transition-colors'
-                >
-                  Cancel
-                </button>
-                <button
-                  onClick={async () => {
-                    try {
-                      setIsLoading(true);
-                      await voidOrder(selectedOrder.id);
-                      setIsVoidConfirmModalOpen(false);
-                      setSelectedOrder(null);
-                      await fetchOrders();
-                      setSuccessModal({
-                        isOpen: true,
-                        message: `Order #${selectedOrder.id.toString().padStart(6, "0")} has been successfully voided.`,
-                      });
-                    } catch (error) {
-                      console.error("Error voiding order:", error);
-                      setErrorModal({
-                        isOpen: true,
-                        message: "Failed to void transaction",
-                        details: "Please try again.",
-                      });
-                    } finally {
-                      setIsLoading(false);
-                    }
-                  }}
-                  className='flex-1 px-4 py-2 rounded-lg text-white font-medium bg-red-600 hover:bg-red-700 transition-colors'
-                >
-                  Void Transaction
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
+      <VoidTransactionModal
+        isOpen={isVoidConfirmModalOpen}
+        order={selectedOrder}
+        onCancel={() => setIsVoidConfirmModalOpen(false)}
+        onConfirm={handleVoidTransactionConfirm}
+        isLoading={isLoading}
+        formatAmount={formatAmount}
+      />
 
       {/* Product Checkout Modal */}
-      {isCheckoutModalOpen && (
-        <div
-          className='fixed inset-0 flex items-center justify-center p-4 z-50 backdrop-blur-sm'
-          style={{ backgroundColor: "rgba(0,0,0,0.4)" }}
-          onClick={() => setIsCheckoutModalOpen(false)}
-        >
-          <div
-            className='rounded-2xl shadow-2xl w-full max-w-lg overflow-hidden flex flex-col max-h-[90vh] animate-in fade-in zoom-in duration-200'
-            style={{ backgroundColor: "white" }}
-            onClick={(e) => e.stopPropagation()}
-          >
-            {/* Modal Header */}
-            <div
-              className='px-6 py-4 flex items-center justify-between border-b'
-              style={{
-                backgroundColor: `${colors.primary}08`,
-                borderColor: `${colors.primary}15`,
-              }}
-            >
-              <div className='flex items-center gap-3'>
-                <div
-                  className='p-2 rounded-lg'
-                  style={{ backgroundColor: `${colors.secondary}20` }}
-                >
-                  <Receipt
-                    className='w-5 h-5'
-                    style={{ color: colors.secondary }}
-                  />
-                </div>
-                <div>
-                  <h2
-                    className='text-xl font-bold'
-                    style={{ color: colors.primary }}
-                  >
-                    Checkout
-                  </h2>
-                  <p className='text-sm text-gray-500'>
-                    Complete your purchase
-                  </p>
-                </div>
-              </div>
-              <button
-                onClick={() => setIsCheckoutModalOpen(false)}
-                className='p-2 rounded-full hover:bg-gray-100 transition-colors text-gray-400 hover:text-gray-600'
-              >
-                <X className='w-5 h-5' />
-              </button>
-            </div>
+      <ProductCheckoutModal
+        isOpen={isCheckoutModalOpen}
+        cart={cart}
+        cartTotal={cartTotal}
+        paymentType={paymentType}
+        setPaymentType={setPaymentType}
+        tenderedAmount={tenderedAmount}
+        setTenderedAmount={setTenderedAmount}
+        referenceNo={referenceNo}
+        setReferenceNo={setReferenceNo}
+        changeAmount={changeAmount}
+        onClose={() => setIsCheckoutModalOpen(false)}
+        onCheckout={handleProductCheckout}
+        formatAmount={formatAmount}
+      />
 
-            {/* Modal Body */}
-            <div className='p-6 overflow-y-auto space-y-6'>
-              {/* Order Summary */}
-              <div className='bg-gray-50 rounded-lg p-4'>
-                <h3 className='font-medium text-gray-900 mb-3'>
-                  Order Summary
-                </h3>
-                <div className='space-y-2 max-h-32 overflow-y-auto'>
-                  {cart.map((item) => (
-                    <div
-                      key={item.product.id}
-                      className='flex justify-between text-sm'
-                    >
-                      <span className='text-gray-600'>
-                        {item.product.name} x{item.quantity}
-                      </span>
-                      <span className='font-medium'>
-                        {formatAmount(
-                          (Number(item.product.price) || 0) * item.quantity,
-                        )}
-                      </span>
-                    </div>
-                  ))}
-                </div>
-                <div className='border-t border-gray-200 mt-3 pt-3 flex justify-between'>
-                  <span className='font-bold' style={{ color: colors.primary }}>
-                    Total
-                  </span>
-                  <span
-                    className='font-bold text-lg'
-                    style={{ color: colors.secondary }}
-                  >
-                    {formatAmount(cartTotal)}
-                  </span>
-                </div>
-              </div>
-
-              {/* Payment Type */}
-              <div>
-                <label className='block text-sm font-medium text-gray-700 mb-2'>
-                  <CreditCard className='w-4 h-4 inline mr-1' />
-                  Payment Type
-                </label>
-                <div className='grid grid-cols-3 gap-3'>
-                  {[
-                    {
-                      value: "cash",
-                      label: "Cash",
-                      icon: Wallet,
-                      color: "green",
-                    },
-                    {
-                      value: "gcash",
-                      label: "GCash",
-                      icon: Smartphone,
-                      color: "blue",
-                    },
-                    {
-                      value: "bank_transfer",
-                      label: "Bank",
-                      icon: Building2,
-                      color: "purple",
-                    },
-                  ].map(({ value, label, icon: Icon, color }) => (
-                    <button
-                      key={value}
-                      type='button'
-                      onClick={() => setPaymentType(value as PaymentType)}
-                      className={`p-3 rounded-lg border-2 transition-all ${
-                        paymentType === value
-                          ? `border-${color}-500 bg-${color}-50`
-                          : "border-gray-200 hover:border-gray-300"
-                      }`}
-                      style={
-                        paymentType === value
-                          ? {
-                              borderColor:
-                                color === "green"
-                                  ? "#22c55e"
-                                  : color === "blue"
-                                    ? "#3b82f6"
-                                    : "#a855f7",
-                              backgroundColor:
-                                color === "green"
-                                  ? "#f0fdf4"
-                                  : color === "blue"
-                                    ? "#eff6ff"
-                                    : "#faf5ff",
-                            }
-                          : {}
-                      }
-                    >
-                      <Icon
-                        className='w-5 h-5 mx-auto mb-1'
-                        style={{
-                          color:
-                            paymentType === value
-                              ? color === "green"
-                                ? "#22c55e"
-                                : color === "blue"
-                                  ? "#3b82f6"
-                                  : "#a855f7"
-                              : "#9ca3af",
-                        }}
-                      />
-                      <span
-                        className='text-xs font-medium block'
-                        style={
-                          paymentType === value
-                            ? {
-                                color:
-                                  color === "green"
-                                    ? "#15803d"
-                                    : color === "blue"
-                                      ? "#1d4ed8"
-                                      : "#7e22ce",
-                              }
-                            : { color: "#6b7280" }
-                        }
-                      >
-                        {label}
-                      </span>
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              {/* Cash Payment - Tendered Amount */}
-              {paymentType === "cash" && (
-                <div>
-                  <label className='block text-sm font-medium text-gray-700 mb-2'>
-                    <DollarSign className='w-4 h-4 inline mr-1' />
-                    Tendered Amount
-                  </label>
-                  <div className='relative'>
-                    <span className='absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-500'>
-                      ₱
-                    </span>
-                    <input
-                      type='number'
-                      step='0.01'
-                      min={cartTotal}
-                      value={tenderedAmount}
-                      onChange={(e) => setTenderedAmount(e.target.value)}
-                      placeholder='0.00'
-                      className='w-full pl-8 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent'
-                    />
-                  </div>
-                  {parseFloat(tenderedAmount) >= cartTotal && (
-                    <p className='mt-2 text-green-600 font-medium'>
-                      Change: {formatAmount(changeAmount)}
-                    </p>
-                  )}
-                </div>
-              )}
-
-              {/* Electronic Payment - Reference Number */}
-              {(paymentType === "gcash" || paymentType === "bank_transfer") && (
-                <div>
-                  <label className='block text-sm font-medium text-gray-700 mb-2'>
-                    <Hash className='w-4 h-4 inline mr-1' />
-                    Reference Number
-                  </label>
-                  <input
-                    type='text'
-                    value={referenceNo}
-                    onChange={(e) => setReferenceNo(e.target.value)}
-                    placeholder='Enter reference number'
-                    className='w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent'
-                  />
-                </div>
-              )}
-
-              {/* Submit Buttons */}
-              <div className='flex gap-3 pt-4 border-t border-gray-200'>
-                <button
-                  type='button'
-                  onClick={() => setIsCheckoutModalOpen(false)}
-                  className='flex-1 px-4 py-2 border border-gray-300 rounded-lg text-gray-700 font-medium hover:bg-gray-50 transition-colors'
-                >
-                  Cancel
-                </button>
-                <button
-                  type='button'
-                  onClick={handleProductCheckout}
-                  className='flex-1 px-4 py-2 rounded-lg text-white font-medium transition-colors'
-                  style={{ backgroundColor: colors.secondary }}
-                >
-                  Complete Payment
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Add Enrollment Payment Modal */}
-      {isAddModalOpen && (
+      {/* Enrollment modals removed - using financial summary API instead */}
+      {false && isAddModalOpen && (
         <div
           className='fixed inset-0 flex items-center justify-center p-4 z-50 backdrop-blur-sm'
           style={{ backgroundColor: "rgba(0,0,0,0.4)" }}
@@ -2754,6 +1654,16 @@ const PaymentBillingManagement: React.FC = () => {
         </div>
       )}
 
+      {/* Student search modal for financial summary lookup */}
+      <StudentSearchModal
+        isOpen={isStudentSearchModalOpen}
+        onClose={() => setIsStudentSearchModalOpen(false)}
+        onSelect={(studentNumber) => {
+          setStudentNumberSearch(studentNumber);
+          setIsStudentSearchModalOpen(false);
+        }}
+      />
+
       {/* Delete Confirmation Modal */}
       <ConfirmationModal
         isOpen={deleteConfirmation.isOpen}
@@ -2791,8 +1701,8 @@ const PaymentBillingManagement: React.FC = () => {
         details={errorModal.details}
       />
 
-      {/* Enrollee Confirmation Modal */}
-      {isEnrolleeConfirmModalOpen && selectedEnrollee && (
+      {/* Enrollment modals removed - using financial summary API instead */}
+      {false && isEnrolleeConfirmModalOpen && selectedEnrollee && (
         <div
           className='fixed inset-0 flex items-center justify-center p-4 z-50 backdrop-blur-sm'
           style={{ backgroundColor: "rgba(0,0,0,0.4)" }}
@@ -2939,8 +1849,8 @@ const PaymentBillingManagement: React.FC = () => {
         </div>
       )}
 
-      {/* Enrollment Checkout Modal */}
-      {isEnrollmentCheckoutModalOpen && (
+      {/* Enrollment modals removed - using financial summary API instead */}
+      {false && isEnrollmentCheckoutModalOpen && (
         <div
           className='fixed inset-0 flex items-center justify-center p-4 z-50 backdrop-blur-sm'
           style={{ backgroundColor: "rgba(0,0,0,0.4)" }}
@@ -3191,5 +2101,6 @@ const PaymentBillingManagement: React.FC = () => {
     </div>
   );
 };
+
 
 export default PaymentBillingManagement;

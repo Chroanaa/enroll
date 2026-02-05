@@ -345,7 +345,7 @@ const DiscountForm: React.FC<DiscountFormProps> = ({ discount, onSave, onCancel,
               </button>
               <button
                 type='submit'
-                className='px-6 py-2.5 text-white rounded-xl transition-all font-medium flex items-center gap-2 shadow-lg shadow-blue-900/20 disabled:opacity-50 disabled:cursor-not-allowed'
+                className='px-6 py-2.5 text-white rounded-xl transition-all font-medium flex items-center gap-2 shadow-lg shadow-blue-900/20 disabled:opacity-50 disabled:cursor-not-allowed relative overflow-hidden'
                 style={{ backgroundColor: isLoading ? "#9CA3AF" : colors.secondary }}
                 disabled={isLoading}
                 onMouseEnter={(e) => {
@@ -361,12 +361,12 @@ const DiscountForm: React.FC<DiscountFormProps> = ({ discount, onSave, onCancel,
               >
                 {isLoading ? (
                   <>
-                    <div className='w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin' />
-                    {discount ? "Saving..." : "Adding..."}
+                    <div className='w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin' style={{ animation: 'spin 0.8s linear infinite' }} />
+                    <span className='animate-pulse'>{discount ? "Saving..." : "Adding..."}</span>
                   </>
                 ) : (
                   <>
-                    <CheckCircle2 className='w-4 h-4' />
+                    <CheckCircle2 className='w-4 h-4 transition-transform hover:scale-110' />
                     {discount ? "Save Changes" : "Add Discount"}
                   </>
                 )}

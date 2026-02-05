@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect, useMemo } from "react";
+import React, { useState, useEffect, useMemo, useRef } from "react";
 import { X, Search, Plus, Loader2, BookOpen, Filter } from "lucide-react";
 import { colors } from "../../colors";
 import type { EnrolledSubject } from "./types";
@@ -70,7 +70,11 @@ export const SubjectManagementModal: React.FC<SubjectManagementModalProps> = ({
     course: null,
   });
 
-  // Load curriculum subjects when modal opens - fetch from both semesters
+  // Cache for curriculum data per programId
+  const curriculumCacheRef = useRef<Map<number, { data: CurriculumCourse[]; timestamp: number }>>(new Map());
+  const CACHE_DURATION = 5 * 60 * 1000; // 5 minutes
+
+  // Load curriculum subjects when modal opens - fetch from both semesters with caching
   useEffect(() => {
     if (isOpen && programId) {
       fetchCurriculumSubjects();
@@ -139,18 +143,35 @@ export const SubjectManagementModal: React.FC<SubjectManagementModalProps> = ({
   const fetchCurriculumSubjects = async () => {
     if (!programId) return;
 
+    // Check cache first
+    const cached = curriculumCacheRef.current.get(programId);
+    const now = Date.now();
+    
+    if (cached && (now - cached.timestamp) < CACHE_DURATION) {
+      setCurriculumCourses(cached.data);
+      return;
+    }
+
     setIsLoading(true);
     setError(null);
 
     try {
-      // Fetch subjects from both semesters
+      // Fetch subjects from both semesters in parallel with AbortController for cancellation
+      const abortController = new AbortController();
+      const signal = abortController.signal;
+
       const [sem1Response, sem2Response] = await Promise.all([
-        fetch(`/api/auth/curriculum/subjects?programId=${programId}&semester=1`),
-        fetch(`/api/auth/curriculum/subjects?programId=${programId}&semester=2`),
+        fetch(`/api/auth/curriculum/subjects?programId=${programId}&semester=1`, { signal }),
+        fetch(`/api/auth/curriculum/subjects?programId=${programId}&semester=2`, { signal }),
       ]);
+
+      // Check if request was aborted
+      if (signal.aborted) return;
 
       const sem1Data = sem1Response.ok ? await sem1Response.json() : null;
       const sem2Data = sem2Response.ok ? await sem2Response.json() : null;
+
+      if (signal.aborted) return;
 
       const allCourses: CurriculumCourse[] = [];
       
@@ -169,8 +190,17 @@ export const SubjectManagementModal: React.FC<SubjectManagementModalProps> = ({
         }
       }
 
+      // Cache the results
+      curriculumCacheRef.current.set(programId, {
+        data: allCourses,
+        timestamp: now,
+      });
+
       setCurriculumCourses(allCourses);
-    } catch (err) {
+    } catch (err: any) {
+      // Ignore abort errors
+      if (err.name === 'AbortError') return;
+      
       console.error("Error fetching curriculum subjects:", err);
       setError(err instanceof Error ? err.message : "Failed to load subjects");
       setCurriculumCourses([]);

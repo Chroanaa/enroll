@@ -265,13 +265,25 @@ const DiscountManagement: React.FC = () => {
             </p>
           </div>
           <button
-            onClick={() => setIsAddModalOpen(true)}
+            onClick={() => {
+              if (isSubmitting || isDeleting) return;
+              setIsAddModalOpen(true);
+            }}
             disabled={isSubmitting || isDeleting}
-            className='flex items-center gap-2 px-5 py-3 text-white rounded-xl transition-all shadow-lg shadow-blue-900/20 hover:shadow-xl hover:scale-105 active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100'
+            className='flex items-center gap-2 px-5 py-3 text-white rounded-xl transition-all shadow-lg shadow-blue-900/20 hover:shadow-xl hover:scale-105 active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100 relative'
             style={{ backgroundColor: colors.secondary }}
           >
-            <Plus className='w-5 h-5' />
-            <span className='font-medium'>Add Discount</span>
+            {(isSubmitting || isDeleting) ? (
+              <>
+                <div className='w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin' style={{ animation: 'spin 0.8s linear infinite' }} />
+                <span className='font-medium animate-pulse'>Loading...</span>
+              </>
+            ) : (
+              <>
+                <Plus className='w-5 h-5 transition-transform hover:rotate-90' />
+                <span className='font-medium'>Add Discount</span>
+              </>
+            )}
           </button>
         </div>
 

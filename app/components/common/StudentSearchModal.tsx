@@ -1,7 +1,10 @@
 "use client";
-import React, { useState, useEffect, useRef } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import { X, Search, Loader2, User } from "lucide-react";
 import { colors } from "../../colors";
+import { getMajors } from "../../utils/majorUtils";
+import { getPrograms } from "../../utils/programUtils";
+import { Major, Program } from "../../types";
 
 interface Student {
   id: number;
@@ -25,7 +28,6 @@ interface StudentSearchModalProps {
   onSelect: (studentNumber: string) => void;
 }
 
-
 const StudentSearchModal: React.FC<StudentSearchModalProps> = ({
   isOpen,
   onClose,
@@ -34,9 +36,86 @@ const StudentSearchModal: React.FC<StudentSearchModalProps> = ({
   const [searchQuery, setSearchQuery] = useState("");
   const [students, setStudents] = useState<Student[]>([]);
   const [isLoading, setIsLoading] = useState(false);
+  const [isLoadingFilters, setIsLoadingFilters] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [majors, setMajors] = useState<Major[]>([]);
+  const [programs, setPrograms] = useState<Program[]>([]);
+  // Combined selection: "all" | "p:<programId>" | "m:<majorId>"
+  const [selectedProgramMajor, setSelectedProgramMajor] =
+    useState<string>("all");
   const searchInputRef = useRef<HTMLInputElement>(null);
   const debounceTimerRef = useRef<NodeJS.Timeout | null>(null);
+
+  const programMajorOptions = useMemo(() => {
+    // Build combined list:
+    // - Program - None
+    // - Program - MajorName (for each major under program)
+    const majorsByProgramId = new Map<number, Major[]>();
+    for (const major of majors) {
+      const list = majorsByProgramId.get(major.program_id) || [];
+      list.push(major);
+      majorsByProgramId.set(major.program_id, list);
+    }
+
+    // Keep majors stable & sorted
+    for (const [programId, list] of majorsByProgramId.entries()) {
+      list.sort((a, b) => (a.name || "").localeCompare(b.name || ""));
+      majorsByProgramId.set(programId, list);
+    }
+
+    const sortedPrograms = [...programs].sort((a, b) =>
+      (a.code || a.name || "").localeCompare(b.code || b.name || ""),
+    );
+
+    const options: Array<{
+      value: string;
+      label: string;
+      programId?: number;
+      majorId?: number;
+    }> = [];
+
+    for (const program of sortedPrograms) {
+      // Program - None (fallback)
+      options.push({
+        value: `p:${program.id}`,
+        label: `${program.code} - None`,
+        programId: program.id,
+      });
+
+      const programMajors = majorsByProgramId.get(program.id) || [];
+      for (const major of programMajors) {
+        options.push({
+          value: `m:${major.id}`,
+          label: `${program.code} - ${major.name}`,
+          programId: program.id,
+          majorId: major.id,
+        });
+      }
+    }
+
+    return options;
+  }, [majors, programs]);
+
+  const selectedFilter = useMemo(() => {
+    if (!selectedProgramMajor || selectedProgramMajor === "all") {
+      return { programId: null as number | null, majorId: null as number | null };
+    }
+    if (selectedProgramMajor.startsWith("m:")) {
+      const majorId = parseInt(selectedProgramMajor.slice(2));
+      return {
+        programId: null,
+        majorId: Number.isNaN(majorId) ? null : majorId,
+      };
+    }
+    if (selectedProgramMajor.startsWith("p:")) {
+      const programId = parseInt(selectedProgramMajor.slice(2));
+      return {
+        programId: Number.isNaN(programId) ? null : programId,
+        majorId: null,
+      };
+    }
+    return { programId: null, majorId: null };
+  }, [selectedProgramMajor]);
 
   // Focus search input when modal opens
   useEffect(() => {
@@ -44,6 +123,27 @@ const StudentSearchModal: React.FC<StudentSearchModalProps> = ({
       searchInputRef.current.focus();
     }
   }, [isOpen]);
+
+  // Load majors/programs when modal opens
+  useEffect(() => {
+    const loadFilters = async () => {
+      try {
+        setIsLoadingFilters(true);
+        const [majorsData, programsData] = await Promise.all([
+          getMajors().catch(() => []),
+          getPrograms().catch(() => []),
+        ]);
+        setMajors(majorsData);
+        setPrograms(programsData);
+      } finally {
+        setIsLoadingFilters(false);
+      }
+    };
+
+    if (isOpen && programs.length === 0 && majors.length === 0) {
+      loadFilters();
+    }
+  }, [isOpen, majors.length, programs.length]);
 
   // Handle Esc key to close modal and prevent body scroll
   useEffect(() => {
@@ -93,7 +193,7 @@ const StudentSearchModal: React.FC<StudentSearchModalProps> = ({
         clearTimeout(debounceTimerRef.current);
       }
     };
-  }, [searchQuery, isOpen]);
+  }, [searchQuery, isOpen, selectedProgramMajor]);
 
   const performSearch = async (query: string) => {
     if (query.length < 2) {
@@ -105,7 +205,19 @@ const StudentSearchModal: React.FC<StudentSearchModalProps> = ({
     setError(null);
 
     try {
-      const url = `/api/auth/students/search?query=${encodeURIComponent(query)}&limit=50`;
+      const params = new URLSearchParams({
+        query: query,
+        limit: "50",
+      });
+
+      // Apply selected combined filter: major preferred; otherwise program
+      if (selectedFilter.majorId) {
+        params.append("majorId", String(selectedFilter.majorId));
+      } else if (selectedFilter.programId) {
+        params.append("programId", String(selectedFilter.programId));
+      }
+
+      const url = `/api/auth/students/search?${params.toString()}`;
       const response = await fetch(url);
 
       if (!response.ok) {
@@ -140,26 +252,25 @@ const StudentSearchModal: React.FC<StudentSearchModalProps> = ({
   return (
     <div
       className="fixed inset-0 flex items-center justify-center p-4 z-50 backdrop-blur-sm"
-      style={{ backgroundColor: "rgba(0,0,0,0.5)" }}
+      style={{ backgroundColor: "rgba(0,0,0,0.4)" }}
       onClick={handleClose}
     >
       <div
-        className="rounded-2xl shadow-2xl w-full max-w-4xl max-h-[90vh] overflow-hidden flex flex-col animate-in fade-in zoom-in duration-200"
-        style={{ backgroundColor: "white" }}
+        className="rounded-2xl shadow-2xl w-full max-w-4xl max-h-[90vh] overflow-hidden flex flex-col animate-in fade-in zoom-in duration-200 bg-white"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
         <div
           className="px-6 py-4 flex items-center justify-between border-b"
           style={{
-            backgroundColor: colors.paper,
-            borderColor: colors.tertiary + "30",
+            backgroundColor: `${colors.primary}08`,
+            borderColor: `${colors.primary}15`,
           }}
         >
           <div className="flex items-center gap-3">
             <div
               className="p-2 rounded-lg"
-              style={{ backgroundColor: colors.secondary + "10" }}
+              style={{ backgroundColor: `${colors.secondary}20` }}
             >
               <Search className="w-6 h-6" style={{ color: colors.secondary }} />
             </div>
@@ -171,27 +282,21 @@ const StudentSearchModal: React.FC<StudentSearchModalProps> = ({
                 Search Student
               </h2>
               <p className="text-sm text-gray-600">
-                Search by student number, name, or course/program
+                Search by student number or name, and optionally filter by program/major
               </p>
             </div>
           </div>
           <button
             onClick={handleClose}
-            className="p-2 rounded-full hover:bg-gray-100 transition-colors text-gray-400 hover:text-gray-600"
+            className="p-2 rounded-full hover:bg-white/60 transition-colors text-gray-400 hover:text-gray-600"
           >
             <X className="w-5 h-5" />
           </button>
         </div>
 
         {/* Search Input */}
-        <div className="p-6 border-b" style={{ borderColor: colors.tertiary + "30" }}>
+        <div className="p-6 border-b" style={{ borderColor: `${colors.primary}15` }}>
           <div className="relative">
-            <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
-              <Search
-                className="h-5 w-5"
-                style={{ color: colors.tertiary }}
-              />
-            </div>
             <input
               ref={searchInputRef}
               type="text"
@@ -203,26 +308,36 @@ const StudentSearchModal: React.FC<StudentSearchModalProps> = ({
                   performSearch(searchQuery.trim());
                 }
               }}
-              placeholder="Enter student number, name, or course/program..."
-              className="w-full pl-12 pr-4 py-3 rounded-lg border transition-all focus:outline-none focus:ring-2"
-              style={{
-                borderColor: colors.tertiary + "30",
-                color: colors.primary,
-              }}
-              onFocus={(e) => {
-                e.currentTarget.style.borderColor = colors.secondary;
-                e.currentTarget.style.boxShadow = `0 0 0 4px ${colors.secondary}10`;
-              }}
-              onBlur={(e) => {
-                e.currentTarget.style.borderColor = colors.tertiary + "30";
-                e.currentTarget.style.boxShadow = "none";
-              }}
+              placeholder="Enter student number or name..."
+              className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
             />
             {isLoading && (
               <div className="absolute inset-y-0 right-0 pr-4 flex items-center">
                 <Loader2 className="w-5 h-5 animate-spin" style={{ color: colors.secondary }} />
               </div>
             )}
+          </div>
+          <div className="mt-4">
+            <label className="text-sm font-medium text-gray-700">
+              Program - Major
+            </label>
+            <select
+              value={selectedProgramMajor}
+              onChange={(e) => setSelectedProgramMajor(e.target.value)}
+              className="mt-1 w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
+              disabled={isLoadingFilters}
+            >
+              <option value="all">All</option>
+              {programMajorOptions.map((opt) => (
+                <option key={opt.value} value={opt.value}>
+                  {opt.label}
+                </option>
+              ))}
+            </select>
+            <p className="text-xs text-gray-500 mt-1">
+              Examples: <span className="font-mono">BEED - Filipino</span>,{" "}
+              <span className="font-mono">BSIT - None</span>
+            </p>
           </div>
           {searchQuery.trim().length > 0 && searchQuery.trim().length < 2 && (
             <p className="text-xs text-gray-500 mt-2 ml-1">
@@ -232,7 +347,7 @@ const StudentSearchModal: React.FC<StudentSearchModalProps> = ({
         </div>
 
         {/* Results */}
-        <div className="flex-1 overflow-y-auto p-6">
+        <div className="flex-1 overflow-y-auto p-6 bg-gray-50">
           {error && (
             <div
               className="p-4 rounded-lg mb-4"
@@ -270,7 +385,7 @@ const StudentSearchModal: React.FC<StudentSearchModalProps> = ({
           )}
 
           {!error && students.length > 0 && (
-            <div className="overflow-x-auto">
+            <div className="overflow-x-auto bg-white rounded-lg shadow-sm border border-gray-100">
               <table className="w-full">
                 <thead>
                   <tr
@@ -385,14 +500,17 @@ const StudentSearchModal: React.FC<StudentSearchModalProps> = ({
         {/* Footer */}
         <div
           className="px-6 py-4 border-t flex justify-end gap-3"
-          style={{ borderColor: colors.tertiary + "30" }}
+          style={{
+            borderColor: `${colors.primary}15`,
+            backgroundColor: `${colors.primary}04`,
+          }}
         >
           <button
             onClick={handleClose}
             className="px-6 py-2.5 rounded-lg font-medium transition-colors"
             style={{
               color: colors.primary,
-              border: `1px solid ${colors.tertiary}30`,
+              border: "1px solid #D1D5DB",
             }}
             onMouseEnter={(e) => {
               e.currentTarget.style.backgroundColor = colors.tertiary + "10";
