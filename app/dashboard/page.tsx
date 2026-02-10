@@ -16,6 +16,7 @@ import SchedulingManagement from "../components/SchedulingManagement";
 import PaymentBillingManagement from "../components/PaymentBillingManagement";
 import CurriculumManagement from "../components/curriculum";
 import FileMaintenanceManagement from "../components/FileMaintenanceManagement";
+import Settings from "../components/Settings";
 import {
   Building,
   Section,
@@ -96,6 +97,8 @@ export default function DashboardPage() {
         return <Subject />;
       case "file-maintenance-schools-programs":
         return <SchoolsPrograms />;
+      case "settings":
+        return <Settings />;
       default:
         return <Dashboard />;
     }

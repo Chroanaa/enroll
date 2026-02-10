@@ -320,11 +320,13 @@ model order_header {
   order_amount     Decimal?  @db.Decimal(10, 2)
   billing_id       Int?
   ar_number        String?   @db.VarChar(255)
+  or_number        String?   @db.VarChar(255)
   isvoided         Int?
   voided_header_id Int?
   created_at       DateTime? @db.Timestamp(6)
   updated_at       DateTime? @db.Timestamp(6)
   student_number   String?   @db.VarChar(20)
+  user_id          Int? 
 }
 
 model payment_details {

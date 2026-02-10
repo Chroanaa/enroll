@@ -1,6 +1,10 @@
 import { NextResponse, NextRequest } from "next/server";
 import { prisma } from "@/app/lib/prisma";
-import { generateARNumber, getServerDate } from "@/app/utils/arNumberUtils";
+import {
+  generateARNumber,
+  generateORNumber,
+  getServerDate,
+} from "@/app/utils/arNumberUtils";
 
 // Create a new order with order details and payment
 export async function POST(request: NextRequest) {
@@ -15,10 +19,22 @@ export async function POST(request: NextRequest) {
       change_amount,
       transaction_ref,
       student_number,
+      user_id,
     } = data;
+
+    // Validate that student_number is provided for POS transactions
+    if (!student_number) {
+      return NextResponse.json(
+        { error: "Student number is required for POS transactions" },
+        { status: 400 },
+      );
+    }
 
     // Generate AR number using server date (prevents tampering)
     const arNumber = await generateARNumber(student_number);
+
+    // Generate OR number with format: YYYYTT###### (AY + Term + Sequence)
+    const orNumber = await generateORNumber();
 
     // Get server date for order_date to prevent tampering
     const serverDate = await getServerDate();
@@ -30,8 +46,10 @@ export async function POST(request: NextRequest) {
         order_amount: Number(order_amount),
         billing_id: billing_id ? Number(billing_id) : null,
         ar_number: arNumber,
+        or_number: orNumber,
         isvoided: 0,
         student_number: student_number || null,
+        user_id: user_id ? Number(user_id) : null,
         created_at: serverDate,
         updated_at: serverDate,
       },

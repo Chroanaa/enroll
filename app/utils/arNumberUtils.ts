@@ -1,4 +1,49 @@
 import { prisma } from "@/app/lib/prisma";
+import { getAcademicYear, getCurrentSemester } from "./academicTermUtils";
+
+/**
+ * Generates a unique OR (Official Receipt) number for transactions
+ * Format: YYYYTT######
+ * - YYYY = Academic Year (e.g., 2526 for AY 2025-2026)
+ * - TT = Term (01 for 1st semester, 02 for 2nd semester)
+ * - ###### = 6-digit alphanumeric sequence (000001, 000002, etc.)
+ *
+ * Example: 252601000001 = AY 2025-2026, 1st Semester, Sequence 1
+ *
+ * The date is fetched from the database to prevent tampering
+ */
+export async function generateORNumber(): Promise<string> {
+  // Get server date from database to prevent client-side tampering
+  const serverTimeResult = await prisma.$queryRaw<
+    [{ now: Date }]
+  >`SELECT NOW() as now`;
+  const serverDate = serverTimeResult[0].now;
+
+  // Get academic year info
+  const { startYear, endYear } = getAcademicYear(serverDate);
+
+  // Format academic year as YYYY (last 2 digits of start year + last 2 digits of end year)
+  const ayCode = `${String(startYear).slice(-2)}${String(endYear).slice(-2)}`;
+
+  // Get current semester
+  const { semester } = getCurrentSemester(serverDate);
+  const termCode = semester === "First" ? "01" : "02";
+
+  // Create prefix for OR number (YYYYTT)
+  const orPrefix = `${ayCode}${termCode}`;
+
+  // Count existing OR numbers with the same prefix to create a sequence number
+  const existingCountResult = await prisma.$queryRaw<
+    [{ count: bigint }]
+  >`SELECT COUNT(*) as count FROM order_header WHERE or_number LIKE ${orPrefix + "%"}`;
+  const existingCount = Number(existingCountResult[0].count);
+
+  // Sequence number (1-based, padded to 6 digits)
+  const sequence = String(existingCount + 1).padStart(6, "0");
+
+  // Final OR Number format: YYYYTT######
+  return `${orPrefix}${sequence}`;
+}
 
 /**
  * Generates a unique AR (Acknowledgment Receipt) number for transactions
