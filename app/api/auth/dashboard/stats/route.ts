@@ -120,8 +120,25 @@ export async function GET(request: NextRequest) {
         ? ((recentEnrollments - lastWeekEnrollments) / lastWeekEnrollments) *
           100
         : recentEnrollments > 0
-        ? 100
-        : 0;
+          ? 100
+          : 0;
+
+    // Get recent pending enrollments list
+    const recentPendingEnrollments = await prisma.enrollment.findMany({
+      where: { OR: [{ status: 0 }, { status: null }] },
+      select: {
+        id: true,
+        family_name: true,
+        first_name: true,
+        middle_name: true,
+        admission_date: true,
+        admission_status: true,
+        course_program: true,
+        student_number: true,
+      },
+      orderBy: { admission_date: "desc" },
+      take: 10,
+    });
 
     return NextResponse.json({
       data: {
@@ -148,13 +165,21 @@ export async function GET(request: NextRequest) {
           count: s._count.id,
         })),
         topDepartments,
+        recentPendingEnrollments: recentPendingEnrollments.map((e) => ({
+          id: e.id,
+          studentNumber: e.student_number,
+          name: `${e.family_name || ""}, ${e.first_name || ""} ${e.middle_name || ""}`.trim(),
+          admissionDate: e.admission_date,
+          admissionStatus: e.admission_status,
+          program: e.course_program,
+        })),
       },
     });
   } catch (error) {
     console.error("Dashboard stats error:", error);
     return NextResponse.json(
       { error: "Internal server error" },
-      { status: 500 }
+      { status: 500 },
     );
   }
 }

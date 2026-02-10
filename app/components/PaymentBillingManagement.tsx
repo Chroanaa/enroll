@@ -48,7 +48,8 @@ const PaymentBillingManagement: React.FC = () => {
 
   // Modal states
   const [isCheckoutModalOpen, setIsCheckoutModalOpen] = useState(false);
-  const [isStudentSearchModalOpen, setIsStudentSearchModalOpen] = useState(false);
+  const [isStudentSearchModalOpen, setIsStudentSearchModalOpen] =
+    useState(false);
 
   // Custom hooks
   const cartHook = useCart(products);
@@ -56,45 +57,36 @@ const PaymentBillingManagement: React.FC = () => {
   const financialSummaryHook = useFinancialSummary();
   const transactionsHook = useTransactions();
 
-  // Set up automatic financial summary fetch when student is selected from dropdown
+  // Set up student selection callback for Products tab
   useEffect(() => {
-    // Only set up callback if hooks are properly initialized
-    if (studentSearchHook?.setOnStudentSelectCallback && financialSummaryHook?.setStudentNumberSearch) {
-      // Enable auto-fetch mode for reactive financial summary loading
-      financialSummaryHook.enableAutoFetch((message, details) => {
-        setErrorModal({ isOpen: true, message, details });
-      });
+    if (studentSearchHook?.setOnStudentSelectCallback) {
+      studentSearchHook.setOnStudentSelectCallback(
+        (student: EnrolledStudent) => {
+          if (
+            !student ||
+            !student.student_number ||
+            typeof student.student_number !== "string"
+          ) {
+            console.warn(
+              "Student selection callback called with invalid student data:",
+              student,
+            );
+            return;
+          }
 
-      studentSearchHook.setOnStudentSelectCallback((student: EnrolledStudent) => {
-        // Add comprehensive null check to prevent runtime errors
-        if (!student || !student.student_number || typeof student.student_number !== 'string') {
-          console.warn("Student selection callback called with invalid student data:", student);
-          return;
-        }
-        
-        // Set the student number in financial summary hook
-        // The useEffect in useFinancialSummary will automatically trigger the fetch
-        financialSummaryHook.setStudentNumberSearch(student.student_number);
-        
-        // Show success message for student selection
-        const studentName = [student.first_name, student.middle_name, student.family_name]
-          .filter(Boolean)
-          .join(' ') || student.student_number;
-        
-        setSuccessModal({
-          isOpen: true,
-          message: `Student ${studentName} selected. Loading financial summary...`,
-        });
-      });
+          const studentName =
+            [student.first_name, student.middle_name, student.family_name]
+              .filter(Boolean)
+              .join(" ") || student.student_number;
+
+          setSuccessModal({
+            isOpen: true,
+            message: `Student ${studentName} selected.`,
+          });
+        },
+      );
     }
-
-    // Cleanup function to disable auto-fetch when component unmounts
-    return () => {
-      if (financialSummaryHook?.disableAutoFetch) {
-        financialSummaryHook.disableAutoFetch();
-      }
-    };
-  }, [studentSearchHook, financialSummaryHook]);
+  }, [studentSearchHook]);
 
   // Error and success modals
   const [successModal, setSuccessModal] = useState<{
@@ -131,9 +123,9 @@ const PaymentBillingManagement: React.FC = () => {
     setIsLoading(true);
     try {
       const [productsData, categoriesData] = await Promise.all([
-          getProducts(),
-          getCategories(),
-        ]);
+        getProducts(),
+        getCategories(),
+      ]);
       setProducts(productsData);
       setCategories(categoriesData);
     } catch (error) {
@@ -218,6 +210,16 @@ const PaymentBillingManagement: React.FC = () => {
       return;
     }
 
+    // Validate student number is selected
+    if (!studentSearchHook.selectedStudent?.student_number) {
+      setErrorModal({
+        isOpen: true,
+        message: "Student Number Required",
+        details: "Please select a student before completing the transaction.",
+      });
+      return;
+    }
+
     if (
       cartHook.paymentType === "cash" &&
       (!cartHook.tenderedAmount ||
@@ -260,9 +262,12 @@ const PaymentBillingManagement: React.FC = () => {
           cartHook.paymentType === "cash"
             ? parseFloat(cartHook.tenderedAmount)
             : cartHook.cartTotal,
-        change_amount: cartHook.paymentType === "cash" ? cartHook.changeAmount : 0,
+        change_amount:
+          cartHook.paymentType === "cash" ? cartHook.changeAmount : 0,
         transaction_ref: cartHook.referenceNo || undefined,
-        student_number: studentSearchHook.selectedStudent?.student_number || undefined,
+        student_number:
+          studentSearchHook.selectedStudent?.student_number || undefined,
+        user_id: session?.user?.id ? Number(session.user.id) : undefined,
       });
 
       setSuccessModal({
@@ -295,7 +300,10 @@ const PaymentBillingManagement: React.FC = () => {
       style={{ backgroundColor: colors.paper }}
     >
       <div className='max-w-7xl mx-auto w-full'>
-        <PaymentBillingHeader activeTab={activeTab} onTabChange={setActiveTab} />
+        <PaymentBillingHeader
+          activeTab={activeTab}
+          onTabChange={setActiveTab}
+        />
 
         {/* Products Tab Content */}
         {activeTab === "products" && (
@@ -312,7 +320,9 @@ const PaymentBillingManagement: React.FC = () => {
             selectedStudent={studentSearchHook.selectedStudent}
             clearSelectedStudent={studentSearchHook.clearSelectedStudent}
             studentNumberInput={studentSearchHook.studentNumberInput}
-            handleStudentInputChange={studentSearchHook.handleStudentInputChange}
+            handleStudentInputChange={
+              studentSearchHook.handleStudentInputChange
+            }
             handleStudentSearch={studentSearchHook.handleStudentSearch}
             studentSearchResults={studentSearchHook.studentSearchResults}
             showStudentDropdown={studentSearchHook.showStudentDropdown}
@@ -340,7 +350,9 @@ const PaymentBillingManagement: React.FC = () => {
             semesterSearch={financialSummaryHook.semesterSearch}
             setSemesterSearch={financialSummaryHook.setSemesterSearch}
             financialSummary={financialSummaryHook.financialSummary}
-            isLoadingFinancialSummary={financialSummaryHook.isLoadingFinancialSummary}
+            isLoadingFinancialSummary={
+              financialSummaryHook.isLoadingFinancialSummary
+            }
             onSearch={fetchFinancialSummary}
             onBrowseClick={() => setIsStudentSearchModalOpen(true)}
             formatAmount={formatAmount}
@@ -360,9 +372,12 @@ const PaymentBillingManagement: React.FC = () => {
             setTransactionsPage={transactionsHook.setTransactionsPage}
             onRefresh={transactionsHook.fetchOrders}
             onOrderDoubleClick={(order) =>
-              transactionsHook.handleOrderDoubleClick(order, (message, details) => {
-                setErrorModal({ isOpen: true, message, details });
-              })
+              transactionsHook.handleOrderDoubleClick(
+                order,
+                (message, details) => {
+                  setErrorModal({ isOpen: true, message, details });
+                },
+              )
             }
             formatAmount={formatAmount}
           />
@@ -416,7 +431,7 @@ const PaymentBillingManagement: React.FC = () => {
           // Set the student number - the useEffect will automatically trigger the fetch
           financialSummaryHook.setStudentNumberSearch(studentNumber);
           setIsStudentSearchModalOpen(false);
-          
+
           // Show success message
           setSuccessModal({
             isOpen: true,

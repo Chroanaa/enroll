@@ -286,6 +286,7 @@ export async function createOrder(data: {
   change_amount?: number;
   transaction_ref?: string;
   student_number?: string;
+  user_id?: number;
 }): Promise<any> {
   try {
     const response = await axios.post("/api/auth/orders", data);

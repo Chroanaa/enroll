@@ -228,6 +228,12 @@ const Navigation: React.FC<NavigationProps> = ({
             icon: TrendingUp,
             allowedRoles: [ROLES.ADMIN, ROLES.REGISTRAR],
           },
+          {
+            id: "settings",
+            label: "Settings",
+            icon: Settings,
+            allowedRoles: [ROLES.ADMIN],
+          },
         ],
       },
       {
