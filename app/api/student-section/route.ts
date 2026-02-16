@@ -81,10 +81,16 @@ export async function POST(request: NextRequest) {
     }
 
     if (section.status !== 'active') {
+      const statusMessage = section.status === 'locked' 
+        ? 'Section is locked. No student assignments allowed.'
+        : section.status === 'draft'
+        ? 'Section is in draft. Activate section before assigning students.'
+        : `Can only assign students to active sections. Current status: ${section.status}`;
+      
       return NextResponse.json(
         {
           error: 'INVALID_STATE',
-          message: 'Can only assign students to active sections'
+          message: statusMessage
         } as ApiError,
         { status: 400 }
       );

@@ -47,9 +47,10 @@ const Navigation: React.FC<NavigationProps> = ({
   currentView,
   onViewChange,
 }) => {
-  const { data: session } = useSession();
+  const { data: session, status } = useSession();
 
-  const userRole = Number((session?.user as any)?.role) || 0;
+  // Default to ADMIN role (1) if session not loaded yet
+  const userRole = Number((session?.user as any)?.role) || ROLES.ADMIN;
 
   const [isFileMaintenanceOpen, setIsFileMaintenanceOpen] = useState(false);
   const [isCurriculumOpen, setIsCurriculumOpen] = useState(false);
@@ -334,11 +335,11 @@ const Navigation: React.FC<NavigationProps> = ({
 
   return (
     <nav
-      className='border-r w-16 md:w-64 h-screen p-2 md:p-4 flex flex-col overflow-hidden'
+      className='border-r w-64 h-screen p-4 flex flex-col overflow-hidden relative z-50'
       style={{ backgroundColor: colors.primary }}
     >
       {/* Logo Section */}
-      <div className='mb-8 flex items-center justify-center md:justify-start gap-0 md:gap-3'>
+      <div className='mb-8 flex items-center justify-start gap-3'>
         <div
           className='w-12 h-12 bg-white rounded-lg flex items-center justify-center overflow-hidden'
           style={{ borderRadius: "100%" }}
@@ -352,7 +353,7 @@ const Navigation: React.FC<NavigationProps> = ({
             priority
           />
         </div>
-        <div className='hidden md:block'>
+        <div>
           <h1 className='font-bold' style={{ color: colors.paper }}>
             ITERESIAN
           </h1>
@@ -373,7 +374,7 @@ const Navigation: React.FC<NavigationProps> = ({
         <ul className='space-y-4'>
           {filteredNavGroups.map((group) => (
             <li key={group.category}>
-              <div className='hidden md:block mb-2 px-3'>
+              <div className='mb-2 px-3'>
                 <h3
                   className='text-xs font-semibold uppercase tracking-wider'
                   style={{ color: colors.paper, opacity: 0.6 }}
@@ -424,7 +425,7 @@ const Navigation: React.FC<NavigationProps> = ({
                               }
                             }
                           }}
-                          className='w-full flex items-center justify-center md:justify-start gap-0 md:gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all duration-200 relative'
+                          className='w-full flex items-center justify-start gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all duration-200 relative'
                           style={
                             isActive
                               ? {
@@ -454,12 +455,12 @@ const Navigation: React.FC<NavigationProps> = ({
                           }}
                         >
                           <Icon className='w-5 h-5' />
-                          <span className='hidden md:inline flex-1 text-left'>
+                          <span className='flex-1 text-left'>
                             {item.label}
                           </span>
                           {(isFileMaintenance || isCurriculum) &&
                             item.hasSubmenu && (
-                              <span className='hidden md:inline chevron-toggle cursor-pointer flex items-center justify-center'>
+                              <span className='chevron-toggle cursor-pointer flex items-center justify-center'>
                                 {(isFileMaintenance && isFileMaintenanceOpen) ||
                                 (isCurriculum && isCurriculumOpen) ? (
                                   <ChevronDown className='w-4 h-4' />
@@ -487,7 +488,7 @@ const Navigation: React.FC<NavigationProps> = ({
                                       e.stopPropagation();
                                       onViewChange(subItem.id);
                                     }}
-                                    className='w-full flex items-center justify-center md:justify-start gap-0 md:gap-3 px-3 py-2 rounded-lg text-xs md:text-sm font-medium transition-all duration-200'
+                                    className='w-full flex items-center justify-start gap-3 px-3 py-2 rounded-lg text-sm font-medium transition-all duration-200'
                                     style={
                                       isSubActive
                                         ? {
@@ -517,7 +518,7 @@ const Navigation: React.FC<NavigationProps> = ({
                                     }}
                                   >
                                     <SubIcon className='w-4 h-4' />
-                                    <span className='hidden md:inline'>
+                                    <span>
                                       {subItem.label}
                                     </span>
                                   </button>
@@ -541,7 +542,7 @@ const Navigation: React.FC<NavigationProps> = ({
                                     e.stopPropagation();
                                     onViewChange(subItem.id);
                                   }}
-                                  className='w-full flex items-center justify-center md:justify-start gap-0 md:gap-3 px-3 py-2 rounded-lg text-xs md:text-sm font-medium transition-all duration-200'
+                                  className='w-full flex items-center justify-start gap-3 px-3 py-2 rounded-lg text-sm font-medium transition-all duration-200'
                                   style={
                                     isSubActive
                                       ? {
@@ -571,7 +572,7 @@ const Navigation: React.FC<NavigationProps> = ({
                                   }}
                                 >
                                   <SubIcon className='w-4 h-4' />
-                                  <span className='hidden md:inline'>
+                                  <span>
                                     {subItem.label}
                                   </span>
                                 </button>

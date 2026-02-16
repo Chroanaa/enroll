@@ -259,7 +259,7 @@ export const termValidator = {
       errors.push('Section must have at least one schedule before activation');
     }
 
-    // Check internal schedule overlaps
+    // Check internal schedule overlaps and subject duplicates
     const schedules = await prisma.class_schedule.findMany({
       where: {
         section_id: sectionId,
@@ -270,9 +270,49 @@ export const termValidator = {
       orderBy: { day_of_week: 'asc' }
     });
 
+    // Track curriculum course IDs to detect duplicates
+    const curriculumCourseIds = new Set<number>();
+    const roomIds = new Set<number>();
+
     for (let i = 0; i < schedules.length; i++) {
+      const sched1 = schedules[i];
+      
+      // Check for subject duplicates
+      if (curriculumCourseIds.has(sched1.curriculum_course_id)) {
+        errors.push(
+          `Subject duplicate detected: curriculum course ${sched1.curriculum_course_id} is scheduled multiple times`
+        );
+      } else {
+        curriculumCourseIds.add(sched1.curriculum_course_id);
+      }
+
+      // Collect room IDs for capacity check
+      roomIds.add(sched1.room_id);
+    }
+
+    // Check room capacities
+    if (section.max_capacity && roomIds.size > 0) {
+      const rooms = await prisma.room.findMany({
+        where: {
+          id: { in: Array.from(roomIds) }
+        }
+      });
+
+      for (const room of rooms) {
+        if (room.capacity < section.max_capacity) {
+          errors.push(
+            `Room ${room.room_number} capacity (${room.capacity}) is less than section max capacity (${section.max_capacity})`
+          );
+        }
+      }
+    }
+
+    // Check for time overlaps
+    for (let i = 0; i < schedules.length; i++) {
+      const sched1 = schedules[i];
+
+      // Check for time overlaps with other schedules
       for (let j = i + 1; j < schedules.length; j++) {
-        const sched1 = schedules[i];
         const sched2 = schedules[j];
 
         if (sched1.day_of_week === sched2.day_of_week) {

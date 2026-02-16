@@ -1,11 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '../../lib/prisma';
-import { termValidator } from '@/app/utils/sectionService';
+import { termValidator } from '../../..//app/utils/sectionService';
 import {
   CreateSectionRequest,
   SectionResponse,
   ApiError
-} from '@/app/types/sectionTypes';
+} from '../../../app/types/sectionTypes';
 
 /**
  * POST /api/sections
@@ -130,7 +130,7 @@ export async function POST(request: NextRequest) {
       advisor: section.advisor,
       maxCapacity: section.max_capacity ?? 0,
       studentCount: section.student_count ?? 0,
-      status: section.status as 'draft' | 'active' | 'closed',
+      status: section.status as 'draft' | 'active' | 'locked' | 'closed',
       createdAt: section.created_at?.toISOString() ?? ''
     };
 
@@ -201,7 +201,7 @@ export async function GET(request: NextRequest) {
           advisor: section.advisor,
           maxCapacity: section.max_capacity ?? 0,
           studentCount: section.student_count ?? 0,
-          status: section.status as 'draft' | 'active' | 'closed',
+          status: section.status as 'draft' | 'active' | 'locked' | 'closed',
           createdAt: section.created_at?.toISOString() ?? ''
         } as SectionResponse;
       })

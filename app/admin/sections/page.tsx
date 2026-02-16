@@ -1,27 +1,27 @@
 'use client';
 
 import React, { useState } from 'react';
-import { SectionResponse } from '@/app/types/sectionTypes';
-import { SectionList } from '@/app/components/sections/SectionList';
-import { CreateSectionModal } from '@/app/components/sections/CreateSectionModal';
-import { ScheduleBuilder } from '@/app/components/sections/ScheduleBuilder';
-import { StudentAssignment } from '@/app/components/sections/StudentAssignment';
-import { activateSection } from '@/app/utils/sectionApi';
+import { useRouter } from 'next/navigation';
+import { SectionResponse } from '../../types/sectionTypes';
+import { SectionList } from '../../components/sections/SectionList';
+import { CreateSectionModal } from '../../components/sections/CreateSectionModal';
+import { StudentAssignment } from '../../components/sections/StudentAssignment';
+import { activateSection, lockSection } from '../../utils/sectionApi';
 import { colors } from '../../colors';
 import { Plus } from 'lucide-react';
-import SearchFilters from '@/app/components/common/SearchFilters';
+import SearchFilters from '../../components/common/SearchFilters';
 
 export default function SectionsPage() {
+  const router = useRouter();
   const [selectedSection, setSelectedSection] = useState<SectionResponse | null>(
     null
   );
   const [refreshKey, setRefreshKey] = useState(0);
   const [searchTerm, setSearchTerm] = useState('');
-  const [statusFilter, setStatusFilter] = useState<'all' | 'draft' | 'active' | 'closed'>('all');
+  const [statusFilter, setStatusFilter] = useState<'all' | 'draft' | 'active' | 'locked' | 'closed'>('all');
 
   // Modal states
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
-  const [isScheduleBuilderOpen, setIsScheduleBuilderOpen] = useState(false);
   const [isStudentAssignmentOpen, setIsStudentAssignmentOpen] = useState(false);
 
   const handleCreateSuccess = () => {
@@ -35,8 +35,8 @@ export default function SectionsPage() {
   };
 
   const handleCreateSchedule = (section: SectionResponse) => {
-    setSelectedSection(section);
-    setIsScheduleBuilderOpen(true);
+    // Navigate to dedicated schedule page
+    router.push(`/admin/sections/schedule/${section.id}`);
   };
 
   const handleAssignStudents = (section: SectionResponse) => {
@@ -55,12 +55,19 @@ export default function SectionsPage() {
     }
   };
 
+  const handleLock = async (section: SectionResponse) => {
+    try {
+      await lockSection(section.id);
+      setRefreshKey((prev) => prev + 1);
+      // Show success toast
+    } catch (error) {
+      console.error('Failed to lock section:', error);
+      // Show error toast
+    }
+  };
+
   return (
-    <div
-      className="min-h-screen p-6 font-sans"
-      style={{ backgroundColor: colors.paper }}
-    >
-      <div className="max-w-7xl mx-auto w-full space-y-6">
+    <div className="w-full space-y-6 p-6 font-sans" style={{ backgroundColor: colors.paper }}>
         {/* Header */}
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
           <div>
@@ -93,11 +100,12 @@ export default function SectionsPage() {
             {
               value: statusFilter,
               onChange: (value) =>
-                setStatusFilter(value as 'all' | 'draft' | 'active' | 'closed'),
+                setStatusFilter(value as 'all' | 'draft' | 'active' | 'locked' | 'closed'),
               options: [
                 { value: 'all', label: 'All Status' },
                 { value: 'draft', label: 'Draft' },
                 { value: 'active', label: 'Active' },
+                { value: 'locked', label: 'Locked' },
                 { value: 'closed', label: 'Closed' },
               ],
               placeholder: 'All Status',
@@ -112,38 +120,28 @@ export default function SectionsPage() {
             onCreateSchedule={handleCreateSchedule}
             onAssignStudents={handleAssignStudents}
             onActivate={handleActivate}
+            onLock={handleLock}
           />
         </div>
-      </div>
 
-      {/* Modals */}
-      <CreateSectionModal
-        isOpen={isCreateModalOpen}
-        onClose={() => setIsCreateModalOpen(false)}
-        onSuccess={handleCreateSuccess}
-      />
+        {/* Modals */}
+        <CreateSectionModal
+          isOpen={isCreateModalOpen}
+          onClose={() => setIsCreateModalOpen(false)}
+          onSuccess={handleCreateSuccess}
+        />
 
-      <ScheduleBuilder
-        section={selectedSection}
-        isOpen={isScheduleBuilderOpen}
-        onClose={() => {
-          setIsScheduleBuilderOpen(false);
-          setSelectedSection(null);
-          setRefreshKey((prev) => prev + 1);
-        }}
-      />
-
-      <StudentAssignment
-        section={selectedSection}
-        isOpen={isStudentAssignmentOpen}
-        onClose={() => {
-          setIsStudentAssignmentOpen(false);
-          setSelectedSection(null);
-        }}
-        onSuccess={() => {
-          setRefreshKey((prev) => prev + 1);
-        }}
-      />
+        <StudentAssignment
+          section={selectedSection}
+          isOpen={isStudentAssignmentOpen}
+          onClose={() => {
+            setIsStudentAssignmentOpen(false);
+            setSelectedSection(null);
+          }}
+          onSuccess={() => {
+            setRefreshKey((prev) => prev + 1);
+          }}
+        />
     </div>
   );
 }

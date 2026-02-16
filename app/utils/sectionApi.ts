@@ -28,7 +28,7 @@ export interface SectionResponse {
   advisor: string;
   maxCapacity: number;
   studentCount: number;
-  status: 'draft' | 'active' | 'closed';
+  status: 'draft' | 'active' | 'locked' | 'closed';
   createdAt: string;
 }
 
@@ -138,7 +138,7 @@ export async function getSections(filters?: {
 }
 
 /**
- * Get section by ID
+ * Get a single section by ID
  */
 export async function getSectionById(id: number): Promise<SectionResponse> {
   const response = await fetch(`${API_BASE}/sections/${id}`, {
@@ -169,6 +169,26 @@ export async function activateSection(
   if (!response.ok) {
     const error = await response.json();
     throw new Error(error.message || 'Failed to activate section');
+  }
+
+  const result = await response.json();
+  return result.data;
+}
+
+/**
+ * Lock a section
+ */
+export async function lockSection(
+  id: number
+): Promise<SectionResponse> {
+  const response = await fetch(`${API_BASE}/sections/${id}/lock`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' }
+  });
+
+  if (!response.ok) {
+    const error = await response.json();
+    throw new Error(error.message || 'Failed to lock section');
   }
 
   const result = await response.json();
@@ -306,11 +326,13 @@ export async function getEligibleStudents(
  * Get curriculum courses for section
  */
 export async function getSectionCurriculum(
+  programId: number,
   yearLevel: number,
   semester: string
 ): Promise<any[]> {
   const semesterNumber = normalizeSemesterToNumber(semester);
   const params = new URLSearchParams({
+    programId: programId.toString(),
     yearLevel: yearLevel.toString(),
     semester: semesterNumber.toString()
   });
@@ -356,4 +378,19 @@ export async function getSectionSchedules(
 
   const result = await response.json();
   return result.data;
+}
+
+/**
+ * Delete a class schedule
+ */
+export async function deleteClassSchedule(scheduleId: number): Promise<void> {
+  const response = await fetch(`${API_BASE}/class-schedule/${scheduleId}`, {
+    method: 'DELETE',
+    headers: { 'Content-Type': 'application/json' }
+  });
+
+  if (!response.ok) {
+    const error = await response.json();
+    throw new Error(error.message || 'Failed to delete schedule');
+  }
 }

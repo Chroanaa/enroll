@@ -12,7 +12,7 @@ import {
   GraduationCap,
 } from "lucide-react";
 import { Section, Program } from "../../../types";
-import { getPrograms } from "@/app/utils/programUtils";
+import { getPrograms } from "../../../utils/programUtils";
 import { colors } from "../../../colors";
 import ConfirmationModal from "../../common/ConfirmationModal";
 import { useAcademicTermContext } from "../../../contexts/AcademicTermContext";
@@ -58,7 +58,7 @@ const SectionForm: React.FC<SectionFormProps> = ({
       program_id: 1,
       advisor: "",
       student_count: 0,
-      status: "active",
+      status: "draft",
       year_level: undefined,
       semester: undefined,
       academic_year: undefined,
@@ -143,7 +143,7 @@ const SectionForm: React.FC<SectionFormProps> = ({
         program_id: formData.program_id!,
         advisor: formData.advisor || "",
         student_count: formData.student_count || 0,
-        status: (formData.status as "active" | "inactive") || "active",
+        status: (formData.status as "draft" | "active" | "closed" | "inactive") || "draft",
         year_level: formData.year_level,
         semester: formData.semester,
         academic_year: formatAcademicYearRange(formData.academic_year),
@@ -380,11 +380,11 @@ const SectionForm: React.FC<SectionFormProps> = ({
                   Status <span className='text-red-500'>*</span>
                 </label>
                 <select
-                  value={formData.status?.toString() || "active"}
+                  value={formData.status?.toString() || "draft"}
                   onChange={(e) =>
                     setFormData({
                       ...formData,
-                      status: e.target.value as "active" | "inactive",
+                      status: e.target.value as "draft" | "active" | "closed" | "inactive",
                     })
                   }
                   className='w-full rounded-xl px-4 py-2.5 transition-all border-gray-200 focus:ring-2 focus:ring-offset-0 bg-white'
@@ -402,7 +402,9 @@ const SectionForm: React.FC<SectionFormProps> = ({
                     e.currentTarget.style.boxShadow = "none";
                   }}
                 >
+                  <option value='draft'>Draft</option>
                   <option value='active'>Active</option>
+                  <option value='closed'>Closed</option>
                   <option value='inactive'>Inactive</option>
                 </select>
               </div>

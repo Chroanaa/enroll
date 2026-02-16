@@ -4,20 +4,22 @@ import React, { useState, useEffect } from 'react';
 import { SectionResponse } from '@/app/types/sectionTypes';
 import { getSections } from '@/app/utils/sectionApi';
 import { colors } from '../../colors';
-import { Users, GraduationCap, Calendar, BookOpen, Edit2, UserPlus, CheckCircle, PlayCircle } from 'lucide-react';
+import { Users, GraduationCap, Calendar, BookOpen, Edit2, UserPlus, CheckCircle, PlayCircle, Lock } from 'lucide-react';
 
 interface SectionListProps {
   onEdit?: (section: SectionResponse) => void;
   onCreateSchedule?: (section: SectionResponse) => void;
   onAssignStudents?: (section: SectionResponse) => void;
   onActivate?: (section: SectionResponse) => void;
+  onLock?: (section: SectionResponse) => void;
 }
 
 export function SectionList({
   onEdit,
   onCreateSchedule,
   onAssignStudents,
-  onActivate
+  onActivate,
+  onLock
 }: SectionListProps) {
   const [sections, setSections] = useState<SectionResponse[]>([]);
   const [loading, setLoading] = useState(true);
@@ -53,6 +55,12 @@ export function SectionList({
           bg: '#ECFDF5',
           text: '#047857',
           border: '#A7F3D0',
+        };
+      case 'locked':
+        return {
+          bg: '#E0E7FF',
+          text: '#3730A3',
+          border: '#C7D2FE',
         };
       case 'closed':
         return {
@@ -257,13 +265,22 @@ export function SectionList({
                               </>
                             )}
                             {section.status === 'active' && (
-                              <button
-                                onClick={() => onAssignStudents?.(section)}
-                                className="p-1.5 rounded-lg hover:bg-white hover:shadow-sm border border-transparent hover:border-gray-200 transition-all text-orange-600"
-                                title="Assign Students"
-                              >
-                                <UserPlus className="w-3.5 h-3.5" />
-                              </button>
+                              <>
+                                <button
+                                  onClick={() => onAssignStudents?.(section)}
+                                  className="p-1.5 rounded-lg hover:bg-white hover:shadow-sm border border-transparent hover:border-gray-200 transition-all text-orange-600"
+                                  title="Assign Students"
+                                >
+                                  <UserPlus className="w-3.5 h-3.5" />
+                                </button>
+                                <button
+                                  onClick={() => onLock?.(section)}
+                                  className="p-1.5 rounded-lg hover:bg-white hover:shadow-sm border border-transparent hover:border-gray-200 transition-all text-indigo-600"
+                                  title="Lock Section"
+                                >
+                                  <Lock className="w-3.5 h-3.5" />
+                                </button>
+                              </>
                             )}
                           </div>
                         </td>

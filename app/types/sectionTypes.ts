@@ -24,7 +24,7 @@ export interface SectionResponse {
   advisor: string;
   maxCapacity: number;
   studentCount: number;
-  status: 'draft' | 'active' | 'closed';
+  status: 'draft' | 'active' | 'locked' | 'closed';
   createdAt: string;
 }
 

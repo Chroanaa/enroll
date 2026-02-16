@@ -3,12 +3,12 @@ import { prisma } from '../../lib/prisma';
 import {
   conflictChecker,
   sectionService
-} from '@/app/utils/sectionService';
+} from '../../utils/sectionService';
 import {
   CreateClassScheduleRequest,
   ClassScheduleResponse,
   ApiError
-} from '@/app/types/sectionTypes';
+} from '../../types/sectionTypes';
 
 /**
  * POST /api/class-schedule
@@ -103,7 +103,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json(
         {
           error: 'INVALID_STATE',
-          message: 'Cannot add schedule to non-draft section'
+          message: `Cannot modify schedule. Section must be in draft status. Current status: ${section.status}`
         } as ApiError,
         { status: 400 }
       );
