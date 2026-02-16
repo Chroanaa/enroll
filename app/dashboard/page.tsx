@@ -32,6 +32,7 @@ import {
   SchoolsPrograms,
 } from "../components/fileMaintenance";
 import ProtectedRoute from "../components/ProtectedRoute";
+import SectionManagement from "../admin/sections/page";
 
 export default function DashboardPage() {
   const searchParams = useSearchParams();
@@ -69,6 +70,8 @@ export default function DashboardPage() {
         return <SchedulingManagement />;
       case "payment-billing":
         return <PaymentBillingManagement />;
+      case "section-management":
+        return <SectionManagement />;
       case "curriculum":
         return <CurriculumManagement />;
       case "file-maintenance":

@@ -40,8 +40,5 @@ yarn-error.log*
 *.tsbuildinfo
 next-env.d.ts
 
-
-/prisma/schema.prisma
-# uploaded files (keep .gitkeep files)
 /public/uploads/**/*
 !/public/uploads/**/.gitkeep

@@ -1,6 +1,15 @@
 import { NextResponse, NextRequest } from "next/server";
 import { prisma } from "@/app/lib/prisma";
 
+const normalizeSemesterValue = (value: string) => {
+  const normalized = value.trim().toLowerCase();
+  if (normalized === "1" || normalized === "first" || normalized === "first semester") return "first";
+  if (normalized === "2" || normalized === "second" || normalized === "second semester") return "second";
+  if (normalized === "3" || normalized === "summer") return "summer";
+  return null;
+};
+
+
 export async function POST(request: NextRequest) {
   try {
     const data = await request.json();
@@ -23,6 +32,23 @@ export async function POST(request: NextRequest) {
     }
     if (!sectionData.status) {
       sectionData.status = "active";
+    }
+
+    if (sectionData.semester) {
+      const normalizedSemester = normalizeSemesterValue(sectionData.semester.toString());
+      if (!normalizedSemester) {
+        return NextResponse.json(
+          {
+            error: "Invalid semester value. Use 'first', 'second', or 'summer'.",
+          },
+          { status: 400 }
+        );
+      }
+      sectionData.semester = normalizedSemester;
+    }
+
+    if (sectionData.academic_year !== undefined && sectionData.academic_year !== null) {
+      sectionData.academic_year = sectionData.academic_year.toString();
     }
 
     const newSection = await prisma.sections.create({
@@ -79,6 +105,23 @@ export async function PATCH(nextRequest: NextRequest) {
   try {
     const data = await nextRequest.json();
     const { id, programName, ...updateData } = data;
+
+    if (updateData.semester) {
+      const normalizedSemester = normalizeSemesterValue(updateData.semester.toString());
+      if (!normalizedSemester) {
+        return NextResponse.json(
+          {
+            error: "Invalid semester value. Use 'first', 'second', or 'summer'.",
+          },
+          { status: 400 }
+        );
+      }
+      updateData.semester = normalizedSemester;
+    }
+
+    if (updateData.academic_year !== undefined && updateData.academic_year !== null) {
+      updateData.academic_year = updateData.academic_year.toString();
+    }
 
     const updatedSection = await prisma.sections.update({
       where: { id: Number(id) },

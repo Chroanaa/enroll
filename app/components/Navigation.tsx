@@ -187,6 +187,12 @@ const Navigation: React.FC<NavigationProps> = ({
             icon: CalendarClock,
             allowedRoles: [ROLES.ADMIN, ROLES.REGISTRAR, ROLES.FACULTY],
           },
+          {
+            id: "section-management",
+            label: "Section Management",
+            icon: FolderTree,
+            allowedRoles: [ROLES.ADMIN, ROLES.REGISTRAR],
+          },
         ],
       },
       {

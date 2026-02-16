@@ -68,6 +68,9 @@ export interface Section {
   advisor: string;
   student_count: number;
   status: string;
+  year_level?: number;
+  semester?: string;
+  academic_year?: string;
 }
 
 export interface Subject {

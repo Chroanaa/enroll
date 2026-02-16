@@ -207,25 +207,29 @@ model subject {
 }
 
 model sections {
-  id            Int       @id @default(autoincrement())
-  program_id    Int
-  section_name  String    @db.VarChar(100)
-  advisor       String    @db.VarChar(150)
-  student_count Int?      @default(0)
-  status        String    @db.VarChar(50)
-  year_level    Int?
-  academic_year Int?
-  semester      Int?
-  max_capacity  Int?
-  created_at    DateTime? @default(now()) @db.Timestamp(6)
+  id                 Int       @id @default(autoincrement())
+  program_id         Int
+  section_name       String    @db.VarChar(100)
+  advisor            String    @db.VarChar(150)
+  student_count      Int?      @default(0)
+  status             String    @db.VarChar(50)
+  year_level         Int?
+  academic_year      String?   @db.VarChar(20)
+  max_capacity       Int?
+  created_at         DateTime? @default(now()) @db.Timestamp(6)
+  semester           String?   @db.VarChar(50)
+  semester_temp      String?   @db.VarChar(50)
+  academic_year_temp String?   @db.VarChar(20)
 }
 
 model student_section {
-  id             Int    @id @default(autoincrement())
-  student_number String @db.VarChar(255)
-  section_id     Int
-  academic_year  Int
-  semester       Int
+  id                 Int     @id @default(autoincrement())
+  student_number     String  @db.VarChar(255)
+  section_id         Int
+  academic_year      String  @db.VarChar(20)
+  semester           String? @db.VarChar(50)
+  semester_temp      String? @db.VarChar(50)
+  academic_year_temp String? @db.VarChar(20)
 
   @@unique([student_number, academic_year, semester])
 }
@@ -239,9 +243,11 @@ model class_schedule {
   day_of_week          String   @db.VarChar(255)
   start_time           DateTime @db.Timestamp(6)
   end_time             DateTime @db.Timestamp(6)
-  academic_year        Int
-  semester             Int
+  academic_year        String   @db.VarChar(20)
   status               String?  @default("active") @db.VarChar(50)
+  semester             String?  @db.VarChar(50)
+  semester_temp        String?  @db.VarChar(50)
+  academic_year_temp   String?  @db.VarChar(20)
 
   @@index([faculty_id], map: "idx_class_schedule_faculty")
   @@index([room_id], map: "idx_class_schedule_room")
