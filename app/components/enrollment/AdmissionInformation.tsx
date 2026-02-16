@@ -10,6 +10,7 @@ import {
 } from "lucide-react";
 import { colors } from "../../colors";
 import { EnrollmentPageProps } from "./types";
+import { useAcademicTermContext } from "../../contexts/AcademicTermContext";
 
 const AdmissionInformation: React.FC<EnrollmentPageProps> = ({
   formData,
@@ -29,6 +30,44 @@ const AdmissionInformation: React.FC<EnrollmentPageProps> = ({
   fieldErrors = {},
 }) => {
   formData.admission_date = getTodayDate?.() || "";
+  
+  // Get current academic term from context
+  const { currentTerm, storedSettings } = useAcademicTermContext();
+  
+  // Debug logging
+  React.useEffect(() => {
+    console.log('[AdmissionInfo] Stored Settings:', storedSettings);
+    console.log('[AdmissionInfo] Current Term:', currentTerm);
+    console.log('[AdmissionInfo] Form Academic Year:', formData.academic_year);
+    console.log('[AdmissionInfo] Form Term:', formData.term);
+  }, [storedSettings, currentTerm, formData.academic_year, formData.term]);
+  
+  // Use academic year and semester from settings if available and form data is empty
+  React.useEffect(() => {
+    // Wait for stored settings to be loaded
+    if (!storedSettings) {
+      console.log('[AdmissionInfo] Waiting for stored settings...');
+      return;
+    }
+    
+    // Only set if we have stored settings and the form field is empty
+    if (storedSettings.academicYear && !formData.academic_year) {
+      console.log('[AdmissionInfo] Setting academic year to:', storedSettings.academicYear);
+      handleInputChange("academic_year", storedSettings.academicYear);
+    } else {
+      console.log('[AdmissionInfo] Not setting academic year. Settings:', storedSettings.academicYear, 'Form:', formData.academic_year);
+    }
+    
+    if (storedSettings.semester && !formData.term) {
+      // Normalize semester value to lowercase (Second -> second)
+      const normalizedSemester = storedSettings.semester.toLowerCase();
+      console.log('[AdmissionInfo] Setting semester to:', normalizedSemester);
+      handleInputChange("term", normalizedSemester);
+    } else {
+      console.log('[AdmissionInfo] Not setting semester. Settings:', storedSettings.semester, 'Form:', formData.term);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [storedSettings]);
 
   const inputClasses =
     "w-full px-4 py-2.5 rounded-xl border bg-white/50 transition-all duration-300 focus:ring-2 focus:ring-offset-0 outline-none";
@@ -383,7 +422,7 @@ const AdmissionInformation: React.FC<EnrollmentPageProps> = ({
                 Term
               </label>
               <div className='flex flex-wrap gap-4'>
-                {["First", "Second"].map((term) => (
+                {["First", "Second", "Summer"].map((term) => (
                   <label
                     key={term}
                     className='flex items-center gap-3 px-5 py-3 rounded-xl border cursor-pointer transition-all duration-300 hover:shadow-md relative overflow-hidden group/radio'
@@ -550,8 +589,11 @@ const AdmissionInformation: React.FC<EnrollmentPageProps> = ({
                 >
                   <option value=''>Select Academic Year</option>
                   {Array.from({ length: 10 }, (_, i) => {
-                    const currentYear = new Date().getFullYear();
-                    const startYear = currentYear + i;
+                    // Use stored academic year as base, or current year if not available
+                    const baseYear = storedSettings?.academicYear 
+                      ? parseInt(storedSettings.academicYear.split('-')[0])
+                      : new Date().getFullYear();
+                    const startYear = baseYear - 2 + i; // Show 2 years before and 7 years after
                     const endYear = startYear + 1;
                     const yearValue = `${startYear}-${endYear}`;
                     return (

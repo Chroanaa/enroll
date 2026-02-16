@@ -67,7 +67,7 @@ const initialFormData: EnrollmentFormData = {
   major_id: 0,
   year_level: 1,
   photo: null,
-  academic_year: getCurrentAcademicYear(), // Set to current academic year by default
+  academic_year: "", // Will be populated from academic term settings
 
   // Page 2: Admission Requirements
   requirements: [],
@@ -388,10 +388,10 @@ export const useEnrollmentForm = () => {
     ];
     if (nameFields.includes(field)) {
       debouncedDuplicateCheck({
-        first_name: newFormData.first_name,
-        family_name: newFormData.family_name,
-        middle_name: newFormData.middle_name,
-        birthdate: newFormData.birthdate,
+        first_name: updatedFormData.first_name,
+        family_name: updatedFormData.family_name,
+        middle_name: updatedFormData.middle_name,
+        birthdate: updatedFormData.birthdate,
       });
     }
     

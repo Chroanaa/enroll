@@ -39,9 +39,7 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+/docs
 
-
-/prisma/schema.prisma
-# uploaded files (keep .gitkeep files)
 /public/uploads/**/*
 !/public/uploads/**/.gitkeep

@@ -13,6 +13,7 @@ import ReportManagement from "./components/ReportManagement";
 import SchedulingManagement from "./components/SchedulingManagement";
 import PaymentBillingManagement from "./components/PaymentBillingManagement";
 import CurriculumManagement from "./components/curriculum";
+import SectionManagementPage from "./admin/sections/page";
 import { Building, Section, Room, Department, Program, Major, Faculty, Fees } from "./components/fileMaintenance";
 import ProtectedRoute from "./components/ProtectedRoute";
 import { AuthProvider } from "./contexts/AuthContext";
@@ -24,11 +25,9 @@ function App() {
   const [currentView, setCurrentView] = useState("dashboard");
   const { data: session, status } = useSession();
   const router = useRouter();
-  useEffect(() => {
-    if (status === "authenticated") {
-      router.push("/dashboard");
-    }
-  }, [status, router]);
+  
+  // Don't redirect - let the component handle routing via currentView state
+  // This allows Navigation menu to work properly
   const renderCurrentView = () => {
     switch (currentView) {
       case "dashboard":
@@ -51,6 +50,8 @@ function App() {
         return <ReportManagement />;
       case "scheduling":
         return <SchedulingManagement />;
+      case "section-management":
+        return <SectionManagementPage />;
       case "payment-billing":
         return <PaymentBillingManagement />;
       case "curriculum":
