@@ -12,6 +12,7 @@ import {
 import { SectionResponse } from '../../../../types/sectionTypes';
 import ConfirmationModal from '../../../../components/common/ConfirmationModal';
 import SuccessModal from '../../../../components/common/SuccessModal';
+import ErrorModal from '../../../../components/common/ErrorModal';
 import { WeeklyScheduleCalendar } from '../../../../components/sections/WeeklyScheduleCalendar';
 import Navigation from '../../../../components/Navigation';
 import { colors } from '../../../../colors';
@@ -123,6 +124,17 @@ export default function BuildSchedulePage() {
     message: ''
   });
 
+  const [errorModal, setErrorModal] = useState<{
+    isOpen: boolean;
+    title: string;
+    message: string;
+    details?: string;
+  }>({
+    isOpen: false,
+    title: 'Error',
+    message: ''
+  });
+
   // Tab state for switching between form and calendar view
   const [activeTab, setActiveTab] = useState<'schedule' | 'calendar'>('schedule');
 
@@ -144,18 +156,31 @@ export default function BuildSchedulePage() {
       setLoadingCurriculum(true);
       setLoadingSchedules(true);
       
-      const [curricData, scheduleData] = await Promise.all([
-        getSectionCurriculum(
-          sectionData.programId,
-          sectionData.yearLevel,
-          sectionData.semester
-        ),
-        getClassSchedules({
-          sectionId: sectionData.id,
-          academicYear: sectionData.academicYear,
-          semester: sectionData.semester
-        })
-      ]);
+      let curricData: any[] = [];
+      let scheduleData: any[] = [];
+      
+      try {
+        [curricData, scheduleData] = await Promise.all([
+          getSectionCurriculum(
+            sectionData.programId,
+            sectionData.yearLevel,
+            sectionData.semester
+          ),
+          getClassSchedules({
+            sectionId: sectionData.id,
+            academicYear: sectionData.academicYear,
+            semester: sectionData.semester
+          })
+        ]);
+      } catch (curriculumErr) {
+        // Handle curriculum fetch error with modal
+        setErrorModal({
+          isOpen: true,
+          title: 'Curriculum Error',
+          message: curriculumErr instanceof Error ? curriculumErr.message : 'Failed to fetch curriculum',
+          details: 'Please ensure an active curriculum exists for this program, year level, and semester.'
+        });
+      }
       
       setCurriculum(curricData);
       setSchedules(scheduleData);
@@ -182,7 +207,12 @@ export default function BuildSchedulePage() {
       setLoadingResources(false);
     } catch (err) {
       console.error('Failed to load schedule data:', err);
-      setError(err instanceof Error ? err.message : 'Failed to load schedule data');
+      setErrorModal({
+        isOpen: true,
+        title: 'Loading Error',
+        message: err instanceof Error ? err.message : 'Failed to load schedule data',
+        details: 'Please try refreshing the page or contact support if the issue persists.'
+      });
       setLoadingSection(false);
       setLoadingCurriculum(false);
       setLoadingSchedules(false);
@@ -990,6 +1020,15 @@ export default function BuildSchedulePage() {
         isOpen={successModal.isOpen}
         onClose={() => setSuccessModal({ isOpen: false, message: '' })}
         message={successModal.message}
+      />
+
+      {/* Error Modal */}
+      <ErrorModal
+        isOpen={errorModal.isOpen}
+        onClose={() => setErrorModal({ isOpen: false, title: 'Error', message: '' })}
+        title={errorModal.title}
+        message={errorModal.message}
+        details={errorModal.details}
       />
     </div>
   );
