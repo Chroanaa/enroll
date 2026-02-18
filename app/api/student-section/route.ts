@@ -3,12 +3,12 @@ import { prisma } from '../../lib/prisma';
 import {
   capacityValidator,
   termValidator
-} from '@/app/utils/sectionService';
+} from '../../utils/sectionService';
 import {
   BulkAssignStudentsRequest,
   BulkAssignStudentsResponse,
   ApiError
-} from '@/app/types/sectionTypes';
+} from '../../types/sectionTypes';
 
 const normalizeSemesterValue = (value: string) => {
   const normalized = value.trim().toLowerCase();

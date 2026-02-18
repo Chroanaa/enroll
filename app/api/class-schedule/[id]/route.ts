@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '../../../lib/prisma';
-import { ApiError } from '@/app/types/sectionTypes';
+import { ApiError } from '../../../../types/sectionTypes';
 
 /**
  * DELETE /api/class-schedule/{id}

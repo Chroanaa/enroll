@@ -3,7 +3,7 @@ import React, { useState, useMemo, useEffect } from "react";
 import { FileBarChart } from "lucide-react";
 import { colors } from "../colors";
 import { Report } from "../types";
-import { getReports } from "@/app/utils/getReports";
+import { getReports } from "../../app/utils/getReports";
 import ConfirmationModal from "./common/ConfirmationModal";
 import SuccessModal from "./common/SuccessModal";
 import ErrorModal from "./common/ErrorModal";

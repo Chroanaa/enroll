@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '../../../../lib/prisma';
-import { termValidator } from '@/app/utils/sectionService';
-import { ApiError, SectionResponse } from '@/app/types/sectionTypes';
+import { termValidator } from '../../../../utils/sectionService';
+import { ApiError, SectionResponse } from '../../../../types/sectionTypes';
 
 /**
  * PATCH /api/sections/{id}/activate

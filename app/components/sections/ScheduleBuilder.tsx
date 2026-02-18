@@ -10,6 +10,7 @@ import {
 } from '../../utils/sectionApi';
 import ConfirmationModal from '../common/ConfirmationModal';
 import SuccessModal from '../common/SuccessModal';
+import { WeeklyScheduleCalendar } from './WeeklyScheduleCalendar';
 import { colors } from '../../colors';
 import { 
   Calendar, 
@@ -796,111 +797,50 @@ export function ScheduleBuilder({
                 </div>
               )}
 
-              {/* Weekly Schedule Grid */}
-              <div
-                className="rounded-2xl shadow-sm border overflow-hidden"
-                style={{
-                  backgroundColor: colors.paper,
-                  borderColor: colors.neutralBorder,
-                }}
-              >
-                <div className="flex items-center gap-2 p-4 border-b" style={{ borderColor: colors.neutralBorder }}>
-                  <Calendar className="w-4 h-4" style={{ color: colors.secondary }} />
-                  <h3 className="text-sm font-semibold" style={{ color: colors.primary }}>
-                    Weekly Schedule Grid
-                  </h3>
-                </div>
-                <div className="overflow-x-auto">
-                  <table className="w-full border-collapse">
-                    <thead>
-                      <tr
-                        style={{
-                          backgroundColor: `${colors.primary}05`,
-                          borderBottom: `1px solid ${colors.primary}10`,
-                        }}
-                      >
-                        <th className="px-3 py-2 text-left text-[10px] font-bold uppercase tracking-wider sticky left-0 z-10" style={{ color: colors.neutral, backgroundColor: `${colors.primary}05` }}>
-                          Time
-                        </th>
-                        {DAYS.map((day) => (
-                          <th key={day} className="px-3 py-2 text-center text-[10px] font-bold uppercase tracking-wider min-w-[140px]" style={{ color: colors.neutral }}>
-                            {day.substring(0, 3)}
-                          </th>
-                        ))}
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y" style={{ borderColor: colors.neutralBorder }}>
-                      {TIME_SLOTS.map((time) => {
-                        const timeSlotStart = parseInt(time.split(':')[0]) * 60 + parseInt(time.split(':')[1]);
-                        
-                        return (
-                          <tr key={time} className="group hover:bg-gray-50/50 transition-colors">
-                            <td className="px-3 py-1 text-xs font-medium sticky left-0 z-10" style={{ backgroundColor: colors.paper }}>
-                              {time}
-                            </td>
-                            {DAYS.map((day) => {
-                              // Find schedules that start at this exact time slot
-                              const daySchedules = schedules
-                                .filter((s) => {
-                                  if (s.dayOfWeek !== day) return false;
-                                  const sStart = new Date(s.startTime);
-                                  const sStartMin = sStart.getHours() * 60 + sStart.getMinutes();
-                                  return sStartMin === timeSlotStart;
-                                });
-                              
-                              return (
-                                <td
-                                  key={`${day}-${time}`}
-                                  className="px-1 py-0.5 align-top border-r"
-                                  style={{ 
-                                    minHeight: '35px', 
-                                    position: 'relative',
-                                    borderColor: colors.neutralBorder,
-                                    backgroundColor: colors.paper,
-                                  }}
-                                >
-                                  {daySchedules.map((s) => {
-                                    const course = curriculum.find(c => c.id === s.curriculumCourseId);
-                                    const facultyMember = faculty.find(f => f.id === s.facultyId);
-                                    const room = rooms.find(r => r.id === s.roomId);
-                                    const sStart = new Date(s.startTime);
-                                    const sEnd = new Date(s.endTime);
-                                    const duration = (sEnd.getTime() - sStart.getTime()) / (1000 * 60); // minutes
-                                    const rowSpan = Math.max(1, Math.ceil(duration / 30));
-                                    
-                                    return (
-                                      <div
-                                        key={s.id}
-                                        className="text-[10px] p-1.5 rounded shadow-sm mb-0.5 cursor-pointer transition-all hover:shadow-md"
-                                        style={{ 
-                                          minHeight: `${rowSpan * 35 - 4}px`,
-                                          backgroundColor: colors.secondary,
-                                          color: 'white',
-                                        }}
-                                        title={`${course?.course_code || 'Course'}: ${course?.descriptive_title || ''}\nFaculty: ${facultyMember ? `${facultyMember.first_name} ${facultyMember.last_name}` : 'N/A'}\nRoom: ${room?.room_number || 'N/A'}\nTime: ${s.startTime.split('T')[1].slice(0, 5)} - ${s.endTime.split('T')[1].slice(0, 5)}`}
-                                      >
-                                        <div className="font-semibold truncate">{course?.course_code || 'N/A'}</div>
-                                        <div className="text-[9px] opacity-90 truncate mt-0.5">
-                                          {room?.room_number || 'N/A'} • {s.startTime.split('T')[1].slice(0, 5)}-{s.endTime.split('T')[1].slice(0, 5)}
-                                        </div>
-                                      </div>
-                                    );
-                                  })}
-                                </td>
-                              );
-                            })}
-                          </tr>
-                        );
-                      })}
-                    </tbody>
-                  </table>
-                </div>
-                <div className="p-3 border-t" style={{ borderColor: colors.neutralBorder }}>
-                  <p className="text-xs flex items-center gap-1.5" style={{ color: colors.neutral }}>
-                    <Clock className="w-3 h-3" />
-                    Hover over schedule blocks to see full course and faculty details
-                  </p>
-                </div>
+              {/* Weekly Schedule Calendar */}
+              <div>
+                <WeeklyScheduleCalendar
+                  schedules={schedules.map(s => {
+                    const course = curriculum.find(c => c.id === s.curriculumCourseId);
+                    const facultyMember = faculty.find(f => f.id === s.facultyId);
+                    const room = rooms.find(r => r.id === s.roomId);
+                    
+                    return {
+                      id: s.id,
+                      curriculumCourseId: s.curriculumCourseId,
+                      courseCode: course?.course_code || 'N/A',
+                      courseTitle: course?.descriptive_title || '',
+                      facultyName: facultyMember 
+                        ? `${facultyMember.first_name} ${facultyMember.last_name}`
+                        : 'N/A',
+                      roomNumber: room?.room_number || 'N/A',
+                      dayOfWeek: s.dayOfWeek,
+                      startTime: s.startTime,
+                      endTime: s.endTime,
+                    };
+                  })}
+                  previewBlock={
+                    formData.dayOfWeek && formData.startTime && formData.endTime
+                      ? {
+                          dayOfWeek: formData.dayOfWeek,
+                          startTime: (() => {
+                            const [hour, minute] = formData.startTime.split(':').map(Number);
+                            const date = new Date();
+                            date.setHours(hour, minute, 0);
+                            return date.toISOString();
+                          })(),
+                          endTime: (() => {
+                            const [hour, minute] = formData.endTime.split(':').map(Number);
+                            const date = new Date();
+                            date.setHours(hour, minute, 0);
+                            return date.toISOString();
+                          })(),
+                          courseCode: curriculum.find(c => c.id === parseInt(formData.curriculumCourseId))?.course_code,
+                        }
+                      : null
+                  }
+                  readOnly={isReadOnly}
+                />
               </div>
 
               {/* Scheduled Courses List */}

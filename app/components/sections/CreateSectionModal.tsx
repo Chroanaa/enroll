@@ -1,9 +1,9 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { SectionResponse, CreateSectionRequest } from '@/app/types/sectionTypes';
-import { createSection } from '@/app/utils/sectionApi';
-import { termValidator } from '@/app/utils/sectionService';
+import { SectionResponse, CreateSectionRequest } from '../../types/sectionTypes';
+import { createSection } from '../../utils/sectionApi';
+import { termValidator } from '../../utils/sectionService';
 import { colors } from '../../colors';
 import { Users, X, CheckCircle2, GraduationCap, UserCircle, Hash } from 'lucide-react';
 

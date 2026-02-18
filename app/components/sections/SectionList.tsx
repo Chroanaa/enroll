@@ -1,8 +1,8 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { SectionResponse } from '@/app/types/sectionTypes';
-import { getSections } from '@/app/utils/sectionApi';
+import { SectionResponse } from '../../types/sectionTypes';
+import { getSections } from '../../utils/sectionApi';
 import { colors } from '../../colors';
 import { Users, GraduationCap, Calendar, BookOpen, Edit2, UserPlus, CheckCircle, PlayCircle, Lock } from 'lucide-react';
 
