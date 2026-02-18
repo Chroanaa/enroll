@@ -12,6 +12,7 @@ import {
 import { SectionResponse } from '../../../../types/sectionTypes';
 import ConfirmationModal from '../../../../components/common/ConfirmationModal';
 import SuccessModal from '../../../../components/common/SuccessModal';
+import { WeeklyScheduleCalendar } from '../../../../components/sections/WeeklyScheduleCalendar';
 import Navigation from '../../../../components/Navigation';
 import { colors } from '../../../../colors';
 import { 
@@ -121,6 +122,9 @@ export default function BuildSchedulePage() {
     isOpen: false,
     message: ''
   });
+
+  // Tab state for switching between form and calendar view
+  const [activeTab, setActiveTab] = useState<'schedule' | 'calendar'>('schedule');
 
   useEffect(() => {
     loadScheduleData();
@@ -443,72 +447,109 @@ export default function BuildSchedulePage() {
       )}
 
       {/* Main Content */}
-      <div className="px-6 py-6">
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          {/* Left Column - Curriculum & Form */}
-          <div className="lg:col-span-2 space-y-6">
+      <div className="px-6 py-4">
+        <div className="max-w-7xl mx-auto">
+          {/* Content Area */}
+          <div className="space-y-4">
             {/* Progress Summary */}
             <div
-              className="rounded-2xl shadow-sm border p-5"
+              className="rounded-xl shadow-sm border p-3"
               style={{
                 backgroundColor: colors.paper,
                 borderColor: colors.neutralBorder,
               }}
             >
-              <div className="flex items-center gap-2 mb-4">
-                <BookOpen className="w-5 h-5" style={{ color: colors.secondary }} />
-                <h2 className="text-base font-semibold" style={{ color: colors.primary }}>
+              <div className="flex items-center gap-2 mb-2">
+                <BookOpen className="w-4 h-4" style={{ color: colors.secondary }} />
+                <h2 className="text-sm font-semibold" style={{ color: colors.primary }}>
                   Schedule Progress
                 </h2>
               </div>
-              <div className="grid grid-cols-4 gap-3">
-                <div className="text-center p-3 rounded-lg" style={{ backgroundColor: `${colors.info}05` }}>
-                  <div className="text-2xl font-bold" style={{ color: colors.info }}>
+              <div className="grid grid-cols-4 gap-2">
+                <div className="text-center p-2 rounded-lg" style={{ backgroundColor: `${colors.info}05` }}>
+                  <div className="text-xl font-bold" style={{ color: colors.info }}>
                     {curriculum.length}
                   </div>
-                  <div className="text-[10px] mt-0.5" style={{ color: colors.neutral }}>
+                  <div className="text-[9px] mt-0.5" style={{ color: colors.neutral }}>
                     Total Subjects
                   </div>
                 </div>
-                <div className="text-center p-3 rounded-lg" style={{ backgroundColor: `${colors.success}05` }}>
-                  <div className="text-2xl font-bold" style={{ color: colors.success }}>
+                <div className="text-center p-2 rounded-lg" style={{ backgroundColor: `${colors.success}05` }}>
+                  <div className="text-xl font-bold" style={{ color: colors.success }}>
                     {schedules.length}
                   </div>
-                  <div className="text-[10px] mt-0.5" style={{ color: colors.neutral }}>
+                  <div className="text-[9px] mt-0.5" style={{ color: colors.neutral }}>
                     Scheduled
                   </div>
                 </div>
-                <div className="text-center p-3 rounded-lg" style={{ backgroundColor: `${colors.warning}05` }}>
-                  <div className="text-2xl font-bold" style={{ color: colors.warning }}>
+                <div className="text-center p-2 rounded-lg" style={{ backgroundColor: `${colors.warning}05` }}>
+                  <div className="text-xl font-bold" style={{ color: colors.warning }}>
                     {curriculum.length - schedules.length}
                   </div>
-                  <div className="text-[10px] mt-0.5" style={{ color: colors.neutral }}>
+                  <div className="text-[9px] mt-0.5" style={{ color: colors.neutral }}>
                     Remaining
                   </div>
                 </div>
-                <div className="text-center p-3 rounded-lg" style={{ backgroundColor: `${colors.secondary}05` }}>
-                  <div className="text-2xl font-bold" style={{ color: colors.secondary }}>
+                <div className="text-center p-2 rounded-lg" style={{ backgroundColor: `${colors.secondary}05` }}>
+                  <div className="text-xl font-bold" style={{ color: colors.secondary }}>
                     {curriculum.length > 0 ? Math.round((schedules.length / curriculum.length) * 100) : 0}%
                   </div>
-                  <div className="text-[10px] mt-0.5" style={{ color: colors.neutral }}>
+                  <div className="text-[9px] mt-0.5" style={{ color: colors.neutral }}>
                     Complete
                   </div>
                 </div>
               </div>
             </div>
 
-            {/* Curriculum Subjects - Clickable Cards */}
+            {/* Tabs */}
             <div
-              className="rounded-2xl shadow-sm border p-4"
+              className="rounded-xl shadow-sm border overflow-hidden"
               style={{
                 backgroundColor: colors.paper,
                 borderColor: colors.neutralBorder,
               }}
             >
-              <div className="flex items-center justify-between mb-3">
+              <div className="flex border-b" style={{ borderColor: colors.neutralBorder }}>
+                <button
+                  onClick={() => setActiveTab('schedule')}
+                  className="flex-1 px-4 py-2 text-sm font-medium transition-all"
+                  style={{
+                    backgroundColor: activeTab === 'schedule' ? `${colors.secondary}10` : 'transparent',
+                    color: activeTab === 'schedule' ? colors.secondary : colors.neutral,
+                    borderBottom: activeTab === 'schedule' ? `2px solid ${colors.secondary}` : '2px solid transparent',
+                  }}
+                >
+                  📝 Schedule Form
+                </button>
+                <button
+                  onClick={() => setActiveTab('calendar')}
+                  className="flex-1 px-4 py-2 text-sm font-medium transition-all"
+                  style={{
+                    backgroundColor: activeTab === 'calendar' ? `${colors.secondary}10` : 'transparent',
+                    color: activeTab === 'calendar' ? colors.secondary : colors.neutral,
+                    borderBottom: activeTab === 'calendar' ? `2px solid ${colors.secondary}` : '2px solid transparent',
+                  }}
+                >
+                  📅 Weekly Calendar
+                </button>
+              </div>
+            </div>
+
+            {/* Schedule Form Tab Content */}
+            {activeTab === 'schedule' && (
+              <>
+            {/* Curriculum Subjects - Clickable Cards */}
+            <div
+              className="rounded-xl shadow-sm border p-3"
+              style={{
+                backgroundColor: colors.paper,
+                borderColor: colors.neutralBorder,
+              }}
+            >
+              <div className="flex items-center justify-between mb-2">
                 <div className="flex items-center gap-2">
-                  <GraduationCap className="w-5 h-5" style={{ color: colors.secondary }} />
-                  <h2 className="text-base font-semibold" style={{ color: colors.primary }}>
+                  <GraduationCap className="w-4 h-4" style={{ color: colors.secondary }} />
+                  <h2 className="text-sm font-semibold" style={{ color: colors.primary }}>
                     Curriculum Subjects ({curriculum.length})
                   </h2>
                 </div>
@@ -517,21 +558,21 @@ export default function BuildSchedulePage() {
                 </div>
               </div>
               {loadingCurriculum ? (
-                <div className="text-center py-8">
-                  <Loader2 className="animate-spin w-8 h-8 mx-auto mb-2" style={{ color: colors.secondary }} />
+                <div className="text-center py-6">
+                  <Loader2 className="animate-spin w-6 h-6 mx-auto mb-2" style={{ color: colors.secondary }} />
                   <p className="text-xs" style={{ color: colors.neutral }}>
                     Loading curriculum...
                   </p>
                 </div>
               ) : curriculum.length === 0 ? (
-                <div className="text-center py-8">
-                  <BookOpen className="w-12 h-12 mx-auto mb-3" style={{ color: colors.neutral }} />
+                <div className="text-center py-6">
+                  <BookOpen className="w-10 h-10 mx-auto mb-2" style={{ color: colors.neutral }} />
                   <p className="text-sm" style={{ color: colors.neutral }}>
                     No curriculum courses found for this program, year level, and semester.
                   </p>
                 </div>
               ) : (
-                <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-4 gap-2">
+                <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-2">
                   {curriculum.map((course) => {
                     const isScheduled = schedules.some(s => s.curriculumCourseId === course.id);
                     const isSelected = selectedCourse?.id === course.id;
@@ -541,7 +582,7 @@ export default function BuildSchedulePage() {
                         key={course.id}
                         onClick={() => handleCourseSelect(course)}
                         disabled={isScheduled || isReadOnly}
-                        className={`p-2.5 rounded-lg border transition-all text-left ${
+                        className={`p-2 rounded-lg border transition-all text-left ${
                           isScheduled ? 'cursor-not-allowed' : 'cursor-pointer hover:shadow-md'
                         } ${isSelected ? 'ring-2 ring-offset-1' : ''}`}
                         style={{
@@ -558,20 +599,20 @@ export default function BuildSchedulePage() {
                           ...(isSelected && { '--tw-ring-color': colors.secondary } as any),
                         }}
                       >
-                        <div className="flex items-start justify-between gap-2">
+                        <div className="flex items-start justify-between gap-1.5">
                           <div className="flex-1 min-w-0">
-                            <div className="font-semibold text-xs mb-0.5" style={{ color: colors.primary }}>
+                            <div className="font-semibold text-xs mb-1" style={{ color: colors.primary }}>
                               {course.course_code}
                             </div>
-                            <div className="text-[10px] line-clamp-1" style={{ color: colors.neutral }}>
+                            <div className="text-[10px] line-clamp-2 leading-snug mb-1" style={{ color: colors.neutral }}>
                               {course.descriptive_title}
                             </div>
-                            <div className="text-[10px] mt-1" style={{ color: colors.neutral }}>
+                            <div className="text-[10px]" style={{ color: colors.neutral }}>
                               {course.units_total} units
                             </div>
                           </div>
                           {isScheduled && (
-                            <CheckCircle2 className="w-4 h-4 flex-shrink-0" style={{ color: colors.success }} />
+                            <CheckCircle2 className="w-3.5 h-3.5 flex-shrink-0" style={{ color: colors.success }} />
                           )}
                         </div>
                       </button>
@@ -867,124 +908,59 @@ export default function BuildSchedulePage() {
                 </form>
               </div>
             )}
-          </div>
+              </>
+            )}
 
-          {/* Right Column - Weekly Timetable */}
-          <div className="lg:col-span-1">
-            <div
-              className="rounded-2xl shadow-sm border overflow-hidden sticky top-24"
-              style={{
-                backgroundColor: colors.paper,
-                borderColor: colors.neutralBorder,
-              }}
-            >
-              <div className="flex items-center gap-2 p-4 border-b" style={{ borderColor: colors.neutralBorder }}>
-                <CalendarDays className="w-5 h-5" style={{ color: colors.secondary }} />
-                <h2 className="text-base font-semibold" style={{ color: colors.primary }}>
-                  Weekly Schedule ({schedules.length})
-                </h2>
+            {/* Calendar Tab Content */}
+            {activeTab === 'calendar' && (
+              <div
+                className="rounded-2xl shadow-sm border p-5"
+                style={{
+                  backgroundColor: colors.paper,
+                  borderColor: colors.neutralBorder,
+                }}
+              >
+                <WeeklyScheduleCalendar
+                  schedules={schedules.map(s => {
+                    const course = curriculum.find(c => c.id === s.curriculumCourseId);
+                    return {
+                      id: s.id,
+                      curriculumCourseId: s.curriculumCourseId,
+                      courseCode: course?.course_code || 'N/A',
+                      courseTitle: course?.descriptive_title || '',
+                      facultyName: s.faculty 
+                        ? `${s.faculty.first_name} ${s.faculty.last_name}`
+                        : 'N/A',
+                      roomNumber: s.room?.room_number || 'N/A',
+                      dayOfWeek: s.dayOfWeek,
+                      startTime: s.startTime,
+                      endTime: s.endTime,
+                    };
+                  })}
+                  previewBlock={
+                    selectedCourse && formData.dayOfWeek && formData.startTime && formData.endTime
+                      ? {
+                          dayOfWeek: formData.dayOfWeek,
+                          startTime: (() => {
+                            const [hour, minute] = formData.startTime.split(':').map(Number);
+                            const date = new Date();
+                            date.setHours(hour, minute, 0);
+                            return date.toISOString();
+                          })(),
+                          endTime: (() => {
+                            const [hour, minute] = formData.endTime.split(':').map(Number);
+                            const date = new Date();
+                            date.setHours(hour, minute, 0);
+                            return date.toISOString();
+                          })(),
+                          courseCode: selectedCourse?.course_code,
+                        }
+                      : null
+                  }
+                  readOnly={isReadOnly}
+                />
               </div>
-              <div className="max-h-[calc(100vh-200px)] overflow-y-auto">
-                {loadingSchedules ? (
-                  <div className="text-center py-12 px-4">
-                    <Loader2 className="animate-spin w-8 h-8 mx-auto mb-2" style={{ color: colors.secondary }} />
-                    <p className="text-xs" style={{ color: colors.neutral }}>
-                      Loading schedules...
-                    </p>
-                  </div>
-                ) : schedules.length === 0 ? (
-                  <div className="text-center py-12 px-4">
-                    <CalendarDays className="w-12 h-12 mx-auto mb-3" style={{ color: colors.neutral }} />
-                    <p className="text-sm" style={{ color: colors.neutral }}>
-                      No schedules yet. Click a subject to start scheduling.
-                    </p>
-                  </div>
-                ) : (
-                  <div className="p-3">
-                    {/* Timetable Grid */}
-                    {['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'].map((day) => {
-                      const daySchedules = schedules.filter(s => s.dayOfWeek === day);
-                      if (daySchedules.length === 0) return null;
-                      
-                      return (
-                        <div key={day} className="mb-4">
-                          <div className="text-xs font-semibold mb-2 px-2 py-1 rounded" style={{ 
-                            color: colors.primary,
-                            backgroundColor: `${colors.secondary}10`
-                          }}>
-                            {day}
-                          </div>
-                          <div className="space-y-2">
-                            {daySchedules
-                              .sort((a, b) => a.startTime.localeCompare(b.startTime))
-                              .map((schedule) => {
-                                const course = curriculum.find(c => c.id === schedule.curriculumCourseId);
-                                const startHour = parseInt(schedule.startTime.split(':')[0]);
-                                const endHour = parseInt(schedule.endTime.split(':')[0]);
-                                const duration = endHour - startHour;
-                                
-                                // Check for conflicts (overlapping times on same day)
-                                const hasConflict = daySchedules.some(other => 
-                                  other.id !== schedule.id &&
-                                  ((schedule.startTime >= other.startTime && schedule.startTime < other.endTime) ||
-                                   (schedule.endTime > other.startTime && schedule.endTime <= other.endTime) ||
-                                   (schedule.startTime <= other.startTime && schedule.endTime >= other.endTime))
-                                );
-                                
-                                return (
-                                  <div
-                                    key={schedule.id}
-                                    className="relative group rounded-lg border-l-4 p-2 transition-all hover:shadow-md"
-                                    style={{
-                                      backgroundColor: hasConflict ? `${colors.danger}08` : `${colors.secondary}08`,
-                                      borderLeftColor: hasConflict ? colors.danger : colors.secondary,
-                                      borderWidth: '0 0 0 4px',
-                                    }}
-                                  >
-                                    {hasConflict && (
-                                      <div className="absolute -top-1 -right-1 w-5 h-5 rounded-full flex items-center justify-center" style={{ backgroundColor: colors.danger }}>
-                                        <AlertCircle className="w-3 h-3 text-white" />
-                                      </div>
-                                    )}
-                                    <div className="flex items-start justify-between gap-2">
-                                      <div className="flex-1 min-w-0">
-                                        <div className="font-semibold text-xs mb-0.5" style={{ color: colors.primary }}>
-                                          {course?.course_code || 'Unknown'}
-                                        </div>
-                                        <div className="text-[10px] flex items-center gap-1 mb-1" style={{ color: colors.neutral }}>
-                                          <Clock className="w-3 h-3" />
-                                          {schedule.startTime} - {schedule.endTime}
-                                        </div>
-                                        <div className="text-[10px] flex items-center gap-1" style={{ color: colors.neutral }}>
-                                          <Building2 className="w-3 h-3" />
-                                          {schedule.room?.room_number}
-                                        </div>
-                                        <div className="text-[10px] flex items-center gap-1 mt-0.5" style={{ color: colors.neutral }}>
-                                          <UserCircle className="w-3 h-3" />
-                                          {schedule.faculty?.first_name?.charAt(0)}. {schedule.faculty?.last_name}
-                                        </div>
-                                      </div>
-                                      {!isReadOnly && (
-                                        <button
-                                          onClick={() => handleDeleteSchedule(schedule)}
-                                          className="opacity-0 group-hover:opacity-100 transition-opacity p-1 rounded hover:bg-red-100"
-                                          style={{ color: colors.danger }}
-                                        >
-                                          <Trash2 className="w-3 h-3" />
-                                        </button>
-                                      )}
-                                    </div>
-                                  </div>
-                                );
-                              })}
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div>
-                )}
-              </div>
-            </div>
+            )}
           </div>
         </div>
       </div>
