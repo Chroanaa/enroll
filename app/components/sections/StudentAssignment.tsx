@@ -1,12 +1,12 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { SectionResponse } from '@/app/types/sectionTypes';
+import { SectionResponse } from '../../types/sectionTypes';
 import {
   bulkAssignStudents,
   getStudentAssignments,
   getEligibleStudents
-} from '@/app/utils/sectionApi';
+} from '../../utils/sectionApi';
 import { colors } from '../../colors';
 import { Users, Search, X, UserPlus, CheckCircle2 } from 'lucide-react';
 
