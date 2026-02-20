@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { useRouter, useParams } from 'next/navigation';
 import {
   createClassSchedule,
@@ -31,7 +31,8 @@ import {
   CalendarDays,
   ArrowLeft,
   AlertCircle,
-  Loader2
+  Loader2,
+  Search
 } from 'lucide-react';
 
 const DAYS = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
@@ -135,6 +136,43 @@ export default function BuildSchedulePage() {
     message: ''
   });
 
+  // Conflict warning modal state
+  const [conflictModal, setConflictModal] = useState<{
+    isOpen: boolean;
+    type: 'faculty' | 'room' | 'section' | 'subject' | null;
+    title: string;
+    message: string;
+    day: string;
+    startTime: string;
+    endTime: string;
+    resourceName: string;
+  }>({
+    isOpen: false,
+    type: null,
+    title: '',
+    message: '',
+    day: '',
+    startTime: '',
+    endTime: '',
+    resourceName: ''
+  });
+
+  // Faculty search modal state
+  const [facultySearchModal, setFacultySearchModal] = useState(false);
+  const [facultySearchQuery, setFacultySearchQuery] = useState('');
+  const [selectedFacultyDisplay, setSelectedFacultyDisplay] = useState('');
+
+  // Filtered faculty based on search
+  const filteredFaculty = useMemo(() => {
+    if (!facultySearchQuery.trim()) return faculty;
+    const query = facultySearchQuery.toLowerCase();
+    return faculty.filter(f => 
+      `${f.first_name} ${f.last_name}`.toLowerCase().includes(query) ||
+      f.first_name.toLowerCase().includes(query) ||
+      f.last_name.toLowerCase().includes(query)
+    );
+  }, [faculty, facultySearchQuery]);
+
   // Tab state for switching between form and calendar view
   const [activeTab, setActiveTab] = useState<'schedule' | 'calendar'>('schedule');
 
@@ -225,6 +263,7 @@ export default function BuildSchedulePage() {
     if (isScheduled) return;
     
     setSelectedCourse(course);
+    setSelectedFacultyDisplay('');
     setFormData({
       facultyId: '',
       roomId: '',
@@ -313,6 +352,7 @@ export default function BuildSchedulePage() {
       
       // Reset form
       setSelectedCourse(null);
+      setSelectedFacultyDisplay('');
       setFormData({
         facultyId: '',
         roomId: '',
@@ -321,7 +361,67 @@ export default function BuildSchedulePage() {
         endTime: ''
       });
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to add schedule');
+      const errorMessage = err instanceof Error ? err.message : 'Failed to add schedule';
+      
+      // Parse conflict errors and show user-friendly modal
+      const selectedFaculty = faculty.find(f => f.id === parseInt(formData.facultyId));
+      const selectedRoom = rooms.find(r => r.id === parseInt(formData.roomId));
+      
+      // Format time for display
+      const formatTimeDisplay = (time: string) => {
+        const [hour, min] = time.split(':').map(Number);
+        const ampm = hour >= 12 ? 'PM' : 'AM';
+        const displayHour = hour % 12 || 12;
+        return `${displayHour}:${min.toString().padStart(2, '0')} ${ampm}`;
+      };
+      
+      if (errorMessage.toLowerCase().includes('faculty') && errorMessage.toLowerCase().includes('conflict')) {
+        setConflictModal({
+          isOpen: true,
+          type: 'faculty',
+          title: 'Faculty Schedule Conflict',
+          message: `${selectedFaculty ? `${selectedFaculty.first_name} ${selectedFaculty.last_name}` : 'The selected faculty'} already has a class scheduled during this time slot.`,
+          day: formData.dayOfWeek,
+          startTime: formatTimeDisplay(formData.startTime),
+          endTime: formatTimeDisplay(formData.endTime),
+          resourceName: selectedFaculty ? `${selectedFaculty.first_name} ${selectedFaculty.last_name}` : 'Faculty'
+        });
+      } else if (errorMessage.toLowerCase().includes('room') && errorMessage.toLowerCase().includes('conflict')) {
+        setConflictModal({
+          isOpen: true,
+          type: 'room',
+          title: 'Room Already Booked',
+          message: `Room ${selectedRoom?.room_number || ''} is already booked during this time slot.`,
+          day: formData.dayOfWeek,
+          startTime: formatTimeDisplay(formData.startTime),
+          endTime: formatTimeDisplay(formData.endTime),
+          resourceName: selectedRoom?.room_number || 'Room'
+        });
+      } else if (errorMessage.toLowerCase().includes('section') && errorMessage.toLowerCase().includes('conflict')) {
+        setConflictModal({
+          isOpen: true,
+          type: 'section',
+          title: 'Section Time Overlap',
+          message: 'This section already has another subject scheduled during this time slot.',
+          day: formData.dayOfWeek,
+          startTime: formatTimeDisplay(formData.startTime),
+          endTime: formatTimeDisplay(formData.endTime),
+          resourceName: section?.sectionName || 'Section'
+        });
+      } else if (errorMessage.toLowerCase().includes('subject') && errorMessage.toLowerCase().includes('duplicate')) {
+        setConflictModal({
+          isOpen: true,
+          type: 'subject',
+          title: 'Subject Already Scheduled',
+          message: `${selectedCourse?.course_code || 'This subject'} is already scheduled in this section for this term.`,
+          day: '',
+          startTime: '',
+          endTime: '',
+          resourceName: selectedCourse?.course_code || 'Subject'
+        });
+      } else {
+        setError(errorMessage);
+      }
     } finally {
       setLoading(false);
     }
@@ -414,10 +514,12 @@ export default function BuildSchedulePage() {
         <>
       {/* Header */}
       <div
-        className="sticky top-0 z-20 border-b shadow-sm"
+        className="sticky top-0 z-20"
         style={{
-          backgroundColor: colors.paper,
-          borderColor: colors.neutralBorder,
+          backgroundColor: 'rgba(253, 251, 248, 0.95)',
+          backdropFilter: 'blur(8px)',
+          borderBottom: '1px solid rgba(179, 116, 74, 0.1)',
+          boxShadow: '0 1px 3px rgba(58, 35, 19, 0.03)',
         }}
       >
         <div className="px-6 py-4">
@@ -425,15 +527,23 @@ export default function BuildSchedulePage() {
             <div className="flex items-center gap-4">
               <button
                 onClick={() => router.push('/admin/sections')}
-                className="p-2 rounded-lg hover:bg-gray-100 transition-colors"
-                style={{ color: colors.neutral }}
+                className="p-2 rounded-lg transition-colors"
+                style={{ 
+                  color: colors.tertiary,
+                  backgroundColor: 'transparent',
+                }}
+                onMouseEnter={(e) => e.currentTarget.style.backgroundColor = 'rgba(179, 116, 74, 0.08)'}
+                onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
               >
                 <ArrowLeft className="w-5 h-5" />
               </button>
               <div className="flex items-center gap-3">
                 <div
-                  className="p-2 rounded-lg"
-                  style={{ backgroundColor: `${colors.secondary}20` }}
+                  className="p-2.5 rounded-xl"
+                  style={{ 
+                    backgroundColor: 'rgba(149, 90, 39, 0.08)', 
+                    border: '1px solid rgba(149, 90, 39, 0.12)' 
+                  }}
                 >
                   <Calendar className="w-6 h-6" style={{ color: colors.secondary }} />
                 </div>
@@ -448,8 +558,14 @@ export default function BuildSchedulePage() {
               </div>
             </div>
             <div className="flex items-center gap-3">
-              <div className="text-right">
-                <div className="text-xs" style={{ color: colors.neutral }}>Completion</div>
+              <div 
+                className="text-right px-4 py-2 rounded-lg"
+                style={{ 
+                  backgroundColor: 'rgba(149, 90, 39, 0.06)',
+                  border: '1px solid rgba(149, 90, 39, 0.1)',
+                }}
+              >
+                <div className="text-[10px] font-medium uppercase tracking-wide" style={{ color: colors.tertiary }}>Completion</div>
                 <div className="text-2xl font-bold" style={{ color: colors.secondary }}>
                   {curriculum.length > 0 ? Math.round((schedules.length / curriculum.length) * 100) : 0}%
                 </div>
@@ -463,11 +579,11 @@ export default function BuildSchedulePage() {
       {isReadOnly && (
         <div className="px-6 pt-4">
           <div
-            className="p-3 rounded-lg border text-sm flex items-center gap-2"
+            className="p-3 rounded-lg text-sm flex items-center gap-2"
             style={{
-              backgroundColor: `${colors.warning}10`,
-              borderColor: `${colors.warning}30`,
-              color: colors.warning,
+              backgroundColor: 'rgba(245, 158, 11, 0.08)',
+              border: '1px solid rgba(245, 158, 11, 0.2)',
+              color: '#B45309',
             }}
           >
             <AlertCircle className="w-4 h-4" />
@@ -482,50 +598,96 @@ export default function BuildSchedulePage() {
           {/* Content Area */}
           <div className="space-y-4">
             {/* Progress Summary */}
-            <div
-              className="rounded-xl shadow-sm border p-3"
-              style={{
-                backgroundColor: colors.paper,
-                borderColor: colors.neutralBorder,
-              }}
-            >
-              <div className="flex items-center gap-2 mb-2">
-                <BookOpen className="w-4 h-4" style={{ color: colors.secondary }} />
-                <h2 className="text-sm font-semibold" style={{ color: colors.primary }}>
-                  Schedule Progress
-                </h2>
+            <div className="grid grid-cols-4 gap-4">
+              <div 
+                className='rounded-xl p-5'
+                style={{
+                  backgroundColor: 'white',
+                  border: '1px solid rgba(179, 116, 74, 0.12)',
+                  boxShadow: '0 1px 3px rgba(58, 35, 19, 0.06), 0 1px 2px rgba(58, 35, 19, 0.04)',
+                }}
+              >
+                <div className='flex items-center justify-between'>
+                  <div>
+                    <p className='text-xs font-medium mb-1' style={{ color: colors.tertiary }}>Total Subjects</p>
+                    <p className='text-2xl font-bold' style={{ color: colors.primary }}>
+                      {curriculum.length}
+                    </p>
+                  </div>
+                  <div 
+                    className='p-3 rounded-lg'
+                    style={{ backgroundColor: 'rgba(179, 116, 74, 0.08)' }}
+                  >
+                    <BookOpen className='w-5 h-5' style={{ color: colors.tertiary }} />
+                  </div>
+                </div>
               </div>
-              <div className="grid grid-cols-4 gap-2">
-                <div className="text-center p-2 rounded-lg" style={{ backgroundColor: `${colors.info}05` }}>
-                  <div className="text-xl font-bold" style={{ color: colors.info }}>
-                    {curriculum.length}
+              <div 
+                className='rounded-xl p-5'
+                style={{
+                  backgroundColor: 'white',
+                  border: '1px solid rgba(179, 116, 74, 0.12)',
+                  boxShadow: '0 1px 3px rgba(58, 35, 19, 0.06), 0 1px 2px rgba(58, 35, 19, 0.04)',
+                }}
+              >
+                <div className='flex items-center justify-between'>
+                  <div>
+                    <p className='text-xs font-medium mb-1' style={{ color: colors.success }}>Scheduled</p>
+                    <p className='text-2xl font-bold' style={{ color: colors.primary }}>
+                      {schedules.length}
+                    </p>
                   </div>
-                  <div className="text-[9px] mt-0.5" style={{ color: colors.neutral }}>
-                    Total Subjects
-                  </div>
-                </div>
-                <div className="text-center p-2 rounded-lg" style={{ backgroundColor: `${colors.success}05` }}>
-                  <div className="text-xl font-bold" style={{ color: colors.success }}>
-                    {schedules.length}
-                  </div>
-                  <div className="text-[9px] mt-0.5" style={{ color: colors.neutral }}>
-                    Scheduled
-                  </div>
-                </div>
-                <div className="text-center p-2 rounded-lg" style={{ backgroundColor: `${colors.warning}05` }}>
-                  <div className="text-xl font-bold" style={{ color: colors.warning }}>
-                    {curriculum.length - schedules.length}
-                  </div>
-                  <div className="text-[9px] mt-0.5" style={{ color: colors.neutral }}>
-                    Remaining
+                  <div 
+                    className='p-3 rounded-lg'
+                    style={{ backgroundColor: 'rgba(16, 185, 129, 0.08)' }}
+                  >
+                    <CheckCircle2 className='w-5 h-5' style={{ color: colors.success }} />
                   </div>
                 </div>
-                <div className="text-center p-2 rounded-lg" style={{ backgroundColor: `${colors.secondary}05` }}>
-                  <div className="text-xl font-bold" style={{ color: colors.secondary }}>
-                    {curriculum.length > 0 ? Math.round((schedules.length / curriculum.length) * 100) : 0}%
+              </div>
+              <div 
+                className='rounded-xl p-5'
+                style={{
+                  backgroundColor: 'white',
+                  border: '1px solid rgba(179, 116, 74, 0.12)',
+                  boxShadow: '0 1px 3px rgba(58, 35, 19, 0.06), 0 1px 2px rgba(58, 35, 19, 0.04)',
+                }}
+              >
+                <div className='flex items-center justify-between'>
+                  <div>
+                    <p className='text-xs font-medium mb-1' style={{ color: colors.warning }}>Remaining</p>
+                    <p className='text-2xl font-bold' style={{ color: colors.primary }}>
+                      {curriculum.length - schedules.length}
+                    </p>
                   </div>
-                  <div className="text-[9px] mt-0.5" style={{ color: colors.neutral }}>
-                    Complete
+                  <div 
+                    className='p-3 rounded-lg'
+                    style={{ backgroundColor: 'rgba(245, 158, 11, 0.08)' }}
+                  >
+                    <Clock className='w-5 h-5' style={{ color: colors.warning }} />
+                  </div>
+                </div>
+              </div>
+              <div 
+                className='rounded-xl p-5'
+                style={{
+                  backgroundColor: 'white',
+                  border: '1px solid rgba(179, 116, 74, 0.12)',
+                  boxShadow: '0 1px 3px rgba(58, 35, 19, 0.06), 0 1px 2px rgba(58, 35, 19, 0.04)',
+                }}
+              >
+                <div className='flex items-center justify-between'>
+                  <div>
+                    <p className='text-xs font-medium mb-1' style={{ color: colors.secondary }}>Complete</p>
+                    <p className='text-2xl font-bold' style={{ color: colors.primary }}>
+                      {curriculum.length > 0 ? Math.round((schedules.length / curriculum.length) * 100) : 0}%
+                    </p>
+                  </div>
+                  <div 
+                    className='p-3 rounded-lg'
+                    style={{ backgroundColor: 'rgba(149, 90, 39, 0.08)' }}
+                  >
+                    <Calendar className='w-5 h-5' style={{ color: colors.secondary }} />
                   </div>
                 </div>
               </div>
@@ -533,18 +695,19 @@ export default function BuildSchedulePage() {
 
             {/* Tabs */}
             <div
-              className="rounded-xl shadow-sm border overflow-hidden"
+              className="rounded-xl overflow-hidden"
               style={{
-                backgroundColor: colors.paper,
-                borderColor: colors.neutralBorder,
+                backgroundColor: '#FDFCFA',
+                border: '1px solid rgba(179, 116, 74, 0.15)',
+                boxShadow: '0 1px 2px rgba(58, 35, 19, 0.03)',
               }}
             >
-              <div className="flex border-b" style={{ borderColor: colors.neutralBorder }}>
+              <div className="flex" style={{ borderBottom: '1px solid rgba(179, 116, 74, 0.1)' }}>
                 <button
                   onClick={() => setActiveTab('schedule')}
-                  className="flex-1 px-4 py-2 text-sm font-medium transition-all"
+                  className="flex-1 px-4 py-3.5 text-sm font-medium transition-all"
                   style={{
-                    backgroundColor: activeTab === 'schedule' ? `${colors.secondary}10` : 'transparent',
+                    backgroundColor: activeTab === 'schedule' ? 'rgba(149, 90, 39, 0.06)' : 'transparent',
                     color: activeTab === 'schedule' ? colors.secondary : colors.neutral,
                     borderBottom: activeTab === 'schedule' ? `2px solid ${colors.secondary}` : '2px solid transparent',
                   }}
@@ -553,9 +716,9 @@ export default function BuildSchedulePage() {
                 </button>
                 <button
                   onClick={() => setActiveTab('calendar')}
-                  className="flex-1 px-4 py-2 text-sm font-medium transition-all"
+                  className="flex-1 px-4 py-3.5 text-sm font-medium transition-all"
                   style={{
-                    backgroundColor: activeTab === 'calendar' ? `${colors.secondary}10` : 'transparent',
+                    backgroundColor: activeTab === 'calendar' ? 'rgba(149, 90, 39, 0.06)' : 'transparent',
                     color: activeTab === 'calendar' ? colors.secondary : colors.neutral,
                     borderBottom: activeTab === 'calendar' ? `2px solid ${colors.secondary}` : '2px solid transparent',
                   }}
@@ -570,13 +733,14 @@ export default function BuildSchedulePage() {
               <>
             {/* Curriculum Subjects - Clickable Cards */}
             <div
-              className="rounded-xl shadow-sm border p-3"
+              className="rounded-xl p-5"
               style={{
-                backgroundColor: colors.paper,
-                borderColor: colors.neutralBorder,
+                backgroundColor: '#FDFCFA',
+                border: '1px solid rgba(179, 116, 74, 0.12)',
+                boxShadow: '0 1px 3px rgba(58, 35, 19, 0.04)',
               }}
             >
-              <div className="flex items-center justify-between mb-2">
+              <div className="flex items-center justify-between mb-4">
                 <div className="flex items-center gap-2">
                   <GraduationCap className="w-4 h-4" style={{ color: colors.secondary }} />
                   <h2 className="text-sm font-semibold" style={{ color: colors.primary }}>
@@ -588,21 +752,21 @@ export default function BuildSchedulePage() {
                 </div>
               </div>
               {loadingCurriculum ? (
-                <div className="text-center py-6">
+                <div className="text-center py-8">
                   <Loader2 className="animate-spin w-6 h-6 mx-auto mb-2" style={{ color: colors.secondary }} />
                   <p className="text-xs" style={{ color: colors.neutral }}>
                     Loading curriculum...
                   </p>
                 </div>
               ) : curriculum.length === 0 ? (
-                <div className="text-center py-6">
+                <div className="text-center py-8">
                   <BookOpen className="w-10 h-10 mx-auto mb-2" style={{ color: colors.neutral }} />
                   <p className="text-sm" style={{ color: colors.neutral }}>
                     No curriculum courses found for this program, year level, and semester.
                   </p>
                 </div>
               ) : (
-                <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-2">
+                <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3">
                   {curriculum.map((course) => {
                     const isScheduled = schedules.some(s => s.curriculumCourseId === course.id);
                     const isSelected = selectedCourse?.id === course.id;
@@ -612,20 +776,27 @@ export default function BuildSchedulePage() {
                         key={course.id}
                         onClick={() => handleCourseSelect(course)}
                         disabled={isScheduled || isReadOnly}
-                        className={`p-2 rounded-lg border transition-all text-left ${
-                          isScheduled ? 'cursor-not-allowed' : 'cursor-pointer hover:shadow-md'
+                        className={`p-3 rounded-lg transition-all text-left ${
+                          isScheduled ? 'cursor-not-allowed' : 'cursor-pointer'
                         } ${isSelected ? 'ring-2 ring-offset-1' : ''}`}
                         style={{
                           backgroundColor: isScheduled 
-                            ? `${colors.success}08` 
+                            ? 'rgba(16, 185, 129, 0.06)' 
                             : isSelected 
-                            ? `${colors.secondary}08`
+                            ? 'rgba(149, 90, 39, 0.06)'
                             : 'white',
+                          borderWidth: '1px',
+                          borderStyle: 'solid',
                           borderColor: isScheduled 
-                            ? colors.success 
+                            ? 'rgba(16, 185, 129, 0.3)' 
                             : isSelected 
                             ? colors.secondary
-                            : colors.neutralBorder,
+                            : 'rgba(179, 116, 74, 0.15)',
+                          boxShadow: isSelected 
+                            ? '0 2px 8px rgba(149, 90, 39, 0.15)' 
+                            : isScheduled 
+                            ? 'none'
+                            : '0 1px 2px rgba(58, 35, 19, 0.04)',
                           ...(isSelected && { '--tw-ring-color': colors.secondary } as any),
                         }}
                       >
@@ -634,10 +805,10 @@ export default function BuildSchedulePage() {
                             <div className="font-semibold text-xs mb-1" style={{ color: colors.primary }}>
                               {course.course_code}
                             </div>
-                            <div className="text-[10px] line-clamp-2 leading-snug mb-1" style={{ color: colors.neutral }}>
+                            <div className="text-[10px] line-clamp-2 leading-snug mb-1.5" style={{ color: colors.neutral }}>
                               {course.descriptive_title}
                             </div>
-                            <div className="text-[10px]" style={{ color: colors.neutral }}>
+                            <div className="text-[10px]" style={{ color: colors.tertiary }}>
                               {course.units_total} units
                             </div>
                           </div>
@@ -655,10 +826,11 @@ export default function BuildSchedulePage() {
             {/* Add Schedule Form */}
             {!isReadOnly && selectedCourse && (
               <div
-                className="rounded-2xl shadow-sm border p-5"
+                className="rounded-xl p-5"
                 style={{
-                  backgroundColor: colors.paper,
-                  borderColor: colors.neutralBorder,
+                  backgroundColor: '#FDFCFA',
+                  border: '1px solid rgba(179, 116, 74, 0.12)',
+                  boxShadow: '0 2px 6px rgba(58, 35, 19, 0.06)',
                 }}
               >
                 <div className="flex items-center justify-between mb-4">
@@ -680,10 +852,10 @@ export default function BuildSchedulePage() {
                 <form onSubmit={handleAddSchedule} className="space-y-4">
                   {error && (
                     <div
-                      className="border rounded-lg p-3 text-sm flex items-center gap-2"
+                      className="rounded-lg p-3 text-sm flex items-center gap-2"
                       style={{
-                        backgroundColor: `${colors.danger}10`,
-                        borderColor: `${colors.danger}30`,
+                        backgroundColor: 'rgba(239, 68, 68, 0.06)',
+                        border: '1px solid rgba(239, 68, 68, 0.15)',
                         color: colors.danger,
                       }}
                     >
@@ -695,62 +867,57 @@ export default function BuildSchedulePage() {
                   <div className="grid grid-cols-2 gap-4">
                     <div>
                       <label className="flex items-center gap-2 text-xs font-semibold mb-2" style={{ color: colors.primary }}>
-                        <UserCircle className="w-4 h-4" />
+                        <UserCircle className="w-4 h-4" style={{ color: colors.tertiary }} />
                         Faculty <span style={{ color: colors.danger }}>*</span>
                       </label>
-                      <select
-                        value={formData.facultyId}
-                        onChange={(e) => handleInputChange('facultyId', e.target.value)}
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setFacultySearchQuery('');
+                          setFacultySearchModal(true);
+                        }}
                         disabled={loadingResources}
-                        className="w-full px-3 py-2.5 border rounded-lg text-sm transition-all focus:ring-2 focus:ring-offset-0 disabled:opacity-50 disabled:cursor-not-allowed"
+                        className="w-full px-3 py-2.5 rounded-lg text-sm transition-all disabled:opacity-50 disabled:cursor-not-allowed text-left flex items-center justify-between gap-2"
                         style={{
                           outline: 'none',
-                          color: colors.primary,
-                          borderColor: colors.neutralBorder,
-                        }}
-                        onFocus={(e) => {
-                          if (!loadingResources) {
-                            e.currentTarget.style.borderColor = colors.secondary;
-                            e.currentTarget.style.boxShadow = `0 0 0 3px ${colors.secondary}20`;
-                          }
-                        }}
-                        onBlur={(e) => {
-                          e.currentTarget.style.borderColor = colors.neutralBorder;
-                          e.currentTarget.style.boxShadow = 'none';
+                          color: formData.facultyId ? colors.primary : colors.neutral,
+                          backgroundColor: 'white',
+                          border: '1px solid rgba(179, 116, 74, 0.2)',
                         }}
                       >
-                        <option value="">{loadingResources ? 'Loading faculty...' : 'Select faculty'}</option>
-                        {faculty.map((f) => (
-                          <option key={f.id} value={f.id.toString()}>
-                            {f.first_name} {f.last_name}
-                          </option>
-                        ))}
-                      </select>
+                        <span className="truncate">
+                          {loadingResources 
+                            ? 'Loading faculty...' 
+                            : selectedFacultyDisplay || 'Search faculty...'}
+                        </span>
+                        <Search className="w-4 h-4 flex-shrink-0" style={{ color: colors.tertiary }} />
+                      </button>
                     </div>
 
                     <div>
                       <label className="flex items-center gap-2 text-xs font-semibold mb-2" style={{ color: colors.primary }}>
-                        <Building2 className="w-4 h-4" />
+                        <Building2 className="w-4 h-4" style={{ color: colors.tertiary }} />
                         Room <span style={{ color: colors.danger }}>*</span>
                       </label>
                       <select
                         value={formData.roomId}
                         onChange={(e) => handleInputChange('roomId', e.target.value)}
                         disabled={loadingResources}
-                        className="w-full px-3 py-2.5 border rounded-lg text-sm transition-all focus:ring-2 focus:ring-offset-0 disabled:opacity-50 disabled:cursor-not-allowed"
+                        className="w-full px-3 py-2.5 rounded-lg text-sm transition-all disabled:opacity-50 disabled:cursor-not-allowed"
                         style={{
                           outline: 'none',
                           color: colors.primary,
-                          borderColor: colors.neutralBorder,
+                          backgroundColor: 'white',
+                          border: '1px solid rgba(179, 116, 74, 0.2)',
                         }}
                         onFocus={(e) => {
                           if (!loadingResources) {
                             e.currentTarget.style.borderColor = colors.secondary;
-                            e.currentTarget.style.boxShadow = `0 0 0 3px ${colors.secondary}20`;
+                            e.currentTarget.style.boxShadow = '0 0 0 3px rgba(149, 90, 39, 0.1)';
                           }
                         }}
                         onBlur={(e) => {
-                          e.currentTarget.style.borderColor = colors.neutralBorder;
+                          e.currentTarget.style.borderColor = 'rgba(179, 116, 74, 0.2)';
                           e.currentTarget.style.boxShadow = 'none';
                         }}
                       >
@@ -767,24 +934,25 @@ export default function BuildSchedulePage() {
                   <div className="grid grid-cols-3 gap-4">
                     <div>
                       <label className="flex items-center gap-2 text-xs font-semibold mb-2" style={{ color: colors.primary }}>
-                        <Calendar className="w-4 h-4" />
+                        <Calendar className="w-4 h-4" style={{ color: colors.tertiary }} />
                         Day <span style={{ color: colors.danger }}>*</span>
                       </label>
                       <select
                         value={formData.dayOfWeek}
                         onChange={(e) => handleInputChange('dayOfWeek', e.target.value)}
-                        className="w-full px-3 py-2.5 border rounded-lg text-sm transition-all focus:ring-2 focus:ring-offset-0"
+                        className="w-full px-3 py-2.5 rounded-lg text-sm transition-all"
                         style={{
                           outline: 'none',
                           color: colors.primary,
-                          borderColor: colors.neutralBorder,
+                          backgroundColor: 'white',
+                          border: '1px solid rgba(179, 116, 74, 0.2)',
                         }}
                         onFocus={(e) => {
                           e.currentTarget.style.borderColor = colors.secondary;
-                          e.currentTarget.style.boxShadow = `0 0 0 3px ${colors.secondary}20`;
+                          e.currentTarget.style.boxShadow = '0 0 0 3px rgba(149, 90, 39, 0.1)';
                         }}
                         onBlur={(e) => {
-                          e.currentTarget.style.borderColor = colors.neutralBorder;
+                          e.currentTarget.style.borderColor = 'rgba(179, 116, 74, 0.2)';
                           e.currentTarget.style.boxShadow = 'none';
                         }}
                       >
@@ -799,24 +967,25 @@ export default function BuildSchedulePage() {
 
                     <div>
                       <label className="flex items-center gap-2 text-xs font-semibold mb-2" style={{ color: colors.primary }}>
-                        <Clock className="w-4 h-4" />
+                        <Clock className="w-4 h-4" style={{ color: colors.tertiary }} />
                         Start Time <span style={{ color: colors.danger }}>*</span>
                       </label>
                       <select
                         value={formData.startTime}
                         onChange={(e) => handleInputChange('startTime', e.target.value)}
-                        className="w-full px-3 py-2.5 border rounded-lg text-sm transition-all focus:ring-2 focus:ring-offset-0"
+                        className="w-full px-3 py-2.5 rounded-lg text-sm transition-all"
                         style={{
                           outline: 'none',
                           color: colors.primary,
-                          borderColor: colors.neutralBorder,
+                          backgroundColor: 'white',
+                          border: '1px solid rgba(179, 116, 74, 0.2)',
                         }}
                         onFocus={(e) => {
                           e.currentTarget.style.borderColor = colors.secondary;
-                          e.currentTarget.style.boxShadow = `0 0 0 3px ${colors.secondary}20`;
+                          e.currentTarget.style.boxShadow = '0 0 0 3px rgba(149, 90, 39, 0.1)';
                         }}
                         onBlur={(e) => {
-                          e.currentTarget.style.borderColor = colors.neutralBorder;
+                          e.currentTarget.style.borderColor = 'rgba(179, 116, 74, 0.2)';
                           e.currentTarget.style.boxShadow = 'none';
                         }}
                       >
@@ -831,27 +1000,28 @@ export default function BuildSchedulePage() {
 
                     <div>
                       <label className="flex items-center gap-2 text-xs font-semibold mb-2" style={{ color: colors.primary }}>
-                        <Clock className="w-4 h-4" />
+                        <Clock className="w-4 h-4" style={{ color: colors.tertiary }} />
                         End Time <span style={{ color: colors.danger }}>*</span>
                       </label>
                       <select
                         value={formData.endTime}
                         onChange={(e) => handleInputChange('endTime', e.target.value)}
-                        className="w-full px-3 py-2.5 border rounded-lg text-sm transition-all focus:ring-2 focus:ring-offset-0 disabled:opacity-50"
+                        className="w-full px-3 py-2.5 rounded-lg text-sm transition-all disabled:opacity-50"
                         style={{
                           outline: 'none',
                           color: colors.primary,
-                          borderColor: colors.neutralBorder,
+                          backgroundColor: 'white',
+                          border: '1px solid rgba(179, 116, 74, 0.2)',
                         }}
                         disabled={!formData.startTime}
                         onFocus={(e) => {
                           if (!e.currentTarget.disabled) {
                             e.currentTarget.style.borderColor = colors.secondary;
-                            e.currentTarget.style.boxShadow = `0 0 0 3px ${colors.secondary}20`;
+                            e.currentTarget.style.boxShadow = '0 0 0 3px rgba(149, 90, 39, 0.1)';
                           }
                         }}
                         onBlur={(e) => {
-                          e.currentTarget.style.borderColor = colors.neutralBorder;
+                          e.currentTarget.style.borderColor = 'rgba(179, 116, 74, 0.2)';
                           e.currentTarget.style.boxShadow = 'none';
                         }}
                       >
@@ -904,11 +1074,11 @@ export default function BuildSchedulePage() {
                       type="button"
                       onClick={() => setSelectedCourse(null)}
                       disabled={loading}
-                      className="flex-1 px-6 py-2.5 rounded-xl transition-all font-medium flex items-center justify-center gap-2"
+                      className="flex-1 px-6 py-2.5 rounded-lg transition-all font-medium flex items-center justify-center gap-2"
                       style={{
                         color: colors.primary,
-                        border: `1px solid ${colors.neutralBorder}`,
-                        backgroundColor: colors.paper,
+                        border: '1px solid rgba(179, 116, 74, 0.2)',
+                        backgroundColor: 'white',
                       }}
                     >
                       Cancel
@@ -916,10 +1086,10 @@ export default function BuildSchedulePage() {
                     <button
                       type="submit"
                       disabled={loading || loadingResources}
-                      className="flex-1 px-6 py-2.5 text-white rounded-xl transition-all font-medium flex items-center justify-center gap-2 shadow-lg disabled:opacity-50 disabled:cursor-not-allowed"
+                      className="flex-1 px-6 py-2.5 text-white rounded-lg transition-all font-medium flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
                       style={{
                         backgroundColor: colors.secondary,
-                        boxShadow: '0 4px 6px -1px rgba(149, 90, 39, 0.2)',
+                        boxShadow: '0 2px 4px rgba(149, 90, 39, 0.2), 0 1px 2px rgba(149, 90, 39, 0.1)',
                       }}
                     >
                       {loading ? (
@@ -944,10 +1114,11 @@ export default function BuildSchedulePage() {
             {/* Calendar Tab Content */}
             {activeTab === 'calendar' && (
               <div
-                className="rounded-2xl shadow-sm border p-5"
+                className="rounded-xl p-5"
                 style={{
-                  backgroundColor: colors.paper,
-                  borderColor: colors.neutralBorder,
+                  backgroundColor: '#FDFCFA',
+                  border: '1px solid rgba(179, 116, 74, 0.12)',
+                  boxShadow: '0 1px 3px rgba(58, 35, 19, 0.04)',
                 }}
               >
                 <WeeklyScheduleCalendar
@@ -987,6 +1158,12 @@ export default function BuildSchedulePage() {
                         }
                       : null
                   }
+                  onDeleteSchedule={(schedule) => {
+                    const originalSchedule = schedules.find(s => s.id === schedule.id);
+                    if (originalSchedule) {
+                      handleDeleteSchedule(originalSchedule);
+                    }
+                  }}
                   readOnly={isReadOnly}
                 />
               </div>
@@ -1030,6 +1207,420 @@ export default function BuildSchedulePage() {
         message={errorModal.message}
         details={errorModal.details}
       />
+
+      {/* Schedule Conflict Warning Modal */}
+      {conflictModal.isOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center">
+          {/* Backdrop */}
+          <div 
+            className="absolute inset-0 bg-black/40 backdrop-blur-sm"
+            onClick={() => setConflictModal({ ...conflictModal, isOpen: false })}
+          />
+          
+          {/* Modal */}
+          <div 
+            className="relative w-full max-w-md mx-4 rounded-2xl overflow-hidden"
+            style={{
+              backgroundColor: colors.paper,
+              boxShadow: '0 25px 50px -12px rgba(58, 35, 19, 0.25)',
+            }}
+          >
+            {/* Header with warning color */}
+            <div 
+              className="px-6 py-4 flex items-center gap-3"
+              style={{
+                backgroundColor: conflictModal.type === 'faculty' ? 'rgba(245, 158, 11, 0.1)' :
+                                conflictModal.type === 'room' ? 'rgba(239, 68, 68, 0.1)' :
+                                conflictModal.type === 'section' ? 'rgba(59, 130, 246, 0.1)' :
+                                'rgba(149, 90, 39, 0.1)',
+                borderBottom: '1px solid rgba(179, 116, 74, 0.1)',
+              }}
+            >
+              <div 
+                className="p-2.5 rounded-xl"
+                style={{
+                  backgroundColor: conflictModal.type === 'faculty' ? 'rgba(245, 158, 11, 0.15)' :
+                                  conflictModal.type === 'room' ? 'rgba(239, 68, 68, 0.15)' :
+                                  conflictModal.type === 'section' ? 'rgba(59, 130, 246, 0.15)' :
+                                  'rgba(149, 90, 39, 0.15)',
+                }}
+              >
+                <AlertCircle 
+                  className="w-6 h-6" 
+                  style={{ 
+                    color: conflictModal.type === 'faculty' ? colors.warning :
+                           conflictModal.type === 'room' ? colors.danger :
+                           conflictModal.type === 'section' ? colors.info :
+                           colors.secondary
+                  }} 
+                />
+              </div>
+              <div>
+                <h3 className="text-lg font-bold" style={{ color: colors.primary }}>
+                  {conflictModal.title}
+                </h3>
+                <p className="text-xs" style={{ color: colors.neutral }}>
+                  Schedule conflict detected
+                </p>
+              </div>
+            </div>
+            
+            {/* Content */}
+            <div className="px-6 py-5">
+              <p className="text-sm mb-4" style={{ color: colors.primary }}>
+                {conflictModal.message}
+              </p>
+              
+              {/* Conflict Details */}
+              {conflictModal.day && (
+                <div 
+                  className="rounded-xl p-4 space-y-3"
+                  style={{ 
+                    backgroundColor: 'rgba(179, 116, 74, 0.05)',
+                    border: '1px solid rgba(179, 116, 74, 0.1)',
+                  }}
+                >
+                  <div className="flex items-center gap-3">
+                    <div 
+                      className="p-2 rounded-lg"
+                      style={{ backgroundColor: 'rgba(149, 90, 39, 0.1)' }}
+                    >
+                      <Calendar className="w-4 h-4" style={{ color: colors.secondary }} />
+                    </div>
+                    <div>
+                      <p className="text-[10px] uppercase tracking-wide font-medium" style={{ color: colors.neutral }}>
+                        Day
+                      </p>
+                      <p className="text-sm font-semibold" style={{ color: colors.primary }}>
+                        {conflictModal.day}
+                      </p>
+                    </div>
+                  </div>
+                  
+                  <div className="flex items-center gap-3">
+                    <div 
+                      className="p-2 rounded-lg"
+                      style={{ backgroundColor: 'rgba(149, 90, 39, 0.1)' }}
+                    >
+                      <Clock className="w-4 h-4" style={{ color: colors.secondary }} />
+                    </div>
+                    <div>
+                      <p className="text-[10px] uppercase tracking-wide font-medium" style={{ color: colors.neutral }}>
+                        Time Slot
+                      </p>
+                      <p className="text-sm font-semibold" style={{ color: colors.primary }}>
+                        {conflictModal.startTime} - {conflictModal.endTime}
+                      </p>
+                    </div>
+                  </div>
+                  
+                  <div className="flex items-center gap-3">
+                    <div 
+                      className="p-2 rounded-lg"
+                      style={{ backgroundColor: 'rgba(149, 90, 39, 0.1)' }}
+                    >
+                      {conflictModal.type === 'faculty' ? (
+                        <UserCircle className="w-4 h-4" style={{ color: colors.secondary }} />
+                      ) : conflictModal.type === 'room' ? (
+                        <Building2 className="w-4 h-4" style={{ color: colors.secondary }} />
+                      ) : (
+                        <BookOpen className="w-4 h-4" style={{ color: colors.secondary }} />
+                      )}
+                    </div>
+                    <div>
+                      <p className="text-[10px] uppercase tracking-wide font-medium" style={{ color: colors.neutral }}>
+                        {conflictModal.type === 'faculty' ? 'Faculty' : 
+                         conflictModal.type === 'room' ? 'Room' : 'Resource'}
+                      </p>
+                      <p className="text-sm font-semibold" style={{ color: colors.primary }}>
+                        {conflictModal.resourceName}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              )}
+              
+              {/* Suggestion */}
+              <div 
+                className="mt-4 p-3 rounded-lg flex items-start gap-2"
+                style={{ 
+                  backgroundColor: 'rgba(59, 130, 246, 0.06)',
+                  border: '1px solid rgba(59, 130, 246, 0.15)',
+                }}
+              >
+                <AlertCircle className="w-4 h-4 mt-0.5 flex-shrink-0" style={{ color: colors.info }} />
+                <p className="text-xs" style={{ color: colors.info }}>
+                  {conflictModal.type === 'faculty' 
+                    ? 'Try selecting a different faculty member or choose another time slot.'
+                    : conflictModal.type === 'room'
+                    ? 'Try selecting a different room or choose another time slot.'
+                    : conflictModal.type === 'section'
+                    ? 'This section already has a class at this time. Please choose a different time slot.'
+                    : 'Please review your selection and try again.'}
+                </p>
+              </div>
+            </div>
+            
+            {/* Footer */}
+            <div 
+              className="px-6 py-4 flex justify-end"
+              style={{ 
+                backgroundColor: 'rgba(179, 116, 74, 0.03)',
+                borderTop: '1px solid rgba(179, 116, 74, 0.1)',
+              }}
+            >
+              <button
+                onClick={() => setConflictModal({ ...conflictModal, isOpen: false })}
+                className="px-5 py-2.5 rounded-lg text-sm font-medium text-white transition-all hover:opacity-90"
+                style={{ 
+                  backgroundColor: colors.secondary,
+                  boxShadow: '0 2px 4px rgba(149, 90, 39, 0.2)',
+                }}
+              >
+                Got it, I'll adjust
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Faculty Search Modal */}
+      {facultySearchModal && (
+        <div
+          className="fixed inset-0 flex items-center justify-center p-4 z-50 backdrop-blur-sm"
+          style={{ backgroundColor: "rgba(0,0,0,0.4)" }}
+          onClick={() => setFacultySearchModal(false)}
+        >
+          <div
+            className="rounded-2xl shadow-2xl w-full max-w-4xl max-h-[90vh] overflow-hidden flex flex-col animate-in fade-in zoom-in duration-200 bg-white"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Header */}
+            <div
+              className="px-6 py-4 flex items-center justify-between border-b"
+              style={{
+                backgroundColor: `${colors.primary}08`,
+                borderColor: `${colors.primary}15`,
+              }}
+            >
+              <div className="flex items-center gap-3">
+                <div
+                  className="p-2 rounded-lg"
+                  style={{ backgroundColor: `${colors.secondary}20` }}
+                >
+                  <Search className="w-6 h-6" style={{ color: colors.secondary }} />
+                </div>
+                <div>
+                  <h2
+                    className="text-xl font-bold"
+                    style={{ color: colors.primary }}
+                  >
+                    Search Faculty
+                  </h2>
+                  <p className="text-sm text-gray-600">
+                    Search by faculty name to assign to this schedule
+                  </p>
+                </div>
+              </div>
+              <button
+                onClick={() => setFacultySearchModal(false)}
+                className="p-2 rounded-full hover:bg-white/60 transition-colors text-gray-400 hover:text-gray-600"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Search Input */}
+            <div className="p-6 border-b" style={{ borderColor: `${colors.primary}15` }}>
+              <div className="relative">
+                <Search 
+                  className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5" 
+                  style={{ color: colors.tertiary }} 
+                />
+                <input
+                  type="text"
+                  value={facultySearchQuery}
+                  onChange={(e) => setFacultySearchQuery(e.target.value)}
+                  placeholder="Enter faculty name..."
+                  autoFocus
+                  className="w-full pl-10 pr-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-transparent"
+                />
+              </div>
+            </div>
+
+            {/* Results */}
+            <div className="flex-1 overflow-y-auto p-6 bg-gray-50">
+              {loadingResources && (
+                <div className="text-center py-12">
+                  <Loader2 
+                    className="w-8 h-8 animate-spin mx-auto mb-4" 
+                    style={{ color: colors.secondary }} 
+                  />
+                  <p className="text-gray-600">Loading faculty...</p>
+                </div>
+              )}
+
+              {!loadingResources && filteredFaculty.length === 0 && (
+                <div className="text-center py-12">
+                  <UserCircle
+                    size={48}
+                    className="mx-auto mb-4"
+                    style={{ color: colors.tertiary, opacity: 0.5 }}
+                  />
+                  <p className="text-gray-600">No faculty found</p>
+                  <p className="text-sm text-gray-500 mt-1">
+                    Try a different search term
+                  </p>
+                </div>
+              )}
+
+              {!loadingResources && filteredFaculty.length > 0 && (
+                <div className="overflow-x-auto bg-white rounded-lg shadow-sm border border-gray-100">
+                  <table className="w-full">
+                    <thead>
+                      <tr
+                        className="border-b"
+                        style={{ borderColor: colors.tertiary + "30" }}
+                      >
+                        <th
+                          className="text-left py-3 px-4 text-sm font-semibold"
+                          style={{ color: colors.primary }}
+                        >
+                          Faculty Name
+                        </th>
+                        <th
+                          className="text-left py-3 px-4 text-sm font-semibold"
+                          style={{ color: colors.primary }}
+                        >
+                          Department
+                        </th>
+                        <th
+                          className="text-left py-3 px-4 text-sm font-semibold"
+                          style={{ color: colors.primary }}
+                        >
+                          Status
+                        </th>
+                        <th
+                          className="text-right py-3 px-4 text-sm font-semibold"
+                          style={{ color: colors.primary }}
+                        >
+                          Action
+                        </th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {filteredFaculty.map((f) => {
+                        const isSelected = formData.facultyId === f.id.toString();
+                        return (
+                          <tr
+                            key={f.id}
+                            className={`border-b hover:bg-gray-50 transition-colors cursor-pointer ${isSelected ? 'bg-amber-50' : ''}`}
+                            style={{ borderColor: colors.tertiary + "20" }}
+                            onClick={() => {
+                              handleInputChange('facultyId', f.id.toString());
+                              setSelectedFacultyDisplay(`${f.first_name} ${f.last_name}`);
+                              setFacultySearchModal(false);
+                            }}
+                          >
+                            <td className="py-3 px-4">
+                              <div className="flex items-center gap-3">
+                                <div 
+                                  className="w-9 h-9 rounded-full flex items-center justify-center text-sm font-semibold"
+                                  style={{ 
+                                    backgroundColor: isSelected ? colors.secondary : 'rgba(179, 116, 74, 0.1)',
+                                    color: isSelected ? 'white' : colors.secondary,
+                                  }}
+                                >
+                                  {f.first_name.charAt(0)}{f.last_name.charAt(0)}
+                                </div>
+                                <span
+                                  className="font-medium text-sm"
+                                  style={{ color: colors.primary }}
+                                >
+                                  {f.first_name} {f.last_name}
+                                </span>
+                              </div>
+                            </td>
+                            <td className="py-3 px-4">
+                              <span className="text-sm text-gray-700">
+                                {f.department || "N/A"}
+                              </span>
+                            </td>
+                            <td className="py-3 px-4">
+                              <span
+                                className={`text-xs px-2 py-1 rounded-full font-medium ${
+                                  f.status === 'active' || f.status === 1
+                                    ? "bg-green-100 text-green-700"
+                                    : "bg-gray-100 text-gray-700"
+                                }`}
+                              >
+                                {f.status === 'active' || f.status === 1 ? 'Active' : f.status || 'N/A'}
+                              </span>
+                            </td>
+                            <td className="py-3 px-4 text-right">
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleInputChange('facultyId', f.id.toString());
+                                  setSelectedFacultyDisplay(`${f.first_name} ${f.last_name}`);
+                                  setFacultySearchModal(false);
+                                }}
+                                className="px-4 py-1.5 rounded-lg text-sm font-medium text-white transition-all"
+                                style={{ backgroundColor: isSelected ? colors.success : colors.secondary }}
+                                onMouseEnter={(e) => {
+                                  if (!isSelected) {
+                                    e.currentTarget.style.backgroundColor = colors.tertiary;
+                                  }
+                                }}
+                                onMouseLeave={(e) => {
+                                  if (!isSelected) {
+                                    e.currentTarget.style.backgroundColor = colors.secondary;
+                                  }
+                                }}
+                              >
+                                {isSelected ? 'Selected' : 'Select'}
+                              </button>
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
+
+            {/* Footer */}
+            <div
+              className="px-6 py-4 border-t flex items-center justify-between"
+              style={{
+                borderColor: `${colors.primary}15`,
+                backgroundColor: `${colors.primary}04`,
+              }}
+            >
+              <p className="text-sm text-gray-600">
+                {filteredFaculty.length} faculty member{filteredFaculty.length !== 1 ? 's' : ''} found
+              </p>
+              <button
+                onClick={() => setFacultySearchModal(false)}
+                className="px-6 py-2.5 rounded-lg font-medium transition-colors"
+                style={{
+                  color: colors.primary,
+                  border: "1px solid #D1D5DB",
+                }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.backgroundColor = colors.tertiary + "10";
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.backgroundColor = "transparent";
+                }}
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
