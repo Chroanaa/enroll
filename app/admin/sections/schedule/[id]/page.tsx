@@ -7,7 +7,8 @@ import {
   getClassSchedules,
   getSectionCurriculum,
   deleteClassSchedule,
-  getSectionById
+  getSectionById,
+  updateClassSchedule
 } from '../../../../utils/sectionApi';
 import { SectionResponse } from '../../../../types/sectionTypes';
 import ConfirmationModal from '../../../../components/common/ConfirmationModal';
@@ -49,38 +50,11 @@ export default function BuildSchedulePage() {
 
   // Handle navigation view changes with Next.js routing
   const handleViewChange = (view: string) => {
-    const routeMap: Record<string, string> = {
-      'dashboard': '/dashboard',
-      'students': '/dashboard',
-      'courses': '/dashboard',
-      'enrollments': '/dashboard',
-      'enrollment-form': '/dashboard',
-      'resident-enrollment': '/dashboard',
-      'curriculum': '/dashboard',
-      'curriculum-program': '/dashboard',
-      'scheduling': '/dashboard',
-      'section-management': '/admin/sections',
-      'file-maintenance': '/dashboard',
-      'file-maintenance-building': '/dashboard',
-      'file-maintenance-section': '/dashboard',
-      'file-maintenance-room': '/dashboard',
-      'file-maintenance-department': '/dashboard',
-      'file-maintenance-major': '/dashboard',
-      'file-maintenance-faculty': '/dashboard',
-      'file-maintenance-fees': '/dashboard',
-      'file-maintenance-discount': '/dashboard',
-      'file-maintenance-products': '/dashboard',
-      'file-maintenance-schools-programs': '/dashboard',
-      'file-maintenance-subject': '/dashboard',
-      'reports': '/dashboard',
-      'forecast-billing': '/dashboard',
-      'settings': '/dashboard',
-      'assessment': '/dashboard',
-      'payment-billing': '/dashboard',
-    };
-
-    const route = routeMap[view] || '/dashboard';
-    router.push(route);
+    if (view === 'section-management') {
+      router.push('/dashboard?view=section-management');
+      return;
+    }
+    router.push(`/dashboard?view=${view}`);
   };
 
   const [section, setSection] = useState<SectionResponse | null>(null);
@@ -175,6 +149,36 @@ export default function BuildSchedulePage() {
 
   // Tab state for switching between form and calendar view
   const [activeTab, setActiveTab] = useState<'schedule' | 'calendar'>('schedule');
+
+  // Edit schedule modal state (full edit: faculty, room, day, time)
+  const [editScheduleModal, setEditScheduleModal] = useState<{
+    isOpen: boolean;
+    schedule: any | null;
+  }>({
+    isOpen: false,
+    schedule: null
+  });
+  const [editFormData, setEditFormData] = useState({
+    facultyId: '',
+    roomId: '',
+    dayOfWeek: '',
+    startTime: '',
+    endTime: ''
+  });
+  const [editFacultySearchQuery, setEditFacultySearchQuery] = useState('');
+  const [editFacultySearchModal, setEditFacultySearchModal] = useState(false);
+  const [selectedEditFacultyDisplay, setSelectedEditFacultyDisplay] = useState('');
+
+  // Filtered faculty for edit modal
+  const filteredEditFaculty = useMemo(() => {
+    if (!editFacultySearchQuery.trim()) return faculty;
+    const query = editFacultySearchQuery.toLowerCase();
+    return faculty.filter(f => 
+      `${f.first_name} ${f.last_name}`.toLowerCase().includes(query) ||
+      f.first_name.toLowerCase().includes(query) ||
+      f.last_name.toLowerCase().includes(query)
+    );
+  }, [faculty, editFacultySearchQuery]);
 
   useEffect(() => {
     loadScheduleData();
@@ -439,6 +443,97 @@ export default function BuildSchedulePage() {
     });
   };
 
+  // Handle opening edit schedule modal
+  const handleEditSchedule = (schedule: any) => {
+    // Parse times from ISO to HH:mm format
+    const startDate = new Date(schedule.startTime);
+    const endDate = new Date(schedule.endTime);
+    const startTimeStr = `${startDate.getHours().toString().padStart(2, '0')}:${startDate.getMinutes().toString().padStart(2, '0')}`;
+    const endTimeStr = `${endDate.getHours().toString().padStart(2, '0')}:${endDate.getMinutes().toString().padStart(2, '0')}`;
+    
+    const facultyMember = faculty.find(f => f.id === schedule.facultyId);
+    
+    setEditScheduleModal({
+      isOpen: true,
+      schedule
+    });
+    setEditFormData({
+      facultyId: schedule.facultyId?.toString() || '',
+      roomId: schedule.roomId?.toString() || '',
+      dayOfWeek: schedule.dayOfWeek || '',
+      startTime: startTimeStr,
+      endTime: endTimeStr
+    });
+    setSelectedEditFacultyDisplay(facultyMember ? `${facultyMember.first_name} ${facultyMember.last_name}` : '');
+    setEditFacultySearchQuery('');
+  };
+
+  // Handle edit form input change
+  const handleEditInputChange = (name: string, value: string) => {
+    setEditFormData(prev => ({
+      ...prev,
+      [name]: value
+    }));
+  };
+
+  // Handle saving schedule changes
+  const handleSaveScheduleChanges = async () => {
+    if (!editScheduleModal.schedule) return;
+
+    try {
+      setLoading(true);
+      setError(null);
+
+      // Build update data - convert times to ISO
+      const updateData: any = {};
+      
+      if (editFormData.facultyId && editFormData.facultyId !== editScheduleModal.schedule.facultyId?.toString()) {
+        updateData.facultyId = parseInt(editFormData.facultyId);
+      }
+      if (editFormData.roomId && editFormData.roomId !== editScheduleModal.schedule.roomId?.toString()) {
+        updateData.roomId = parseInt(editFormData.roomId);
+      }
+      if (editFormData.dayOfWeek && editFormData.dayOfWeek !== editScheduleModal.schedule.dayOfWeek) {
+        updateData.dayOfWeek = editFormData.dayOfWeek;
+      }
+      
+      // Convert time strings to ISO
+      if (editFormData.startTime) {
+        const [hour, min] = editFormData.startTime.split(':').map(Number);
+        const startDate = new Date();
+        startDate.setHours(hour, min, 0, 0);
+        updateData.startTime = startDate.toISOString();
+      }
+      if (editFormData.endTime) {
+        const [hour, min] = editFormData.endTime.split(':').map(Number);
+        const endDate = new Date();
+        endDate.setHours(hour, min, 0, 0);
+        updateData.endTime = endDate.toISOString();
+      }
+
+      await updateClassSchedule(editScheduleModal.schedule.id, updateData);
+
+      // Reload schedules
+      const updatedSchedules = await getClassSchedules({
+        sectionId: section!.id,
+        academicYear: section!.academicYear,
+        semester: section!.semester
+      });
+      setSchedules(updatedSchedules);
+
+      setSuccessModal({
+        isOpen: true,
+        message: 'Schedule updated successfully.'
+      });
+
+      setEditScheduleModal({ isOpen: false, schedule: null });
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to update schedule');
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const confirmDelete = async () => {
     if (!deleteConfirm.scheduleId) return;
 
@@ -472,10 +567,10 @@ export default function BuildSchedulePage() {
     }
   };
 
-  const isReadOnly = section?.status === 'active' || section?.status === 'locked';
-  const statusMessage = section?.status === 'active' 
-    ? 'Section is active. Schedule is frozen and cannot be modified.'
-    : section?.status === 'locked'
+  const isReadOnly = section?.status === 'locked';
+  const isActiveSection = section?.status === 'active';
+  const canEditFaculty = section?.status === 'active' || section?.status === 'draft';
+  const statusMessage = section?.status === 'locked'
     ? 'Section is locked. No modifications allowed.'
     : '';
 
@@ -502,7 +597,7 @@ export default function BuildSchedulePage() {
             <AlertCircle className="w-12 h-12 mx-auto mb-4" style={{ color: colors.danger }} />
             <p className="text-lg font-semibold mb-2" style={{ color: colors.primary }}>Section not found</p>
             <button
-              onClick={() => router.push('/admin/sections')}
+              onClick={() => router.push('/dashboard?view=section-management')}
               className="px-4 py-2 rounded-lg mt-4 hover:opacity-90 transition-opacity"
               style={{ backgroundColor: colors.secondary, color: 'white' }}
             >
@@ -526,7 +621,7 @@ export default function BuildSchedulePage() {
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-4">
               <button
-                onClick={() => router.push('/admin/sections')}
+                onClick={() => router.push('/dashboard?view=section-management')}
                 className="p-2 rounded-lg transition-colors"
                 style={{ 
                   color: colors.tertiary,
@@ -1164,7 +1259,14 @@ export default function BuildSchedulePage() {
                       handleDeleteSchedule(originalSchedule);
                     }
                   }}
+                  onEditFaculty={(schedule) => {
+                    const originalSchedule = schedules.find(s => s.id === schedule.id);
+                    if (originalSchedule) {
+                      handleEditSchedule(originalSchedule);
+                    }
+                  }}
                   readOnly={isReadOnly}
+                  canEditFaculty={canEditFaculty}
                 />
               </div>
             )}
@@ -1617,6 +1719,315 @@ export default function BuildSchedulePage() {
               >
                 Cancel
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Edit Schedule Modal (full edit: faculty, room, day, time) */}
+      {editScheduleModal.isOpen && editScheduleModal.schedule && (
+        <div
+          className="fixed inset-0 flex items-center justify-center p-4 z-50 backdrop-blur-sm"
+          style={{ backgroundColor: "rgba(0,0,0,0.4)" }}
+          onClick={() => setEditScheduleModal({ isOpen: false, schedule: null })}
+        >
+          <div
+            className="rounded-2xl shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-hidden flex flex-col animate-in fade-in zoom-in duration-200 bg-white"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Header */}
+            <div
+              className="px-6 py-4 flex items-center justify-between border-b"
+              style={{
+                backgroundColor: `${colors.primary}08`,
+                borderColor: `${colors.primary}15`,
+              }}
+            >
+              <div className="flex items-center gap-3">
+                <div
+                  className="p-2 rounded-lg"
+                  style={{ backgroundColor: `${colors.secondary}20` }}
+                >
+                  <Calendar className="w-6 h-6" style={{ color: colors.secondary }} />
+                </div>
+                <div>
+                  <h2 className="text-xl font-bold" style={{ color: colors.primary }}>
+                    Edit Schedule
+                  </h2>
+                  <p className="text-sm text-gray-600">
+                    {(() => {
+                      const course = curriculum.find(c => c.id === editScheduleModal.schedule?.curriculumCourseId);
+                      return course?.course_code || 'Schedule';
+                    })()}
+                  </p>
+                </div>
+              </div>
+              <button
+                onClick={() => setEditScheduleModal({ isOpen: false, schedule: null })}
+                className="p-2 rounded-full hover:bg-white/60 transition-colors text-gray-400 hover:text-gray-600"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Form Content */}
+            <div className="flex-1 overflow-y-auto p-6 space-y-4">
+              {error && (
+                <div
+                  className="p-3 rounded-lg text-sm flex items-center gap-2"
+                  style={{
+                    backgroundColor: 'rgba(239, 68, 68, 0.08)',
+                    border: '1px solid rgba(239, 68, 68, 0.2)',
+                    color: '#B91C1C',
+                  }}
+                >
+                  <AlertCircle className="w-4 h-4" />
+                  {error}
+                </div>
+              )}
+
+              {/* Faculty */}
+              <div>
+                <label className="flex items-center gap-1.5 text-xs font-medium mb-1.5" style={{ color: colors.primary }}>
+                  <UserCircle className="w-3.5 h-3.5" style={{ color: colors.tertiary }} />
+                  Faculty <span className="text-red-500">*</span>
+                </label>
+                <button
+                  type="button"
+                  onClick={() => setEditFacultySearchModal(true)}
+                  className="w-full px-3 py-2.5 text-left rounded-lg transition-all flex items-center justify-between"
+                  style={{
+                    backgroundColor: 'white',
+                    border: '1px solid rgba(179, 116, 74, 0.2)',
+                    color: selectedEditFacultyDisplay ? colors.primary : colors.neutral,
+                  }}
+                >
+                  <span className="text-sm">
+                    {selectedEditFacultyDisplay || 'Select faculty...'}
+                  </span>
+                  <Search className="w-4 h-4" style={{ color: colors.tertiary }} />
+                </button>
+              </div>
+
+              {/* Room */}
+              <div>
+                <label className="flex items-center gap-1.5 text-xs font-medium mb-1.5" style={{ color: colors.primary }}>
+                  <Building2 className="w-3.5 h-3.5" style={{ color: colors.tertiary }} />
+                  Room <span className="text-red-500">*</span>
+                </label>
+                <select
+                  value={editFormData.roomId}
+                  onChange={(e) => handleEditInputChange('roomId', e.target.value)}
+                  className="w-full px-3 py-2.5 rounded-lg text-sm transition-all"
+                  style={{
+                    backgroundColor: 'white',
+                    border: '1px solid rgba(179, 116, 74, 0.2)',
+                    color: colors.primary,
+                  }}
+                >
+                  <option value="">Select room...</option>
+                  {rooms.map((room) => (
+                    <option key={room.id} value={room.id}>
+                      {room.room_number} (Cap: {room.capacity})
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Day */}
+              <div>
+                <label className="flex items-center gap-1.5 text-xs font-medium mb-1.5" style={{ color: colors.primary }}>
+                  <CalendarDays className="w-3.5 h-3.5" style={{ color: colors.tertiary }} />
+                  Day <span className="text-red-500">*</span>
+                </label>
+                <select
+                  value={editFormData.dayOfWeek}
+                  onChange={(e) => handleEditInputChange('dayOfWeek', e.target.value)}
+                  className="w-full px-3 py-2.5 rounded-lg text-sm transition-all"
+                  style={{
+                    backgroundColor: 'white',
+                    border: '1px solid rgba(179, 116, 74, 0.2)',
+                    color: colors.primary,
+                  }}
+                >
+                  <option value="">Select day...</option>
+                  {DAYS.map((day) => (
+                    <option key={day} value={day}>{day}</option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Time Row */}
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="flex items-center gap-1.5 text-xs font-medium mb-1.5" style={{ color: colors.primary }}>
+                    <Clock className="w-3.5 h-3.5" style={{ color: colors.tertiary }} />
+                    Start Time <span className="text-red-500">*</span>
+                  </label>
+                  <select
+                    value={editFormData.startTime}
+                    onChange={(e) => handleEditInputChange('startTime', e.target.value)}
+                    className="w-full px-3 py-2.5 rounded-lg text-sm transition-all"
+                    style={{
+                      backgroundColor: 'white',
+                      border: '1px solid rgba(179, 116, 74, 0.2)',
+                      color: colors.primary,
+                    }}
+                  >
+                    <option value="">Select time...</option>
+                    {TIME_SLOTS.map((time) => (
+                      <option key={time} value={time}>{time}</option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label className="flex items-center gap-1.5 text-xs font-medium mb-1.5" style={{ color: colors.primary }}>
+                    <Clock className="w-3.5 h-3.5" style={{ color: colors.tertiary }} />
+                    End Time <span className="text-red-500">*</span>
+                  </label>
+                  <select
+                    value={editFormData.endTime}
+                    onChange={(e) => handleEditInputChange('endTime', e.target.value)}
+                    className="w-full px-3 py-2.5 rounded-lg text-sm transition-all"
+                    style={{
+                      backgroundColor: 'white',
+                      border: '1px solid rgba(179, 116, 74, 0.2)',
+                      color: colors.primary,
+                    }}
+                  >
+                    <option value="">Select time...</option>
+                    {TIME_SLOTS.map((time) => (
+                      <option key={time} value={time}>{time}</option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+
+              {/* Duration Display */}
+              {editFormData.startTime && editFormData.endTime && (
+                <div className="text-xs text-right" style={{ color: colors.neutral }}>
+                  Duration: {(() => {
+                    const [startHour, startMin] = editFormData.startTime.split(':').map(Number);
+                    const [endHour, endMin] = editFormData.endTime.split(':').map(Number);
+                    const duration = (endHour * 60 + endMin) - (startHour * 60 + startMin);
+                    if (duration <= 0) return 'Invalid';
+                    const hours = Math.floor(duration / 60);
+                    const minutes = duration % 60;
+                    return `${hours}h ${minutes > 0 ? `${minutes}m` : ''}`;
+                  })()}
+                </div>
+              )}
+            </div>
+
+            {/* Footer */}
+            <div
+              className="px-6 py-4 border-t flex items-center justify-end gap-3"
+              style={{
+                borderColor: `${colors.primary}15`,
+                backgroundColor: `${colors.primary}04`,
+              }}
+            >
+              <button
+                onClick={() => setEditScheduleModal({ isOpen: false, schedule: null })}
+                className="px-6 py-2.5 rounded-lg font-medium transition-colors"
+                style={{
+                  color: colors.primary,
+                  border: "1px solid #D1D5DB",
+                }}
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleSaveScheduleChanges}
+                disabled={loading || !editFormData.facultyId || !editFormData.roomId || !editFormData.dayOfWeek || !editFormData.startTime || !editFormData.endTime}
+                className="px-6 py-2.5 rounded-lg font-medium text-white transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                style={{ backgroundColor: colors.secondary }}
+              >
+                {loading ? (
+                  <span className="flex items-center gap-2">
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                    Saving...
+                  </span>
+                ) : (
+                  'Save Changes'
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Edit Faculty Search Modal */}
+      {editFacultySearchModal && (
+        <div
+          className="fixed inset-0 flex items-center justify-center p-4 z-[60] backdrop-blur-sm"
+          style={{ backgroundColor: "rgba(0,0,0,0.4)" }}
+          onClick={() => setEditFacultySearchModal(false)}
+        >
+          <div
+            className="rounded-2xl shadow-2xl w-full max-w-3xl max-h-[80vh] overflow-hidden flex flex-col bg-white"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="px-6 py-4 border-b flex items-center justify-between" style={{ borderColor: `${colors.primary}15` }}>
+              <h3 className="text-lg font-bold" style={{ color: colors.primary }}>Select Faculty</h3>
+              <button onClick={() => setEditFacultySearchModal(false)} className="p-2 hover:bg-gray-100 rounded-full">
+                <X className="w-5 h-5 text-gray-500" />
+              </button>
+            </div>
+            <div className="p-4 border-b" style={{ borderColor: `${colors.primary}15` }}>
+              <div className="relative">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5" style={{ color: colors.tertiary }} />
+                <input
+                  type="text"
+                  value={editFacultySearchQuery}
+                  onChange={(e) => setEditFacultySearchQuery(e.target.value)}
+                  placeholder="Search faculty..."
+                  autoFocus
+                  className="w-full pl-10 pr-4 py-2.5 border border-gray-300 rounded-lg"
+                />
+              </div>
+            </div>
+            <div className="flex-1 overflow-y-auto p-4" style={{ maxHeight: '400px' }}>
+              {filteredEditFaculty.length === 0 ? (
+                <p className="text-center text-gray-500 py-8">No faculty found</p>
+              ) : (
+                <div className="space-y-2">
+                  {filteredEditFaculty.map((f) => {
+                    const isSelected = editFormData.facultyId === f.id.toString();
+                    return (
+                      <button
+                        key={f.id}
+                        onClick={() => {
+                          handleEditInputChange('facultyId', f.id.toString());
+                          setSelectedEditFacultyDisplay(`${f.first_name} ${f.last_name}`);
+                          setEditFacultySearchModal(false);
+                        }}
+                        className={`w-full p-3 rounded-lg text-left flex items-center gap-3 transition-all ${isSelected ? 'bg-amber-50 border-amber-300' : 'bg-white hover:bg-gray-50 border-gray-200'}`}
+                        style={{ border: '1px solid' }}
+                      >
+                        <div 
+                          className="w-10 h-10 rounded-full flex items-center justify-center text-sm font-semibold"
+                          style={{ 
+                            backgroundColor: isSelected ? colors.secondary : 'rgba(179, 116, 74, 0.1)',
+                            color: isSelected ? 'white' : colors.secondary,
+                          }}
+                        >
+                          {f.first_name.charAt(0)}{f.last_name.charAt(0)}
+                        </div>
+                        <div className="flex-1">
+                          <p className="font-medium text-sm" style={{ color: colors.primary }}>
+                            {f.first_name} {f.last_name}
+                          </p>
+                          <p className="text-xs text-gray-500">{f.department || 'No department'}</p>
+                        </div>
+                        {isSelected && (
+                          <CheckCircle2 className="w-5 h-5" style={{ color: colors.success }} />
+                        )}
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
             </div>
           </div>
         </div>

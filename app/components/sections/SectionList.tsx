@@ -4,22 +4,26 @@ import React, { useState, useEffect } from 'react';
 import { SectionResponse } from '../../types/sectionTypes';
 import { getSections } from '../../utils/sectionApi';
 import { colors } from '../../colors';
-import { Users, GraduationCap, Calendar, BookOpen, Edit2, UserPlus, CheckCircle, PlayCircle, Lock } from 'lucide-react';
+import { Users, GraduationCap, Calendar, BookOpen, Edit2, UserPlus, CheckCircle, PlayCircle, Lock, Unlock, Eye } from 'lucide-react';
 
 interface SectionListProps {
   onEdit?: (section: SectionResponse) => void;
   onCreateSchedule?: (section: SectionResponse) => void;
+  onViewSchedule?: (section: SectionResponse) => void;
   onAssignStudents?: (section: SectionResponse) => void;
   onActivate?: (section: SectionResponse) => void;
   onLock?: (section: SectionResponse) => void;
+  onUnlock?: (section: SectionResponse) => void;
 }
 
 export function SectionList({
   onEdit,
   onCreateSchedule,
+  onViewSchedule,
   onAssignStudents,
   onActivate,
-  onLock
+  onLock,
+  onUnlock
 }: SectionListProps) {
   const [sections, setSections] = useState<SectionResponse[]>([]);
   const [loading, setLoading] = useState(true);
@@ -238,49 +242,72 @@ export function SectionList({
                           </span>
                         </td>
                         <td className="px-3 py-2 whitespace-nowrap text-right text-xs font-medium">
-                          <div className="flex justify-end gap-1.5">
+                          <div className="flex justify-end gap-1">
                             <button
                               onClick={() => onEdit?.(section)}
-                              className="p-1.5 rounded-lg hover:bg-white hover:shadow-sm border border-transparent hover:border-gray-200 transition-all text-blue-600"
-                              title="Edit"
+                              className="px-2 py-1 rounded-md hover:bg-blue-50 border border-transparent hover:border-blue-200 transition-all text-blue-600 flex items-center gap-1"
+                              title="Edit Section"
                             >
-                              <Edit2 className="w-3.5 h-3.5" />
+                              <Edit2 className="w-3 h-3" />
+                              <span className="text-[10px] font-medium">Edit</span>
                             </button>
                             {section.status === 'draft' && (
                               <>
                                 <button
                                   onClick={() => onCreateSchedule?.(section)}
-                                  className="p-1.5 rounded-lg hover:bg-white hover:shadow-sm border border-transparent hover:border-gray-200 transition-all text-purple-600"
+                                  className="px-2 py-1 rounded-md hover:bg-purple-50 border border-transparent hover:border-purple-200 transition-all text-purple-600 flex items-center gap-1"
                                   title="Build Schedule"
                                 >
-                                  <BookOpen className="w-3.5 h-3.5" />
+                                  <Calendar className="w-3 h-3" />
+                                  <span className="text-[10px] font-medium">Schedule</span>
                                 </button>
                                 <button
                                   onClick={() => onActivate?.(section)}
-                                  className="p-1.5 rounded-lg hover:bg-white hover:shadow-sm border border-transparent hover:border-gray-200 transition-all text-green-600"
+                                  className="px-2 py-1 rounded-md hover:bg-green-50 border border-transparent hover:border-green-200 transition-all text-green-600 flex items-center gap-1"
                                   title="Activate Section"
                                 >
-                                  <CheckCircle className="w-3.5 h-3.5" />
+                                  <CheckCircle className="w-3 h-3" />
+                                  <span className="text-[10px] font-medium">Activate</span>
                                 </button>
                               </>
                             )}
                             {section.status === 'active' && (
                               <>
                                 <button
+                                  onClick={() => onViewSchedule?.(section)}
+                                  className="px-2 py-1 rounded-md hover:bg-purple-50 border border-transparent hover:border-purple-200 transition-all text-purple-600 flex items-center gap-1"
+                                  title="View/Edit Schedule"
+                                >
+                                  <Calendar className="w-3 h-3" />
+                                  <span className="text-[10px] font-medium">Schedule</span>
+                                </button>
+                                <button
                                   onClick={() => onAssignStudents?.(section)}
-                                  className="p-1.5 rounded-lg hover:bg-white hover:shadow-sm border border-transparent hover:border-gray-200 transition-all text-orange-600"
+                                  className="px-2 py-1 rounded-md hover:bg-orange-50 border border-transparent hover:border-orange-200 transition-all text-orange-600 flex items-center gap-1"
                                   title="Assign Students"
                                 >
-                                  <UserPlus className="w-3.5 h-3.5" />
+                                  <UserPlus className="w-3 h-3" />
+                                  <span className="text-[10px] font-medium">Students</span>
                                 </button>
                                 <button
                                   onClick={() => onLock?.(section)}
-                                  className="p-1.5 rounded-lg hover:bg-white hover:shadow-sm border border-transparent hover:border-gray-200 transition-all text-indigo-600"
+                                  className="px-2 py-1 rounded-md hover:bg-indigo-50 border border-transparent hover:border-indigo-200 transition-all text-indigo-600 flex items-center gap-1"
                                   title="Lock Section"
                                 >
-                                  <Lock className="w-3.5 h-3.5" />
+                                  <Lock className="w-3 h-3" />
+                                  <span className="text-[10px] font-medium">Lock</span>
                                 </button>
                               </>
+                            )}
+                            {section.status === 'locked' && (
+                              <button
+                                onClick={() => onUnlock?.(section)}
+                                className="px-2 py-1 rounded-md hover:bg-amber-50 border border-transparent hover:border-amber-200 transition-all text-amber-600 flex items-center gap-1"
+                                title="Unlock Section"
+                              >
+                                <Unlock className="w-3 h-3" />
+                                <span className="text-[10px] font-medium">Unlock</span>
+                              </button>
                             )}
                           </div>
                         </td>

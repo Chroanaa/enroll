@@ -6,10 +6,12 @@ import { SectionResponse } from '../../types/sectionTypes';
 import { SectionList } from '../../components/sections/SectionList';
 import { CreateSectionModal } from '../../components/sections/CreateSectionModal';
 import { StudentAssignment } from '../../components/sections/StudentAssignment';
-import { activateSection, lockSection } from '../../utils/sectionApi';
+import { activateSection, lockSection, unlockSection } from '../../utils/sectionApi';
 import { colors } from '../../colors';
-import { Plus } from 'lucide-react';
+import { Plus, Lock, Unlock, CheckCircle } from 'lucide-react';
 import SearchFilters from '../../components/common/SearchFilters';
+import ConfirmationModal from '../../components/common/ConfirmationModal';
+import SuccessModal from '../../components/common/SuccessModal';
 
 export default function SectionsPage() {
   const router = useRouter();
@@ -19,10 +21,31 @@ export default function SectionsPage() {
   const [refreshKey, setRefreshKey] = useState(0);
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState<'all' | 'draft' | 'active' | 'locked' | 'closed'>('all');
+  const [isLoading, setIsLoading] = useState(false);
 
   // Modal states
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   const [isStudentAssignmentOpen, setIsStudentAssignmentOpen] = useState(false);
+
+  // Confirmation modal states
+  const [confirmModal, setConfirmModal] = useState<{
+    isOpen: boolean;
+    type: 'activate' | 'lock' | 'unlock' | null;
+    section: SectionResponse | null;
+  }>({
+    isOpen: false,
+    type: null,
+    section: null
+  });
+
+  // Success modal state
+  const [successModal, setSuccessModal] = useState<{
+    isOpen: boolean;
+    message: string;
+  }>({
+    isOpen: false,
+    message: ''
+  });
 
   const handleCreateSuccess = () => {
     setIsCreateModalOpen(false);
@@ -39,32 +62,116 @@ export default function SectionsPage() {
     router.push(`/admin/sections/schedule/${section.id}`);
   };
 
+  const handleViewSchedule = (section: SectionResponse) => {
+    // Navigate to schedule page for viewing/editing faculty
+    router.push(`/admin/sections/schedule/${section.id}`);
+  };
+
   const handleAssignStudents = (section: SectionResponse) => {
     setSelectedSection(section);
     setIsStudentAssignmentOpen(true);
   };
 
-  const handleActivate = async (section: SectionResponse) => {
+  // Show confirmation modal for activate
+  const handleActivate = (section: SectionResponse) => {
+    setConfirmModal({
+      isOpen: true,
+      type: 'activate',
+      section
+    });
+  };
+
+  // Show confirmation modal for lock
+  const handleLock = (section: SectionResponse) => {
+    setConfirmModal({
+      isOpen: true,
+      type: 'lock',
+      section
+    });
+  };
+
+  // Show confirmation modal for unlock
+  const handleUnlock = (section: SectionResponse) => {
+    setConfirmModal({
+      isOpen: true,
+      type: 'unlock',
+      section
+    });
+  };
+
+  // Handle confirmation
+  const handleConfirmAction = async () => {
+    if (!confirmModal.section || !confirmModal.type) return;
+
+    setIsLoading(true);
     try {
-      await activateSection(section.id);
+      switch (confirmModal.type) {
+        case 'activate':
+          await activateSection(confirmModal.section.id);
+          setSuccessModal({
+            isOpen: true,
+            message: `Section "${confirmModal.section.sectionName}" has been activated successfully. Students can now be assigned to this section.`
+          });
+          break;
+        case 'lock':
+          await lockSection(confirmModal.section.id);
+          setSuccessModal({
+            isOpen: true,
+            message: `Section "${confirmModal.section.sectionName}" has been locked. No further modifications can be made.`
+          });
+          break;
+        case 'unlock':
+          await unlockSection(confirmModal.section.id);
+          setSuccessModal({
+            isOpen: true,
+            message: `Section "${confirmModal.section.sectionName}" has been unlocked. You can now make modifications.`
+          });
+          break;
+      }
       setRefreshKey((prev) => prev + 1);
-      // Show success toast
     } catch (error) {
-      console.error('Failed to activate section:', error);
-      // Show error toast
+      console.error(`Failed to ${confirmModal.type} section:`, error);
+    } finally {
+      setIsLoading(false);
+      setConfirmModal({ isOpen: false, type: null, section: null });
     }
   };
 
-  const handleLock = async (section: SectionResponse) => {
-    try {
-      await lockSection(section.id);
-      setRefreshKey((prev) => prev + 1);
-      // Show success toast
-    } catch (error) {
-      console.error('Failed to lock section:', error);
-      // Show error toast
+  // Get confirmation modal content based on type
+  const getConfirmModalContent = () => {
+    if (!confirmModal.section) return { title: '', message: '', variant: 'info' as const, confirmText: '' };
+
+    switch (confirmModal.type) {
+      case 'activate':
+        return {
+          title: 'Activate Section',
+          message: `Are you sure you want to activate "${confirmModal.section.sectionName}"?\n\nOnce activated, the schedule will be frozen and students can be assigned to this section.`,
+          variant: 'success' as const,
+          confirmText: 'Activate',
+          icon: <CheckCircle className="w-6 h-6" />
+        };
+      case 'lock':
+        return {
+          title: 'Lock Section',
+          message: `Are you sure you want to lock "${confirmModal.section.sectionName}"?\n\nThis will prevent any further modifications to the section, schedule, and student assignments.`,
+          variant: 'warning' as const,
+          confirmText: 'Lock Section',
+          icon: <Lock className="w-6 h-6" />
+        };
+      case 'unlock':
+        return {
+          title: 'Unlock Section',
+          message: `Are you sure you want to unlock "${confirmModal.section.sectionName}"?\n\nThis will allow modifications to student assignments again.`,
+          variant: 'info' as const,
+          confirmText: 'Unlock Section',
+          icon: <Unlock className="w-6 h-6" />
+        };
+      default:
+        return { title: '', message: '', variant: 'info' as const, confirmText: '' };
     }
   };
+
+  const confirmContent = getConfirmModalContent();
 
   return (
     <div className="w-full space-y-6 p-6 font-sans" style={{ backgroundColor: colors.paper }}>
@@ -118,9 +225,11 @@ export default function SectionsPage() {
           <SectionList
             onEdit={handleEdit}
             onCreateSchedule={handleCreateSchedule}
+            onViewSchedule={handleViewSchedule}
             onAssignStudents={handleAssignStudents}
             onActivate={handleActivate}
             onLock={handleLock}
+            onUnlock={handleUnlock}
           />
         </div>
 
@@ -141,6 +250,28 @@ export default function SectionsPage() {
           onSuccess={() => {
             setRefreshKey((prev) => prev + 1);
           }}
+        />
+
+        {/* Confirmation Modal */}
+        <ConfirmationModal
+          isOpen={confirmModal.isOpen}
+          onClose={() => setConfirmModal({ isOpen: false, type: null, section: null })}
+          onConfirm={handleConfirmAction}
+          title={confirmContent.title}
+          message={confirmContent.message}
+          confirmText={confirmContent.confirmText}
+          variant={confirmContent.variant}
+          icon={confirmContent.icon}
+          isLoading={isLoading}
+        />
+
+        {/* Success Modal */}
+        <SuccessModal
+          isOpen={successModal.isOpen}
+          onClose={() => setSuccessModal({ isOpen: false, message: '' })}
+          message={successModal.message}
+          autoClose={true}
+          autoCloseDelay={3000}
         />
     </div>
   );

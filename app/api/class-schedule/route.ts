@@ -99,11 +99,12 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    if (section.status !== 'draft') {
+    // Allow schedule modifications for draft and active sections, not locked/closed
+    if (section.status === 'locked' || section.status === 'closed') {
       return NextResponse.json(
         {
           error: 'INVALID_STATE',
-          message: `Cannot modify schedule. Section must be in draft status. Current status: ${section.status}`
+          message: `Cannot modify schedule. Section is ${section.status}.`
         } as ApiError,
         { status: 400 }
       );

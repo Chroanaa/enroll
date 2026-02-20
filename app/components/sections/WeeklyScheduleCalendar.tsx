@@ -2,7 +2,7 @@
 
 import React, { useState, useMemo } from 'react';
 import { colors } from '../../colors';
-import { AlertTriangle, Info, Trash2, ZoomIn, ZoomOut } from 'lucide-react';
+import { AlertTriangle, Info, Trash2, ZoomIn, ZoomOut, Edit2 } from 'lucide-react';
 
 interface ScheduleBlock {
   id: number;
@@ -28,7 +28,9 @@ interface WeeklyScheduleCalendarProps {
   previewBlock?: PreviewBlock | null;
   onTimeSlotClick?: (day: string, time: string) => void;
   onDeleteSchedule?: (schedule: ScheduleBlock) => void;
+  onEditFaculty?: (schedule: ScheduleBlock) => void;
   readOnly?: boolean;
+  canEditFaculty?: boolean;
 }
 
 const DAYS = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'];
@@ -91,11 +93,14 @@ export function WeeklyScheduleCalendar({
   previewBlock,
   onTimeSlotClick,
   onDeleteSchedule,
-  readOnly = false
+  onEditFaculty,
+  readOnly = false,
+  canEditFaculty = false
 }: WeeklyScheduleCalendarProps) {
   const [hoveredSlot, setHoveredSlot] = useState<{ day: string; time: string } | null>(null);
   const [hoveredSchedule, setHoveredSchedule] = useState<number | null>(null);
   const [deleteMode, setDeleteMode] = useState(false);
+  const [editMode, setEditMode] = useState(false);
   const [selectedForDelete, setSelectedForDelete] = useState<ScheduleBlock | null>(null);
   const [zoomIndex, setZoomIndex] = useState(2); // Default to 100%
   
@@ -187,6 +192,8 @@ export function WeeklyScheduleCalendar({
       e.stopPropagation();
       if (deleteMode && !readOnly) {
         setSelectedForDelete(schedule);
+      } else if (editMode && canEditFaculty) {
+        onEditFaculty?.(schedule);
       }
     };
     
@@ -194,12 +201,14 @@ export function WeeklyScheduleCalendar({
       <div
         key={schedule.id}
         className={`absolute left-0.5 right-0.5 rounded-lg shadow-sm transition-all duration-200 overflow-hidden group ${
-          deleteMode && !readOnly ? 'cursor-pointer' : 'cursor-pointer'
+          (deleteMode && !readOnly) || (editMode && canEditFaculty) ? 'cursor-pointer' : 'cursor-pointer'
         }`}
         style={{
           height: `${height - 2}px`,
           backgroundColor: deleteMode 
             ? (isHovered || isSelectedForDelete ? '#DC2626' : '#EF4444') 
+            : editMode && canEditFaculty
+            ? (isHovered ? '#2563EB' : '#3B82F6')
             : (hasConflict || isPreviewConflict ? '#EF4444' : colors.secondary),
           zIndex: isHovered ? 20 : 10,
           transform: isHovered ? 'scale(1.01)' : 'scale(1)',
@@ -213,6 +222,8 @@ export function WeeklyScheduleCalendar({
         onClick={handleBlockClick}
         title={deleteMode 
           ? `Click to delete: ${schedule.courseCode}` 
+          : editMode && canEditFaculty
+          ? `Click to edit: ${schedule.courseCode}`
           : `${schedule.courseCode}: ${schedule.courseTitle}\nFaculty: ${schedule.facultyName}\nRoom: ${schedule.roomNumber}\n${formatTime(schedule.startTime)} - ${formatTime(schedule.endTime)}`
         }
       >
@@ -220,6 +231,13 @@ export function WeeklyScheduleCalendar({
         {deleteMode && (
           <div className="absolute inset-0 flex items-center justify-center bg-black/20">
             <Trash2 className={`text-white ${isTiny ? 'w-3 h-3' : 'w-4 h-4'}`} />
+          </div>
+        )}
+        
+        {/* Edit mode overlay */}
+        {editMode && canEditFaculty && (
+          <div className="absolute inset-0 flex items-center justify-center bg-black/20">
+            <Edit2 className={`text-white ${isTiny ? 'w-3 h-3' : 'w-4 h-4'}`} />
           </div>
         )}
         
@@ -396,7 +414,7 @@ export function WeeklyScheduleCalendar({
 
   return (
     <div className="space-y-4">
-      {/* Header with Delete Mode Toggle and Zoom Controls */}
+      {/* Header with Delete Mode Toggle, Edit Faculty Toggle, and Zoom Controls */}
       <div className="flex items-center justify-between gap-3">
         <div className="flex items-center gap-2">
           {/* Delete Mode Toggle */}
@@ -404,6 +422,7 @@ export function WeeklyScheduleCalendar({
             <button
               onClick={() => {
                 setDeleteMode(!deleteMode);
+                setEditMode(false);
                 setSelectedForDelete(null);
               }}
               className={`px-3 py-1.5 rounded-lg transition-all flex items-center gap-1.5 ${
@@ -415,6 +434,26 @@ export function WeeklyScheduleCalendar({
             >
               <Trash2 className="w-3.5 h-3.5" />
               <span className="text-[10px] font-medium">{deleteMode ? 'Exit Delete' : 'Delete Mode'}</span>
+            </button>
+          )}
+
+          {/* Edit Mode Toggle (for draft/active sections) */}
+          {canEditFaculty && onEditFaculty && (
+            <button
+              onClick={() => {
+                setEditMode(!editMode);
+                setDeleteMode(false);
+                setSelectedForDelete(null);
+              }}
+              className={`px-3 py-1.5 rounded-lg transition-all flex items-center gap-1.5 ${
+                editMode 
+                  ? 'bg-blue-700 text-white shadow-md' 
+                  : 'bg-blue-600 text-white hover:bg-blue-700 shadow-sm'
+              }`}
+              title={editMode ? 'Exit Edit Mode' : 'Edit Mode'}
+            >
+              <Edit2 className="w-3.5 h-3.5" />
+              <span className="text-[10px] font-medium">{editMode ? 'Exit Edit' : 'Edit Mode'}</span>
             </button>
           )}
           
@@ -461,7 +500,13 @@ export function WeeklyScheduleCalendar({
               <span style={{ color: colors.danger, fontWeight: 500 }}>Click to delete</span>
             </div>
           )}
-          {!deleteMode && (
+          {editMode && canEditFaculty && (
+            <div className="flex items-center gap-1.5">
+              <div className="w-3 h-3 rounded" style={{ backgroundColor: '#3B82F6' }}></div>
+              <span style={{ color: '#2563EB', fontWeight: 500 }}>Click to edit schedule</span>
+            </div>
+          )}
+          {!deleteMode && !editMode && (
             <>
               <div className="flex items-center gap-1.5">
                 <div className="w-3 h-3 rounded" style={{ backgroundColor: colors.secondary }}></div>
@@ -492,6 +537,22 @@ export function WeeklyScheduleCalendar({
           <Trash2 className="w-4 h-4 flex-shrink-0" style={{ color: colors.danger }} />
           <div className="text-xs" style={{ color: '#B91C1C' }}>
             <strong>Delete Mode Active:</strong> Click on any schedule block to remove it.
+          </div>
+        </div>
+      )}
+
+      {/* Edit Mode Info */}
+      {editMode && canEditFaculty && (
+        <div
+          className="rounded-lg p-3 flex items-center gap-2.5"
+          style={{
+            backgroundColor: '#EFF6FF',
+            border: '1px solid rgba(59, 130, 246, 0.2)',
+          }}
+        >
+          <Edit2 className="w-4 h-4 flex-shrink-0" style={{ color: '#2563EB' }} />
+          <div className="text-xs" style={{ color: '#1D4ED8' }}>
+            <strong>Edit Mode:</strong> Click on any schedule block to edit faculty, room, day, and time.
           </div>
         </div>
       )}

@@ -8,10 +8,11 @@ import { ApiError, SectionResponse } from '../../../../types/sectionTypes';
  */
 export async function PATCH(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const sectionId = parseInt(params.id);
+    const { id } = await params;
+    const sectionId = parseInt(id);
 
     if (isNaN(sectionId)) {
       return NextResponse.json(
