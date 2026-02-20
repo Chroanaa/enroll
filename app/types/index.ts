@@ -246,7 +246,9 @@ export interface Building {
   status: "active" | "inactive";
 }
 export interface Reports {
+  id: number;
   action: string;
   user_id: number;
+  username?: string;
   created_at: Date | string | null;
 }

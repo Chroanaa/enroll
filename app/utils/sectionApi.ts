@@ -196,6 +196,26 @@ export async function lockSection(
 }
 
 /**
+ * Unlock a section (return to active status)
+ */
+export async function unlockSection(
+  id: number
+): Promise<SectionResponse> {
+  const response = await fetch(`${API_BASE}/sections/${id}/unlock`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' }
+  });
+
+  if (!response.ok) {
+    const error = await response.json();
+    throw new Error(error.message || 'Failed to unlock section');
+  }
+
+  const result = await response.json();
+  return result.data;
+}
+
+/**
  * Create a class schedule
  */
 export async function createClassSchedule(
@@ -393,4 +413,32 @@ export async function deleteClassSchedule(scheduleId: number): Promise<void> {
     const error = await response.json();
     throw new Error(error.message || 'Failed to delete schedule');
   }
+}
+
+/**
+ * Update a class schedule (e.g., change faculty, room, day, time)
+ */
+export async function updateClassSchedule(
+  scheduleId: number,
+  data: { 
+    facultyId?: number;
+    roomId?: number;
+    dayOfWeek?: string;
+    startTime?: string;
+    endTime?: string;
+  }
+): Promise<ClassScheduleResponse> {
+  const response = await fetch(`${API_BASE}/class-schedule/${scheduleId}`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(data)
+  });
+
+  if (!response.ok) {
+    const error = await response.json();
+    throw new Error(error.message || 'Failed to update schedule');
+  }
+
+  const result = await response.json();
+  return result.data;
 }

@@ -99,11 +99,12 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    if (section.status !== 'draft') {
+    // Allow schedule modifications for draft and active sections, not locked/closed
+    if (section.status === 'locked' || section.status === 'closed') {
       return NextResponse.json(
         {
           error: 'INVALID_STATE',
-          message: `Cannot modify schedule. Section must be in draft status. Current status: ${section.status}`
+          message: `Cannot modify schedule. Section is ${section.status}.`
         } as ApiError,
         { status: 400 }
       );
@@ -308,6 +309,24 @@ export async function GET(request: NextRequest) {
       ]
     });
 
+    // Fetch faculty and room data for all schedules
+    const facultyIds = [...new Set(schedules.map((s: any) => s.faculty_id))];
+    const roomIds = [...new Set(schedules.map((s: any) => s.room_id))];
+
+    const [facultyList, roomList] = await Promise.all([
+      prisma.faculty.findMany({
+        where: { id: { in: facultyIds } },
+        select: { id: true, first_name: true, last_name: true }
+      }),
+      prisma.room.findMany({
+        where: { id: { in: roomIds } },
+        select: { id: true, room_number: true, capacity: true }
+      })
+    ]);
+
+    const facultyMap = new Map(facultyList.map((f: any) => [f.id, f]));
+    const roomMap = new Map(roomList.map((r: any) => [r.id, r]));
+
     const response = schedules.map((schedule: any) => ({
       id: schedule.id,
       sectionId: schedule.section_id,
@@ -319,8 +338,10 @@ export async function GET(request: NextRequest) {
       endTime: schedule.end_time.toISOString(),
       academicYear: schedule.academic_year,
       semester: schedule.semester,
-      status: schedule.status as 'active' | 'cancelled'
-    } as ClassScheduleResponse));
+      status: schedule.status as 'active' | 'cancelled',
+      faculty: facultyMap.get(schedule.faculty_id) || null,
+      room: roomMap.get(schedule.room_id) || null
+    }));
 
     return NextResponse.json({ success: true, data: response });
   } catch (error) {
