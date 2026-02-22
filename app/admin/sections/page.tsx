@@ -4,11 +4,10 @@ import React, { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { SectionResponse } from '../../types/sectionTypes';
 import { SectionList } from '../../components/sections/SectionList';
-import { CreateSectionModal } from '../../components/sections/CreateSectionModal';
 import { StudentAssignment } from '../../components/sections/StudentAssignment';
 import { activateSection, lockSection, unlockSection } from '../../utils/sectionApi';
 import { colors } from '../../colors';
-import { Plus, Lock, Unlock, CheckCircle } from 'lucide-react';
+import { Lock, Unlock, CheckCircle } from 'lucide-react';
 import SearchFilters from '../../components/common/SearchFilters';
 import ConfirmationModal from '../../components/common/ConfirmationModal';
 import SuccessModal from '../../components/common/SuccessModal';
@@ -24,7 +23,6 @@ export default function SectionsPage() {
   const [isLoading, setIsLoading] = useState(false);
 
   // Modal states
-  const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   const [isStudentAssignmentOpen, setIsStudentAssignmentOpen] = useState(false);
 
   // Confirmation modal states
@@ -47,15 +45,9 @@ export default function SectionsPage() {
     message: ''
   });
 
-  const handleCreateSuccess = () => {
-    setIsCreateModalOpen(false);
-    setRefreshKey((prev) => prev + 1);
-  };
 
-  const handleEdit = (section: SectionResponse) => {
-    setSelectedSection(section);
-    // Implement edit functionality
-  };
+
+
 
   const handleCreateSchedule = (section: SectionResponse) => {
     // Navigate to dedicated schedule page
@@ -188,14 +180,6 @@ export default function SectionsPage() {
               Create, schedule, and manage academic sections
             </p>
           </div>
-          <button
-            onClick={() => setIsCreateModalOpen(true)}
-            className="flex items-center gap-2 px-5 py-3 text-white rounded-xl transition-all shadow-lg shadow-blue-900/20 hover:shadow-xl hover:scale-105 active:scale-95"
-            style={{ backgroundColor: colors.secondary }}
-          >
-            <Plus className="w-5 h-5" />
-            <span className="font-medium">Add Section</span>
-          </button>
         </div>
 
         {/* Search and Filters */}
@@ -223,7 +207,8 @@ export default function SectionsPage() {
         {/* Section List */}
         <div key={refreshKey}>
           <SectionList
-            onEdit={handleEdit}
+            searchTerm={searchTerm}
+            statusFilter={statusFilter}
             onCreateSchedule={handleCreateSchedule}
             onViewSchedule={handleViewSchedule}
             onAssignStudents={handleAssignStudents}
@@ -234,12 +219,6 @@ export default function SectionsPage() {
         </div>
 
         {/* Modals */}
-        <CreateSectionModal
-          isOpen={isCreateModalOpen}
-          onClose={() => setIsCreateModalOpen(false)}
-          onSuccess={handleCreateSuccess}
-        />
-
         <StudentAssignment
           section={selectedSection}
           isOpen={isStudentAssignmentOpen}
