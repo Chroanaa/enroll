@@ -150,6 +150,10 @@ export default function BuildSchedulePage() {
   // Tab state for switching between form and calendar view
   const [activeTab, setActiveTab] = useState<'schedule' | 'calendar'>('schedule');
 
+  // Occupied slots state - shows what rooms/faculty are already booked
+  const [occupiedSlots, setOccupiedSlots] = useState<any[]>([]);
+  const [loadingOccupied, setLoadingOccupied] = useState(false);
+
   // Edit schedule modal state (full edit: faculty, room, day, time)
   const [editScheduleModal, setEditScheduleModal] = useState<{
     isOpen: boolean;
@@ -183,6 +187,36 @@ export default function BuildSchedulePage() {
   useEffect(() => {
     loadScheduleData();
   }, [sectionId]);
+
+  // Fetch occupied slots when day changes
+  useEffect(() => {
+    if (formData.dayOfWeek && section) {
+      fetchOccupiedSlots(formData.dayOfWeek);
+    } else {
+      setOccupiedSlots([]);
+    }
+  }, [formData.dayOfWeek, section]);
+
+  // Fetch all occupied slots for a given day (from ALL sections including current)
+  const fetchOccupiedSlots = async (day: string) => {
+    if (!section) return;
+    
+    setLoadingOccupied(true);
+    try {
+      const response = await fetch(
+        `/api/class-schedule/conflicts?dayOfWeek=${day}&academicYear=${section.academicYear}&semester=${section.semester}&currentSectionId=${section.id}`
+      );
+      
+      if (response.ok) {
+        const data = await response.json();
+        setOccupiedSlots(data.data?.occupiedSlots || []);
+      }
+    } catch (err) {
+      console.error('Failed to fetch occupied slots:', err);
+    } finally {
+      setLoadingOccupied(false);
+    }
+  };
 
   const loadScheduleData = async () => {
     try {
@@ -1163,6 +1197,71 @@ export default function BuildSchedulePage() {
                       )}
                     </div>
                   </div>
+
+                  {/* Occupied Slots Display - Shows what's already booked on selected day */}
+                  {formData.dayOfWeek && (
+                    <div
+                      className="rounded-lg p-4"
+                      style={{
+                        backgroundColor: 'rgba(179, 116, 74, 0.04)',
+                        border: '1px solid rgba(179, 116, 74, 0.15)',
+                      }}
+                    >
+                      <div className="flex items-center gap-2 mb-3">
+                        <AlertCircle className="w-4 h-4" style={{ color: colors.warning }} />
+                        <h3 className="text-xs font-semibold" style={{ color: colors.primary }}>
+                          Already Booked on {formData.dayOfWeek}
+                        </h3>
+                      </div>
+                      
+                      {loadingOccupied ? (
+                        <div className="flex items-center gap-2 text-xs" style={{ color: colors.neutral }}>
+                          <Loader2 className="w-3 h-3 animate-spin" />
+                          Loading occupied slots...
+                        </div>
+                      ) : occupiedSlots.length === 0 ? (
+                        <p className="text-xs" style={{ color: colors.success }}>
+                          ✓ No existing schedules on {formData.dayOfWeek}. All rooms and faculty are available.
+                        </p>
+                      ) : (
+                        <div className="space-y-2 max-h-40 overflow-y-auto">
+                          {occupiedSlots.map((slot, index) => (
+                            <div
+                              key={index}
+                              className="flex items-center justify-between p-2 rounded text-xs"
+                              style={{
+                                backgroundColor: slot.isCurrentSection ? 'rgba(149, 90, 39, 0.08)' : 'white',
+                                border: `1px solid ${slot.isCurrentSection ? 'rgba(149, 90, 39, 0.2)' : 'rgba(179, 116, 74, 0.1)'}`,
+                              }}
+                            >
+                              <div className="flex items-center gap-3">
+                                <span className="font-medium" style={{ color: colors.danger }}>
+                                  {slot.startTime} - {slot.endTime}
+                                </span>
+                                <span style={{ color: colors.primary }}>
+                                  <Building2 className="w-3 h-3 inline mr-1" />
+                                  {slot.roomNumber}
+                                </span>
+                                <span style={{ color: colors.neutral }}>
+                                  <UserCircle className="w-3 h-3 inline mr-1" />
+                                  {slot.facultyName}
+                                </span>
+                              </div>
+                              <span 
+                                className="px-2 py-0.5 rounded text-[10px]"
+                                style={{ 
+                                  backgroundColor: slot.isCurrentSection ? 'rgba(149, 90, 39, 0.15)' : 'rgba(179, 116, 74, 0.1)',
+                                  color: slot.isCurrentSection ? colors.secondary : colors.tertiary 
+                                }}
+                              >
+                                {slot.isCurrentSection ? '(This Section)' : slot.sectionName}
+                              </span>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  )}
 
                   <div className="flex gap-3 pt-2">
                     <button
