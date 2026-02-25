@@ -1,4 +1,4 @@
-import { prisma } from "@/app/lib/prisma";
+import { prisma, withRetry } from "@/app/lib/prisma";
 import { NextRequest, NextResponse } from "next/server";
 
 export async function POST(request: NextRequest) {
@@ -29,9 +29,9 @@ export async function POST(request: NextRequest) {
       majorData.status = "active";
     }
     
-    const newMajor = await prisma.major.create({
+    const newMajor = await withRetry(() => prisma.major.create({
       data: majorData,
-    });
+    }));
     return NextResponse.json(newMajor);
   } catch (error: any) {
     console.error("Error creating major:", error);
@@ -43,7 +43,7 @@ export async function POST(request: NextRequest) {
 }
 export async function GET() {
   try {
-    const majors = await prisma.major.findMany();
+    const majors = await withRetry(() => prisma.major.findMany());
     return NextResponse.json(majors);
   } catch (error: any) {
     console.error("Error fetching majors:", error);
@@ -56,9 +56,9 @@ export async function GET() {
 export async function DELETE(request: NextRequest) {
   try {
     const id = await request.json();
-    const deletedMajor = await prisma.major.delete({
+    const deletedMajor = await withRetry(() => prisma.major.delete({
       where: { id },
-    });
+    }));
     return NextResponse.json(deletedMajor);
   } catch (error) {
     return NextResponse.json(
@@ -78,12 +78,12 @@ export async function PATCH(nextRequest: NextRequest) {
         obj[key] = (updateData as any)[key];
         return obj;
       }, {});
-    const updatedMajor = await prisma.major.update({
+    const updatedMajor = await withRetry(() => prisma.major.update({
       where: { id: Number(id) },
       data: {
         ...cleanData,
       },
-    });
+    }));
     return NextResponse.json(updatedMajor);
   } catch (error) {
     return NextResponse.json(

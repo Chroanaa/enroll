@@ -1,11 +1,13 @@
-import React from "react";
-import { User, GraduationCap, FileText, Search, Loader2 } from "lucide-react";
+import React, { useEffect, useState } from "react";
+import { User, GraduationCap, FileText, Search, Loader2, CheckCircle, Calendar } from "lucide-react";
 import { colors } from "../../colors";
 
 interface StudentInfoSectionProps {
   studentNumber: string;
   studentName: string;
   program: string;
+  majorName?: string | null;
+  yearLevel?: number | null;
   isFetchingStudent: boolean;
   onSelectStudent: () => void;
 }
@@ -14,17 +16,35 @@ export const StudentInfoSection: React.FC<StudentInfoSectionProps> = ({
   studentNumber,
   studentName,
   program,
+  majorName,
+  yearLevel,
   isFetchingStudent,
   onSelectStudent,
 }) => {
   const hasStudent = studentNumber.trim().length > 0 && studentName.trim().length > 0;
+  const [showSuccessAnimation, setShowSuccessAnimation] = useState(false);
+  const [prevStudentNumber, setPrevStudentNumber] = useState("");
+
+  // Trigger animation when student is selected
+  useEffect(() => {
+    if (hasStudent && studentNumber !== prevStudentNumber && prevStudentNumber !== "") {
+      setShowSuccessAnimation(true);
+      const timer = setTimeout(() => setShowSuccessAnimation(false), 1500);
+      return () => clearTimeout(timer);
+    }
+    setPrevStudentNumber(studentNumber);
+  }, [studentNumber, hasStudent, prevStudentNumber]);
 
   return (
     <div
-      className="rounded-2xl shadow-lg p-6 mb-6 animate-in slide-in-from-bottom-4 duration-500 delay-100"
+      className={`rounded-2xl shadow-lg p-6 mb-6 transition-all duration-500 ${
+        showSuccessAnimation 
+          ? "ring-2 ring-green-400 ring-offset-2" 
+          : ""
+      } ${hasStudent ? "animate-in fade-in slide-in-from-bottom-4 duration-500" : "animate-in slide-in-from-bottom-4 duration-500 delay-100"}`}
       style={{
-        backgroundColor: "white",
-        border: `1px solid ${colors.accent}30`,
+        backgroundColor: showSuccessAnimation ? "#F0FDF4" : "white",
+        border: `1px solid ${showSuccessAnimation ? "#86EFAC" : colors.accent + "30"}`,
       }}
     >
       {!hasStudent ? (
@@ -73,12 +93,20 @@ export const StudentInfoSection: React.FC<StudentInfoSectionProps> = ({
           <div className="flex items-center justify-between mb-4">
             <div className="flex items-center gap-4">
               <div
-                className="p-2 rounded-xl shadow-sm"
+                className={`p-2 rounded-xl shadow-sm transition-all duration-300 ${
+                  showSuccessAnimation ? "scale-110" : ""
+                }`}
                 style={{
-                  backgroundColor: `${colors.secondary}15`,
+                  backgroundColor: showSuccessAnimation 
+                    ? "#DCFCE7" 
+                    : `${colors.secondary}15`,
                 }}
               >
-                <User className="w-5 h-5" style={{ color: colors.secondary }} />
+                {showSuccessAnimation ? (
+                  <CheckCircle className="w-5 h-5 text-green-600 animate-in zoom-in duration-300" />
+                ) : (
+                  <User className="w-5 h-5" style={{ color: colors.secondary }} />
+                )}
               </div>
               <div>
                 <h2
@@ -88,10 +116,12 @@ export const StudentInfoSection: React.FC<StudentInfoSectionProps> = ({
                   Student Information
                 </h2>
                 <p
-                  className="text-xs mt-0.5 font-medium"
-                  style={{ color: colors.tertiary }}
+                  className={`text-xs mt-0.5 font-medium transition-all duration-300 ${
+                    showSuccessAnimation ? "text-green-600" : ""
+                  }`}
+                  style={{ color: showSuccessAnimation ? undefined : colors.tertiary }}
                 >
-                  Selected student details
+                  {showSuccessAnimation ? "Student loaded successfully!" : "Selected student details"}
                 </p>
               </div>
             </div>
@@ -122,7 +152,9 @@ export const StudentInfoSection: React.FC<StudentInfoSectionProps> = ({
               </span>
             </div>
           ) : (
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div className={`grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 transition-all duration-500 ${
+              showSuccessAnimation ? "animate-in fade-in slide-in-from-bottom-2 duration-300" : ""
+            }`}>
               <div className="group">
                 <label
                   className="flex items-center gap-2 text-sm font-semibold mb-2 ml-1"
@@ -135,9 +167,11 @@ export const StudentInfoSection: React.FC<StudentInfoSectionProps> = ({
                   Student Number
                 </label>
                 <div
-                  className="px-4 py-3 rounded-xl border bg-gray-50"
+                  className={`px-4 py-3 rounded-xl border transition-all duration-300 ${
+                    showSuccessAnimation ? "bg-green-50 border-green-200" : "bg-gray-50"
+                  }`}
                   style={{
-                    borderColor: colors.tertiary + "30",
+                    borderColor: showSuccessAnimation ? undefined : colors.tertiary + "30",
                   }}
                 >
                   <span
@@ -157,9 +191,11 @@ export const StudentInfoSection: React.FC<StudentInfoSectionProps> = ({
                   Student Name
                 </label>
                 <div
-                  className="px-4 py-3 rounded-xl border bg-gray-50"
+                  className={`px-4 py-3 rounded-xl border transition-all duration-300 ${
+                    showSuccessAnimation ? "bg-green-50 border-green-200" : "bg-gray-50"
+                  }`}
                   style={{
-                    borderColor: colors.tertiary + "30",
+                    borderColor: showSuccessAnimation ? undefined : colors.tertiary + "30",
                   }}
                 >
                   <span
@@ -182,16 +218,45 @@ export const StudentInfoSection: React.FC<StudentInfoSectionProps> = ({
                   Program
                 </label>
                 <div
-                  className="px-4 py-3 rounded-xl border bg-gray-50"
+                  className={`px-4 py-3 rounded-xl border transition-all duration-300 ${
+                    showSuccessAnimation ? "bg-green-50 border-green-200" : "bg-gray-50"
+                  }`}
                   style={{
-                    borderColor: colors.tertiary + "30",
+                    borderColor: showSuccessAnimation ? undefined : colors.tertiary + "30",
                   }}
                 >
                   <span
                     className="text-base font-medium"
                     style={{ color: colors.primary }}
                   >
-                    {program || "N/A"}
+                    {program ? `${program}${majorName ? ` - ${majorName}` : ""}` : "N/A"}
+                  </span>
+                </div>
+              </div>
+              <div className="group">
+                <label
+                  className="flex items-center gap-2 text-sm font-semibold mb-2 ml-1"
+                  style={{ color: colors.tertiary }}
+                >
+                  <Calendar
+                    className="w-4 h-4"
+                    style={{ color: colors.secondary }}
+                  />
+                  Year Level
+                </label>
+                <div
+                  className={`px-4 py-3 rounded-xl border transition-all duration-300 ${
+                    showSuccessAnimation ? "bg-green-50 border-green-200" : "bg-gray-50"
+                  }`}
+                  style={{
+                    borderColor: showSuccessAnimation ? undefined : colors.tertiary + "30",
+                  }}
+                >
+                  <span
+                    className="text-base font-medium"
+                    style={{ color: colors.primary }}
+                  >
+                    {yearLevel ? `Year ${yearLevel}` : "N/A"}
                   </span>
                 </div>
               </div>

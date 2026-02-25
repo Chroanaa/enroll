@@ -1,5 +1,5 @@
 import React from "react";
-import { DollarSign, CreditCard, Plus, Calendar, CheckCircle } from "lucide-react";
+import { DollarSign, CreditCard, Calendar, CheckCircle } from "lucide-react";
 import { colors } from "../../colors";
 import type { Fee, EnrolledSubject } from "./types";
 
@@ -35,7 +35,8 @@ interface PaymentCalculationTabProps {
   totalInstallment: number;
   totalDueCash: number;
   selectedDiscount: Discount | null;
-  onDiscountSelectClick: () => void;
+  availableDiscounts: Discount[];
+  onDiscountChange: (discount: Discount | null) => void;
   isLoadingDiscounts?: boolean;
   // Payment Schedule props
   prelimDate: string;
@@ -81,7 +82,8 @@ export const PaymentCalculationTab: React.FC<PaymentCalculationTabProps> = ({
   totalInstallment,
   totalDueCash,
   selectedDiscount,
-  onDiscountSelectClick,
+  availableDiscounts,
+  onDiscountChange,
   isLoadingDiscounts = false,
   prelimDate,
   setPrelimDate,
@@ -260,33 +262,42 @@ export const PaymentCalculationTab: React.FC<PaymentCalculationTabProps> = ({
                 </span>
                 {item.isDiscount ? (
                   <div className="flex items-center gap-2">
-                    <div
-                      className="px-3 py-2 rounded-lg border text-right text-sm bg-white/50 min-w-[128px]"
+                    <select
+                      value={selectedDiscount?.id || ""}
+                      onChange={(e) => {
+                        const discountId = e.target.value;
+                        if (!discountId) {
+                          onDiscountChange(null);
+                        } else {
+                          const selected = availableDiscounts.find(d => d.id === Number(discountId));
+                          onDiscountChange(selected || null);
+                        }
+                      }}
+                      disabled={isLoadingDiscounts}
+                      className="px-3 py-2 rounded-lg border text-sm bg-white min-w-[200px]"
                       style={{
                         borderColor: colors.tertiary + "30",
                         color: colors.primary,
                       }}
-                    >
-                      {selectedDiscount
-                        ? `${selectedDiscount.percentage}% - ${selectedDiscount.code} (${selectedDiscount.name})`
-                        : "None Selected"}
-                    </div>
-                    <button
-                      onClick={onDiscountSelectClick}
-                      disabled={isLoadingDiscounts}
-                      className="p-2 rounded-lg border hover:bg-gray-50 transition-all disabled:opacity-50 disabled:cursor-not-allowed relative"
-                      style={{
-                        borderColor: colors.secondary + "30",
-                        color: colors.secondary,
+                      onFocus={(e) => {
+                        e.currentTarget.style.borderColor = colors.secondary;
+                        e.currentTarget.style.boxShadow = `0 0 0 3px ${colors.secondary}10`;
                       }}
-                      title="Select Discount"
+                      onBlur={(e) => {
+                        e.currentTarget.style.borderColor = colors.tertiary + "30";
+                        e.currentTarget.style.boxShadow = "none";
+                      }}
                     >
-                      {isLoadingDiscounts ? (
-                        <div className="w-4 h-4 border-2 border-current border-t-transparent rounded-full animate-spin" />
-                      ) : (
-                        <Plus className="w-4 h-4" />
-                      )}
-                    </button>
+                      <option value="">No Discount</option>
+                      {availableDiscounts.map((d) => (
+                        <option key={d.id} value={d.id}>
+                          {d.percentage}% - {d.code} ({d.name})
+                        </option>
+                      ))}
+                    </select>
+                    {isLoadingDiscounts && (
+                      <div className="w-4 h-4 border-2 border-current border-t-transparent rounded-full animate-spin" style={{ color: colors.secondary }} />
+                    )}
                   </div>
                 ) : (
                   <input
@@ -491,21 +502,21 @@ export const PaymentCalculationTab: React.FC<PaymentCalculationTabProps> = ({
               {
                 label: "Base Total",
                 value: baseTotal,
-                setValue: () => {},
+                setValue: (_: number) => {},
                 key: "baseTotal",
                 readonly: true,
               },
               {
                 label: "5% Ins. C.",
                 value: insuranceCharge,
-                setValue: () => {},
+                setValue: (_: number) => {},
                 key: "insurance",
                 readonly: true,
               },
               {
                 label: "Total Ins.",
                 value: totalInstallment,
-                setValue: () => {},
+                setValue: (_: number) => {},
                 key: "totalInstallment",
                 readonly: true,
                 highlight: true,

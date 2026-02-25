@@ -29,6 +29,7 @@ interface SubjectManagementModalProps {
   onClose: () => void;
   onAddSubjects: (subjects: CurriculumCourse[]) => void;
   programId: number | null;
+  majorId: number | null;
   currentSemester: number;
   enrolledSubjectIds: Set<number>;
   mode?: "add" | "edit";
@@ -40,6 +41,7 @@ export const SubjectManagementModal: React.FC<SubjectManagementModalProps> = ({
   onClose,
   onAddSubjects,
   programId,
+  majorId,
   currentSemester,
   enrolledSubjectIds,
   mode = "add",
@@ -81,7 +83,7 @@ export const SubjectManagementModal: React.FC<SubjectManagementModalProps> = ({
     } else if (isOpen) {
       setError("Program information required");
     }
-  }, [isOpen, programId]);
+  }, [isOpen, programId, majorId]);
 
   // Handle body overflow when modal opens/closes
   useEffect(() => {
@@ -143,11 +145,19 @@ export const SubjectManagementModal: React.FC<SubjectManagementModalProps> = ({
   const fetchCurriculumSubjects = async () => {
     if (!programId) return;
 
+    // Create cache key that includes majorId
+    const cacheKey = majorId ? `${programId}-${majorId}` : `${programId}`;
+    
     // Check cache first
-    const cached = curriculumCacheRef.current.get(programId);
+    const cached = curriculumCacheRef.current.get(Number(cacheKey.split('-')[0]));
     const now = Date.now();
     
-    if (cached && (now - cached.timestamp) < CACHE_DURATION) {
+    // Only use cache if majorId matches (or both are null)
+    const cacheValid = cached && 
+      (now - cached.timestamp) < CACHE_DURATION &&
+      (cached as any).majorId === majorId;
+    
+    if (cacheValid) {
       setCurriculumCourses(cached.data);
       return;
     }
@@ -160,9 +170,18 @@ export const SubjectManagementModal: React.FC<SubjectManagementModalProps> = ({
       const abortController = new AbortController();
       const signal = abortController.signal;
 
+      // Build URL with optional majorId parameter
+      const buildUrl = (semester: number) => {
+        let url = `/api/auth/curriculum/subjects?programId=${programId}&semester=${semester}`;
+        if (majorId) {
+          url += `&majorId=${majorId}`;
+        }
+        return url;
+      };
+
       const [sem1Response, sem2Response] = await Promise.all([
-        fetch(`/api/auth/curriculum/subjects?programId=${programId}&semester=1`, { signal }),
-        fetch(`/api/auth/curriculum/subjects?programId=${programId}&semester=2`, { signal }),
+        fetch(buildUrl(1), { signal }),
+        fetch(buildUrl(2), { signal }),
       ]);
 
       // Check if request was aborted
@@ -192,11 +211,13 @@ export const SubjectManagementModal: React.FC<SubjectManagementModalProps> = ({
         }
       }
 
-      // Cache the results
-      curriculumCacheRef.current.set(programId, {
+      // Cache the results with majorId
+      const cacheData = {
         data: allCourses,
         timestamp: now,
-      });
+        majorId: majorId,
+      };
+      curriculumCacheRef.current.set(programId, cacheData as any);
 
       setCurriculumCourses(allCourses);
     } catch (err: any) {

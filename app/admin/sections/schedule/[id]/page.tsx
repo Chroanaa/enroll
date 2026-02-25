@@ -173,6 +173,10 @@ export default function BuildSchedulePage() {
   const [editFacultySearchModal, setEditFacultySearchModal] = useState(false);
   const [selectedEditFacultyDisplay, setSelectedEditFacultyDisplay] = useState('');
 
+  // Edit modal conflict checking state
+  const [editOccupiedSlots, setEditOccupiedSlots] = useState<any[]>([]);
+  const [loadingEditOccupied, setLoadingEditOccupied] = useState(false);
+
   // Filtered faculty for edit modal
   const filteredEditFaculty = useMemo(() => {
     if (!editFacultySearchQuery.trim()) return faculty;
@@ -183,6 +187,48 @@ export default function BuildSchedulePage() {
       f.last_name.toLowerCase().includes(query)
     );
   }, [faculty, editFacultySearchQuery]);
+
+  // Check for conflicts in edit modal (excludes the schedule being edited)
+  const editConflicts = useMemo(() => {
+    if (!editFormData.dayOfWeek || !editFormData.startTime || !editFormData.endTime || editOccupiedSlots.length === 0) {
+      return { faculty: null, room: null, section: null };
+    }
+
+    const [startHour, startMin] = editFormData.startTime.split(':').map(Number);
+    const [endHour, endMin] = editFormData.endTime.split(':').map(Number);
+    const newStartMinutes = startHour * 60 + startMin;
+    const newEndMinutes = endHour * 60 + endMin;
+
+    // Helper to check time overlap
+    const hasTimeOverlap = (slotStart: number, slotEnd: number) => {
+      return (newStartMinutes < slotEnd && newEndMinutes > slotStart);
+    };
+
+    let facultyConflict = null;
+    let roomConflict = null;
+    let sectionConflict = null;
+
+    for (const slot of editOccupiedSlots) {
+      if (!hasTimeOverlap(slot.startMinutes, slot.endMinutes)) continue;
+
+      // Check faculty conflict
+      if (editFormData.facultyId && slot.facultyId === parseInt(editFormData.facultyId) && !facultyConflict) {
+        facultyConflict = slot;
+      }
+
+      // Check room conflict
+      if (editFormData.roomId && slot.roomId === parseInt(editFormData.roomId) && !roomConflict) {
+        roomConflict = slot;
+      }
+
+      // Check section conflict (same section, different subject)
+      if (section && slot.sectionId === section.id && !sectionConflict) {
+        sectionConflict = slot;
+      }
+    }
+
+    return { faculty: facultyConflict, room: roomConflict, section: sectionConflict };
+  }, [editFormData, editOccupiedSlots, section]);
 
   useEffect(() => {
     loadScheduleData();
@@ -196,6 +242,36 @@ export default function BuildSchedulePage() {
       setOccupiedSlots([]);
     }
   }, [formData.dayOfWeek, section]);
+
+  // Fetch occupied slots for edit modal when day changes or modal opens (excludes current schedule)
+  useEffect(() => {
+    if (editScheduleModal.isOpen && editFormData.dayOfWeek && section && editScheduleModal.schedule) {
+      fetchEditOccupiedSlots(editFormData.dayOfWeek, editScheduleModal.schedule.id);
+    } else if (!editScheduleModal.isOpen) {
+      setEditOccupiedSlots([]);
+    }
+  }, [editFormData.dayOfWeek, section, editScheduleModal.isOpen, editScheduleModal.schedule]);
+
+  // Fetch all occupied slots for edit modal (excludes the schedule being edited)
+  const fetchEditOccupiedSlots = async (day: string, excludeScheduleId: number) => {
+    if (!section) return;
+    
+    setLoadingEditOccupied(true);
+    try {
+      const response = await fetch(
+        `/api/class-schedule/conflicts?dayOfWeek=${day}&academicYear=${section.academicYear}&semester=${section.semester}&currentSectionId=${section.id}&excludeScheduleId=${excludeScheduleId}`
+      );
+      
+      if (response.ok) {
+        const data = await response.json();
+        setEditOccupiedSlots(data.data?.occupiedSlots || []);
+      }
+    } catch (err) {
+      console.error('Failed to fetch edit occupied slots:', err);
+    } finally {
+      setLoadingEditOccupied(false);
+    }
+  };
 
   // Fetch all occupied slots for a given day (from ALL sections including current)
   const fetchOccupiedSlots = async (day: string) => {
@@ -487,6 +563,12 @@ export default function BuildSchedulePage() {
     
     const facultyMember = faculty.find(f => f.id === schedule.facultyId);
     
+    // Clear any previous error
+    setError(null);
+    
+    // Clear previous occupied slots to force re-fetch
+    setEditOccupiedSlots([]);
+    
     setEditScheduleModal({
       isOpen: true,
       schedule
@@ -726,102 +808,6 @@ export default function BuildSchedulePage() {
         <div className="max-w-7xl mx-auto">
           {/* Content Area */}
           <div className="space-y-4">
-            {/* Progress Summary */}
-            <div className="grid grid-cols-4 gap-4">
-              <div 
-                className='rounded-xl p-5'
-                style={{
-                  backgroundColor: 'white',
-                  border: '1px solid rgba(179, 116, 74, 0.12)',
-                  boxShadow: '0 1px 3px rgba(58, 35, 19, 0.06), 0 1px 2px rgba(58, 35, 19, 0.04)',
-                }}
-              >
-                <div className='flex items-center justify-between'>
-                  <div>
-                    <p className='text-xs font-medium mb-1' style={{ color: colors.tertiary }}>Total Subjects</p>
-                    <p className='text-2xl font-bold' style={{ color: colors.primary }}>
-                      {curriculum.length}
-                    </p>
-                  </div>
-                  <div 
-                    className='p-3 rounded-lg'
-                    style={{ backgroundColor: 'rgba(179, 116, 74, 0.08)' }}
-                  >
-                    <BookOpen className='w-5 h-5' style={{ color: colors.tertiary }} />
-                  </div>
-                </div>
-              </div>
-              <div 
-                className='rounded-xl p-5'
-                style={{
-                  backgroundColor: 'white',
-                  border: '1px solid rgba(179, 116, 74, 0.12)',
-                  boxShadow: '0 1px 3px rgba(58, 35, 19, 0.06), 0 1px 2px rgba(58, 35, 19, 0.04)',
-                }}
-              >
-                <div className='flex items-center justify-between'>
-                  <div>
-                    <p className='text-xs font-medium mb-1' style={{ color: colors.success }}>Scheduled</p>
-                    <p className='text-2xl font-bold' style={{ color: colors.primary }}>
-                      {schedules.length}
-                    </p>
-                  </div>
-                  <div 
-                    className='p-3 rounded-lg'
-                    style={{ backgroundColor: 'rgba(16, 185, 129, 0.08)' }}
-                  >
-                    <CheckCircle2 className='w-5 h-5' style={{ color: colors.success }} />
-                  </div>
-                </div>
-              </div>
-              <div 
-                className='rounded-xl p-5'
-                style={{
-                  backgroundColor: 'white',
-                  border: '1px solid rgba(179, 116, 74, 0.12)',
-                  boxShadow: '0 1px 3px rgba(58, 35, 19, 0.06), 0 1px 2px rgba(58, 35, 19, 0.04)',
-                }}
-              >
-                <div className='flex items-center justify-between'>
-                  <div>
-                    <p className='text-xs font-medium mb-1' style={{ color: colors.warning }}>Remaining</p>
-                    <p className='text-2xl font-bold' style={{ color: colors.primary }}>
-                      {curriculum.length - schedules.length}
-                    </p>
-                  </div>
-                  <div 
-                    className='p-3 rounded-lg'
-                    style={{ backgroundColor: 'rgba(245, 158, 11, 0.08)' }}
-                  >
-                    <Clock className='w-5 h-5' style={{ color: colors.warning }} />
-                  </div>
-                </div>
-              </div>
-              <div 
-                className='rounded-xl p-5'
-                style={{
-                  backgroundColor: 'white',
-                  border: '1px solid rgba(179, 116, 74, 0.12)',
-                  boxShadow: '0 1px 3px rgba(58, 35, 19, 0.06), 0 1px 2px rgba(58, 35, 19, 0.04)',
-                }}
-              >
-                <div className='flex items-center justify-between'>
-                  <div>
-                    <p className='text-xs font-medium mb-1' style={{ color: colors.secondary }}>Complete</p>
-                    <p className='text-2xl font-bold' style={{ color: colors.primary }}>
-                      {curriculum.length > 0 ? Math.round((schedules.length / curriculum.length) * 100) : 0}%
-                    </p>
-                  </div>
-                  <div 
-                    className='p-3 rounded-lg'
-                    style={{ backgroundColor: 'rgba(149, 90, 39, 0.08)' }}
-                  >
-                    <Calendar className='w-5 h-5' style={{ color: colors.secondary }} />
-                  </div>
-                </div>
-              </div>
-            </div>
-
             {/* Tabs */}
             <div
               className="rounded-xl overflow-hidden"
@@ -1885,6 +1871,79 @@ export default function BuildSchedulePage() {
                 </div>
               )}
 
+              {/* Loading indicator for conflict checking */}
+              {loadingEditOccupied && (
+                <div
+                  className="p-3 rounded-lg text-sm flex items-center gap-2"
+                  style={{
+                    backgroundColor: 'rgba(179, 116, 74, 0.08)',
+                    border: '1px solid rgba(179, 116, 74, 0.2)',
+                    color: colors.tertiary,
+                  }}
+                >
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                  Checking for schedule conflicts...
+                </div>
+              )}
+
+              {/* Real-time Conflict Warnings */}
+              {editConflicts.faculty && (
+                <div
+                  className="p-3 rounded-lg text-sm flex items-center gap-2"
+                  style={{
+                    backgroundColor: 'rgba(245, 158, 11, 0.08)',
+                    border: '1px solid rgba(245, 158, 11, 0.2)',
+                    color: '#B45309',
+                  }}
+                >
+                  <AlertCircle className="w-4 h-4" />
+                  <div>
+                    <span className="font-medium">Faculty has schedule conflict on this day and time</span>
+                    <span className="text-xs block mt-0.5">
+                      {editConflicts.faculty.startTime} - {editConflicts.faculty.endTime} • {editConflicts.faculty.sectionName} • Room {editConflicts.faculty.roomNumber}
+                    </span>
+                  </div>
+                </div>
+              )}
+
+              {editConflicts.room && (
+                <div
+                  className="p-3 rounded-lg text-sm flex items-center gap-2"
+                  style={{
+                    backgroundColor: 'rgba(239, 68, 68, 0.08)',
+                    border: '1px solid rgba(239, 68, 68, 0.2)',
+                    color: '#B91C1C',
+                  }}
+                >
+                  <AlertCircle className="w-4 h-4" />
+                  <div>
+                    <span className="font-medium">Room is already booked on this day and time</span>
+                    <span className="text-xs block mt-0.5">
+                      {editConflicts.room.startTime} - {editConflicts.room.endTime} • {editConflicts.room.sectionName} • {editConflicts.room.facultyName}
+                    </span>
+                  </div>
+                </div>
+              )}
+
+              {editConflicts.section && (
+                <div
+                  className="p-3 rounded-lg text-sm flex items-center gap-2"
+                  style={{
+                    backgroundColor: 'rgba(59, 130, 246, 0.08)',
+                    border: '1px solid rgba(59, 130, 246, 0.2)',
+                    color: '#1D4ED8',
+                  }}
+                >
+                  <AlertCircle className="w-4 h-4" />
+                  <div>
+                    <span className="font-medium">Section has another class scheduled at this time</span>
+                    <span className="text-xs block mt-0.5">
+                      {editConflicts.section.startTime} - {editConflicts.section.endTime} • Room {editConflicts.section.roomNumber} • {editConflicts.section.facultyName}
+                    </span>
+                  </div>
+                </div>
+              )}
+
               {/* Faculty */}
               <div>
                 <label className="flex items-center gap-1.5 text-xs font-medium mb-1.5" style={{ color: colors.primary }}>
@@ -2038,7 +2097,7 @@ export default function BuildSchedulePage() {
               </button>
               <button
                 onClick={handleSaveScheduleChanges}
-                disabled={loading || !editFormData.facultyId || !editFormData.roomId || !editFormData.dayOfWeek || !editFormData.startTime || !editFormData.endTime}
+                disabled={loading || loadingEditOccupied || !editFormData.facultyId || !editFormData.roomId || !editFormData.dayOfWeek || !editFormData.startTime || !editFormData.endTime || editConflicts.faculty || editConflicts.room || editConflicts.section}
                 className="px-6 py-2.5 rounded-lg font-medium text-white transition-all disabled:opacity-50 disabled:cursor-not-allowed"
                 style={{ backgroundColor: colors.secondary }}
               >
