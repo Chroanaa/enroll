@@ -11,6 +11,7 @@ interface EnrolledSubjectsTabProps {
   };
   program: string;
   programId: number | null;
+  majorId: number | null;
   studentNumber: string;
   totalUnits: number;
   isLoadingSubjects: boolean;
@@ -27,6 +28,7 @@ export const EnrolledSubjectsTab: React.FC<EnrolledSubjectsTabProps> = ({
   currentTerm,
   program,
   programId,
+  majorId,
   studentNumber,
   totalUnits,
   isLoadingSubjects,
@@ -49,6 +51,17 @@ export const EnrolledSubjectsTab: React.FC<EnrolledSubjectsTabProps> = ({
   const enrolledSubjectIds = new Set(
     enrolledSubjects.map((s) => (s as any).curriculum_course_id || s.id)
   );
+
+  // Calculate display total units (lec + lab combined) - different from tuition calculation units
+  const displayTotalUnits = enrolledSubjects.reduce((total, subject) => {
+    // Skip fixed amount subjects from unit count
+    if (subject.fixedAmount !== undefined && subject.fixedAmount !== null && subject.fixedAmount > 0) {
+      return total;
+    }
+    const lecUnits = subject.units_lec || 0;
+    const labUnits = subject.units_lab || 0;
+    return total + lecUnits + labUnits;
+  }, 0);
 
   const handleOpenAddModal = () => {
     setEditingSubject(null);
@@ -125,7 +138,7 @@ export const EnrolledSubjectsTab: React.FC<EnrolledSubjectsTabProps> = ({
           </p>
         </div>
         <div className="flex items-center gap-3">
-          {totalUnits > 0 && (
+          {displayTotalUnits > 0 && (
             <div
               className="px-4 py-2 rounded-xl border"
               style={{
@@ -138,7 +151,7 @@ export const EnrolledSubjectsTab: React.FC<EnrolledSubjectsTabProps> = ({
                 style={{ color: colors.primary }}
               >
                 Total Units:{" "}
-                <strong style={{ color: colors.secondary }}>{totalUnits}</strong>
+                <strong style={{ color: colors.secondary }}>{displayTotalUnits}</strong>
               </span>
             </div>
           )}
@@ -326,7 +339,7 @@ export const EnrolledSubjectsTab: React.FC<EnrolledSubjectsTabProps> = ({
                       className="px-4 py-3 text-center text-sm font-bold"
                       style={{ color: colors.secondary }}
                     >
-                      {totalUnits}
+                      {displayTotalUnits}
                     </td>
                     {isEditMode && <td></td>}
                   </tr>
@@ -344,6 +357,7 @@ export const EnrolledSubjectsTab: React.FC<EnrolledSubjectsTabProps> = ({
           onClose={() => setIsModalOpen(false)}
           onAddSubjects={handleModalAdd}
           programId={programId}
+          majorId={majorId}
           currentSemester={semesterNum}
           enrolledSubjectIds={enrolledSubjectIds}
           mode={editingSubject ? "edit" : "add"}

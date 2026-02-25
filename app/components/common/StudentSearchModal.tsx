@@ -1,6 +1,6 @@
 "use client";
 import React, { useEffect, useMemo, useRef, useState } from "react";
-import { X, Search, Loader2, User } from "lucide-react";
+import { X, Search, Loader2, User, CheckCircle } from "lucide-react";
 import { colors } from "../../colors";
 import { getMajors } from "../../utils/majorUtils";
 import { getPrograms } from "../../utils/programUtils";
@@ -40,6 +40,7 @@ const StudentSearchModal: React.FC<StudentSearchModalProps> = ({
   const [error, setError] = useState<string | null>(null);
   const [majors, setMajors] = useState<Major[]>([]);
   const [programs, setPrograms] = useState<Program[]>([]);
+  const [selectedStudentId, setSelectedStudentId] = useState<number | null>(null);
   // Combined selection: "all" | "p:<programId>" | "m:<majorId>"
   const [selectedProgramMajor, setSelectedProgramMajor] =
     useState<string>("all");
@@ -235,15 +236,22 @@ const StudentSearchModal: React.FC<StudentSearchModalProps> = ({
     }
   };
 
-  const handleSelect = (studentNumber: string) => {
-    onSelect(studentNumber);
-    handleClose();
+  const handleSelect = (studentNumber: string, studentId: number) => {
+    // Show selection animation
+    setSelectedStudentId(studentId);
+    
+    // Delay closing to show animation
+    setTimeout(() => {
+      onSelect(studentNumber);
+      handleClose();
+    }, 400);
   };
 
   const handleClose = () => {
     setSearchQuery("");
     setStudents([]);
     setError(null);
+    setSelectedStudentId(null);
     onClose();
   };
 
@@ -431,66 +439,94 @@ const StudentSearchModal: React.FC<StudentSearchModalProps> = ({
                   </tr>
                 </thead>
                 <tbody>
-                  {students.map((student) => (
-                    <tr
-                      key={student.studentId}
-                      className="border-b hover:bg-gray-50 transition-colors cursor-pointer"
-                      style={{ borderColor: colors.tertiary + "20" }}
-                      onClick={() => handleSelect(student.studentNumber)}
-                    >
-                      <td className="py-3 px-4">
-                        <span
-                          className="font-medium text-sm"
-                          style={{ color: colors.primary }}
-                        >
-                          {student.studentNumber}
-                        </span>
-                      </td>
-                      <td className="py-3 px-4">
-                        <span className="text-sm text-gray-700">
-                          {student.name}
-                        </span>
-                      </td>
-                      <td className="py-3 px-4">
-                        <span className="text-sm text-gray-700">
-                          {student.programCode || "N/A"}
-                        </span>
-                      </td>
-                      <td className="py-3 px-4">
-                        <span className="text-sm text-gray-600">
-                          {student.yearLevel || "N/A"}
-                        </span>
-                      </td>
-                      <td className="py-3 px-4">
-                        <span
-                          className={`text-xs px-2 py-1 rounded-full font-medium ${
-                            student.academicStatus === 'regular'
-                              ? "bg-green-100 text-green-700"
-                              : student.academicStatus === 'irregular'
-                              ? "bg-yellow-100 text-yellow-700"
-                              : "bg-gray-100 text-gray-700"
-                          }`}
-                        >
-                          {student.academicStatus || "N/A"}
-                        </span>
-                      </td>
-                      <td className="py-3 px-4 text-right">
-                        <button
-                          onClick={() => handleSelect(student.studentNumber)}
-                          className="px-4 py-1.5 rounded-lg text-sm font-medium text-white transition-all"
-                          style={{ backgroundColor: colors.secondary }}
-                          onMouseEnter={(e) => {
-                            e.currentTarget.style.backgroundColor = colors.tertiary;
-                          }}
-                          onMouseLeave={(e) => {
-                            e.currentTarget.style.backgroundColor = colors.secondary;
-                          }}
-                        >
-                          Select
-                        </button>
-                      </td>
-                    </tr>
-                  ))}
+                  {students.map((student) => {
+                    const isSelected = selectedStudentId === student.studentId;
+                    return (
+                      <tr
+                        key={student.studentId}
+                        className={`border-b transition-all duration-300 cursor-pointer ${
+                          isSelected 
+                            ? "bg-green-50 scale-[1.01]" 
+                            : "hover:bg-gray-50"
+                        }`}
+                        style={{ 
+                          borderColor: isSelected ? "#86EFAC" : colors.tertiary + "20",
+                        }}
+                        onClick={() => handleSelect(student.studentNumber, student.studentId)}
+                      >
+                        <td className="py-3 px-4">
+                          <div className="flex items-center gap-2">
+                            {isSelected && (
+                              <CheckCircle className="w-4 h-4 text-green-600 animate-in zoom-in duration-200" />
+                            )}
+                            <span
+                              className={`font-medium text-sm transition-colors duration-200 ${
+                                isSelected ? "text-green-700" : ""
+                              }`}
+                              style={{ color: isSelected ? undefined : colors.primary }}
+                            >
+                              {student.studentNumber}
+                            </span>
+                          </div>
+                        </td>
+                        <td className="py-3 px-4">
+                          <span className={`text-sm transition-colors duration-200 ${
+                            isSelected ? "text-green-700 font-medium" : "text-gray-700"
+                          }`}>
+                            {student.name}
+                          </span>
+                        </td>
+                        <td className="py-3 px-4">
+                          <span className="text-sm text-gray-700">
+                            {student.programCode || "N/A"}
+                          </span>
+                        </td>
+                        <td className="py-3 px-4">
+                          <span className="text-sm text-gray-600">
+                            {student.yearLevel || "N/A"}
+                          </span>
+                        </td>
+                        <td className="py-3 px-4">
+                          <span
+                            className={`text-xs px-2 py-1 rounded-full font-medium ${
+                              student.academicStatus === 'regular'
+                                ? "bg-green-100 text-green-700"
+                                : student.academicStatus === 'irregular'
+                                ? "bg-yellow-100 text-yellow-700"
+                                : "bg-gray-100 text-gray-700"
+                            }`}
+                          >
+                            {student.academicStatus || "N/A"}
+                          </span>
+                        </td>
+                        <td className="py-3 px-4 text-right">
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleSelect(student.studentNumber, student.studentId);
+                            }}
+                            disabled={isSelected}
+                            className={`px-4 py-1.5 rounded-lg text-sm font-medium text-white transition-all duration-200 ${
+                              isSelected ? "bg-green-600" : ""
+                            }`}
+                            style={{ backgroundColor: isSelected ? undefined : colors.secondary }}
+                            onMouseEnter={(e) => {
+                              if (!isSelected) {
+                                e.currentTarget.style.backgroundColor = colors.tertiary;
+                              }
+                            }}
+                            onMouseLeave={(e) => {
+                              if (!isSelected) {
+                                e.currentTarget.style.backgroundColor = colors.secondary;
+                              }
+                            }}
+                          >
+                            {isSelected ? "Selected ✓" : "Select"}
+                          </button>
+                        </td>
+                      </tr>
+                    );
+                  })}
                 </tbody>
               </table>
             </div>

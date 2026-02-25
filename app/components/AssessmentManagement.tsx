@@ -34,6 +34,9 @@ const AssessmentManagement: React.FC = () => {
   const [studentName, setStudentName] = useState("");
   const [program, setProgram] = useState("");
   const [programId, setProgramId] = useState<number | null>(null);
+  const [majorId, setMajorId] = useState<number | null>(null);
+  const [majorName, setMajorName] = useState<string | null>(null);
+  const [yearLevel, setYearLevel] = useState<number | null>(null);
   const [studentNumber, setStudentNumber] = useState("");
   const [tuitionPerUnit, setTuitionPerUnit] = useState("570");
   const [totalUnits, setTotalUnits] = useState(0); // Regular units only (excludes fixed amount subjects)
@@ -88,9 +91,7 @@ const AssessmentManagement: React.FC = () => {
   }
   const [selectedDiscount, setSelectedDiscount] = useState<Discount | null>(null);
   const [availableDiscounts, setAvailableDiscounts] = useState<Discount[]>([]);
-  const [isDiscountModalOpen, setIsDiscountModalOpen] = useState(false);
-  const [eligibleDiscounts, setEligibleDiscounts] = useState<Discount[]>([]);
-  const [recommendedDiscount, setRecommendedDiscount] = useState<Discount | null>(null);
+  const [isLoadingDiscounts, setIsLoadingDiscounts] = useState(false);
   const [enrollmentData, setEnrollmentData] = useState<{
     admission_status: string | null;
     remarks: string | null;
@@ -256,6 +257,27 @@ const AssessmentManagement: React.FC = () => {
           setProgramId(null);
         }
 
+        // Set major ID and name from enrollment data
+        if (data.major_id) {
+          setMajorId(data.major_id);
+          // Get major name from the joined major data
+          if (data.major && data.major.name) {
+            setMajorName(data.major.name);
+          } else {
+            setMajorName(null);
+          }
+        } else {
+          setMajorId(null);
+          setMajorName(null);
+        }
+
+        // Set year level from enrollment data
+        if (data.year_level) {
+          setYearLevel(data.year_level);
+        } else {
+          setYearLevel(1); // Default to year 1 if not set
+        }
+
         // Store enrollment data for discount eligibility
         setEnrollmentData({
           admission_status: data.admission_status || null,
@@ -289,6 +311,9 @@ const AssessmentManagement: React.FC = () => {
         setStudentName("");
         setProgram("");
         setProgramId(null);
+        setMajorId(null);
+        setMajorName(null);
+        setYearLevel(null);
         setEnrolledSubjects([]);
         setTotalUnits(0);
         setFixedAmountTotal(0);
@@ -301,6 +326,9 @@ const AssessmentManagement: React.FC = () => {
       setStudentName("");
       setProgram("");
       setProgramId(null);
+      setMajorId(null);
+      setMajorName(null);
+      setYearLevel(null);
       setEnrolledSubjects([]);
       setTotalUnits(0);
       setFixedAmountTotal(0);
@@ -405,11 +433,15 @@ const AssessmentManagement: React.FC = () => {
 
       // Fallback: Fetch from curriculum if no enrolled subjects exist
       // This happens for new students or when enrolled_subjects is empty
-      console.log("Fetching curriculum subjects for programId:", programIdValue, "semester:", semesterNum);
-      const curriculumResponse = await fetch(
-        `/api/auth/curriculum/subjects?programId=${programIdValue}&semester=${semesterNum}`,
-        { signal }
-      );
+      console.log("Fetching curriculum subjects for programId:", programIdValue, "semester:", semesterNum, "majorId:", majorId, "yearLevel:", yearLevel);
+      let curriculumUrl = `/api/auth/curriculum/subjects?programId=${programIdValue}&semester=${semesterNum}`;
+      if (majorId) {
+        curriculumUrl += `&majorId=${majorId}`;
+      }
+      if (yearLevel) {
+        curriculumUrl += `&yearLevel=${yearLevel}`;
+      }
+      const curriculumResponse = await fetch(curriculumUrl, { signal });
 
       if (signal.aborted) return;
 
@@ -623,6 +655,8 @@ const AssessmentManagement: React.FC = () => {
       const semesterNum = currentTerm.semester === "First" ? 1 : 2;
       console.log("Triggering fetchEnrolledSubjects with:", {
         programId,
+        majorId,
+        yearLevel,
         semesterNum,
         academicYear: currentTerm.academicYear,
         studentNumber,
@@ -643,8 +677,7 @@ const AssessmentManagement: React.FC = () => {
         setFixedAmountTotal(0);
       }
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [programId, currentTerm, termLoading, isResidentReturnee, studentNumber]);
+  }, [programId, majorId, yearLevel, currentTerm, termLoading, isResidentReturnee, studentNumber]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Handle student selection from modal
   const handleStudentSelect = (selectedStudentNumber: string) => {
@@ -674,6 +707,9 @@ const AssessmentManagement: React.FC = () => {
       setProgram("");
       setStudentFetchError("");
       setProgramId(null);
+      setMajorId(null);
+      setMajorName(null);
+      setYearLevel(null);
       setEnrolledSubjects([]);
       setTotalUnits(0);
       setFixedAmountTotal(0);
@@ -775,70 +811,39 @@ const AssessmentManagement: React.FC = () => {
     );
   };
 
-  // Handle discount selection click with loading state
-  const [isLoadingDiscounts, setIsLoadingDiscounts] = useState(false);
-  
-  const handleDiscountSelectClick = async () => {
-    if (!currentTerm || isLoadingDiscounts) {
-      if (!currentTerm) {
-        setErrorModal({
-          isOpen: true,
-          message: "Academic term not available",
-        });
+  // Load discounts when current term changes
+  useEffect(() => {
+    const loadDiscounts = async () => {
+      if (!currentTerm) return;
+      
+      setIsLoadingDiscounts(true);
+      try {
+        const semester = currentTerm.semester === "First" ? "First" : "Second";
+        const discounts = await fetchDiscounts(semester);
+        const eligible = determineEligibleDiscounts(discounts);
+        setAvailableDiscounts(eligible);
+      } catch (error) {
+        console.error("Error loading discounts:", error);
+      } finally {
+        setIsLoadingDiscounts(false);
       }
-      return;
-    }
+    };
+    
+    loadDiscounts();
+  }, [currentTerm, enrollmentData]); // eslint-disable-line react-hooks/exhaustive-deps
 
-    setIsLoadingDiscounts(true);
-    try {
-      const semester = currentTerm.semester === "First" ? "First" : "Second";
-      const discounts = await fetchDiscounts(semester);
-      const eligible = determineEligibleDiscounts(discounts);
-      setEligibleDiscounts(eligible);
-      
-      const recommended = getRecommendedDiscount(eligible);
-      setRecommendedDiscount(recommended);
-      
-      setIsDiscountModalOpen(true);
-    } catch (error) {
-      console.error("Error loading discounts:", error);
-      setErrorModal({
-        isOpen: true,
-        message: "Failed to load discounts",
-        details: "Please try again later.",
-      });
-    } finally {
-      setIsLoadingDiscounts(false);
-    }
-  };
-
-  // Temporary state for modal selection (before confirmation)
-  const [tempSelectedDiscount, setTempSelectedDiscount] = useState<Discount | null>(null);
-
-  // Handle discount selection from modal
-  const handleDiscountSelect = (discount: Discount | null) => {
+  // Handle discount selection from dropdown
+  const handleDiscountChange = (discount: Discount | null) => {
     setSelectedDiscount(discount);
     
     if (discount) {
-      // Calculate discount amount
       const discountPercent = Number(discount.percentage);
       const discountAmount = tuition * (discountPercent / 100);
       setDiscount(discountAmount);
     } else {
-      // Remove discount
       setDiscount(0);
     }
-    
-    setIsDiscountModalOpen(false);
-    setTempSelectedDiscount(null);
   };
-
-  // Initialize temp selection when modal opens
-  useEffect(() => {
-    if (isDiscountModalOpen) {
-      setTempSelectedDiscount(selectedDiscount);
-    }
-  }, [isDiscountModalOpen, selectedDiscount]);
 
   // Recalculate discount when tuition or selected discount changes
   useEffect(() => {
@@ -1216,6 +1221,8 @@ const AssessmentManagement: React.FC = () => {
           studentNumber={studentNumber}
           studentName={studentName}
           program={program}
+          majorName={majorName}
+          yearLevel={yearLevel}
           isFetchingStudent={isFetchingStudent}
           onSelectStudent={() => setIsStudentSearchModalOpen(true)}
         />
@@ -1270,6 +1277,7 @@ const AssessmentManagement: React.FC = () => {
                   currentTerm={currentTerm}
                   program={program}
                   programId={programId}
+                  majorId={majorId}
                   studentNumber={studentNumber}
                   totalUnits={totalUnits}
                   isLoadingSubjects={isLoadingSubjects}
@@ -1305,7 +1313,8 @@ const AssessmentManagement: React.FC = () => {
                   totalInstallment={totalInstallment}
                   totalDueCash={totalDueCash}
                   selectedDiscount={selectedDiscount}
-                  onDiscountSelectClick={handleDiscountSelectClick}
+                  availableDiscounts={availableDiscounts}
+                  onDiscountChange={handleDiscountChange}
                   isLoadingDiscounts={isLoadingDiscounts}
                   prelimDate={prelimDate}
                   setPrelimDate={setPrelimDate}
@@ -1414,103 +1423,6 @@ const AssessmentManagement: React.FC = () => {
             setIsSavingAssessment(false);
           }
         }}
-      />
-
-      {/* Discount Selection Modal */}
-      <ConfirmationModal
-        isOpen={isDiscountModalOpen}
-        onClose={() => {
-          setIsDiscountModalOpen(false);
-          setTempSelectedDiscount(null);
-        }}
-        onConfirm={() => {
-          // Apply the temporarily selected discount
-          setSelectedDiscount(tempSelectedDiscount);
-          handleDiscountSelect(tempSelectedDiscount);
-        }}
-        title="Select Discount"
-        message=""
-        variant="info"
-        confirmText="Confirm"
-        cancelText="Cancel"
-        customContent={
-          <div className="space-y-3">
-            <p className="text-sm font-medium" style={{ color: colors.primary }}>
-              Select a discount to apply:
-            </p>
-            <div className="space-y-2 max-h-96 overflow-y-auto">
-              {/* No discount option */}
-              <label
-                className={`flex items-center gap-3 p-3 rounded-lg border cursor-pointer transition-all ${
-                  !tempSelectedDiscount
-                    ? "border-blue-500 bg-blue-50"
-                    : "border-gray-200 hover:bg-gray-50"
-                }`}
-              >
-                <input
-                  type="radio"
-                  name="discount"
-                  checked={!tempSelectedDiscount}
-                  onChange={() => setTempSelectedDiscount(null)}
-                  className="w-4 h-4"
-                  style={{ accentColor: colors.secondary }}
-                />
-                <span className="text-sm font-medium" style={{ color: colors.primary }}>
-                  None Selected
-                </span>
-              </label>
-
-              {/* Discount options */}
-              {eligibleDiscounts.map((discount) => {
-                const isRecommended = recommendedDiscount?.id === discount.id;
-                const isSelected = tempSelectedDiscount?.id === discount.id;
-                
-                return (
-                  <label
-                    key={discount.id}
-                    className={`flex items-center gap-3 p-3 rounded-lg border cursor-pointer transition-all ${
-                      isSelected
-                        ? "border-blue-500 bg-blue-50"
-                        : isRecommended
-                        ? "border-green-300 bg-green-50"
-                        : "border-gray-200 hover:bg-gray-50"
-                    }`}
-                  >
-                    <input
-                      type="radio"
-                      name="discount"
-                      checked={isSelected}
-                      onChange={() => setTempSelectedDiscount(discount)}
-                      className="w-4 h-4"
-                      style={{ accentColor: colors.secondary }}
-                    />
-                    <div className="flex-1">
-                      <div className="flex items-center gap-2">
-                        <span className="text-sm font-medium" style={{ color: colors.primary }}>
-                          {discount.percentage}% - {discount.code} - {discount.name}
-                        </span>
-                        {isRecommended && (
-                          <span
-                            className="px-2 py-0.5 text-xs font-semibold rounded-full text-white"
-                            style={{ backgroundColor: "#059669" }}
-                          >
-                            Recommended
-                          </span>
-                        )}
-                      </div>
-                    </div>
-                  </label>
-                );
-              })}
-
-              {eligibleDiscounts.length === 0 && (
-                <p className="text-sm text-gray-500 text-center py-4">
-                  No discounts available for this semester
-                </p>
-              )}
-            </div>
-          </div>
-        }
       />
 
     </div>

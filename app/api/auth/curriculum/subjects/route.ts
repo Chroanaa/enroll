@@ -9,6 +9,7 @@ import { prisma } from "../../../../lib/prisma";
  * - programId: Program ID (required)
  * - semester: Semester number (1 or 2) (required)
  * - yearLevel: Optional year level filter
+ * - majorId: Optional major ID filter (will match curriculum.major by name)
  */
 export async function GET(request: NextRequest) {
   try {
@@ -16,6 +17,7 @@ export async function GET(request: NextRequest) {
     const programId = searchParams.get("programId");
     const semester = searchParams.get("semester");
     const yearLevel = searchParams.get("yearLevel");
+    const majorId = searchParams.get("majorId");
 
     if (!programId || !semester) {
       return NextResponse.json(
@@ -45,20 +47,121 @@ export async function GET(request: NextRequest) {
       );
     }
 
+    // If majorId is provided, get the major name for curriculum matching
+    let majorName: string | null = null;
+    let majorCode: string | null = null;
+    if (majorId) {
+      const major = await prisma.major.findUnique({
+        where: { id: parseInt(majorId) },
+        select: { name: true, code: true },
+      });
+      if (major) {
+        majorName = major.name;
+        majorCode = major.code;
+      }
+    }
+
     // Find active curriculum for the program using program_code
-    // Fall back to program_name match if code doesn't match
-    let curriculum = await prisma.curriculum.findFirst({
-      where: {
-        program_code: program.code,
-        status: "active",
-      },
-      orderBy: {
-        effective_year: "desc",
-      },
-    });
+    let curriculum = null;
+    
+    if (majorName) {
+      // Student has a major - try to find curriculum with matching program AND major
+      // Try matching by major name first
+      curriculum = await prisma.curriculum.findFirst({
+        where: {
+          program_code: program.code,
+          major: majorName,
+          status: "active",
+        },
+        orderBy: {
+          effective_year: "desc",
+        },
+      });
+      
+      // If not found by name, try matching by major code
+      if (!curriculum && majorCode) {
+        curriculum = await prisma.curriculum.findFirst({
+          where: {
+            program_code: program.code,
+            major: majorCode,
+            status: "active",
+          },
+          orderBy: {
+            effective_year: "desc",
+          },
+        });
+      }
+      
+      // If still not found, try case-insensitive match
+      if (!curriculum) {
+        const allCurriculums = await prisma.curriculum.findMany({
+          where: {
+            program_code: program.code,
+            status: "active",
+          },
+          orderBy: {
+            effective_year: "desc",
+          },
+        });
+        
+        // Find one where major matches (case-insensitive)
+        curriculum = allCurriculums.find(c => 
+          c.major && (
+            c.major.toLowerCase() === majorName?.toLowerCase() ||
+            c.major.toLowerCase() === majorCode?.toLowerCase()
+          )
+        ) || null;
+      }
+      
+      // If student has a major but no matching curriculum found, 
+      // fall back to curriculum without major (general curriculum)
+      if (!curriculum) {
+        curriculum = await prisma.curriculum.findFirst({
+          where: {
+            program_code: program.code,
+            status: "active",
+            OR: [
+              { major: null },
+              { major: "" },
+            ],
+          },
+          orderBy: {
+            effective_year: "desc",
+          },
+        });
+      }
+    } else {
+      // Student has NO major - find curriculum without major or with null/empty major
+      curriculum = await prisma.curriculum.findFirst({
+        where: {
+          program_code: program.code,
+          status: "active",
+          OR: [
+            { major: null },
+            { major: "" },
+          ],
+        },
+        orderBy: {
+          effective_year: "desc",
+        },
+      });
+      
+      // If no curriculum without major, fall back to any curriculum for the program
+      if (!curriculum) {
+        curriculum = await prisma.curriculum.findFirst({
+          where: {
+            program_code: program.code,
+            status: "active",
+          },
+          orderBy: {
+            effective_year: "desc",
+          },
+        });
+      }
+    }
 
     if (!curriculum) {
-      // Try matching by program name as fallback
+      // Try matching by program name as last fallback
       curriculum = await prisma.curriculum.findFirst({
         where: {
           program_name: program.name,

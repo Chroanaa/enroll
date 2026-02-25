@@ -13,6 +13,7 @@ export async function GET(request: NextRequest) {
     const academicYear = searchParams.get('academicYear');
     const semester = searchParams.get('semester');
     const currentSectionId = searchParams.get('currentSectionId');
+    const excludeScheduleId = searchParams.get('excludeScheduleId');
 
     if (!dayOfWeek || !academicYear || !semester) {
       return NextResponse.json(
@@ -21,14 +22,22 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    // Fetch all active schedules for this day/term across ALL sections (including current)
+    // Build where clause - exclude specific schedule if provided (for edit mode)
+    const whereClause: any = {
+      day_of_week: dayOfWeek,
+      academic_year: academicYear,
+      semester: semester,
+      status: 'active'
+    };
+
+    // Exclude the schedule being edited
+    if (excludeScheduleId) {
+      whereClause.id = { not: parseInt(excludeScheduleId) };
+    }
+
+    // Fetch all active schedules for this day/term across ALL sections (excluding the one being edited)
     const schedules = await prisma.class_schedule.findMany({
-      where: {
-        day_of_week: dayOfWeek,
-        academic_year: academicYear,
-        semester: semester,
-        status: 'active'
-      },
+      where: whereClause,
       select: {
         id: true,
         section_id: true,
