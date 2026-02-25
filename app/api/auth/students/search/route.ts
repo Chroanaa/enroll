@@ -8,6 +8,8 @@ import { prisma } from '../../../../lib/prisma';
  * Query params:
  * - query: string (search term)
  * - academicStatus: 'all' | 'regular' | 'irregular' (default: 'all')
+ * - programId: number (filter by program)
+ * - majorId: number (filter by major)
  * - limit: number (default: 20)
  */
 export async function GET(request: NextRequest) {
@@ -15,28 +17,45 @@ export async function GET(request: NextRequest) {
     const { searchParams } = new URL(request.url);
     const query = searchParams.get('query') || '';
     const academicStatus = searchParams.get('academicStatus') || 'all';
-    const limit = parseInt(searchParams.get('limit') || '20');
+    const programId = searchParams.get('programId');
+    const majorId = searchParams.get('majorId');
+    const limit = parseInt(searchParams.get('limit') || '50');
+    const listAll = searchParams.get('listAll') === 'true';
 
-    if (query.length < 2) {
+    // If not listing all and query is too short, return empty
+    if (!listAll && query.length < 2) {
       return NextResponse.json({ data: [] });
     }
 
-    const students = await prisma.enrollment.findMany({
-      where: {
-        AND: [
-          // Search by name or student number
-          {
-            OR: [
-              { student_number: { contains: query, mode: 'insensitive' } },
-              { first_name: { contains: query, mode: 'insensitive' } },
-              { family_name: { contains: query, mode: 'insensitive' } },
-              { middle_name: { contains: query, mode: 'insensitive' } }
-            ]
-          },
-          // Filter by academic status
-          ...(academicStatus !== 'all' ? [{ academic_status: academicStatus }] : [])
+    const whereConditions: any[] = [];
+
+    // Search by name or student number (only if query provided)
+    if (query.length >= 2) {
+      whereConditions.push({
+        OR: [
+          { student_number: { contains: query, mode: 'insensitive' } },
+          { first_name: { contains: query, mode: 'insensitive' } },
+          { family_name: { contains: query, mode: 'insensitive' } },
+          { middle_name: { contains: query, mode: 'insensitive' } }
         ]
-      },
+      });
+    }
+
+    // Filter by academic status
+    if (academicStatus !== 'all') {
+      whereConditions.push({ academic_status: academicStatus });
+    }
+
+    // Filter by major (takes precedence over program)
+    if (majorId) {
+      whereConditions.push({ major_id: parseInt(majorId) });
+    } else if (programId) {
+      // Filter by program
+      whereConditions.push({ course_program: programId });
+    }
+
+    const students = await prisma.enrollment.findMany({
+      where: whereConditions.length > 0 ? { AND: whereConditions } : {},
       select: {
         id: true,
         student_number: true,
@@ -45,6 +64,7 @@ export async function GET(request: NextRequest) {
         family_name: true,
         email_address: true,
         course_program: true,
+        major_id: true,
         year_level: true,
         academic_status: true,
         academic_year: true
@@ -84,6 +104,7 @@ export async function GET(request: NextRequest) {
         programId: program?.id || 0,
         programCode: program?.code || student.course_program || '',
         programName: program?.name || '',
+        majorId: student.major_id,
         yearLevel: student.year_level,
         academicStatus: student.academic_status || 'regular',
         academicYear: student.academic_year

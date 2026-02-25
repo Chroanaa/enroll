@@ -1,23 +1,15 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import Navigation from '../../components/Navigation';
+import ConfirmationModal from '../../components/common/ConfirmationModal';
+import SuccessModal from '../../components/common/SuccessModal';
 import { colors } from '../../colors';
 import {
-  ArrowLeft,
-  Search,
-  UserPlus,
-  Users,
-  CheckCircle2,
-  AlertCircle,
-  Loader2,
-  BookOpen,
-  User,
-  GraduationCap,
-  Trash2,
-  Plus,
-  Calendar
+  ArrowLeft, Search, AlertCircle, Loader2, BookOpen,
+  User, GraduationCap, Trash2, Plus, Calendar, X, Users,
+  CheckCircle2, Clock, MapPin, ChevronRight
 } from 'lucide-react';
 
 interface Student {
@@ -78,649 +70,765 @@ interface EnrolledSubject {
   unitsTotal: number;
 }
 
+// Step indicator component
+function StepIndicator({ step, currentStep }: { step: number; currentStep: number }) {
+  const done = currentStep > step;
+  const active = currentStep === step;
+  return (
+    <div className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold transition-all ${
+      done ? 'text-white' : active ? 'text-white' : 'text-gray-400'
+    }`} style={{
+      backgroundColor: done ? colors.success : active ? colors.secondary : '#E2E8F0'
+    }}>
+      {done ? <CheckCircle2 className="w-4 h-4" /> : step}
+    </div>
+  );
+}
+
 export default function IrregularEnrollmentPage() {
   const router = useRouter();
 
-  // Student selection
-  const [searchQuery, setSearchQuery] = useState('');
   const [students, setStudents] = useState<Student[]>([]);
   const [selectedStudent, setSelectedStudent] = useState<Student | null>(null);
-  const [searchLoading, setSearchLoading] = useState(false);
+  const [studentSearchQuery, setStudentSearchQuery] = useState('');
+  const [studentSearchModal, setStudentSearchModal] = useState(false);
+  const [studentStatusFilter, setStudentStatusFilter] = useState<'all' | 'regular' | 'irregular'>('all');
+  const [loadingStudents, setLoadingStudents] = useState(false);
 
-  // Section selection
   const [sections, setSections] = useState<Section[]>([]);
   const [selectedSection, setSelectedSection] = useState<Section | null>(null);
+  const [sectionSearchQuery, setSectionSearchQuery] = useState('');
+  const [sectionSearchModal, setSectionSearchModal] = useState(false);
   const [loadingSections, setLoadingSections] = useState(false);
+  const [sectionProgramFilter, setSectionProgramFilter] = useState('all');
+  const [sectionYearFilter, setSectionYearFilter] = useState('all');
 
-  // Subject selection from section
   const [schedules, setSchedules] = useState<ClassSchedule[]>([]);
   const [loadingSchedules, setLoadingSchedules] = useState(false);
 
-  // Enrolled subjects for student
   const [enrolledSubjects, setEnrolledSubjects] = useState<EnrolledSubject[]>([]);
   const [loadingEnrolled, setLoadingEnrolled] = useState(false);
+  const [enrolledSubjectsFromAssessment, setEnrolledSubjectsFromAssessment] = useState<any[]>([]);
 
-  // UI state
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [success, setSuccess] = useState<string | null>(null);
 
-  // Academic term
+  const [deleteModal, setDeleteModal] = useState<{ isOpen: boolean; subject: EnrolledSubject | null }>({ isOpen: false, subject: null });
+  const [successModal, setSuccessModal] = useState<{ isOpen: boolean; message: string }>({ isOpen: false, message: '' });
+
   const [academicYear, setAcademicYear] = useState('2025-2026');
   const [semester, setSemester] = useState('second');
 
-  const handleViewChange = (view: string) => {
-    router.push(`/dashboard?view=${view}`);
-  };
+  // Derive current step for the progress indicator
+  const currentStep = !selectedStudent ? 1 : !selectedSection ? 2 : 3;
 
+  const handleViewChange = (view: string) => router.push(`/dashboard?view=${view}`);
 
-  // Student status filter
-  const [studentStatusFilter, setStudentStatusFilter] = useState<'all' | 'regular' | 'irregular'>('all');
+  const filteredStudents = useMemo(() => {
+    if (!studentSearchQuery.trim()) return students;
+    const q = studentSearchQuery.toLowerCase();
+    return students.filter(s =>
+      s.name.toLowerCase().includes(q) ||
+      s.studentNumber.toLowerCase().includes(q) ||
+      s.programCode?.toLowerCase().includes(q)
+    );
+  }, [students, studentSearchQuery]);
 
-  // Search students
-  useEffect(() => {
-    if (searchQuery.length >= 2) {
-      searchStudents();
-    } else {
-      setStudents([]);
-    }
-  }, [searchQuery, studentStatusFilter]);
+  const sectionProgramOptions = useMemo(() => {
+    const codes = [...new Set(sections.map(s => s.programCode).filter(Boolean))].sort();
+    return codes;
+  }, [sections]);
 
-  // Load sections when student is selected
-  useEffect(() => {
-    if (selectedStudent) {
-      loadSections();
-      loadEnrolledSubjects();
-    }
-  }, [selectedStudent, academicYear, semester]);
+  const sectionYearOptions = useMemo(() => {
+    const years = [...new Set(sections.map(s => s.yearLevel).filter(Boolean))].sort((a, b) => a - b);
+    return years;
+  }, [sections]);
 
-  // Load schedules when section is selected
-  useEffect(() => {
-    if (selectedSection) {
-      loadSchedules();
-    }
-  }, [selectedSection]);
+  const filteredSections = useMemo(() => {
+    return sections.filter(s => {
+      const q = sectionSearchQuery.toLowerCase();
+      const matchesSearch = !q || s.sectionName.toLowerCase().includes(q) || s.programCode?.toLowerCase().includes(q);
+      const matchesProgram = sectionProgramFilter === 'all' || s.programCode === sectionProgramFilter;
+      const matchesYear = sectionYearFilter === 'all' || s.yearLevel === parseInt(sectionYearFilter);
+      return matchesSearch && matchesProgram && matchesYear;
+    });
+  }, [sections, sectionSearchQuery, sectionProgramFilter, sectionYearFilter]);
+
+  useEffect(() => { if (studentSearchModal) searchStudents(); }, [studentSearchModal, studentStatusFilter]);
+  useEffect(() => { if (selectedStudent) { loadSections(); loadEnrolledSubjects(); } }, [selectedStudent, academicYear, semester]);
+  useEffect(() => { if (selectedSection) loadSchedules(); }, [selectedSection]);
 
   const searchStudents = async () => {
-    setSearchLoading(true);
+    setLoadingStudents(true);
     try {
-      const response = await fetch(
-        `/api/auth/students/search?query=${encodeURIComponent(searchQuery)}&academicStatus=${studentStatusFilter}`
-      );
-      if (response.ok) {
-        const data = await response.json();
-        setStudents(data.data || []);
-      }
-    } catch (err) {
-      console.error('Failed to search students:', err);
-    } finally {
-      setSearchLoading(false);
-    }
+      const res = await fetch(`/api/auth/students/search?listAll=true&academicStatus=${studentStatusFilter}&limit=100`);
+      if (res.ok) { const d = await res.json(); setStudents(d.data || []); }
+    } catch (e) { console.error(e); } finally { setLoadingStudents(false); }
   };
 
   const loadSections = async () => {
     setLoadingSections(true);
     try {
-      const response = await fetch(`/api/auth/section`);
-      if (response.ok) {
-        const data = await response.json();
-        // Map database fields to expected format and filter by status and term
-        const allSections = (Array.isArray(data) ? data : data.data || []).map((s: any) => ({
-          id: s.id,
-          sectionName: s.section_name,
-          programCode: s.program_code || '',
-          programName: s.program_name || '',
-          yearLevel: s.year_level,
-          academicYear: s.academic_year,
-          semester: s.semester,
-          status: s.status
-        }));
-        
-        // Filter sections by academic year, semester, and active status
-        const filtered = allSections.filter((s: Section) => 
-          s.academicYear === academicYear && 
-          s.semester === semester && 
-          s.status === 'active'
-        );
-        setSections(filtered);
+      const res = await fetch(`/api/auth/section`);
+      if (!res.ok) return;
+      const data = await res.json();
+      const sectionsData = Array.isArray(data) ? data : data.data || [];
+      const programIds = [...new Set(sectionsData.map((s: any) => s.program_id).filter(Boolean))];
+      let programMap = new Map();
+      if (programIds.length > 0) {
+        const pr = await fetch(`/api/auth/program`);
+        if (pr.ok) {
+          const pd = await pr.json();
+          (Array.isArray(pd) ? pd : pd.data || []).forEach((p: any) => programMap.set(p.id, { code: p.code, name: p.name }));
+        }
       }
-    } catch (err) {
-      console.error('Failed to load sections:', err);
-    } finally {
-      setLoadingSections(false);
-    }
+      const allSections = sectionsData.map((s: any) => {
+        const prog = programMap.get(s.program_id);
+        return { id: s.id, sectionName: s.section_name, programCode: prog?.code || '', programName: prog?.name || '', yearLevel: s.year_level, academicYear: s.academic_year, semester: s.semester, status: s.status };
+      });
+      setSections(allSections.filter((s: Section) => s.academicYear === academicYear && s.semester === semester && s.status === 'active'));
+    } catch (e) { console.error(e); } finally { setLoadingSections(false); }
   };
 
   const loadSchedules = async () => {
-    if (!selectedSection) return;
+    if (!selectedSection || !selectedStudent) return;
     setLoadingSchedules(true);
     try {
-      const response = await fetch(
-        `/api/class-schedule?sectionId=${selectedSection.id}&academicYear=${academicYear}&semester=${semester}`
-      );
-      if (response.ok) {
-        const data = await response.json();
-        const schedulesData = (data.data || []).map((schedule: any) => ({
-          id: schedule.id,
-          sectionId: selectedSection.id,
-          sectionName: selectedSection.sectionName,
-          curriculumCourseId: schedule.curriculumCourseId,
-          courseCode: schedule.courseCode || `Course ${schedule.curriculumCourseId}`,
-          courseTitle: schedule.courseTitle || '',
-          facultyName: schedule.faculty ? `${schedule.faculty.first_name} ${schedule.faculty.last_name}` : 'TBA',
-          roomNumber: schedule.room?.room_number || 'TBA',
-          dayOfWeek: schedule.dayOfWeek,
-          startTime: formatTime(schedule.startTime),
-          endTime: formatTime(schedule.endTime),
-          prerequisite: schedule.prerequisite || null,
-          subjectYearLevel: schedule.subjectYearLevel || null,
-          subjectSemester: schedule.subjectSemester || null,
-          unitsTotal: schedule.unitsTotal || 0
-        }));
-        setSchedules(schedulesData);
+      const semNum = semester === 'first' ? 1 : semester === 'second' ? 2 : parseInt(semester);
+      const enrolledRes = await fetch(`/api/auth/enrolled-subjects?studentNumber=${selectedStudent.studentNumber}&academicYear=${academicYear}&semester=${semNum}`);
+      let enrolledCourseIds: number[] = [];
+      if (enrolledRes.ok) {
+        const ed = await enrolledRes.json();
+        enrolledCourseIds = (ed.data || []).map((s: any) => s.curriculum_course_id);
       }
-    } catch (err) {
-      console.error('Failed to load schedules:', err);
-    } finally {
-      setLoadingSchedules(false);
-    }
+      const res = await fetch(`/api/class-schedule?sectionId=${selectedSection.id}&academicYear=${academicYear}&semester=${semester}`);
+      if (res.ok) {
+        const data = await res.json();
+        const all = (data.data || []).map((s: any) => ({
+          id: s.id, sectionId: selectedSection.id, sectionName: selectedSection.sectionName,
+          curriculumCourseId: s.curriculumCourseId,
+          courseCode: s.courseCode || `Course ${s.curriculumCourseId}`,
+          courseTitle: s.courseTitle || '',
+          facultyName: s.faculty ? `${s.faculty.first_name} ${s.faculty.last_name}` : 'TBA',
+          roomNumber: s.room?.room_number || 'TBA',
+          dayOfWeek: s.dayOfWeek, startTime: formatTime(s.startTime), endTime: formatTime(s.endTime),
+          prerequisite: s.prerequisite || null, subjectYearLevel: s.subjectYearLevel || null,
+          subjectSemester: s.subjectSemester || null, unitsTotal: s.unitsTotal || 0
+        }));
+        setSchedules(all.filter((s: any) => enrolledCourseIds.includes(s.curriculumCourseId)));
+      }
+    } catch (e) { console.error(e); } finally { setLoadingSchedules(false); }
   };
 
   const loadEnrolledSubjects = async () => {
     if (!selectedStudent) return;
     setLoadingEnrolled(true);
     try {
-      const response = await fetch(
-        `/api/irregular-enrollment?studentNumber=${selectedStudent.studentNumber}&academicYear=${academicYear}&semester=${semester}`
-      );
-      if (response.ok) {
-        const data = await response.json();
-        setEnrolledSubjects(data.data || []);
-      }
-    } catch (err) {
-      console.error('Failed to load enrolled subjects:', err);
-      setEnrolledSubjects([]);
-    } finally {
-      setLoadingEnrolled(false);
-    }
+      const res = await fetch(`/api/irregular-enrollment?studentNumber=${selectedStudent.studentNumber}&academicYear=${academicYear}&semester=${semester}`);
+      if (res.ok) { const d = await res.json(); setEnrolledSubjects(d.data || []); }
+      const semNum = semester === 'first' ? 1 : semester === 'second' ? 2 : parseInt(semester);
+      const aRes = await fetch(`/api/auth/enrolled-subjects?studentNumber=${selectedStudent.studentNumber}&academicYear=${academicYear}&semester=${semNum}`);
+      if (aRes.ok) { const ad = await aRes.json(); setEnrolledSubjectsFromAssessment(ad.data || []); }
+    } catch (e) { console.error(e); setEnrolledSubjects([]); setEnrolledSubjectsFromAssessment([]); } finally { setLoadingEnrolled(false); }
   };
 
   const formatTime = (isoTime: string) => {
-    const date = new Date(isoTime);
-    return `${date.getHours().toString().padStart(2, '0')}:${date.getMinutes().toString().padStart(2, '0')}`;
+    const d = new Date(isoTime);
+    return `${d.getHours().toString().padStart(2, '0')}:${d.getMinutes().toString().padStart(2, '0')}`;
   };
 
   const handleSelectStudent = (student: Student) => {
-    setSelectedStudent(student);
-    setSearchQuery('');
-    setStudents([]);
-    setSelectedSection(null);
-    setSchedules([]);
-    setError(null);
-    setSuccess(null);
+    setSelectedStudent(student); setStudentSearchModal(false);
+    setStudentSearchQuery(''); setSelectedSection(null); setSchedules([]); setError(null);
+  };
+
+  const handleSelectSection = (section: Section) => {
+    setSelectedSection(section); setSectionSearchModal(false); setSectionSearchQuery('');
   };
 
   const handleAddSubject = async (schedule: ClassSchedule) => {
     if (!selectedStudent || !selectedSection) return;
-
-    // Check if already enrolled
     if (enrolledSubjects.some(e => e.classScheduleId === schedule.id)) {
-      setError('Student is already enrolled in this subject');
-      return;
+      setError('Student is already enrolled in this class schedule'); return;
     }
-
-    setSubmitting(true);
-    setError(null);
-
+    const isDup = enrolledSubjects.some(e => {
+      const es = schedules.find(s => s.id === e.classScheduleId);
+      return es && es.curriculumCourseId === schedule.curriculumCourseId;
+    });
+    if (isDup) { setError(`Already enrolled in ${schedule.courseCode}`); return; }
+    setSubmitting(true); setError(null);
     try {
-      const response = await fetch('/api/irregular-enrollment', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          studentNumber: selectedStudent.studentNumber,
-          classScheduleId: schedule.id,
-          sectionId: selectedSection.id,
-          academicYear,
-          semester
-        })
+      const res = await fetch('/api/irregular-enrollment', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ studentNumber: selectedStudent.studentNumber, classScheduleId: schedule.id, sectionId: selectedSection.id, academicYear, semester })
       });
-
-      const data = await response.json();
-
-      if (!response.ok) {
-        throw new Error(data.error || 'Failed to add subject');
-      }
-
-      setSuccess(`Added ${schedule.courseCode} successfully`);
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.message || data.error || 'Failed to add subject');
+      setSuccessModal({ isOpen: true, message: `Added ${schedule.courseCode} — ${schedule.courseTitle}` });
       await loadEnrolledSubjects();
-
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to add subject');
-    } finally {
-      setSubmitting(false);
-    }
+    } catch (e) { setError(e instanceof Error ? e.message : 'Failed to add subject'); } finally { setSubmitting(false); }
   };
 
-  const handleRemoveSubject = async (enrolledSubject: EnrolledSubject) => {
-    if (!selectedStudent) return;
-
-    if (!confirm(`Remove ${enrolledSubject.courseCode} from enrollment?`)) return;
-
+  const handleRemoveSubject = async () => {
+    if (!selectedStudent || !deleteModal.subject) return;
     try {
-      const response = await fetch(
-        `/api/irregular-enrollment?id=${enrolledSubject.id}`,
-        { method: 'DELETE' }
-      );
-
-      if (!response.ok) {
-        const data = await response.json();
-        throw new Error(data.error || 'Failed to remove subject');
-      }
-
-      setSuccess(`Removed ${enrolledSubject.courseCode}`);
+      const res = await fetch(`/api/irregular-enrollment?id=${deleteModal.subject.id}`, { method: 'DELETE' });
+      if (!res.ok) { const d = await res.json(); throw new Error(d.error || 'Failed to remove'); }
+      setDeleteModal({ isOpen: false, subject: null });
+      setSuccessModal({ isOpen: true, message: `Removed ${deleteModal.subject.courseCode}` });
       await loadEnrolledSubjects();
-
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to remove subject');
-    }
+    } catch (e) { setError(e instanceof Error ? e.message : 'Failed to remove'); setDeleteModal({ isOpen: false, subject: null }); }
   };
 
-  // Check if schedule is already enrolled
-  const isEnrolled = (scheduleId: number) => {
-    return enrolledSubjects.some(e => e.classScheduleId === scheduleId);
-  };
-
-  // Calculate total units
+  const isEnrolled = (scheduleId: number) => enrolledSubjects.some(e => e.classScheduleId === scheduleId);
+  const isSubjectEnrolled = (curriculumCourseId: number) => enrolledSubjects.some(e => {
+    const es = schedules.find(s => s.id === e.classScheduleId);
+    return es && es.curriculumCourseId === curriculumCourseId;
+  });
   const totalUnits = enrolledSubjects.reduce((sum, e) => sum + (e.unitsTotal || 0), 0);
-
+  const assessmentTotalUnits = enrolledSubjectsFromAssessment.reduce((sum: number, s: any) => sum + (s.units_total || 0), 0);
+  const hasAssessmentSubjects = enrolledSubjectsFromAssessment.length > 0;
 
   return (
     <div className="flex h-screen overflow-hidden">
       <Navigation currentView="section-management" onViewChange={handleViewChange} />
-      <div className="flex-1 flex flex-col overflow-y-auto" style={{ backgroundColor: colors.neutralLight }}>
+      <div className="flex-1 flex flex-col overflow-hidden" style={{ backgroundColor: colors.neutralLight }}>
+
         {/* Header */}
-        <div
-          className="sticky top-0 z-20 px-6 py-4"
-          style={{
-            backgroundColor: 'rgba(253, 251, 248, 0.95)',
-            backdropFilter: 'blur(8px)',
-            borderBottom: '1px solid rgba(179, 116, 74, 0.1)',
-          }}
-        >
+        <div className="flex-shrink-0 px-6 py-4 z-20" style={{ backgroundColor: 'rgba(253,251,248,0.97)', backdropFilter: 'blur(8px)', borderBottom: '1px solid rgba(179,116,74,0.12)' }}>
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-4">
-              <button
-                onClick={() => router.push('/dashboard?view=section-management')}
-                className="p-2 rounded-lg transition-colors hover:bg-gray-100"
-                style={{ color: colors.tertiary }}
-              >
+              <button onClick={() => router.push('/dashboard?view=section-management')} className="p-2 rounded-lg hover:bg-gray-100 transition-colors" style={{ color: colors.tertiary }}>
                 <ArrowLeft className="w-5 h-5" />
               </button>
               <div className="flex items-center gap-3">
-                <div className="p-2.5 rounded-xl" style={{ backgroundColor: 'rgba(245, 158, 11, 0.1)' }}>
-                  <BookOpen className="w-6 h-6" style={{ color: colors.warning }} />
+                <div className="p-2.5 rounded-xl" style={{ backgroundColor: 'rgba(245,158,11,0.1)' }}>
+                  <BookOpen className="w-5 h-5" style={{ color: colors.warning }} />
                 </div>
                 <div>
-                  <h1 className="text-xl font-bold" style={{ color: colors.primary }}>
-                    Manual Subject Enrollment
-                  </h1>
-                  <p className="text-sm" style={{ color: colors.neutral }}>
-                    Manually enroll students in subjects from any section (for irregular or advanced subjects)
-                  </p>
+                  <h1 className="text-lg font-bold" style={{ color: colors.primary }}>Manual Subject Enrollment</h1>
+                  <p className="text-xs" style={{ color: colors.neutral }}>Assign class schedules to irregular students</p>
                 </div>
               </div>
             </div>
-
-            {/* Term Selector */}
             <div className="flex items-center gap-3">
-              <select
-                value={academicYear}
-                onChange={(e) => setAcademicYear(e.target.value)}
-                className="px-3 py-2 rounded-lg text-sm border"
-                style={{ borderColor: 'rgba(179, 116, 74, 0.2)' }}
-              >
+              <select value={academicYear} onChange={e => setAcademicYear(e.target.value)} className="px-3 py-2 rounded-lg text-sm border bg-white" style={{ borderColor: 'rgba(179,116,74,0.2)', color: colors.primary }}>
                 <option value="2024-2025">2024-2025</option>
                 <option value="2025-2026">2025-2026</option>
               </select>
-              <select
-                value={semester}
-                onChange={(e) => setSemester(e.target.value)}
-                className="px-3 py-2 rounded-lg text-sm border"
-                style={{ borderColor: 'rgba(179, 116, 74, 0.2)' }}
-              >
-                <option value="first">First Semester</option>
-                <option value="second">Second Semester</option>
+              <select value={semester} onChange={e => setSemester(e.target.value)} className="px-3 py-2 rounded-lg text-sm border bg-white" style={{ borderColor: 'rgba(179,116,74,0.2)', color: colors.primary }}>
+                <option value="first">1st Semester</option>
+                <option value="second">2nd Semester</option>
                 <option value="summer">Summer</option>
               </select>
             </div>
           </div>
+
+          {/* Step Progress Bar */}
+          <div className="flex items-center gap-2 mt-4">
+            {[
+              { n: 1, label: 'Select Student' },
+              { n: 2, label: 'Pick Section' },
+              { n: 3, label: 'Add Subjects' },
+            ].map(({ n, label }, i) => (
+              <React.Fragment key={n}>
+                <div className="flex items-center gap-2">
+                  <StepIndicator step={n} currentStep={currentStep} />
+                  <span className="text-xs font-medium hidden sm:block" style={{ color: currentStep === n ? colors.secondary : currentStep > n ? colors.success : colors.neutral }}>{label}</span>
+                </div>
+                {i < 2 && <ChevronRight className="w-4 h-4 flex-shrink-0" style={{ color: colors.neutralBorder }} />}
+              </React.Fragment>
+            ))}
+          </div>
         </div>
 
-        {/* Main Content */}
-        <div className="flex-1 p-6">
-          <div className="max-w-7xl mx-auto">
-            {/* Messages */}
-            {error && (
-              <div className="mb-4 p-3 rounded-lg flex items-center gap-2 text-sm"
-                style={{ backgroundColor: 'rgba(239, 68, 68, 0.1)', color: colors.danger }}>
-                <AlertCircle className="w-4 h-4" />
-                {error}
+        {/* Error Banner */}
+        {error && (
+          <div className="mx-6 mt-3 p-3 rounded-lg flex items-center gap-2 text-sm flex-shrink-0" style={{ backgroundColor: 'rgba(239,68,68,0.08)', color: colors.danger, border: '1px solid rgba(239,68,68,0.2)' }}>
+            <AlertCircle className="w-4 h-4 flex-shrink-0" />
+            <span className="flex-1">{error}</span>
+            <button onClick={() => setError(null)}><X className="w-4 h-4" /></button>
+          </div>
+        )}
+
+        {/* Main 3-column layout */}
+        <div className="flex-1 overflow-hidden p-6">
+          <div className="h-full grid grid-cols-1 lg:grid-cols-3 gap-5 max-w-7xl mx-auto">
+
+            {/* ── Column 1: Student ── */}
+            <div className="flex flex-col rounded-2xl overflow-hidden" style={{ backgroundColor: 'white', border: '1px solid rgba(179,116,74,0.12)', boxShadow: '0 1px 4px rgba(0,0,0,0.04)' }}>
+              <div className="px-5 py-4 flex-shrink-0" style={{ borderBottom: '1px solid rgba(179,116,74,0.08)' }}>
+                <div className="flex items-center gap-2 mb-1">
+                  <div className="w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-bold text-white" style={{ backgroundColor: currentStep > 1 ? colors.success : colors.secondary }}>
+                    {currentStep > 1 ? <CheckCircle2 className="w-3 h-3" /> : '1'}
+                  </div>
+                  <h2 className="text-sm font-semibold" style={{ color: colors.primary }}>Select Student</h2>
+                </div>
+                <p className="text-xs pl-7" style={{ color: colors.neutral }}>Search for the student to enroll</p>
               </div>
-            )}
-            {success && (
-              <div className="mb-4 p-3 rounded-lg flex items-center gap-2 text-sm"
-                style={{ backgroundColor: 'rgba(16, 185, 129, 0.1)', color: colors.success }}>
-                <CheckCircle2 className="w-4 h-4" />
-                {success}
-              </div>
-            )}
+              <div className="p-5 flex-1 overflow-y-auto">
+                <button
+                  onClick={() => { setStudentSearchQuery(''); setStudentSearchModal(true); }}
+                  className="w-full px-4 py-3 rounded-xl text-sm text-left flex items-center gap-3 transition-all hover:shadow-sm"
+                  style={{ border: `1.5px dashed ${selectedStudent ? colors.secondary : 'rgba(179,116,74,0.3)'}`, backgroundColor: selectedStudent ? 'rgba(149,90,39,0.03)' : 'white', color: colors.neutral }}
+                >
+                  <Search className="w-4 h-4 flex-shrink-0" style={{ color: colors.tertiary }} />
+                  <span className="truncate" style={{ color: selectedStudent ? colors.primary : colors.neutral }}>
+                    {selectedStudent ? `${selectedStudent.name}` : 'Click to search student...'}
+                  </span>
+                </button>
 
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-              {/* Column 1: Student Search */}
-              <div className="rounded-xl p-5" style={{ backgroundColor: 'white', border: '1px solid rgba(179, 116, 74, 0.12)' }}>
-                <h2 className="text-base font-semibold mb-4 flex items-center gap-2" style={{ color: colors.primary }}>
-                  <User className="w-5 h-5" style={{ color: colors.secondary }} />
-                  1. Select Student
-                </h2>
-
-                {!selectedStudent ? (
-                  <>
-                    <div className="flex gap-2 mb-2">
-                      <select
-                        value={studentStatusFilter}
-                        onChange={(e) => setStudentStatusFilter(e.target.value as any)}
-                        className="px-3 py-2 rounded-lg text-sm border"
-                        style={{ borderColor: 'rgba(179, 116, 74, 0.2)' }}
-                      >
-                        <option value="all">All Students</option>
-                        <option value="regular">Regular</option>
-                        <option value="irregular">Irregular</option>
-                      </select>
+                {selectedStudent && (
+                  <div className="mt-4 p-4 rounded-xl" style={{ backgroundColor: 'rgba(253,251,248,0.8)', border: '1px solid rgba(179,116,74,0.15)' }}>
+                    <div className="flex items-center gap-3 mb-3">
+                      <div className="w-11 h-11 rounded-full flex items-center justify-center text-base font-bold flex-shrink-0" style={{ backgroundColor: 'rgba(149,90,39,0.12)', color: colors.secondary }}>
+                        {selectedStudent.firstName?.charAt(0)}{selectedStudent.lastName?.charAt(0)}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <div className="font-semibold text-sm truncate" style={{ color: colors.primary }}>{selectedStudent.name}</div>
+                        <div className="text-xs" style={{ color: colors.neutral }}>{selectedStudent.studentNumber}</div>
+                      </div>
+                      <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold flex-shrink-0" style={{
+                        backgroundColor: selectedStudent.academicStatus === 'irregular' ? 'rgba(245,158,11,0.12)' : 'rgba(16,185,129,0.12)',
+                        color: selectedStudent.academicStatus === 'irregular' ? '#D97706' : '#059669'
+                      }}>
+                        {selectedStudent.academicStatus || 'regular'}
+                      </span>
                     </div>
-                    <div className="relative">
-                      <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4" style={{ color: colors.neutral }} />
-                      <input
-                        type="text"
-                        value={searchQuery}
-                        onChange={(e) => setSearchQuery(e.target.value)}
-                        placeholder="Search students..."
-                        className="w-full pl-10 pr-4 py-2 rounded-lg text-sm border"
-                        style={{ borderColor: 'rgba(179, 116, 74, 0.2)' }}
-                      />
-                    </div>
-
-                    {searchLoading && (
-                      <div className="flex items-center gap-2 py-3 text-sm" style={{ color: colors.neutral }}>
-                        <Loader2 className="w-4 h-4 animate-spin" />
-                        Searching...
-                      </div>
-                    )}
-
-                    {students.length > 0 && (
-                      <div className="mt-2 border rounded-lg max-h-64 overflow-y-auto" style={{ borderColor: 'rgba(179, 116, 74, 0.2)' }}>
-                        {students.map((student, index) => (
-                          <button
-                            key={`${student.studentNumber}-${index}`}
-                            onClick={() => handleSelectStudent(student)}
-                            className="w-full px-4 py-3 text-left hover:bg-gray-50 border-b last:border-b-0"
-                          >
-                            <div className="flex items-center justify-between">
-                              <div>
-                                <div className="font-medium text-sm" style={{ color: colors.primary }}>{student.name}</div>
-                                <div className="text-xs" style={{ color: colors.neutral }}>{student.studentNumber} • {student.programCode}</div>
-                              </div>
-                              <span
-                                className="px-2 py-0.5 rounded text-[10px] font-medium"
-                                style={{
-                                  backgroundColor: student.academicStatus === 'irregular' ? 'rgba(245, 158, 11, 0.1)' : 'rgba(16, 185, 129, 0.1)',
-                                  color: student.academicStatus === 'irregular' ? '#D97706' : '#059669'
-                                }}
-                              >
-                                {student.academicStatus || 'regular'}
-                              </span>
-                            </div>
-                          </button>
-                        ))}
-                      </div>
-                    )}
-                  </>
-                ) : (
-                  <div className="p-4 rounded-lg" style={{ backgroundColor: selectedStudent.academicStatus === 'irregular' ? 'rgba(245, 158, 11, 0.05)' : 'rgba(16, 185, 129, 0.05)', border: `1px solid ${selectedStudent.academicStatus === 'irregular' ? 'rgba(245, 158, 11, 0.2)' : 'rgba(16, 185, 129, 0.2)'}` }}>
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-3">
-                        <div className="w-10 h-10 rounded-full flex items-center justify-center" style={{ backgroundColor: selectedStudent.academicStatus === 'irregular' ? 'rgba(245, 158, 11, 0.1)' : 'rgba(16, 185, 129, 0.1)' }}>
-                          <User className="w-5 h-5" style={{ color: selectedStudent.academicStatus === 'irregular' ? '#D97706' : '#059669' }} />
-                        </div>
-                        <div>
-                          <div className="flex items-center gap-2">
-                            <span className="font-semibold" style={{ color: colors.primary }}>{selectedStudent.name}</span>
-                            <span
-                              className="px-2 py-0.5 rounded text-[10px] font-medium"
-                              style={{
-                                backgroundColor: selectedStudent.academicStatus === 'irregular' ? 'rgba(245, 158, 11, 0.1)' : 'rgba(16, 185, 129, 0.1)',
-                                color: selectedStudent.academicStatus === 'irregular' ? '#D97706' : '#059669'
-                              }}
-                            >
-                              {selectedStudent.academicStatus || 'regular'}
-                            </span>
-                          </div>
-                          <div className="text-xs" style={{ color: colors.neutral }}>{selectedStudent.studentNumber} • {selectedStudent.programCode}</div>
-                        </div>
-                      </div>
-                      <button
-                        onClick={() => {
-                          setSelectedStudent(null);
-                          setSelectedSection(null);
-                          setSchedules([]);
-                          setEnrolledSubjects([]);
-                        }}
-                        className="text-xs px-2 py-1 rounded hover:bg-gray-100"
-                        style={{ color: colors.neutral }}
-                      >
-                        Change
-                      </button>
+                    <div className="flex items-center gap-2 text-xs px-1" style={{ color: colors.neutral }}>
+                      <GraduationCap className="w-3.5 h-3.5 flex-shrink-0" style={{ color: colors.tertiary }} />
+                      <span className="truncate">{selectedStudent.programCode} — {selectedStudent.programName || 'N/A'}</span>
                     </div>
                   </div>
                 )}
-              </div>
 
-
-              {/* Column 2: Section & Subject Selection */}
-              <div className="rounded-xl p-5" style={{ backgroundColor: 'white', border: '1px solid rgba(179, 116, 74, 0.12)' }}>
-                <h2 className="text-base font-semibold mb-4 flex items-center gap-2" style={{ color: colors.primary }}>
-                  <Calendar className="w-5 h-5" style={{ color: colors.secondary }} />
-                  2. Select Section & Subjects
-                </h2>
-
-                {!selectedStudent ? (
-                  <div className="text-center py-8 text-sm" style={{ color: colors.neutral }}>
-                    Select a student first
-                  </div>
-                ) : (
-                  <>
-                    {/* Section Dropdown */}
-                    <div className="mb-4">
-                      <label className="block text-xs font-medium mb-2" style={{ color: colors.primary }}>
-                        Choose Section
-                      </label>
-                      {loadingSections ? (
-                        <div className="flex items-center gap-2 py-2 text-sm" style={{ color: colors.neutral }}>
-                          <Loader2 className="w-4 h-4 animate-spin" />
-                          Loading sections...
-                        </div>
-                      ) : (
-                        <select
-                          value={selectedSection?.id || ''}
-                          onChange={(e) => {
-                            const section = sections.find(s => s.id === parseInt(e.target.value));
-                            setSelectedSection(section || null);
-                          }}
-                          className="w-full px-3 py-2 rounded-lg text-sm border"
-                          style={{ borderColor: 'rgba(179, 116, 74, 0.2)' }}
-                        >
-                          <option value="">-- Select a section --</option>
-                          {sections.map(section => (
-                            <option key={section.id} value={section.id}>
-                              {section.sectionName} - {section.programCode} Year {section.yearLevel}
-                            </option>
-                          ))}
-                        </select>
+                {/* Assessment subjects panel */}
+                {selectedStudent && (
+                  <div className="mt-4">
+                    <div className="flex items-center justify-between mb-2">
+                      <span className="text-xs font-semibold" style={{ color: colors.primary }}>Assessment Subjects</span>
+                      {hasAssessmentSubjects && (
+                        <span className="text-[10px] font-medium px-2 py-0.5 rounded-full" style={{ backgroundColor: 'rgba(99,102,241,0.1)', color: '#6366F1' }}>
+                          {assessmentTotalUnits} units
+                        </span>
                       )}
                     </div>
-
-                    {/* Subjects from Section */}
-                    {selectedSection && (
-                      <div>
-                        <label className="block text-xs font-medium mb-2" style={{ color: colors.primary }}>
-                          Available Subjects
-                        </label>
-                        <div className="border rounded-lg max-h-80 overflow-y-auto" style={{ borderColor: 'rgba(179, 116, 74, 0.2)' }}>
-                          {loadingSchedules ? (
-                            <div className="p-4 text-center text-sm" style={{ color: colors.neutral }}>
-                              <Loader2 className="w-4 h-4 animate-spin mx-auto mb-2" />
-                              Loading subjects...
-                            </div>
-                          ) : schedules.length === 0 ? (
-                            <div className="p-4 text-center text-sm" style={{ color: colors.neutral }}>
-                              No subjects in this section
-                            </div>
-                          ) : (
-                            schedules.map((schedule) => {
-                              const enrolled = isEnrolled(schedule.id);
-                              return (
-                                <div
-                                  key={schedule.id}
-                                  className={`px-4 py-3 border-b last:border-b-0 ${enrolled ? 'bg-gray-50' : 'hover:bg-gray-50'}`}
-                                >
-                                  <div className="flex items-start justify-between gap-2">
-                                    <div className="flex-1">
-                                      <div className="flex items-center gap-2">
-                                        <span className="font-semibold text-sm" style={{ color: enrolled ? colors.neutral : colors.primary }}>
-                                          {schedule.courseCode}
-                                        </span>
-                                        <span className="px-1.5 py-0.5 rounded text-[10px] font-medium" 
-                                          style={{ backgroundColor: 'rgba(149, 90, 39, 0.1)', color: colors.secondary }}>
-                                          {schedule.unitsTotal} units
-                                        </span>
-                                        {enrolled && (
-                                          <span className="px-1.5 py-0.5 rounded text-[10px] font-medium"
-                                            style={{ backgroundColor: 'rgba(16, 185, 129, 0.1)', color: colors.success }}>
-                                            Enrolled
-                                          </span>
-                                        )}
-                                      </div>
-                                      <div className="text-xs mt-0.5" style={{ color: colors.neutral }}>{schedule.courseTitle}</div>
-                                      <div className="flex flex-wrap gap-x-2 gap-y-1 mt-1">
-                                        <span className="text-[10px]" style={{ color: colors.tertiary }}>
-                                          {schedule.dayOfWeek} {schedule.startTime}-{schedule.endTime}
-                                        </span>
-                                        {schedule.prerequisite && (
-                                          <span className="text-[10px] px-1 rounded" style={{ backgroundColor: 'rgba(245, 158, 11, 0.1)', color: colors.warning }}>
-                                            Prereq: {schedule.prerequisite}
-                                          </span>
-                                        )}
-                                      </div>
-                                    </div>
-                                    {!enrolled && (
-                                      <button
-                                        onClick={() => handleAddSubject(schedule)}
-                                        disabled={submitting}
-                                        className="p-1.5 rounded-lg transition-colors"
-                                        style={{ backgroundColor: 'rgba(16, 185, 129, 0.1)', color: colors.success }}
-                                        title="Add subject"
-                                      >
-                                        <Plus className="w-4 h-4" />
-                                      </button>
-                                    )}
-                                  </div>
+                    {loadingEnrolled ? (
+                      <div className="flex items-center gap-2 py-3 px-3 rounded-lg" style={{ backgroundColor: 'rgba(99,102,241,0.05)' }}>
+                        <Loader2 className="w-3.5 h-3.5 animate-spin" style={{ color: '#6366F1' }} />
+                        <span className="text-xs" style={{ color: '#6366F1' }}>Loading assessment subjects...</span>
+                      </div>
+                    ) : !hasAssessmentSubjects ? (
+                      <div className="p-3 rounded-xl text-center" style={{ backgroundColor: 'rgba(245,158,11,0.05)', border: '1px solid rgba(245,158,11,0.2)' }}>
+                        <AlertCircle className="w-5 h-5 mx-auto mb-1" style={{ color: colors.warning }} />
+                        <p className="text-xs font-medium" style={{ color: colors.warning }}>No assessment subjects</p>
+                        <p className="text-[10px] mt-0.5" style={{ color: colors.tertiary }}>Student must complete assessment first</p>
+                      </div>
+                    ) : (
+                      <div className="rounded-xl overflow-hidden" style={{ border: '1px solid rgba(99,102,241,0.15)' }}>
+                        <div className="max-h-52 overflow-y-auto">
+                          {enrolledSubjectsFromAssessment.map((subject: any, idx: number) => {
+                            const isSectioned = enrolledSubjects.some(e => {
+                              const sc = schedules.find(s => s.id === e.classScheduleId);
+                              return sc && sc.curriculumCourseId === subject.curriculum_course_id;
+                            });
+                            return (
+                              <div key={subject.id} className="flex items-center gap-2 px-3 py-2" style={{ borderBottom: idx < enrolledSubjectsFromAssessment.length - 1 ? '1px solid rgba(99,102,241,0.08)' : 'none', backgroundColor: isSectioned ? 'rgba(16,185,129,0.04)' : 'white' }}>
+                                <div className="flex-1 min-w-0">
+                                  <div className="text-xs font-semibold truncate" style={{ color: colors.primary }}>{subject.course_code}</div>
+                                  <div className="text-[10px] truncate" style={{ color: colors.neutral }}>{subject.descriptive_title}</div>
                                 </div>
-                              );
-                            })
-                          )}
+                                <div className="flex items-center gap-1.5 flex-shrink-0">
+                                  <span className="text-[10px] font-medium px-1.5 py-0.5 rounded" style={{ backgroundColor: 'rgba(149,90,39,0.08)', color: colors.secondary }}>{subject.units_total}u</span>
+                                  {isSectioned && <CheckCircle2 className="w-3 h-3" style={{ color: colors.success }} />}
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
+                        <div className="px-3 py-2 flex items-center justify-between" style={{ backgroundColor: 'rgba(99,102,241,0.04)', borderTop: '1px solid rgba(99,102,241,0.1)' }}>
+                          <span className="text-[10px]" style={{ color: '#6366F1' }}>{enrolledSubjectsFromAssessment.length} subjects from assessment</span>
+                          <span className="text-[10px] font-semibold" style={{ color: '#6366F1' }}>{enrolledSubjects.length} sectioned</span>
                         </div>
                       </div>
                     )}
-                  </>
-                )}
-              </div>
-
-
-              {/* Column 3: Enrolled Subjects */}
-              <div className="rounded-xl p-5" style={{ backgroundColor: 'white', border: '1px solid rgba(179, 116, 74, 0.12)' }}>
-                <div className="flex items-center justify-between mb-4">
-                  <h2 className="text-base font-semibold flex items-center gap-2" style={{ color: colors.primary }}>
-                    <GraduationCap className="w-5 h-5" style={{ color: colors.secondary }} />
-                    Enrolled Subjects
-                  </h2>
-                  {selectedStudent && (
-                    <div className="text-right">
-                      <div className="text-[10px] uppercase font-medium" style={{ color: colors.tertiary }}>Total Units</div>
-                      <div className="text-lg font-bold" style={{ color: colors.secondary }}>{totalUnits}</div>
-                    </div>
-                  )}
-                </div>
-
-                {!selectedStudent ? (
-                  <div className="text-center py-8 text-sm" style={{ color: colors.neutral }}>
-                    Select a student to view enrolled subjects
-                  </div>
-                ) : loadingEnrolled ? (
-                  <div className="text-center py-8">
-                    <Loader2 className="w-6 h-6 animate-spin mx-auto" style={{ color: colors.secondary }} />
-                    <p className="text-sm mt-2" style={{ color: colors.neutral }}>Loading...</p>
-                  </div>
-                ) : enrolledSubjects.length === 0 ? (
-                  <div className="text-center py-8">
-                    <BookOpen className="w-10 h-10 mx-auto mb-2" style={{ color: colors.neutral }} />
-                    <p className="text-sm" style={{ color: colors.neutral }}>No subjects enrolled yet</p>
-                    <p className="text-xs mt-1" style={{ color: colors.tertiary }}>Select a section and add subjects</p>
-                  </div>
-                ) : (
-                  <div className="space-y-2 max-h-[500px] overflow-y-auto">
-                    {enrolledSubjects.map((subject) => (
-                      <div
-                        key={subject.id}
-                        className="p-3 rounded-lg"
-                        style={{ border: '1px solid rgba(179, 116, 74, 0.1)', backgroundColor: 'rgba(253, 251, 248, 0.5)' }}
-                      >
-                        <div className="flex items-start justify-between">
-                          <div className="flex-1">
-                            <div className="flex items-center gap-2">
-                              <span className="font-semibold text-sm" style={{ color: colors.primary }}>{subject.courseCode}</span>
-                              <span className="px-1.5 py-0.5 rounded text-[10px] font-medium"
-                                style={{ backgroundColor: 'rgba(149, 90, 39, 0.1)', color: colors.secondary }}>
-                                {subject.unitsTotal} units
-                              </span>
-                            </div>
-                            <div className="text-xs mt-0.5" style={{ color: colors.neutral }}>{subject.courseTitle}</div>
-                            <div className="flex flex-wrap gap-x-2 mt-1.5">
-                              <span className="text-[10px] px-1.5 py-0.5 rounded"
-                                style={{ backgroundColor: 'rgba(99, 102, 241, 0.1)', color: '#6366F1' }}>
-                                {subject.sectionName}
-                              </span>
-                              <span className="text-[10px]" style={{ color: colors.tertiary }}>
-                                {subject.dayOfWeek} {subject.startTime}-{subject.endTime} • {subject.roomNumber}
-                              </span>
-                            </div>
-                          </div>
-                          <button
-                            onClick={() => handleRemoveSubject(subject)}
-                            className="p-1.5 rounded hover:bg-red-50 transition-colors"
-                            style={{ color: colors.danger }}
-                            title="Remove subject"
-                          >
-                            <Trash2 className="w-4 h-4" />
-                          </button>
-                        </div>
-                      </div>
-                    ))}
                   </div>
                 )}
               </div>
             </div>
+
+            {/* ── Column 2: Section & Available Subjects ── */}
+            <div className="flex flex-col rounded-2xl overflow-hidden" style={{ backgroundColor: 'white', border: '1px solid rgba(179,116,74,0.12)', boxShadow: '0 1px 4px rgba(0,0,0,0.04)' }}>
+              <div className="px-5 py-4 flex-shrink-0" style={{ borderBottom: '1px solid rgba(179,116,74,0.08)' }}>
+                <div className="flex items-center gap-2 mb-1">
+                  <div className="w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-bold text-white" style={{ backgroundColor: currentStep > 2 ? colors.success : currentStep === 2 ? colors.secondary : '#CBD5E1' }}>
+                    {currentStep > 2 ? <CheckCircle2 className="w-3 h-3" /> : '2'}
+                  </div>
+                  <h2 className="text-sm font-semibold" style={{ color: colors.primary }}>Pick Section & Add Subjects</h2>
+                </div>
+                <p className="text-xs pl-7" style={{ color: colors.neutral }}>Browse schedules from a section</p>
+              </div>
+
+              {!selectedStudent ? (
+                <div className="flex-1 flex flex-col items-center justify-center p-8 text-center">
+                  <User className="w-10 h-10 mb-3" style={{ color: colors.neutralBorder }} />
+                  <p className="text-sm font-medium" style={{ color: colors.neutral }}>Select a student first</p>
+                  <p className="text-xs mt-1" style={{ color: colors.tertiary }}>Step 1 must be completed</p>
+                </div>
+              ) : (
+                <div className="flex-1 flex flex-col overflow-hidden p-5 gap-4">
+                  {/* Section picker */}
+                  <div>
+                    <label className="block text-xs font-semibold mb-1.5" style={{ color: colors.primary }}>Section</label>
+                    <div
+                        onClick={() => { if (!hasAssessmentSubjects) return; setSectionSearchQuery(''); setSectionProgramFilter('all'); setSectionYearFilter('all'); setSectionSearchModal(true); }}
+                      className="w-full px-4 py-2.5 rounded-xl text-sm text-left flex items-center gap-3 transition-all"
+                      style={{
+                        border: `1.5px ${selectedSection ? 'solid' : 'dashed'} ${!hasAssessmentSubjects ? 'rgba(179,116,74,0.15)' : selectedSection ? colors.secondary : 'rgba(179,116,74,0.3)'}`,
+                        backgroundColor: !hasAssessmentSubjects ? 'rgba(241,245,249,0.5)' : selectedSection ? 'rgba(149,90,39,0.03)' : 'white',
+                        color: !hasAssessmentSubjects ? colors.neutral : selectedSection ? colors.primary : colors.neutral,
+                        cursor: !hasAssessmentSubjects ? 'not-allowed' : 'pointer',
+                        opacity: !hasAssessmentSubjects ? 0.6 : 1
+                      }}
+                    >
+                      <Users className="w-4 h-4 flex-shrink-0" style={{ color: colors.tertiary }} />
+                      <span className="flex-1 truncate">
+                        {!hasAssessmentSubjects ? 'Complete assessment first' : selectedSection ? `${selectedSection.sectionName} — ${selectedSection.programCode} Yr ${selectedSection.yearLevel}` : 'Click to pick a section...'}
+                      </span>
+                      {selectedSection && (
+                        <button
+                          onClick={e => { e.stopPropagation(); setSelectedSection(null); setSchedules([]); }}
+                          className="p-0.5 rounded hover:bg-gray-100"
+                        >
+                          <X className="w-3.5 h-3.5" style={{ color: colors.tertiary }} />
+                        </button>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Available subjects list */}
+                  <div className="flex-1 flex flex-col overflow-hidden">
+                    <div className="flex items-center justify-between mb-2 flex-shrink-0">
+                      <label className="text-xs font-semibold" style={{ color: colors.primary }}>Available Subjects</label>
+                      {selectedSection && !loadingSchedules && schedules.length > 0 && (
+                        <span className="text-[10px] px-2 py-0.5 rounded-full" style={{ backgroundColor: 'rgba(149,90,39,0.08)', color: colors.secondary }}>{schedules.length} subjects</span>
+                      )}
+                    </div>
+
+                    {!selectedSection ? (
+                      <div className="flex-1 flex flex-col items-center justify-center rounded-xl p-6 text-center" style={{ border: '1px dashed rgba(179,116,74,0.2)', backgroundColor: 'rgba(253,251,248,0.5)' }}>
+                        <Calendar className="w-8 h-8 mb-2" style={{ color: colors.neutralBorder }} />
+                        <p className="text-sm" style={{ color: colors.neutral }}>Pick a section above to see available subjects</p>
+                      </div>
+                    ) : loadingSchedules ? (
+                      <div className="flex-1 flex flex-col items-center justify-center gap-2">
+                        {[1,2,3].map(i => (
+                          <div key={i} className="w-full h-16 rounded-xl animate-pulse" style={{ backgroundColor: 'rgba(179,116,74,0.06)' }} />
+                        ))}
+                      </div>
+                    ) : schedules.length === 0 ? (
+                      <div className="flex-1 flex flex-col items-center justify-center rounded-xl p-6 text-center" style={{ border: '1px dashed rgba(179,116,74,0.2)', backgroundColor: 'rgba(253,251,248,0.5)' }}>
+                        <BookOpen className="w-8 h-8 mb-2" style={{ color: colors.neutralBorder }} />
+                        <p className="text-sm font-medium" style={{ color: colors.neutral }}>No matching subjects</p>
+                        <p className="text-xs mt-1" style={{ color: colors.tertiary }}>This section has no schedules matching the student's assessment subjects</p>
+                      </div>
+                    ) : (
+                      <div className="flex-1 overflow-y-auto space-y-2 pr-0.5">
+                        {schedules.map(schedule => {
+                          const enrolled = isEnrolled(schedule.id);
+                          const subjectEnrolled = isSubjectEnrolled(schedule.curriculumCourseId);
+                          const cannotAdd = enrolled || subjectEnrolled;
+                          return (
+                            <div key={schedule.id} className="rounded-xl p-3 transition-all" style={{
+                              border: `1px solid ${enrolled ? 'rgba(16,185,129,0.25)' : subjectEnrolled ? 'rgba(245,158,11,0.25)' : 'rgba(179,116,74,0.12)'}`,
+                              backgroundColor: enrolled ? 'rgba(16,185,129,0.04)' : subjectEnrolled ? 'rgba(245,158,11,0.04)' : 'white'
+                            }}>
+                              <div className="flex items-start gap-3">
+                                <div className="flex-1 min-w-0">
+                                  <div className="flex items-center gap-2 flex-wrap">
+                                    <span className="text-sm font-bold" style={{ color: cannotAdd ? colors.neutral : colors.primary }}>{schedule.courseCode}</span>
+                                    <span className="text-[10px] font-medium px-1.5 py-0.5 rounded" style={{ backgroundColor: 'rgba(149,90,39,0.08)', color: colors.secondary }}>{schedule.unitsTotal}u</span>
+                                    {enrolled && <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-full" style={{ backgroundColor: 'rgba(16,185,129,0.12)', color: colors.success }}>✓ Enrolled</span>}
+                                    {!enrolled && subjectEnrolled && <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-full" style={{ backgroundColor: 'rgba(245,158,11,0.12)', color: colors.warning }}>Other section</span>}
+                                  </div>
+                                  <div className="text-xs mt-0.5 truncate" style={{ color: colors.neutral }}>{schedule.courseTitle}</div>
+                                  <div className="flex flex-wrap gap-x-3 gap-y-0.5 mt-1.5">
+                                    <span className="flex items-center gap-1 text-[10px]" style={{ color: colors.tertiary }}>
+                                      <Clock className="w-3 h-3" />{schedule.dayOfWeek} {schedule.startTime}–{schedule.endTime}
+                                    </span>
+                                    <span className="flex items-center gap-1 text-[10px]" style={{ color: colors.tertiary }}>
+                                      <MapPin className="w-3 h-3" />{schedule.roomNumber}
+                                    </span>
+                                    <span className="flex items-center gap-1 text-[10px]" style={{ color: colors.tertiary }}>
+                                      <User className="w-3 h-3" />{schedule.facultyName}
+                                    </span>
+                                  </div>
+                                  {schedule.prerequisite && (
+                                    <div className="mt-1.5 text-[10px] px-2 py-0.5 rounded inline-block" style={{ backgroundColor: 'rgba(245,158,11,0.08)', color: colors.warning }}>
+                                      Prereq: {schedule.prerequisite}
+                                    </div>
+                                  )}
+                                </div>
+                                {!cannotAdd && (
+                                  <button
+                                    onClick={() => handleAddSubject(schedule)}
+                                    disabled={submitting}
+                                    className="flex-shrink-0 w-8 h-8 rounded-lg flex items-center justify-center transition-all hover:scale-105 disabled:opacity-50"
+                                    style={{ backgroundColor: 'rgba(16,185,129,0.1)', color: colors.success }}
+                                    title="Add to enrollment"
+                                  >
+                                    {submitting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Plus className="w-4 h-4" />}
+                                  </button>
+                                )}
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* ── Column 3: Enrolled Subjects (sticky sidebar) ── */}
+            <div className="flex flex-col rounded-2xl overflow-hidden" style={{ backgroundColor: 'white', border: '1px solid rgba(179,116,74,0.12)', boxShadow: '0 1px 4px rgba(0,0,0,0.04)' }}>
+              {/* Header with total units */}
+              <div className="px-5 py-4 flex-shrink-0" style={{ borderBottom: '1px solid rgba(179,116,74,0.08)' }}>
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <div className="w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-bold text-white" style={{ backgroundColor: currentStep === 3 ? colors.secondary : '#CBD5E1' }}>3</div>
+                    <h2 className="text-sm font-semibold" style={{ color: colors.primary }}>Enrolled Subjects</h2>
+                  </div>
+                  {selectedStudent && (
+                    <div className="text-right">
+                      <div className="text-[10px] uppercase font-semibold tracking-wide" style={{ color: colors.tertiary }}>Total Units</div>
+                      <div className="text-2xl font-black leading-none" style={{ color: totalUnits > 0 ? colors.secondary : colors.neutralBorder }}>{totalUnits}</div>
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {!selectedStudent ? (
+                <div className="flex-1 flex flex-col items-center justify-center p-8 text-center">
+                  <GraduationCap className="w-10 h-10 mb-3" style={{ color: colors.neutralBorder }} />
+                  <p className="text-sm font-medium" style={{ color: colors.neutral }}>No student selected</p>
+                  <p className="text-xs mt-1" style={{ color: colors.tertiary }}>Enrolled subjects will appear here</p>
+                </div>
+              ) : loadingEnrolled ? (
+                <div className="flex-1 flex flex-col items-center justify-center gap-3 p-5">
+                  {[1,2,3].map(i => <div key={i} className="w-full h-16 rounded-xl animate-pulse" style={{ backgroundColor: 'rgba(179,116,74,0.06)' }} />)}
+                </div>
+              ) : enrolledSubjects.length === 0 ? (
+                <div className="flex-1 flex flex-col items-center justify-center p-8 text-center">
+                  <div className="w-14 h-14 rounded-full flex items-center justify-center mb-3" style={{ backgroundColor: 'rgba(179,116,74,0.06)' }}>
+                    <BookOpen className="w-7 h-7" style={{ color: colors.neutralBorder }} />
+                  </div>
+                  <p className="text-sm font-medium" style={{ color: colors.neutral }}>No subjects enrolled yet</p>
+                  <p className="text-xs mt-1" style={{ color: colors.tertiary }}>Add subjects from the section in Step 2</p>
+                </div>
+              ) : (
+                <div className="flex-1 overflow-y-auto p-4 space-y-2">
+                  {enrolledSubjects.map(subject => (
+                    <div key={subject.id} className="rounded-xl p-3 group" style={{ border: '1px solid rgba(16,185,129,0.2)', backgroundColor: 'rgba(16,185,129,0.03)' }}>
+                      <div className="flex items-start gap-2">
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <span className="text-sm font-bold" style={{ color: colors.primary }}>{subject.courseCode}</span>
+                            <span className="text-[10px] font-medium px-1.5 py-0.5 rounded" style={{ backgroundColor: 'rgba(149,90,39,0.08)', color: colors.secondary }}>{subject.unitsTotal}u</span>
+                          </div>
+                          <div className="text-xs mt-0.5 truncate" style={{ color: colors.neutral }}>{subject.courseTitle}</div>
+                          <div className="flex flex-wrap gap-x-2 gap-y-0.5 mt-1.5">
+                            <span className="text-[10px] px-1.5 py-0.5 rounded font-medium" style={{ backgroundColor: 'rgba(99,102,241,0.08)', color: '#6366F1' }}>{subject.sectionName}</span>
+                            <span className="flex items-center gap-1 text-[10px]" style={{ color: colors.tertiary }}>
+                              <Clock className="w-3 h-3" />{subject.dayOfWeek} {subject.startTime}–{subject.endTime}
+                            </span>
+                            <span className="flex items-center gap-1 text-[10px]" style={{ color: colors.tertiary }}>
+                              <MapPin className="w-3 h-3" />{subject.roomNumber}
+                            </span>
+                          </div>
+                        </div>
+                        <button
+                          onClick={() => setDeleteModal({ isOpen: true, subject })}
+                          className="flex-shrink-0 p-1.5 rounded-lg opacity-0 group-hover:opacity-100 transition-all hover:bg-red-50"
+                          style={{ color: colors.danger }}
+                          title="Remove subject"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {/* Footer summary */}
+              {selectedStudent && enrolledSubjects.length > 0 && (
+                <div className="px-5 py-3 flex-shrink-0 flex items-center justify-between" style={{ borderTop: '1px solid rgba(179,116,74,0.08)', backgroundColor: 'rgba(253,251,248,0.6)' }}>
+                  <span className="text-xs" style={{ color: colors.neutral }}>{enrolledSubjects.length} of {enrolledSubjectsFromAssessment.length} subjects sectioned</span>
+                  <span className="text-xs font-semibold" style={{ color: totalUnits >= 18 ? colors.success : colors.warning }}>
+                    {totalUnits >= 18 ? '✓ Full load' : 'Partial load'}
+                  </span>
+                </div>
+              )}
+            </div>
+
           </div>
         </div>
       </div>
+
+      {/* Student Search Modal */}
+      {studentSearchModal && (
+        <div className="fixed inset-0 flex items-center justify-center p-4 z-50 backdrop-blur-sm" style={{ backgroundColor: 'rgba(0,0,0,0.4)' }} onClick={() => setStudentSearchModal(false)}>
+          <div className="rounded-2xl shadow-2xl w-full max-w-4xl max-h-[90vh] overflow-hidden flex flex-col bg-white" onClick={e => e.stopPropagation()}>
+            <div className="px-6 py-4 flex items-center justify-between border-b" style={{ borderColor: 'rgba(179,116,74,0.12)' }}>
+              <div className="flex items-center gap-3">
+                <div className="p-2 rounded-lg" style={{ backgroundColor: 'rgba(149,90,39,0.1)' }}><Search className="w-5 h-5" style={{ color: colors.secondary }} /></div>
+                <div>
+                  <h2 className="text-lg font-bold" style={{ color: colors.primary }}>Search Student</h2>
+                  <p className="text-xs" style={{ color: colors.neutral }}>Search by name or student number</p>
+                </div>
+              </div>
+              <button onClick={() => setStudentSearchModal(false)} className="p-2 rounded-full hover:bg-gray-100 transition-colors"><X className="w-5 h-5" style={{ color: colors.neutral }} /></button>
+            </div>
+            <div className="p-5 border-b flex gap-3" style={{ borderColor: 'rgba(179,116,74,0.08)' }}>
+              <select value={studentStatusFilter} onChange={e => setStudentStatusFilter(e.target.value as any)} className="px-3 py-2 border border-gray-200 rounded-lg text-sm bg-white" style={{ color: colors.primary }}>
+                <option value="all">All Students</option>
+                <option value="regular">Regular</option>
+                <option value="irregular">Irregular</option>
+              </select>
+              <div className="relative flex-1">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4" style={{ color: colors.tertiary }} />
+                <input type="text" value={studentSearchQuery} onChange={e => setStudentSearchQuery(e.target.value)} placeholder="Name or student number..." autoFocus className="w-full pl-9 pr-4 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-amber-400" />
+              </div>
+            </div>
+            <div className="flex-1 overflow-y-auto p-5 bg-gray-50">
+              {loadingStudents ? (
+                <div className="text-center py-12"><Loader2 className="w-7 h-7 animate-spin mx-auto mb-3" style={{ color: colors.secondary }} /><p className="text-sm" style={{ color: colors.neutral }}>Loading students...</p></div>
+              ) : filteredStudents.length === 0 ? (
+                <div className="text-center py-12"><User className="w-10 h-10 mx-auto mb-3" style={{ color: colors.neutralBorder }} /><p className="text-sm" style={{ color: colors.neutral }}>No students found</p></div>
+              ) : (
+                <div className="bg-white rounded-xl overflow-hidden border border-gray-100">
+                  <table className="w-full">
+                    <thead><tr style={{ borderBottom: '1px solid rgba(179,116,74,0.1)' }}>
+                      <th className="text-left py-3 px-4 text-xs font-semibold uppercase tracking-wide" style={{ color: colors.tertiary }}>Student</th>
+                      <th className="text-left py-3 px-4 text-xs font-semibold uppercase tracking-wide" style={{ color: colors.tertiary }}>Program</th>
+                      <th className="text-left py-3 px-4 text-xs font-semibold uppercase tracking-wide" style={{ color: colors.tertiary }}>Status</th>
+                      <th className="py-3 px-4" />
+                    </tr></thead>
+                    <tbody>
+                      {filteredStudents.map((student, i) => (
+                        <tr key={`${student.studentId}-${i}`} className="hover:bg-gray-50 cursor-pointer transition-colors" style={{ borderBottom: '1px solid rgba(179,116,74,0.06)' }} onClick={() => handleSelectStudent(student)}>
+                          <td className="py-3 px-4">
+                            <div className="flex items-center gap-3">
+                              <div className="w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold flex-shrink-0" style={{ backgroundColor: 'rgba(149,90,39,0.1)', color: colors.secondary }}>{student.firstName?.charAt(0)}{student.lastName?.charAt(0)}</div>
+                              <div><div className="text-sm font-medium" style={{ color: colors.primary }}>{student.name}</div><div className="text-xs" style={{ color: colors.neutral }}>{student.studentNumber}</div></div>
+                            </div>
+                          </td>
+                          <td className="py-3 px-4 text-sm" style={{ color: colors.neutral }}>{student.programCode || '—'}</td>
+                          <td className="py-3 px-4">
+                            <span className="text-xs px-2 py-0.5 rounded-full font-medium" style={{ backgroundColor: student.academicStatus === 'irregular' ? 'rgba(245,158,11,0.1)' : 'rgba(16,185,129,0.1)', color: student.academicStatus === 'irregular' ? '#D97706' : '#059669' }}>
+                              {student.academicStatus || 'regular'}
+                            </span>
+                          </td>
+                          <td className="py-3 px-4 text-right">
+                            <button onClick={e => { e.stopPropagation(); handleSelectStudent(student); }} className="px-3 py-1.5 rounded-lg text-xs font-semibold text-white transition-all hover:opacity-90" style={{ backgroundColor: colors.secondary }}>Select</button>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Section Search Modal */}
+      {sectionSearchModal && (
+        <div className="fixed inset-0 flex items-center justify-center p-4 z-50 backdrop-blur-sm" style={{ backgroundColor: 'rgba(0,0,0,0.4)' }} onClick={() => setSectionSearchModal(false)}>
+          <div className="rounded-2xl shadow-2xl w-full max-w-4xl max-h-[90vh] overflow-hidden flex flex-col bg-white" onClick={e => e.stopPropagation()}>
+            <div className="px-6 py-4 flex items-center justify-between border-b" style={{ borderColor: 'rgba(179,116,74,0.12)' }}>
+              <div className="flex items-center gap-3">
+                <div className="p-2 rounded-lg" style={{ backgroundColor: 'rgba(149,90,39,0.1)' }}><Users className="w-5 h-5" style={{ color: colors.secondary }} /></div>
+                <div>
+                  <h2 className="text-lg font-bold" style={{ color: colors.primary }}>Pick a Section</h2>
+                  <p className="text-xs" style={{ color: colors.neutral }}>Active sections for {academicYear} — {semester} semester</p>
+                </div>
+              </div>
+              <button onClick={() => setSectionSearchModal(false)} className="p-2 rounded-full hover:bg-gray-100 transition-colors"><X className="w-5 h-5" style={{ color: colors.neutral }} /></button>
+            </div>
+            <div className="p-5 border-b flex flex-wrap gap-3" style={{ borderColor: 'rgba(179,116,74,0.08)' }}>
+              <div className="relative flex-1 min-w-40">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4" style={{ color: colors.tertiary }} />
+                <input type="text" value={sectionSearchQuery} onChange={e => setSectionSearchQuery(e.target.value)} placeholder="Section name..." autoFocus className="w-full pl-9 pr-4 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-amber-400" />
+              </div>
+              <select value={sectionProgramFilter} onChange={e => setSectionProgramFilter(e.target.value)} className="px-3 py-2 border border-gray-200 rounded-lg text-sm bg-white" style={{ color: colors.primary }}>
+                <option value="all">All Programs</option>
+                {sectionProgramOptions.map(code => <option key={code} value={code}>{code}</option>)}
+              </select>
+              <select value={sectionYearFilter} onChange={e => setSectionYearFilter(e.target.value)} className="px-3 py-2 border border-gray-200 rounded-lg text-sm bg-white" style={{ color: colors.primary }}>
+                <option value="all">All Years</option>
+                {sectionYearOptions.map(y => <option key={y} value={y}>Year {y}</option>)}
+              </select>
+            </div>
+            <div className="flex-1 overflow-y-auto p-5 bg-gray-50">
+              {loadingSections ? (
+                <div className="text-center py-12"><Loader2 className="w-7 h-7 animate-spin mx-auto mb-3" style={{ color: colors.secondary }} /><p className="text-sm" style={{ color: colors.neutral }}>Loading sections...</p></div>
+              ) : filteredSections.length === 0 ? (
+                <div className="text-center py-12"><Users className="w-10 h-10 mx-auto mb-3" style={{ color: colors.neutralBorder }} /><p className="text-sm" style={{ color: colors.neutral }}>No active sections found</p><p className="text-xs mt-1" style={{ color: colors.tertiary }}>Check that sections are active for {academicYear} {semester}</p></div>
+              ) : (
+                <div className="bg-white rounded-xl overflow-hidden border border-gray-100">
+                  <table className="w-full">
+                    <thead><tr style={{ borderBottom: '1px solid rgba(179,116,74,0.1)' }}>
+                      <th className="text-left py-3 px-4 text-xs font-semibold uppercase tracking-wide" style={{ color: colors.tertiary }}>Section</th>
+                      <th className="text-left py-3 px-4 text-xs font-semibold uppercase tracking-wide" style={{ color: colors.tertiary }}>Program</th>
+                      <th className="text-left py-3 px-4 text-xs font-semibold uppercase tracking-wide" style={{ color: colors.tertiary }}>Year</th>
+                      <th className="py-3 px-4" />
+                    </tr></thead>
+                    <tbody>
+                      {filteredSections.map(section => (
+                        <tr key={section.id} className="hover:bg-gray-50 cursor-pointer transition-colors" style={{ borderBottom: '1px solid rgba(179,116,74,0.06)' }} onClick={() => handleSelectSection(section)}>
+                          <td className="py-3 px-4">
+                            <div className="flex items-center gap-3">
+                              <div className="w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold flex-shrink-0" style={{ backgroundColor: 'rgba(149,90,39,0.1)', color: colors.secondary }}>{section.sectionName?.charAt(0)}</div>
+                              <span className="text-sm font-medium" style={{ color: colors.primary }}>{section.sectionName}</span>
+                            </div>
+                          </td>
+                          <td className="py-3 px-4 text-sm" style={{ color: colors.neutral }}>{section.programCode || '—'}</td>
+                          <td className="py-3 px-4 text-sm" style={{ color: colors.neutral }}>Year {section.yearLevel}</td>
+                          <td className="py-3 px-4 text-right">
+                            <button onClick={e => { e.stopPropagation(); handleSelectSection(section); }} className="px-3 py-1.5 rounded-lg text-xs font-semibold text-white transition-all hover:opacity-90" style={{ backgroundColor: colors.secondary }}>Select</button>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      <ConfirmationModal
+        isOpen={deleteModal.isOpen}
+        onClose={() => setDeleteModal({ isOpen: false, subject: null })}
+        onConfirm={handleRemoveSubject}
+        title="Remove Subject"
+        message={`Remove ${deleteModal.subject?.courseCode || ''} — ${deleteModal.subject?.courseTitle || ''} from this student's enrollment?`}
+        confirmText="Remove"
+        variant="danger"
+      />
+
+      <SuccessModal
+        isOpen={successModal.isOpen}
+        onClose={() => setSuccessModal({ isOpen: false, message: '' })}
+        message={successModal.message}
+        autoClose={true}
+        autoCloseDelay={3000}
+      />
     </div>
   );
 }

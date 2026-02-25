@@ -1,11 +1,10 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { useRouter } from 'next/navigation';
 import { SectionResponse } from '../../types/sectionTypes';
 import { getSections } from '../../utils/sectionApi';
 import { colors } from '../../colors';
-import { Users, GraduationCap, Calendar, UserPlus, CheckCircle, Lock, Unlock, UserCog } from 'lucide-react';
+import { Users, GraduationCap, Calendar, UserPlus, CheckCircle, Lock, Unlock } from 'lucide-react';
 import Pagination from '../common/Pagination';
 
 interface SectionListProps {
@@ -29,7 +28,6 @@ export function SectionList({
   onLock,
   onUnlock
 }: SectionListProps) {
-  const router = useRouter();
   const [sections, setSections] = useState<SectionResponse[]>([]);
   const [filteredSections, setFilteredSections] = useState<SectionResponse[]>([]);
   const [loading, setLoading] = useState(true);
@@ -348,22 +346,10 @@ export function SectionList({
                                     backgroundColor: '#FED7AA',
                                     color: '#C2410C',
                                   }}
-                                  title="Bulk Assign Students (Regular)"
+                                  title="Assign Students to Section"
                                 >
                                   <UserPlus className="w-3.5 h-3.5" />
-                                  <span>Bulk</span>
-                                </button>
-                                <button
-                                  onClick={() => router.push(`/admin/sections/students/${section.id}`)}
-                                  className="group relative inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg font-medium text-xs transition-all duration-200 hover:shadow-md"
-                                  style={{
-                                    backgroundColor: '#FEF3C7',
-                                    color: '#D97706',
-                                  }}
-                                  title="Manual Assign (Irregular)"
-                                >
-                                  <UserCog className="w-3.5 h-3.5" />
-                                  <span>Students</span>
+                                  <span>Assign</span>
                                 </button>
                                 <button
                                   onClick={() => onLock?.(section)}

@@ -1,13 +1,12 @@
 "use client";
 import React, { useState, useMemo, useEffect } from "react";
-import { Plus, GraduationCap, FileText, Edit2, Trash2 } from "lucide-react";
+import { Plus, GraduationCap, FileText, Edit2 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { Curriculum } from "../../types";
 import { colors } from "../../colors";
 import CurriculumTable from "./CurriculumTable";
 import EditCurriculumPage from "./EditCurriculumPage";
 import SearchFilters from "../common/SearchFilters";
-import ConfirmationModal from "../common/ConfirmationModal";
 import SuccessModal from "../common/SuccessModal";
 import ErrorModal from "../common/ErrorModal";
 import Pagination from "../common/Pagination";
@@ -72,15 +71,6 @@ const CurriculumManagement: React.FC = () => {
   );
   const [selectedCurriculum, setSelectedCurriculum] =
     useState<Curriculum | null>(null);
-  const [deleteConfirmation, setDeleteConfirmation] = useState<{
-    isOpen: boolean;
-    curriculumId: number | null;
-    curriculumName: string;
-  }>({
-    isOpen: false,
-    curriculumId: null,
-    curriculumName: "",
-  });
   const [successModal, setSuccessModal] = useState<{
     isOpen: boolean;
     message: string;
@@ -200,73 +190,6 @@ const CurriculumManagement: React.FC = () => {
         message: `Failed to save curriculum: ${error.message || "Network error"}`,
         details: "Please check your connection and try again.",
       });
-    }
-  };
-
-  const handleDeleteCurriculum = (id: number) => {
-    const curriculum = curriculumList.find((c) => c.id === id);
-    if (curriculum) {
-      setDeleteConfirmation({
-        isOpen: true,
-        curriculumId: id,
-        curriculumName: curriculum.program_name,
-      });
-    }
-  };
-
-  const confirmDeleteCurriculum = async () => {
-    if (deleteConfirmation.curriculumId) {
-      const curriculumName = deleteConfirmation.curriculumName;
-      try {
-        const response = await fetch("/api/auth/curriculum", {
-          method: "DELETE",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify(deleteConfirmation.curriculumId),
-        });
-
-        if (response.ok) {
-          // Invalidate cache and refetch data
-          const { invalidateRelatedCaches } = await import("@/app/utils/cache");
-          invalidateRelatedCaches("CURRICULUMS");
-          await fetchCurriculumsFresh();
-          
-          setDeleteConfirmation({
-            isOpen: false,
-            curriculumId: null,
-            curriculumName: "",
-          });
-          setSuccessModal({
-            isOpen: true,
-            message: `Curriculum "${curriculumName}" has been deleted successfully.`,
-          });
-        } else {
-          const errorData = await response.json();
-          setErrorModal({
-            isOpen: true,
-            message: `Failed to delete curriculum: ${errorData.error || "Unknown error"}`,
-            details: "Please try again.",
-          });
-          setDeleteConfirmation({
-            isOpen: false,
-            curriculumId: null,
-            curriculumName: "",
-          });
-        }
-      } catch (error: any) {
-        console.error("Failed to delete curriculum:", error);
-        setErrorModal({
-          isOpen: true,
-          message: `Failed to delete curriculum: ${error.message || "Network error"}`,
-          details: "Please check your connection and try again.",
-        });
-        setDeleteConfirmation({
-          isOpen: false,
-          curriculumId: null,
-          curriculumName: "",
-        });
-      }
     }
   };
 
@@ -465,13 +388,6 @@ const CurriculumManagement: React.FC = () => {
                       >
                         <Edit2 className='w-4 h-4' />
                       </button>
-                      <button
-                        onClick={() => handleDeleteCurriculum(curriculum.id)}
-                        className='p-2 rounded-lg hover:bg-gray-100 transition-all text-red-600'
-                        title='Delete'
-                      >
-                        <Trash2 className='w-4 h-4' />
-                      </button>
                     </div>
                   </div>
                   <div
@@ -511,25 +427,6 @@ const CurriculumManagement: React.FC = () => {
             onClose={() => setSelectedCurriculum(null)}
           />
         )}
-
-        {/* Delete Confirmation Modal */}
-        <ConfirmationModal
-          isOpen={deleteConfirmation.isOpen}
-          onClose={() =>
-            setDeleteConfirmation({
-              isOpen: false,
-              curriculumId: null,
-              curriculumName: "",
-            })
-          }
-          onConfirm={confirmDeleteCurriculum}
-          title='Delete Curriculum'
-          message={`Are you sure you want to delete "${deleteConfirmation.curriculumName}"?`}
-          description='This action cannot be undone. All associated data will be permanently removed.'
-          confirmText='Delete Curriculum'
-          cancelText='Cancel'
-          variant='danger'
-        />
 
         {/* Success Modal */}
         <SuccessModal

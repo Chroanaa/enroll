@@ -186,7 +186,9 @@ export const SubjectManagementModal: React.FC<SubjectManagementModalProps> = ({
       if (allCourses.length === 0) {
         if (!sem1Response.ok && !sem2Response.ok) {
           const errorData = sem1Data || sem2Data || {};
-          throw new Error(errorData.error || "Failed to fetch curriculum subjects");
+          // Show the specific error from the API (e.g. no active curriculum)
+          setError(errorData.error || "No subjects found for this program. Please ensure an active curriculum is set up.");
+          return;
         }
       }
 
@@ -341,10 +343,7 @@ export const SubjectManagementModal: React.FC<SubjectManagementModalProps> = ({
   const formatHours = (lec?: number | null, lab?: number | null) => {
     const lecHrs = lec || 0;
     const labHrs = lab || 0;
-    if (lecHrs === 0 && labHrs === 0) return "0";
-    if (lecHrs === 0) return `${labHrs} hrs`;
-    if (labHrs === 0) return `${lecHrs} hrs`;
-    return `${lecHrs} hrs / ${labHrs} hrs`;
+    return `${lecHrs}/${labHrs}`;
   };
 
   if (!isOpen) return null;
@@ -586,10 +585,10 @@ export const SubjectManagementModal: React.FC<SubjectManagementModalProps> = ({
                         Course Title
                       </th>
                       <th className="px-4 py-3 text-center text-xs font-bold uppercase tracking-wider" style={{ color: colors.primary }}>
-                        Units
+                        Units (Lec/Lab)
                       </th>
                       <th className="px-4 py-3 text-center text-xs font-bold uppercase tracking-wider" style={{ color: colors.primary }}>
-                        Lecture / Lab Hours
+                        Hours (Lec/Lab)
                       </th>
                       <th className="px-4 py-3 text-left text-xs font-bold uppercase tracking-wider" style={{ color: colors.primary }}>
                         Prerequisite
@@ -643,7 +642,7 @@ export const SubjectManagementModal: React.FC<SubjectManagementModalProps> = ({
                           </td>
                           <td className="px-4 py-3 text-center">
                             <span className="text-sm font-semibold" style={{ color: colors.primary }}>
-                              {course.units_total}
+                              {course.units_lec || 0}/{course.units_lab || 0}
                             </span>
                           </td>
                           <td className="px-4 py-3 text-center">

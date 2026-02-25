@@ -46,7 +46,8 @@ export async function GET(request: NextRequest) {
     }
 
     // Find active curriculum for the program using program_code
-    const curriculum = await prisma.curriculum.findFirst({
+    // Fall back to program_name match if code doesn't match
+    let curriculum = await prisma.curriculum.findFirst({
       where: {
         program_code: program.code,
         status: "active",
@@ -57,8 +58,21 @@ export async function GET(request: NextRequest) {
     });
 
     if (!curriculum) {
+      // Try matching by program name as fallback
+      curriculum = await prisma.curriculum.findFirst({
+        where: {
+          program_name: program.name,
+          status: "active",
+        },
+        orderBy: {
+          effective_year: "desc",
+        },
+      });
+    }
+
+    if (!curriculum) {
       return NextResponse.json(
-        { error: "No active curriculum found for this program" },
+        { error: `No active curriculum found for program "${program.name}" (${program.code}). Please ensure an active curriculum exists for this program.` },
         { status: 404 }
       );
     }

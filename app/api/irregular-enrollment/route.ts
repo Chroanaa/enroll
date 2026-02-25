@@ -182,6 +182,41 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // Get curriculum course details for better error messages
+    const curriculumCourse = await prisma.curriculum_course.findUnique({
+      where: { id: schedule.curriculum_course_id },
+      select: {
+        id: true,
+        course_code: true,
+        descriptive_title: true
+      }
+    });
+
+    // CRITICAL VALIDATION: Check if subject is in enrolled_subjects
+    // Students can only be assigned to schedules for subjects they've selected in assessment
+    const semesterNum = semester === 'first' ? 1 : semester === 'second' ? 2 : parseInt(semester);
+    
+    const enrolledSubject = await prisma.enrolled_subjects.findFirst({
+      where: {
+        student_number: studentNumber,
+        curriculum_course_id: schedule.curriculum_course_id,
+        academic_year: academicYear,
+        semester: semesterNum
+      }
+    });
+
+    if (!enrolledSubject) {
+      const courseName = curriculumCourse?.course_code || 'this subject';
+      const courseTitle = curriculumCourse?.descriptive_title || '';
+      return NextResponse.json(
+        { 
+          error: 'Subject not in enrolled subjects',
+          message: `Cannot assign schedule for ${courseName}${courseTitle ? ' - ' + courseTitle : ''}. Student must first select this subject in Assessment Management before assigning a class schedule.`
+        },
+        { status: 400 }
+      );
+    }
+
     // Get or create student_section record
     let studentSection = await prisma.student_section.findUnique({
       where: {
@@ -212,17 +247,53 @@ export async function POST(request: NextRequest) {
       });
     }
 
-    // Check if already enrolled in this subject
-    const existingSubject = await prisma.student_section_subjects.findFirst({
+    // Check if already enrolled in this class schedule
+    const existingSchedule = await prisma.student_section_subjects.findFirst({
       where: {
         student_section_id: studentSection.id,
         class_schedule_id: classScheduleId
       }
     });
 
-    if (existingSubject) {
+    if (existingSchedule) {
       return NextResponse.json(
-        { error: 'Student is already enrolled in this subject' },
+        { error: 'Student is already enrolled in this class schedule' },
+        { status: 409 }
+      );
+    }
+
+    // Check if already enrolled in the same subject (by curriculum_course_id)
+    // Get all enrolled class schedules for this student
+    const enrolledSchedules = await prisma.student_section_subjects.findMany({
+      where: {
+        student_section_id: studentSection.id
+      },
+      include: {
+        class_schedule: {
+          select: {
+            curriculum_course_id: true
+          }
+        }
+      }
+    });
+
+    // Check if any enrolled schedule has the same curriculum_course_id
+    const isDuplicateSubject = enrolledSchedules.some(
+      (enrolled) => enrolled.class_schedule.curriculum_course_id === schedule.curriculum_course_id
+    );
+
+    if (isDuplicateSubject) {
+      // Get the course details for better error message
+      const course = await prisma.curriculum_course.findUnique({
+        where: { id: schedule.curriculum_course_id },
+        select: { course_code: true, descriptive_title: true }
+      });
+
+      return NextResponse.json(
+        { 
+          error: 'Student is already enrolled in this subject',
+          message: `Student is already enrolled in ${course?.course_code || 'this subject'} (${course?.descriptive_title || ''})` 
+        },
         { status: 409 }
       );
     }
