@@ -7,7 +7,7 @@ import { SectionList } from '../../components/sections/SectionList';
 import { StudentAssignment } from '../../components/sections/StudentAssignment';
 import { activateSection, lockSection, unlockSection } from '../../utils/sectionApi';
 import { colors } from '../../colors';
-import { Lock, Unlock, CheckCircle } from 'lucide-react';
+import { Lock, Unlock, CheckCircle, BookOpen } from 'lucide-react';
 import SearchFilters from '../../components/common/SearchFilters';
 import ConfirmationModal from '../../components/common/ConfirmationModal';
 import SuccessModal from '../../components/common/SuccessModal';
@@ -180,6 +180,14 @@ export default function SectionsPage() {
               Create, schedule, and manage academic sections
             </p>
           </div>
+          <button
+            onClick={() => router.push('/admin/irregular-enrollment')}
+            className="flex items-center gap-2 px-4 py-2 rounded-lg font-medium text-sm transition-all hover:shadow-md"
+            style={{ backgroundColor: 'rgba(245, 158, 11, 0.1)', color: '#D97706' }}
+          >
+            <BookOpen className="w-4 h-4" />
+            Manual Enrollment
+          </button>
         </div>
 
         {/* Search and Filters */}

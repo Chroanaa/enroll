@@ -1,242 +1,102 @@
-import { NextRequest, NextResponse } from "next/server";
-import { prisma } from "../../../../lib/prisma";
+import { NextRequest, NextResponse } from 'next/server';
+import { prisma } from '../../../../lib/prisma';
 
+/**
+ * GET /api/auth/students/search
+ * Search students by name or student number
+ * 
+ * Query params:
+ * - query: string (search term)
+ * - academicStatus: 'all' | 'regular' | 'irregular' (default: 'all')
+ * - limit: number (default: 20)
+ */
 export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url);
-    const query = searchParams.get("query") || "";
-    const limit = parseInt(searchParams.get("limit") || "50");
-    const programId = searchParams.get("programId");
-    const majorId = searchParams.get("majorId");
+    const query = searchParams.get('query') || '';
+    const academicStatus = searchParams.get('academicStatus') || 'all';
+    const limit = parseInt(searchParams.get('limit') || '20');
 
-    if (!query.trim()) {
-      return NextResponse.json(
-        { error: "Search query is required" },
-        { status: 400 }
-      );
+    if (query.length < 2) {
+      return NextResponse.json({ data: [] });
     }
 
-    const searchTerm = query.trim();
-
-    // Build search conditions - use Prisma's case-insensitive search
-    const whereConditions: any = {
-      OR: [
-        // Search by student number (exact match preferred for numbers)
-        {
-          student_number: {
-            contains: searchTerm,
-            mode: "insensitive",
-          },
-        },
-        // Search by first name
-        {
-          first_name: {
-            contains: searchTerm,
-            mode: "insensitive",
-          },
-        },
-        // Search by middle name (nullable)
-        {
-          middle_name: {
-            contains: searchTerm,
-            mode: "insensitive",
-          },
-        },
-        // Search by family name
-        {
-          family_name: {
-            contains: searchTerm,
-            mode: "insensitive",
-          },
-        },
-        // Search by course_program (if it's a string)
-        {
-          course_program: {
-            contains: searchTerm,
-            mode: "insensitive",
-          },
-        },
-      ],
-    };
-
-    // If search term is numeric, also try exact match for course_program
-    if (/^\d+$/.test(searchTerm)) {
-      whereConditions.OR.push({
-        course_program: searchTerm,
-      });
-    }
-
-    // Build final where condition with program and major filters if provided
-    let finalWhereConditions: any = whereConditions;
-    const additionalFilters: any[] = [];
-
-    // Add program filter if provided
-    if (programId && programId !== "all" && programId !== "") {
-      const programIdNum = parseInt(programId);
-      if (!isNaN(programIdNum)) {
-        // Filter by program ID - course_program can be the program ID as a string
-        additionalFilters.push({
-          OR: [
-            { course_program: programId },
-            { course_program: programIdNum.toString() },
-          ],
-        });
-      }
-    }
-
-    // Add major filter if provided
-    if (majorId && majorId !== "all" && majorId !== "") {
-      const majorIdNum = parseInt(majorId);
-      if (!isNaN(majorIdNum)) {
-        additionalFilters.push({
-          major_id: majorIdNum,
-        });
-      }
-    }
-
-    // Combine all filters
-    if (additionalFilters.length > 0) {
-      finalWhereConditions = {
+    const students = await prisma.enrollment.findMany({
+      where: {
         AND: [
-          whereConditions,
-          ...additionalFilters,
-        ],
-      };
-    }
-
-    // Fetch enrollments with search
-    const enrollments = await prisma.enrollment.findMany({
-      where: finalWhereConditions,
-      take: limit,
-      orderBy: [
-        { admission_date: "desc" },
-        { student_number: "asc" },
-      ],
+          // Search by name or student number
+          {
+            OR: [
+              { student_number: { contains: query, mode: 'insensitive' } },
+              { first_name: { contains: query, mode: 'insensitive' } },
+              { family_name: { contains: query, mode: 'insensitive' } },
+              { middle_name: { contains: query, mode: 'insensitive' } }
+            ]
+          },
+          // Filter by academic status
+          ...(academicStatus !== 'all' ? [{ academic_status: academicStatus }] : [])
+        ]
+      },
       select: {
         id: true,
         student_number: true,
         first_name: true,
         middle_name: true,
         family_name: true,
+        email_address: true,
         course_program: true,
-        department: true,
-        term: true,
-        academic_year: true,
-        status: true,
-        admission_date: true,
+        year_level: true,
+        academic_status: true,
+        academic_year: true
       },
+      take: limit,
+      orderBy: { family_name: 'asc' }
     });
 
-    // Fetch program data for each enrollment
-    const results = await Promise.all(
-      enrollments.map(async (enrollment) => {
-        let programName = null;
-        let programCode = null;
-
-        if (enrollment.course_program) {
-          const courseProgramValue = enrollment.course_program.trim();
-          const isNumeric = /^\d+$/.test(courseProgramValue);
-
-          let program = null;
-
-          if (isNumeric) {
-            // Try to find program by ID
-            program = await prisma.program.findFirst({
-              where: {
-                id: parseInt(courseProgramValue),
-              },
-              select: {
-                id: true,
-                name: true,
-                code: true,
-              },
-            });
-          }
-
-          // If not found by ID, try by name or code
-          if (!program) {
-            program = await prisma.program.findFirst({
-              where: {
-                OR: [
-                  { name: { contains: courseProgramValue, mode: "insensitive" } },
-                  { code: { contains: courseProgramValue, mode: "insensitive" } },
-                ],
-              },
-              select: {
-                id: true,
-                name: true,
-                code: true,
-              },
-            });
-          }
-
-          if (program) {
-            programName = program.name;
-            programCode = program.code;
-          } else {
-            // If no program found, use the course_program value as is
-            programName = courseProgramValue;
-          }
-        }
-
-        // Construct full name
-        const nameParts = [
-          enrollment.first_name,
-          enrollment.middle_name,
-          enrollment.family_name,
-        ].filter(Boolean);
-        const fullName = nameParts.join(" ");
-
-        // Determine year level from term and academic_year if available
-        let yearLevel = null;
-        if (enrollment.term && enrollment.academic_year) {
-          // This is a simplified logic - adjust based on your actual year level calculation
-          yearLevel = enrollment.term;
-        }
-
-        // Map status number to status string
-        let statusText = null;
-        if (enrollment.status !== null) {
-          const statusMap: Record<number, string> = {
-            1: "Active",
-            2: "Inactive",
-            3: "Graduated",
-            4: "Pending",
-          };
-          statusText = statusMap[enrollment.status] || `Status ${enrollment.status}`;
-        }
-
-        return {
-          id: enrollment.id,
-          student_number: enrollment.student_number,
-          full_name: fullName,
-          first_name: enrollment.first_name,
-          middle_name: enrollment.middle_name,
-          last_name: enrollment.family_name,
-          course_program: programName || enrollment.course_program,
-          program_code: programCode,
-          year_level: yearLevel,
-          status: statusText,
-          status_code: enrollment.status,
-          term: enrollment.term,
-          academic_year: enrollment.academic_year,
-        };
-      })
-    );
-
-    return NextResponse.json({
-      data: results,
-      count: results.length,
+    // Get program details for each student
+    const programIds = [...new Set(students.map(s => s.course_program).filter(Boolean))];
+    const programs = await prisma.program.findMany({
+      where: {
+        OR: [
+          { id: { in: programIds.map(p => parseInt(p!) || 0).filter(p => p > 0) } },
+          { code: { in: programIds.filter(p => p && isNaN(parseInt(p))) as string[] } }
+        ]
+      },
+      select: { id: true, code: true, name: true }
     });
-  } catch (error: any) {
-    console.error("Error searching students:", error);
+
+    const programMap = new Map();
+    programs.forEach(p => {
+      programMap.set(p.id.toString(), p);
+      programMap.set(p.code, p);
+    });
+
+    const formattedStudents = students.map(student => {
+      const program = programMap.get(student.course_program || '');
+      return {
+        studentId: student.id,
+        studentNumber: student.student_number || '',
+        firstName: student.first_name || '',
+        middleName: student.middle_name || '',
+        lastName: student.family_name || '',
+        name: `${student.first_name || ''} ${student.middle_name || ''} ${student.family_name || ''}`.trim(),
+        email: student.email_address || '',
+        programId: program?.id || 0,
+        programCode: program?.code || student.course_program || '',
+        programName: program?.name || '',
+        yearLevel: student.year_level,
+        academicStatus: student.academic_status || 'regular',
+        academicYear: student.academic_year
+      };
+    });
+
+    return NextResponse.json({ data: formattedStudents });
+
+  } catch (error) {
+    console.error('Error searching students:', error);
     return NextResponse.json(
-      {
-        error: error?.message || "Failed to search students",
-        details: error?.code || error,
-      },
+      { error: 'Failed to search students' },
       { status: 500 }
     );
   }
 }
-
