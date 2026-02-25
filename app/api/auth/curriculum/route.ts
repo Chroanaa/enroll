@@ -87,20 +87,6 @@ export async function GET() {
     );
   }
 }
-export async function DELETE(request: NextRequest) {
-  try {
-    const id = await request.json();
-    const deletedCurriculum = await prisma.curriculum.delete({
-      where: { id: Number(id) },
-    });
-    return NextResponse.json(deletedCurriculum);
-  } catch (error) {
-    return NextResponse.json(
-      { error: "Failed to delete curriculum" },
-      { status: 500 }
-    );
-  }
-}
 export async function PATCH(nextRequest: NextRequest) {
   try {
     const data = await nextRequest.json();

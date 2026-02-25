@@ -6,6 +6,8 @@
 export interface CalculationInputs {
   enrolledSubjects: Array<{
     units_total: number;
+    units_lec?: number;
+    units_lab?: number;
     fixedAmount?: number | null;
   }>;
   tuitionPerUnit: number;
@@ -27,6 +29,7 @@ export interface CalculationResults {
   
   // Phase 3: Fees
   dynamicFeesTotal: number;
+  labFeeTotal: number;
   baseTotal: number;
   
   // Phase 4: Payment Mode
@@ -37,14 +40,20 @@ export interface CalculationResults {
 }
 
 /**
- * Calculate regular units (excluding fixed amount subjects)
+ * Calculate regular units for tuition — lecture units only (excludes lab units and fixed amount subjects)
  */
 export function calculateRegularUnits(
-  enrolledSubjects: Array<{ units_total: number; fixedAmount?: number | null }>
+  enrolledSubjects: Array<{ units_total: number; units_lec?: number; fixedAmount?: number | null }>
 ): number {
   return enrolledSubjects
     .filter(subject => !subject.fixedAmount || subject.fixedAmount === 0)
-    .reduce((sum, subject) => sum + (subject.units_total || 0), 0);
+    .reduce((sum, subject) => {
+      // Use units_lec if available, otherwise fall back to units_total
+      const lecUnits = subject.units_lec !== undefined && subject.units_lec !== null
+        ? subject.units_lec
+        : subject.units_total;
+      return sum + lecUnits;
+    }, 0);
 }
 
 /**
@@ -93,14 +102,28 @@ export function calculateDynamicFeesTotal(dynamicFees: Record<number, number>): 
 }
 
 /**
+ * Calculate lab fee total (units_lab * 1000 per subject, separate from tuition)
+ */
+export function calculateLabFeeTotal(
+  enrolledSubjects: Array<{ units_lab?: number; fixedAmount?: number | null }>
+): number {
+  return roundToTwoDecimals(
+    enrolledSubjects
+      .filter(subject => !subject.fixedAmount || subject.fixedAmount === 0)
+      .reduce((sum, subject) => sum + ((subject.units_lab || 0) * 1000), 0)
+  );
+}
+
+/**
  * Calculate base total (before payment mode)
  */
 export function calculateBaseTotal(
   netTuition: number,
   dynamicFeesTotal: number,
-  fixedAmountTotal: number
+  fixedAmountTotal: number,
+  labFeeTotal: number = 0
 ): number {
-  return roundToTwoDecimals(netTuition + dynamicFeesTotal + fixedAmountTotal);
+  return roundToTwoDecimals(netTuition + dynamicFeesTotal + fixedAmountTotal + labFeeTotal);
 }
 
 /**
@@ -146,7 +169,8 @@ export function calculateAssessment(inputs: CalculationInputs): CalculationResul
   
   // Phase 3: Fees Addition
   const dynamicFeesTotal = calculateDynamicFeesTotal(inputs.dynamicFees);
-  const baseTotal = calculateBaseTotal(netTuition, dynamicFeesTotal, fixedAmountTotal);
+  const labFeeTotal = calculateLabFeeTotal(inputs.enrolledSubjects);
+  const baseTotal = calculateBaseTotal(netTuition, dynamicFeesTotal, fixedAmountTotal, labFeeTotal);
   
   // Phase 4: Payment Mode Calculation
   let totalDueCash = 0;
@@ -171,6 +195,7 @@ export function calculateAssessment(inputs: CalculationInputs): CalculationResul
     discountAmount,
     netTuition,
     dynamicFeesTotal,
+    labFeeTotal,
     baseTotal,
     totalDueCash,
     insuranceAmount,

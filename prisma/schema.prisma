@@ -223,31 +223,48 @@ model sections {
 }
 
 model student_section {
-  id                 Int     @id @default(autoincrement())
-  student_number     String  @db.VarChar(255)
-  section_id         Int
-  academic_year      String  @db.VarChar(20)
-  semester           String? @db.VarChar(50)
-  semester_temp      String? @db.VarChar(50)
-  academic_year_temp String? @db.VarChar(20)
+  id                       Int                        @id @default(autoincrement())
+  student_number           String                     @db.VarChar(255)
+  section_id               Int
+  academic_year            String                     @db.VarChar(20)
+  semester                 String?                    @db.VarChar(50)
+  semester_temp            String?                    @db.VarChar(50)
+  academic_year_temp       String?                    @db.VarChar(20)
+  assignment_type          String?                    @default("regular") @db.VarChar(20)
+  student_section_subjects student_section_subjects[]
 
   @@unique([student_number, academic_year, semester])
+  @@index([assignment_type], map: "idx_student_section_assignment_type")
+}
+
+model student_section_subjects {
+  id                 Int             @id @default(autoincrement())
+  student_section_id Int
+  class_schedule_id  Int
+  created_at         DateTime?       @default(now()) @db.Timestamp(6)
+  class_schedule     class_schedule  @relation(fields: [class_schedule_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "fk_class_schedule")
+  student_section    student_section @relation(fields: [student_section_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "fk_student_section")
+
+  @@unique([student_section_id, class_schedule_id], map: "unique_student_subject")
+  @@index([student_section_id], map: "idx_student_section_subjects_student")
+  @@index([class_schedule_id], map: "idx_student_section_subjects_schedule")
 }
 
 model class_schedule {
-  id                   Int      @id @default(autoincrement())
-  section_id           Int
-  curriculum_course_id Int
-  faculty_id           Int
-  room_id              Int
-  day_of_week          String   @db.VarChar(255)
-  start_time           DateTime @db.Timestamp(6)
-  end_time             DateTime @db.Timestamp(6)
-  academic_year        String   @db.VarChar(20)
-  status               String?  @default("active") @db.VarChar(50)
-  semester             String?  @db.VarChar(50)
-  semester_temp        String?  @db.VarChar(50)
-  academic_year_temp   String?  @db.VarChar(20)
+  id                       Int                        @id @default(autoincrement())
+  section_id               Int
+  curriculum_course_id     Int
+  faculty_id               Int
+  room_id                  Int
+  day_of_week              String                     @db.VarChar(255)
+  start_time               DateTime                   @db.Timestamp(6)
+  end_time                 DateTime                   @db.Timestamp(6)
+  academic_year            String                     @db.VarChar(20)
+  status                   String?                    @default("active") @db.VarChar(50)
+  semester                 String?                    @db.VarChar(50)
+  semester_temp            String?                    @db.VarChar(50)
+  academic_year_temp       String?                    @db.VarChar(20)
+  student_section_subjects student_section_subjects[]
 
   @@index([faculty_id], map: "idx_class_schedule_faculty")
   @@index([room_id], map: "idx_class_schedule_room")

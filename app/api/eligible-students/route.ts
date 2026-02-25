@@ -11,6 +11,7 @@ import { prisma } from '../../lib/prisma';
  * - yearLevel: number
  * - academicYear: string
  * - semester: string
+ * - academicStatus: 'regular' | 'irregular' | 'all' (default: 'regular')
  */
 export async function GET(request: NextRequest) {
   try {
@@ -20,6 +21,7 @@ export async function GET(request: NextRequest) {
     const yearLevel = searchParams.get('yearLevel');
     const academicYear = searchParams.get('academicYear');
     const semester = searchParams.get('semester');
+    const academicStatus = searchParams.get('academicStatus') || 'regular'; // NEW: Filter by academic status
 
     let targetProgramId = programId ? parseInt(programId) : null;
     let targetYearLevel = yearLevel;
@@ -132,9 +134,9 @@ export async function GET(request: NextRequest) {
           { course_program: program.code }, // Try program code like "BSIT"
           { course_program: program.name }, // Try program name
         ],
-        year_level: parseInt(targetYearLevel!)
-        // Match academic year - enrollment table stores it as string like "2024-2025"
-        // Year level is now correctly used for filtering students by their year level
+        year_level: parseInt(targetYearLevel!),
+        // Filter by academic status (regular/irregular)
+        ...(academicStatus !== 'all' && { academic_status: academicStatus })
       },
       select: {
         id: true,
@@ -145,7 +147,8 @@ export async function GET(request: NextRequest) {
         email_address: true,
         course_program: true,
         academic_year: true,
-        term: true
+        term: true,
+        academic_status: true
       }
     });
 
@@ -210,7 +213,8 @@ export async function GET(request: NextRequest) {
           email: enrollment.email_address,
           programId: targetProgramId!,
           programCode: program.code,
-          programName: program.name
+          programName: program.name,
+          academicStatus: enrollment.academic_status || 'regular'
         });
       }
     }
@@ -230,7 +234,8 @@ export async function GET(request: NextRequest) {
           programName: program.name,
           yearLevel: targetYearLevel,
           academicYear: targetAcademicYear,
-          semester: normalizedSemester
+          semester: normalizedSemester,
+          academicStatus: academicStatus
         },
         sampleData: enrolledStudents.slice(0, 2).map(e => ({
           student_number: e.student_number,

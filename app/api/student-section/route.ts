@@ -232,7 +232,56 @@ export async function GET(request: NextRequest) {
       orderBy: { student_number: 'asc' }
     });
 
-    return NextResponse.json({ success: true, data: assignments });
+    // Get student details from enrollment table
+    const studentNumbers = assignments.map(a => a.student_number);
+    const enrollments = await prisma.enrollment.findMany({
+      where: { student_number: { in: studentNumbers } },
+      select: {
+        student_number: true,
+        first_name: true,
+        middle_name: true,
+        family_name: true,
+        academic_status: true
+      }
+    });
+
+    const enrollmentMap = new Map(enrollments.map(e => [e.student_number, e]));
+
+    // Get subject counts for irregular students
+    const assignmentIds = assignments.filter(a => a.assignment_type === 'irregular').map(a => a.id);
+    let subjectCounts: Map<number, number> = new Map();
+    
+    if (assignmentIds.length > 0) {
+      try {
+        const subjectAssignments = await prisma.student_section_subjects.groupBy({
+          by: ['student_section_id'],
+          where: { student_section_id: { in: assignmentIds } },
+          _count: { class_schedule_id: true }
+        });
+        subjectCounts = new Map(subjectAssignments.map(s => [s.student_section_id, s._count.class_schedule_id]));
+      } catch (e) {
+        // Table might not exist yet
+        console.log('student_section_subjects table not available');
+      }
+    }
+
+    const formattedAssignments = assignments.map(assignment => {
+      const enrollment = enrollmentMap.get(assignment.student_number);
+      return {
+        id: assignment.id,
+        studentNumber: assignment.student_number,
+        sectionId: assignment.section_id,
+        academicYear: assignment.academic_year,
+        semester: assignment.semester,
+        assignmentType: assignment.assignment_type || 'regular',
+        name: enrollment 
+          ? `${enrollment.first_name || ''} ${enrollment.middle_name || ''} ${enrollment.family_name || ''}`.trim()
+          : assignment.student_number,
+        subjectCount: subjectCounts.get(assignment.id) || 0
+      };
+    });
+
+    return NextResponse.json({ success: true, data: formattedAssignments });
   } catch (error) {
     console.error('Error fetching student assignments:', error);
     return NextResponse.json(

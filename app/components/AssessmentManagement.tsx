@@ -75,6 +75,7 @@ const AssessmentManagement: React.FC = () => {
   const [netTuition, setNetTuition] = useState(0);
   const [dynamicFees, setDynamicFees] = useState<{ [key: number]: number }>({});
   const [totalFees, setTotalFees] = useState(0);
+  const [labFeeTotal, setLabFeeTotal] = useState(0);
 
   // Discount Management
   interface Discount {
@@ -191,8 +192,11 @@ const AssessmentManagement: React.FC = () => {
         // Exclude from regular units, add to fixed amount total
         fixedAmountSum += subject.fixedAmount;
       } else {
-        // Include in regular units for tuition calculation
-        regularUnits += subject.units_total || 0;
+        // Use lecture units only for tuition calculation (lab is billed separately)
+        const lecUnits = subject.units_lec !== undefined && subject.units_lec !== null
+          ? subject.units_lec
+          : subject.units_total;
+        regularUnits += lecUnits;
       }
     });
 
@@ -864,6 +868,7 @@ const AssessmentManagement: React.FC = () => {
     setNetTuition(results.netTuition);
     setBaseTotal(results.baseTotal);
     setTotalFees(results.dynamicFeesTotal);
+    setLabFeeTotal(results.labFeeTotal);
     
     // Payment mode specific calculations
     if (paymentMode === 'cash') {
@@ -1287,6 +1292,7 @@ const AssessmentManagement: React.FC = () => {
                   setDiscount={setDiscount}
                   netTuition={netTuition}
                   fixedAmountTotal={fixedAmountTotal}
+                  labFeeTotal={labFeeTotal}
                   enrolledSubjects={enrolledSubjects}
                   fees={fees}
                   dynamicFees={dynamicFees}

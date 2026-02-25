@@ -4,7 +4,7 @@ import React, { useState, useEffect } from 'react';
 import { SectionResponse } from '../../types/sectionTypes';
 import { getSections } from '../../utils/sectionApi';
 import { colors } from '../../colors';
-import { Users, GraduationCap, Calendar, BookOpen, UserPlus, CheckCircle, PlayCircle, Lock, Unlock, Eye } from 'lucide-react';
+import { Users, GraduationCap, Calendar, UserPlus, CheckCircle, Lock, Unlock } from 'lucide-react';
 import Pagination from '../common/Pagination';
 
 interface SectionListProps {
@@ -346,10 +346,10 @@ export function SectionList({
                                     backgroundColor: '#FED7AA',
                                     color: '#C2410C',
                                   }}
-                                  title="Assign Students"
+                                  title="Assign Students to Section"
                                 >
                                   <UserPlus className="w-3.5 h-3.5" />
-                                  <span>Students</span>
+                                  <span>Assign</span>
                                 </button>
                                 <button
                                   onClick={() => onLock?.(section)}

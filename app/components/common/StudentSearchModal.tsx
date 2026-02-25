@@ -7,19 +7,19 @@ import { getPrograms } from "../../utils/programUtils";
 import { Major, Program } from "../../types";
 
 interface Student {
-  id: number;
-  student_number: string;
-  full_name: string;
-  first_name: string;
-  middle_name: string | null;
-  last_name: string;
-  course_program: string | null;
-  program_code: string | null;
-  year_level: string | null;
-  status: string | null;
-  status_code: number | null;
-  term: string | null;
-  academic_year: string | null;
+  studentId: number;
+  studentNumber: string;
+  firstName: string;
+  middleName: string | null;
+  lastName: string;
+  name: string;
+  email: string;
+  programId: number;
+  programCode: string;
+  programName: string;
+  yearLevel: number | null;
+  academicStatus: string;
+  academicYear: string | null;
 }
 
 interface StudentSearchModalProps {
@@ -433,50 +433,50 @@ const StudentSearchModal: React.FC<StudentSearchModalProps> = ({
                 <tbody>
                   {students.map((student) => (
                     <tr
-                      key={student.id}
+                      key={student.studentId}
                       className="border-b hover:bg-gray-50 transition-colors cursor-pointer"
                       style={{ borderColor: colors.tertiary + "20" }}
-                      onClick={() => handleSelect(student.student_number)}
+                      onClick={() => handleSelect(student.studentNumber)}
                     >
                       <td className="py-3 px-4">
                         <span
                           className="font-medium text-sm"
                           style={{ color: colors.primary }}
                         >
-                          {student.student_number}
+                          {student.studentNumber}
                         </span>
                       </td>
                       <td className="py-3 px-4">
                         <span className="text-sm text-gray-700">
-                          {student.full_name}
+                          {student.name}
                         </span>
                       </td>
                       <td className="py-3 px-4">
                         <span className="text-sm text-gray-700">
-                          {student.course_program || student.program_code || "N/A"}
+                          {student.programCode || "N/A"}
                         </span>
                       </td>
                       <td className="py-3 px-4">
                         <span className="text-sm text-gray-600">
-                          {student.year_level || student.term || "N/A"}
+                          {student.yearLevel || "N/A"}
                         </span>
                       </td>
                       <td className="py-3 px-4">
                         <span
                           className={`text-xs px-2 py-1 rounded-full font-medium ${
-                            student.status_code === 1
+                            student.academicStatus === 'regular'
                               ? "bg-green-100 text-green-700"
-                              : student.status_code === 4
+                              : student.academicStatus === 'irregular'
                               ? "bg-yellow-100 text-yellow-700"
                               : "bg-gray-100 text-gray-700"
                           }`}
                         >
-                          {student.status || "N/A"}
+                          {student.academicStatus || "N/A"}
                         </span>
                       </td>
                       <td className="py-3 px-4 text-right">
                         <button
-                          onClick={() => handleSelect(student.student_number)}
+                          onClick={() => handleSelect(student.studentNumber)}
                           className="px-4 py-1.5 rounded-lg text-sm font-medium text-white transition-all"
                           style={{ backgroundColor: colors.secondary }}
                           onMouseEnter={(e) => {

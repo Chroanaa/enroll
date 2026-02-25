@@ -20,6 +20,7 @@ interface PaymentCalculationTabProps {
   setDiscount: (value: number) => void;
   netTuition: number;
   fixedAmountTotal: number;
+  labFeeTotal: number;
   enrolledSubjects: EnrolledSubject[];
   fees: Fee[];
   dynamicFees: { [key: number]: number };
@@ -67,6 +68,7 @@ export const PaymentCalculationTab: React.FC<PaymentCalculationTabProps> = ({
   setDiscount,
   netTuition,
   fixedAmountTotal,
+  labFeeTotal,
   enrolledSubjects,
   fees,
   dynamicFees,
@@ -319,9 +321,37 @@ export const PaymentCalculationTab: React.FC<PaymentCalculationTabProps> = ({
               </div>
             ))}
 
-            {/* Fixed Amount Subjects - Individual List */}
-            {fixedAmountSubjects.map((subject) => (
+            {/* LAB Fee Row - units_lab * 1000, separate from tuition */}
+            {labFeeTotal > 0 && (
               <div
+                className="flex justify-between items-center py-2 px-3 rounded-lg border"
+                style={{
+                  borderColor: colors.accent + "10",
+                  backgroundColor: "transparent",
+                }}
+              >
+                <span
+                  className="text-sm font-medium"
+                  style={{ color: colors.primary }}
+                >
+                  LAB
+                </span>
+                <input
+                  type="number"
+                  value={labFeeTotal || ""}
+                  readOnly
+                  className="w-32 px-3 py-2 rounded-lg border text-right text-sm bg-white/50"
+                  style={{
+                    borderColor: colors.tertiary + "30",
+                    color: colors.primary,
+                  }}
+                  placeholder="0.00"
+                />
+              </div>
+            )}
+
+            {/* Fixed Amount Subjects - Individual List */}
+            {fixedAmountSubjects.map((subject) => (              <div
                 key={subject.id}
                 className="flex justify-between items-center py-2 px-3 rounded-lg border"
                 style={{

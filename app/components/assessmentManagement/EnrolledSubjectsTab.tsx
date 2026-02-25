@@ -100,10 +100,8 @@ export const EnrolledSubjectsTab: React.FC<EnrolledSubjectsTabProps> = ({
   const formatHours = (lec?: number | null, lab?: number | null) => {
     const lecHrs = lec || 0;
     const labHrs = lab || 0;
-    if (lecHrs === 0 && labHrs === 0) return "0";
-    if (lecHrs === 0) return `${labHrs} hrs`;
-    if (labHrs === 0) return `${lecHrs} hrs`;
-    return `${lecHrs} hrs / ${labHrs} hrs`;
+    if (lecHrs === 0 && labHrs === 0) return "0/0";
+    return `${lecHrs}/${labHrs}`;
   };
 
   return (
@@ -230,13 +228,13 @@ export const EnrolledSubjectsTab: React.FC<EnrolledSubjectsTabProps> = ({
                       className="px-4 py-3 text-center text-xs font-bold uppercase tracking-wider"
                       style={{ color: colors.primary }}
                     >
-                      Units
+                      Units (Lec/Lab)
                     </th>
                     <th
                       className="px-4 py-3 text-center text-xs font-bold uppercase tracking-wider"
                       style={{ color: colors.primary }}
                     >
-                      Lecture / Lab Hours
+                      Hours (Lec/Lab)
                     </th>
                     <th
                       className="px-4 py-3 text-left text-xs font-bold uppercase tracking-wider"
@@ -280,7 +278,7 @@ export const EnrolledSubjectsTab: React.FC<EnrolledSubjectsTabProps> = ({
                         className="px-4 py-3 text-center text-sm font-semibold"
                         style={{ color: colors.primary }}
                       >
-                        {subject.units_total}
+                        {subject.units_lec || 0}/{subject.units_lab || 0}
                       </td>
                       <td
                         className="px-4 py-3 text-center text-sm"

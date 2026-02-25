@@ -309,11 +309,12 @@ export async function GET(request: NextRequest) {
       ]
     });
 
-    // Fetch faculty and room data for all schedules
+    // Fetch faculty, room, and curriculum course data for all schedules
     const facultyIds = [...new Set(schedules.map((s: any) => s.faculty_id))];
     const roomIds = [...new Set(schedules.map((s: any) => s.room_id))];
+    const curriculumCourseIds = [...new Set(schedules.map((s: any) => s.curriculum_course_id))];
 
-    const [facultyList, roomList] = await Promise.all([
+    const [facultyList, roomList, curriculumCourseList] = await Promise.all([
       prisma.faculty.findMany({
         where: { id: { in: facultyIds } },
         select: { id: true, first_name: true, last_name: true }
@@ -321,27 +322,54 @@ export async function GET(request: NextRequest) {
       prisma.room.findMany({
         where: { id: { in: roomIds } },
         select: { id: true, room_number: true, capacity: true }
+      }),
+      prisma.curriculum_course.findMany({
+        where: { id: { in: curriculumCourseIds } },
+        select: { 
+          id: true, 
+          course_code: true, 
+          descriptive_title: true, 
+          prerequisite: true,
+          year_level: true,
+          semester: true,
+          units_lec: true,
+          units_lab: true,
+          units_total: true
+        }
       })
     ]);
 
     const facultyMap = new Map(facultyList.map((f: any) => [f.id, f]));
     const roomMap = new Map(roomList.map((r: any) => [r.id, r]));
+    const curriculumCourseMap = new Map(curriculumCourseList.map((c: any) => [c.id, c]));
 
-    const response = schedules.map((schedule: any) => ({
-      id: schedule.id,
-      sectionId: schedule.section_id,
-      curriculumCourseId: schedule.curriculum_course_id,
-      facultyId: schedule.faculty_id,
-      roomId: schedule.room_id,
-      dayOfWeek: schedule.day_of_week,
-      startTime: schedule.start_time.toISOString(),
-      endTime: schedule.end_time.toISOString(),
-      academicYear: schedule.academic_year,
-      semester: schedule.semester,
-      status: schedule.status as 'active' | 'cancelled',
-      faculty: facultyMap.get(schedule.faculty_id) || null,
-      room: roomMap.get(schedule.room_id) || null
-    }));
+    const response = schedules.map((schedule: any) => {
+      const curriculumCourse = curriculumCourseMap.get(schedule.curriculum_course_id);
+      return {
+        id: schedule.id,
+        sectionId: schedule.section_id,
+        curriculumCourseId: schedule.curriculum_course_id,
+        facultyId: schedule.faculty_id,
+        roomId: schedule.room_id,
+        dayOfWeek: schedule.day_of_week,
+        startTime: schedule.start_time.toISOString(),
+        endTime: schedule.end_time.toISOString(),
+        academicYear: schedule.academic_year,
+        semester: schedule.semester,
+        status: schedule.status as 'active' | 'cancelled',
+        faculty: facultyMap.get(schedule.faculty_id) || null,
+        room: roomMap.get(schedule.room_id) || null,
+        // Subject details from curriculum_course
+        courseCode: curriculumCourse?.course_code || `Course ${schedule.curriculum_course_id}`,
+        courseTitle: curriculumCourse?.descriptive_title || '',
+        prerequisite: curriculumCourse?.prerequisite || null,
+        subjectYearLevel: curriculumCourse?.year_level || null,
+        subjectSemester: curriculumCourse?.semester || null,
+        unitsLec: curriculumCourse?.units_lec || 0,
+        unitsLab: curriculumCourse?.units_lab || 0,
+        unitsTotal: curriculumCourse?.units_total || 0
+      };
+    });
 
     return NextResponse.json({ success: true, data: response });
   } catch (error) {

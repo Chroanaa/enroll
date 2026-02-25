@@ -6,6 +6,34 @@ import { prisma } from '../lib/prisma';
  */
 export const conflictChecker = {
   /**
+   * Helper to normalize time for comparison (extract only hours and minutes)
+   * This ensures we compare times regardless of the date portion
+   */
+  normalizeTimeForComparison(date: Date): { hours: number; minutes: number; totalMinutes: number } {
+    const hours = date.getHours();
+    const minutes = date.getMinutes();
+    return { hours, minutes, totalMinutes: hours * 60 + minutes };
+  },
+
+  /**
+   * Check if two time ranges overlap (comparing only time, not date)
+   */
+  timeRangesOverlap(
+    start1: Date,
+    end1: Date,
+    start2: Date,
+    end2: Date
+  ): boolean {
+    const s1 = this.normalizeTimeForComparison(start1).totalMinutes;
+    const e1 = this.normalizeTimeForComparison(end1).totalMinutes;
+    const s2 = this.normalizeTimeForComparison(start2).totalMinutes;
+    const e2 = this.normalizeTimeForComparison(end2).totalMinutes;
+    
+    // Overlap occurs when: start1 < end2 AND end1 > start2
+    return s1 < e2 && e1 > s2;
+  },
+
+  /**
    * Check if room is available at given time
    */
   async checkRoomConflict(
@@ -17,22 +45,25 @@ export const conflictChecker = {
     semester: string,
     excludeScheduleId?: number
   ): Promise<boolean> {
-    const overlappingSchedule = await prisma.class_schedule.findFirst({
+    // Get all schedules for this room on this day in this term
+    const existingSchedules = await prisma.class_schedule.findMany({
       where: {
         room_id: roomId,
         day_of_week: dayOfWeek,
         academic_year: academicYear,
         semester: semester,
         status: 'active',
-        ...(excludeScheduleId && { id: { not: excludeScheduleId } }),
-        // Time overlap: (newStart < existingEnd) AND (newEnd > existingStart)
-        AND: [
-          { start_time: { lt: endTime } },
-          { end_time: { gt: startTime } }
-        ]
+        ...(excludeScheduleId && { id: { not: excludeScheduleId } })
       }
     });
-    return !!overlappingSchedule;
+
+    // Check for time overlap with each existing schedule
+    for (const schedule of existingSchedules) {
+      if (this.timeRangesOverlap(startTime, endTime, schedule.start_time, schedule.end_time)) {
+        return true; // Conflict found
+      }
+    }
+    return false;
   },
 
   /**
@@ -47,21 +78,25 @@ export const conflictChecker = {
     semester: string,
     excludeScheduleId?: number
   ): Promise<boolean> {
-    const overlappingSchedule = await prisma.class_schedule.findFirst({
+    // Get all schedules for this faculty on this day in this term
+    const existingSchedules = await prisma.class_schedule.findMany({
       where: {
         faculty_id: facultyId,
         day_of_week: dayOfWeek,
         academic_year: academicYear,
         semester: semester,
         status: 'active',
-        ...(excludeScheduleId && { id: { not: excludeScheduleId } }),
-        AND: [
-          { start_time: { lt: endTime } },
-          { end_time: { gt: startTime } }
-        ]
+        ...(excludeScheduleId && { id: { not: excludeScheduleId } })
       }
     });
-    return !!overlappingSchedule;
+
+    // Check for time overlap with each existing schedule
+    for (const schedule of existingSchedules) {
+      if (this.timeRangesOverlap(startTime, endTime, schedule.start_time, schedule.end_time)) {
+        return true; // Conflict found
+      }
+    }
+    return false;
   },
 
   /**
@@ -76,21 +111,25 @@ export const conflictChecker = {
     semester: string,
     excludeScheduleId?: number
   ): Promise<boolean> {
-    const overlappingSchedule = await prisma.class_schedule.findFirst({
+    // Get all schedules for this section on this day in this term
+    const existingSchedules = await prisma.class_schedule.findMany({
       where: {
         section_id: sectionId,
         day_of_week: dayOfWeek,
         academic_year: academicYear,
         semester: semester,
         status: 'active',
-        ...(excludeScheduleId && { id: { not: excludeScheduleId } }),
-        AND: [
-          { start_time: { lt: endTime } },
-          { end_time: { gt: startTime } }
-        ]
+        ...(excludeScheduleId && { id: { not: excludeScheduleId } })
       }
     });
-    return !!overlappingSchedule;
+
+    // Check for time overlap with each existing schedule
+    for (const schedule of existingSchedules) {
+      if (this.timeRangesOverlap(startTime, endTime, schedule.start_time, schedule.end_time)) {
+        return true; // Conflict found
+      }
+    }
+    return false;
   },
 
   /**
