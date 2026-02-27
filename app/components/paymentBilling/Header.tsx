@@ -1,8 +1,12 @@
 import React from "react";
-import { Package, Users, FileText } from "lucide-react";
+import { Package, Users, FileText, GraduationCap } from "lucide-react";
 import { colors } from "../../colors";
 
-type ActiveTab = "products" | "enrollments" | "transactions";
+type ActiveTab =
+  | "products"
+  | "enrollments"
+  | "enrollment_payments"
+  | "transactions";
 
 interface PaymentBillingHeaderProps {
   activeTab: ActiveTab;
@@ -70,6 +74,25 @@ export const PaymentBillingHeader: React.FC<PaymentBillingHeaderProps> = ({
             Student Payments
           </button>
           <button
+            onClick={() => onTabChange("enrollment_payments")}
+            className={`flex-1 flex items-center justify-center gap-2 px-6 py-4 font-medium transition-colors ${
+              activeTab === "enrollment_payments"
+                ? "border-b-2 text-white"
+                : "text-gray-500 hover:text-gray-700 hover:bg-gray-50"
+            }`}
+            style={
+              activeTab === "enrollment_payments"
+                ? {
+                    borderColor: colors.secondary,
+                    backgroundColor: colors.secondary,
+                  }
+                : {}
+            }
+          >
+            <GraduationCap className='w-5 h-5' />
+            Enrollment Payments
+          </button>
+          <button
             onClick={() => onTabChange("transactions")}
             className={`flex-1 flex items-center justify-center gap-2 px-6 py-4 font-medium transition-colors ${
               activeTab === "transactions"
@@ -95,5 +118,3 @@ export const PaymentBillingHeader: React.FC<PaymentBillingHeaderProps> = ({
 };
 
 export default PaymentBillingHeader;
-
-

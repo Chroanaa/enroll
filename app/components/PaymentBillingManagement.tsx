@@ -3,14 +3,22 @@ import React, { useState, useEffect, useMemo } from "react";
 import { colors } from "../colors";
 import SuccessModal from "./common/SuccessModal";
 import ErrorModal from "./common/ErrorModal";
-import StudentSearchModal from "./common/StudentSearchModal";
 import PaymentBillingHeader from "./paymentBilling/Header";
 import { ProductsTabContent } from "./paymentBilling/ProductsTabContent";
 import { TransactionsTabContent } from "./paymentBilling/TransactionsTabContent";
-import { EnrollmentsTabContent } from "./paymentBilling/EnrollmentsTabContent";
+import {
+  EnrollmentsTabContent,
+  StudentSummary,
+} from "./paymentBilling/EnrollmentsTabContent";
+import { EnrollmentPaymentsTabContent } from "./paymentBilling/EnrollmentPaymentsTabContent";
 import { OrderDetailsModal } from "./paymentBilling/OrderDetailsModal";
 import { VoidTransactionModal } from "./paymentBilling/VoidTransactionModal";
 import { ProductCheckoutModal } from "./paymentBilling/ProductCheckoutModal";
+import {
+  StudentPaymentCheckoutModal,
+  CartStudent,
+  PaymentLine,
+} from "./paymentBilling/StudentPaymentCheckoutModal";
 import {
   Product,
   Category,
@@ -29,7 +37,11 @@ import { useFinancialSummary } from "./paymentBilling/hooks/useFinancialSummary"
 import { useTransactions } from "./paymentBilling/hooks/useTransactions";
 import { formatAmount } from "./paymentBilling/utils";
 
-type ActiveTab = "products" | "enrollments" | "transactions";
+type ActiveTab =
+  | "products"
+  | "enrollments"
+  | "enrollment_payments"
+  | "transactions";
 
 const PaymentBillingManagement: React.FC = () => {
   const { data: session } = useSession();
@@ -48,7 +60,14 @@ const PaymentBillingManagement: React.FC = () => {
 
   // Modal states
   const [isCheckoutModalOpen, setIsCheckoutModalOpen] = useState(false);
-  const [isStudentSearchModalOpen, setIsStudentSearchModalOpen] =
+
+  // Student Payment Cart (for Student Payments tab)
+  const [studentPaymentCart, setStudentPaymentCart] = useState<CartStudent[]>(
+    [],
+  );
+  const [isStudentPaymentCheckoutOpen, setIsStudentPaymentCheckoutOpen] =
+    useState(false);
+  const [isProcessingStudentPayment, setIsProcessingStudentPayment] =
     useState(false);
 
   // Custom hooks
@@ -166,11 +185,110 @@ const PaymentBillingManagement: React.FC = () => {
     });
   };
 
-  // Fetch financial summary with error handling
-  const fetchFinancialSummary = () => {
-    financialSummaryHook.fetchFinancialSummary((message, details) => {
-      setErrorModal({ isOpen: true, message, details });
-    });
+  // ============================
+  // Student Payment Cart Functions
+  // ============================
+  const addStudentToPaymentCart = (student: StudentSummary) => {
+    if (
+      studentPaymentCart.some((s) => s.assessment_id === student.assessment_id)
+    )
+      return;
+    setStudentPaymentCart((prev) => [
+      ...prev,
+      {
+        assessment_id: student.assessment_id,
+        student_number: student.student_number,
+        student_name: student.student_name,
+        course_program: student.course_program,
+        remaining_balance: student.remaining_balance,
+        amount_to_pay: student.remaining_balance,
+      },
+    ]);
+  };
+
+  const removeStudentFromPaymentCart = (assessmentId: number) => {
+    setStudentPaymentCart((prev) =>
+      prev.filter((s) => s.assessment_id !== assessmentId),
+    );
+  };
+
+  const clearStudentPaymentCart = () => {
+    setStudentPaymentCart([]);
+  };
+
+  const updateStudentPaymentAmount = (assessmentId: number, amount: number) => {
+    setStudentPaymentCart((prev) =>
+      prev.map((s) =>
+        s.assessment_id === assessmentId
+          ? { ...s, amount_to_pay: Math.min(amount, s.remaining_balance) }
+          : s,
+      ),
+    );
+  };
+
+  const handleStudentPaymentCheckout = async (paymentLines: PaymentLine[]) => {
+    setIsProcessingStudentPayment(true);
+    try {
+      // Process payment for each student in the cart
+      for (const student of studentPaymentCart) {
+        // Calculate proportional payment lines for this student
+        const totalCartAmount = studentPaymentCart.reduce(
+          (sum, s) => sum + s.amount_to_pay,
+          0,
+        );
+        const studentProportion = student.amount_to_pay / totalCartAmount;
+
+        const studentPayments = paymentLines.map((line) => ({
+          payment_type: line.payment_type,
+          amount:
+            Math.round(parseFloat(line.amount) * studentProportion * 100) / 100,
+          reference_no: line.reference_no || undefined,
+        }));
+
+        const response = await fetch("/api/auth/payment/multi", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            assessmentId: student.assessment_id,
+            payments: studentPayments,
+          }),
+        });
+
+        if (!response.ok) {
+          const errorData = await response.json();
+          throw new Error(
+            errorData.error ||
+              `Failed to process payment for ${student.student_number}`,
+          );
+        }
+      }
+
+      const paymentSummary = paymentLines
+        .map((l) => `${l.payment_type}: ${formatAmount(parseFloat(l.amount))}`)
+        .join(", ");
+
+      setSuccessModal({
+        isOpen: true,
+        message: `Payment processed successfully for ${studentPaymentCart.length} student(s)! (${paymentSummary})`,
+      });
+
+      insertIntoReports({
+        action: `User ${session?.user?.name} processed student payment of ${formatAmount(studentPaymentCart.reduce((sum, s) => sum + s.amount_to_pay, 0))} for ${studentPaymentCart.length} student(s)`,
+        user_id: Number(session?.user?.id),
+        created_at: new Date(),
+      });
+
+      clearStudentPaymentCart();
+      setIsStudentPaymentCheckoutOpen(false);
+    } catch (error: any) {
+      setErrorModal({
+        isOpen: true,
+        message: "Payment Failed",
+        details: error.message || "Please try again.",
+      });
+    } finally {
+      setIsProcessingStudentPayment(false);
+    }
   };
 
   // Handle void transaction
@@ -294,6 +412,8 @@ const PaymentBillingManagement: React.FC = () => {
     }
   };
 
+  // Build cart students for the enrollment payment checkout modal
+
   return (
     <div
       className='p-4 sm:p-6 min-h-screen'
@@ -340,23 +460,26 @@ const PaymentBillingManagement: React.FC = () => {
           />
         )}
 
-        {/* Enrollments Tab Content */}
+        {/* Enrollments / Student Payments Tab Content */}
         {activeTab === "enrollments" && (
           <EnrollmentsTabContent
-            studentNumberSearch={financialSummaryHook.studentNumberSearch}
-            setStudentNumberSearch={financialSummaryHook.setStudentNumberSearch}
             academicYearSearch={financialSummaryHook.academicYearSearch}
             setAcademicYearSearch={financialSummaryHook.setAcademicYearSearch}
             semesterSearch={financialSummaryHook.semesterSearch}
             setSemesterSearch={financialSummaryHook.setSemesterSearch}
-            financialSummary={financialSummaryHook.financialSummary}
-            isLoadingFinancialSummary={
-              financialSummaryHook.isLoadingFinancialSummary
-            }
-            onSearch={fetchFinancialSummary}
-            onBrowseClick={() => setIsStudentSearchModalOpen(true)}
             formatAmount={formatAmount}
+            cartStudents={studentPaymentCart}
+            onAddToCart={addStudentToPaymentCart}
+            onRemoveFromCart={removeStudentFromPaymentCart}
+            onClearCart={clearStudentPaymentCart}
+            onCheckout={() => setIsStudentPaymentCheckoutOpen(true)}
+            onUpdateCartAmount={updateStudentPaymentAmount}
           />
+        )}
+
+        {/* Enrollment Payments Tab Content */}
+        {activeTab === "enrollment_payments" && (
+          <EnrollmentPaymentsTabContent formatAmount={formatAmount} />
         )}
 
         {/* Transactions Tab Content */}
@@ -423,21 +546,14 @@ const PaymentBillingManagement: React.FC = () => {
         formatAmount={formatAmount}
       />
 
-      {/* Student search modal for financial summary lookup */}
-      <StudentSearchModal
-        isOpen={isStudentSearchModalOpen}
-        onClose={() => setIsStudentSearchModalOpen(false)}
-        onSelect={(studentNumber) => {
-          // Set the student number - the useEffect will automatically trigger the fetch
-          financialSummaryHook.setStudentNumberSearch(studentNumber);
-          setIsStudentSearchModalOpen(false);
-
-          // Show success message
-          setSuccessModal({
-            isOpen: true,
-            message: `Student ${studentNumber} selected. Loading financial summary...`,
-          });
-        }}
+      {/* Student Payment Checkout Modal (mixed payments) */}
+      <StudentPaymentCheckoutModal
+        isOpen={isStudentPaymentCheckoutOpen}
+        cartStudents={studentPaymentCart}
+        onClose={() => setIsStudentPaymentCheckoutOpen(false)}
+        onCheckout={handleStudentPaymentCheckout}
+        formatAmount={formatAmount}
+        isProcessing={isProcessingStudentPayment}
       />
 
       {/* Success Modal */}
