@@ -43,7 +43,7 @@ const CurriculumStructureTable: React.FC<CurriculumStructureTableProps> = ({
   // Group courses by year and semester
   const groupedCourses = useMemo(() => {
     const grouped: Record<string, CurriculumCourse[]> = {};
-    
+
     courses.forEach((course) => {
       const key = `Y${course.year_level}_S${course.semester}`;
       if (!grouped[key]) {
@@ -63,7 +63,10 @@ const CurriculumStructureTable: React.FC<CurriculumStructureTableProps> = ({
 
   // Calculate total units for current semester
   const currentSemesterUnits = useMemo(() => {
-    return currentSemesterCourses.reduce((total, course) => total + course.units_total, 0);
+    return currentSemesterCourses.reduce(
+      (total, course) => total + course.units_total,
+      0,
+    );
   }, [currentSemesterCourses]);
 
   // Get available years (years that have at least one course)
@@ -99,13 +102,14 @@ const CurriculumStructureTable: React.FC<CurriculumStructureTableProps> = ({
   useEffect(() => {
     // Only auto-select if the current selection has no courses AND courses have changed
     const key = `Y${selectedYear}_S${selectedSemester}`;
-    const hasCoursesInCurrentSelection = groupedCourses[key] && groupedCourses[key].length > 0;
-    
+    const hasCoursesInCurrentSelection =
+      groupedCourses[key] && groupedCourses[key].length > 0;
+
     // If current selection has courses, don't change
     if (hasCoursesInCurrentSelection) {
       return;
     }
-    
+
     // If no courses exist at all, default to Year 1, Semester 1
     if (courses.length === 0) {
       if (selectedYear !== 1 || selectedSemester !== 1) {
@@ -114,7 +118,7 @@ const CurriculumStructureTable: React.FC<CurriculumStructureTableProps> = ({
       }
       return;
     }
-    
+
     // Find first year/semester with courses (only if current selection is empty)
     for (let year = 1; year <= maxYear; year++) {
       for (let sem: 1 | 2 = 1; sem <= 2; sem++) {
@@ -123,7 +127,7 @@ const CurriculumStructureTable: React.FC<CurriculumStructureTableProps> = ({
           // Only update if different from current selection
           if (selectedYear !== year || selectedSemester !== sem) {
             setSelectedYear(year);
-            setSelectedSemester(sem);
+            setSelectedSemester(sem as 1 | 2);
           }
           return;
         }
@@ -132,18 +136,18 @@ const CurriculumStructureTable: React.FC<CurriculumStructureTableProps> = ({
   }, [courses, groupedCourses, maxYear]); // Removed selectedYear and selectedSemester from dependencies
 
   return (
-    <div className="space-y-4">
+    <div className='space-y-4'>
       {/* Primary Tabs - Academic Year */}
-      <div className="border-b border-gray-200 relative z-10">
-        <nav className="flex space-x-1" aria-label="Year Tabs">
+      <div className='border-b border-gray-200 relative z-10'>
+        <nav className='flex space-x-1' aria-label='Year Tabs'>
           {Array.from({ length: maxYear }, (_, i) => i + 1).map((year) => {
             const hasAnyCourses = hasCourses(year, 1) || hasCourses(year, 2);
             const isActive = selectedYear === year;
-            
+
             return (
               <button
                 key={year}
-                type="button"
+                type='button'
                 onClick={(e) => {
                   e.preventDefault();
                   e.stopPropagation();
@@ -160,11 +164,13 @@ const CurriculumStructureTable: React.FC<CurriculumStructureTableProps> = ({
                 className={`
                   px-4 py-2.5 text-sm font-medium rounded-t-lg transition-all relative
                   cursor-pointer z-10
-                  ${isActive
-                    ? "text-white"
-                    : hasAnyCourses
-                    ? "text-gray-700 hover:text-gray-900 hover:bg-gray-100"
-                    : "text-gray-400 hover:text-gray-600"}
+                  ${
+                    isActive
+                      ? "text-white"
+                      : hasAnyCourses
+                        ? "text-gray-700 hover:text-gray-900 hover:bg-gray-100"
+                        : "text-gray-400 hover:text-gray-600"
+                  }
                 `}
                 style={{
                   backgroundColor: isActive ? colors.secondary : "transparent",
@@ -195,11 +201,11 @@ const CurriculumStructureTable: React.FC<CurriculumStructureTableProps> = ({
       </div>
 
       {/* Secondary Tabs - Semester & Content Area */}
-      <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
+      <div className='bg-white rounded-xl border border-gray-200 overflow-hidden'>
         {/* Semester Tabs */}
-        <div className="border-b border-gray-200 bg-gray-50 px-4">
-          <div className="flex items-center justify-between">
-            <nav className="flex space-x-1" aria-label="Semester Tabs">
+        <div className='border-b border-gray-200 bg-gray-50 px-4'>
+          <div className='flex items-center justify-between'>
+            <nav className='flex space-x-1' aria-label='Semester Tabs'>
               {([1, 2] as const).map((semester) => {
                 const key = `Y${selectedYear}_S${semester}`;
                 const semesterCourses = groupedCourses[key] || [];
@@ -209,7 +215,7 @@ const CurriculumStructureTable: React.FC<CurriculumStructureTableProps> = ({
                 return (
                   <button
                     key={semester}
-                    type="button"
+                    type='button'
                     onClick={(e) => {
                       e.preventDefault();
                       e.stopPropagation();
@@ -218,14 +224,18 @@ const CurriculumStructureTable: React.FC<CurriculumStructureTableProps> = ({
                     className={`
                       px-4 py-2 text-sm font-medium rounded-t-lg transition-all
                       cursor-pointer relative z-10
-                      ${isActive
-                        ? "text-white"
-                        : hasCoursesInSemester
-                        ? "text-gray-700 hover:text-gray-900"
-                        : "text-gray-400 hover:text-gray-600"}
+                      ${
+                        isActive
+                          ? "text-white"
+                          : hasCoursesInSemester
+                            ? "text-gray-700 hover:text-gray-900"
+                            : "text-gray-400 hover:text-gray-600"
+                      }
                     `}
                     style={{
-                      backgroundColor: isActive ? colors.secondary : "transparent",
+                      backgroundColor: isActive
+                        ? colors.secondary
+                        : "transparent",
                       zIndex: isActive ? 20 : 10,
                     }}
                   >
@@ -248,20 +258,20 @@ const CurriculumStructureTable: React.FC<CurriculumStructureTableProps> = ({
             </nav>
 
             {/* Contextual Actions - Add Subject Button & Total Units */}
-            <div className="flex items-center gap-4">
-              <div className="text-sm text-gray-600">
-                <span className="font-medium">Total Units: </span>
-                <strong className="text-lg" style={{ color: colors.primary }}>
+            <div className='flex items-center gap-4'>
+              <div className='text-sm text-gray-600'>
+                <span className='font-medium'>Total Units: </span>
+                <strong className='text-lg' style={{ color: colors.primary }}>
                   {currentSemesterUnits}
                 </strong>
               </div>
               <button
-                type="button"
+                type='button'
                 onClick={() => onAddSubjects(selectedYear, selectedSemester)}
-                className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-white rounded-lg transition-all hover:shadow-md"
+                className='flex items-center gap-2 px-4 py-2 text-sm font-medium text-white rounded-lg transition-all hover:shadow-md'
                 style={{ backgroundColor: colors.secondary }}
               >
-                <Plus className="w-4 h-4" />
+                <Plus className='w-4 h-4' />
                 Add Subjects
               </button>
             </div>
@@ -269,106 +279,115 @@ const CurriculumStructureTable: React.FC<CurriculumStructureTableProps> = ({
         </div>
 
         {/* Subjects Table for Selected Year/Semester */}
-        <div className="bg-white">
+        <div className='bg-white'>
           {currentSemesterCourses.length === 0 ? (
-            <div className="text-center py-12 border-2 border-dashed border-gray-200 rounded-lg m-4">
-              <div className="flex flex-col items-center justify-center gap-3">
+            <div className='text-center py-12 border-2 border-dashed border-gray-200 rounded-lg m-4'>
+              <div className='flex flex-col items-center justify-center gap-3'>
                 <div
-                  className="p-3 rounded-full"
+                  className='p-3 rounded-full'
                   style={{ backgroundColor: `${colors.primary}05` }}
                 >
-                  <BookOpen className="w-6 h-6" style={{ color: colors.primary }} />
+                  <BookOpen
+                    className='w-6 h-6'
+                    style={{ color: colors.primary }}
+                  />
                 </div>
-                <p className="text-gray-500 font-medium">
-                  No subjects in Year {selectedYear} - {getSemesterName(selectedSemester)}
+                <p className='text-gray-500 font-medium'>
+                  No subjects in Year {selectedYear} -{" "}
+                  {getSemesterName(selectedSemester)}
                 </p>
-                <p className="text-sm text-gray-400">
+                <p className='text-sm text-gray-400'>
                   Click "Add Subjects" above to add subjects to this semester
                 </p>
               </div>
             </div>
           ) : (
-            <table className="w-full">
+            <table className='w-full'>
               <thead>
                 <tr
-                  className="text-left text-xs font-semibold uppercase tracking-wider"
+                  className='text-left text-xs font-semibold uppercase tracking-wider'
                   style={{
                     backgroundColor: `${colors.primary}02`,
                     color: colors.primary,
                   }}
                 >
-                  <th className="px-4 py-3">Course Code</th>
-                  <th className="px-4 py-3">Descriptive Title</th>
-                  <th className="px-4 py-3">Units</th>
-                  <th className="px-4 py-3">Fixed Amount</th>
-                  <th className="px-4 py-3">Prerequisite</th>
-                  <th className="px-4 py-3 text-right">Actions</th>
+                  <th className='px-4 py-3'>Course Code</th>
+                  <th className='px-4 py-3'>Descriptive Title</th>
+                  <th className='px-4 py-3'>Units</th>
+                  <th className='px-4 py-3'>Fixed Amount</th>
+                  <th className='px-4 py-3'>Prerequisite</th>
+                  <th className='px-4 py-3 text-right'>Actions</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-gray-100">
+              <tbody className='divide-y divide-gray-100'>
                 {currentSemesterCourses.map((course) => (
                   <tr
                     key={course.id}
-                    className="hover:bg-gray-50 transition-colors"
+                    className='hover:bg-gray-50 transition-colors'
                   >
-                    <td className="px-4 py-3">
-                      <span className="font-medium text-sm" style={{ color: colors.primary }}>
+                    <td className='px-4 py-3'>
+                      <span
+                        className='font-medium text-sm'
+                        style={{ color: colors.primary }}
+                      >
                         {course.course_code}
                       </span>
                     </td>
-                    <td className="px-4 py-3">
-                      <span className="text-sm text-gray-700">
+                    <td className='px-4 py-3'>
+                      <span className='text-sm text-gray-700'>
                         {course.descriptive_title}
                       </span>
                     </td>
-                    <td className="px-4 py-3">
-                      <span className="text-sm font-medium text-gray-700">
+                    <td className='px-4 py-3'>
+                      <span className='text-sm font-medium text-gray-700'>
                         {course.units_total}
                         {course.lecture_hour || course.lab_hour ? (
-                          <span className="text-gray-500 ml-1">
-                            ({course.lecture_hour || 0}h/{course.lab_hour || 0}h)
+                          <span className='text-gray-500 ml-1'>
+                            ({course.lecture_hour || 0}h/{course.lab_hour || 0}
+                            h)
                           </span>
                         ) : null}
                       </span>
                     </td>
-                    <td className="px-4 py-3">
-                      <span className="text-sm font-medium text-gray-700">
-                        {course.fixedAmount !== undefined && course.fixedAmount !== null
+                    <td className='px-4 py-3'>
+                      <span className='text-sm font-medium text-gray-700'>
+                        {course.fixedAmount !== undefined &&
+                        course.fixedAmount !== null
                           ? `₱${Number(course.fixedAmount).toFixed(2)}`
                           : "-"}
                       </span>
                     </td>
-                    <td className="px-4 py-3">
-                      <span className="text-sm text-gray-600">
+                    <td className='px-4 py-3'>
+                      <span className='text-sm text-gray-600'>
                         {course.prerequisite
                           ? formatPrerequisites(
                               parsePrerequisites(course.prerequisite, courses),
                               courses,
-                              subjects
+                              subjects,
                             )
                           : "-"}
                       </span>
                     </td>
-                    <td className="px-4 py-3 text-right">
-                      <div className="flex items-center justify-end gap-2">
+                    <td className='px-4 py-3 text-right'>
+                      <div className='flex items-center justify-end gap-2'>
                         {onEditPrerequisite && (
                           <button
-                            type="button"
+                            type='button'
                             onClick={() => onEditPrerequisite(course)}
-                            className="p-1.5 rounded-lg hover:bg-blue-50 transition-all"
+                            className='p-1.5 rounded-lg hover:bg-blue-50 transition-all'
                             style={{ color: colors.secondary }}
-                            title="Edit Prerequisites"
+                            title='Edit Prerequisites'
                           >
-                            <Edit className="w-4 h-4" />
+                            <Edit className='w-4 h-4' />
                           </button>
                         )}
                         <button
-                          type="button"
+                          type='button'
                           onClick={() => onRemoveCourse(course.id)}
-                          className="p-1.5 rounded-lg hover:bg-red-50 transition-all text-red-600"
-                          title="Remove"
+                          className='p-1.5 rounded-lg hover:bg-red-50 transition-all text-red-600'
+                          title='Remove'
                         >
-                          <Trash2 className="w-4 h-4" />
+                          <Trash2 className='w-4 h-4' />
                         </button>
                       </div>
                     </td>
@@ -384,4 +403,3 @@ const CurriculumStructureTable: React.FC<CurriculumStructureTableProps> = ({
 };
 
 export default CurriculumStructureTable;
-

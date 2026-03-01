@@ -8,31 +8,36 @@ const cache: Record<string, { data: any[]; timestamp: number }> = {};
 
 export async function GET(
   request: NextRequest,
-  { params }: { params: Promise<{ provinceCode: string }> | { provinceCode: string } }
+  { params }: { params: Promise<{ provinceCode: string }> },
 ) {
   try {
-    // Handle both sync and async params (Next.js 13+ uses async params)
-    const resolvedParams = await Promise.resolve(params);
+    const resolvedParams = await params;
     const { provinceCode } = resolvedParams;
 
     if (!provinceCode) {
       return NextResponse.json(
         { error: "Province code is required" },
-        { status: 400 }
+        { status: 400 },
       );
     }
 
     // Check cache first
     const cacheKey = provinceCode;
-    if (cache[cacheKey] && Date.now() - cache[cacheKey].timestamp < CACHE_DURATION) {
+    if (
+      cache[cacheKey] &&
+      Date.now() - cache[cacheKey].timestamp < CACHE_DURATION
+    ) {
       return NextResponse.json({ data: cache[cacheKey].data }, { status: 200 });
     }
 
     // Fetch from PSGC API v2 - provinces endpoint
     // API URL format: /v2/provinces/{provinceCode}/municipalities
-    const response = await fetch(`${PSGC_API_BASE}/v2/provinces/${provinceCode}/municipalities`, {
-      next: { revalidate: 3600 }, // Revalidate every hour
-    });
+    const response = await fetch(
+      `${PSGC_API_BASE}/v2/provinces/${provinceCode}/municipalities`,
+      {
+        next: { revalidate: 3600 }, // Revalidate every hour
+      },
+    );
 
     if (!response.ok) {
       throw new Error(`PSGC API error: ${response.status}`);
@@ -51,10 +56,7 @@ export async function GET(
     console.error("Error fetching municipalities from PSGC API:", error);
     return NextResponse.json(
       { error: "Failed to fetch municipalities" },
-      { status: 500 }
+      { status: 500 },
     );
   }
 }
-
-
-

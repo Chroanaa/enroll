@@ -1,7 +1,7 @@
 import axios from "axios";
-import { Report } from "../types";
+import { Reports } from "../types";
 
-export async function getReports(): Promise<Report[]> {
+export async function getReports(): Promise<Reports[]> {
   try {
     const response = await axios.get("/api/auth/reports");
     return response.data || [];
@@ -10,4 +10,3 @@ export async function getReports(): Promise<Report[]> {
     throw error;
   }
 }
-
