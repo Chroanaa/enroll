@@ -1,22 +1,14 @@
 import React from "react";
-import {
-  FileBarChart,
-  Calendar,
-  User,
-  Trash2,
-} from "lucide-react";
+import { FileBarChart, Calendar, User, Trash2 } from "lucide-react";
 import { colors } from "../../colors";
-import { Report } from "../../types";
+import { Reports } from "../../types";
 
 interface ReportsTableProps {
-  reports: Report[];
+  reports: Reports[];
   onDelete: (reportId: number) => void;
 }
 
-const ReportsTable: React.FC<ReportsTableProps> = ({
-  reports,
-  onDelete,
-}) => {
+const ReportsTable: React.FC<ReportsTableProps> = ({ reports, onDelete }) => {
   return (
     <div className='bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden'>
       <div className='overflow-x-auto'>
@@ -102,13 +94,16 @@ const ReportsTable: React.FC<ReportsTableProps> = ({
                         <Calendar className='w-3.5 h-3.5 text-gray-400' />
                         <span className='text-sm text-gray-600'>
                           {report.created_at
-                            ? new Date(report.created_at).toLocaleDateString("en-US", {
-                                year: "numeric",
-                                month: "short",
-                                day: "numeric",
-                                hour: "2-digit",
-                                minute: "2-digit",
-                              })
+                            ? new Date(report.created_at).toLocaleDateString(
+                                "en-US",
+                                {
+                                  year: "numeric",
+                                  month: "short",
+                                  day: "numeric",
+                                  hour: "2-digit",
+                                  minute: "2-digit",
+                                },
+                              )
                             : "N/A"}
                         </span>
                       </div>
@@ -116,7 +111,7 @@ const ReportsTable: React.FC<ReportsTableProps> = ({
                     <td className='px-6 py-4 whitespace-nowrap text-right text-sm font-medium'>
                       <div className='flex justify-end gap-2'>
                         <button
-                          onClick={() => onDelete(report.id)}
+                          onClick={() => onDelete(report.id!)}
                           className='p-2 rounded-lg hover:bg-white hover:shadow-sm border border-transparent hover:border-gray-200 transition-all text-red-600'
                           title='Delete'
                         >
@@ -136,4 +131,3 @@ const ReportsTable: React.FC<ReportsTableProps> = ({
 };
 
 export default ReportsTable;
-

@@ -1,6 +1,7 @@
-import { NextRequest, NextResponse } from 'next/server';
-import { prisma } from '../../../lib/prisma';
-import { ApiError } from '../../../../types/sectionTypes';
+import { NextRequest, NextResponse } from "next/server";
+import { prisma } from "../../../lib/prisma";
+
+type ApiError = { error: string; message: string };
 
 /**
  * PATCH /api/class-schedule/{id}
@@ -8,7 +9,7 @@ import { ApiError } from '../../../../types/sectionTypes';
  */
 export async function PATCH(
   request: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
+  { params }: { params: Promise<{ id: string }> },
 ) {
   try {
     const { id } = await params;
@@ -17,10 +18,10 @@ export async function PATCH(
     if (isNaN(scheduleId)) {
       return NextResponse.json(
         {
-          error: 'VALIDATION_ERROR',
-          message: 'Invalid schedule ID'
+          error: "VALIDATION_ERROR",
+          message: "Invalid schedule ID",
         } as ApiError,
-        { status: 400 }
+        { status: 400 },
       );
     }
 
@@ -29,48 +30,48 @@ export async function PATCH(
 
     // Get the schedule
     const schedule = await prisma.class_schedule.findUnique({
-      where: { id: scheduleId }
+      where: { id: scheduleId },
     });
 
     if (!schedule) {
       return NextResponse.json(
         {
-          error: 'NOT_FOUND',
-          message: `Schedule ${scheduleId} not found`
+          error: "NOT_FOUND",
+          message: `Schedule ${scheduleId} not found`,
         } as ApiError,
-        { status: 404 }
+        { status: 404 },
       );
     }
 
     // Get the section to check status
     const section = await prisma.sections.findUnique({
-      where: { id: schedule.section_id }
+      where: { id: schedule.section_id },
     });
 
     if (!section) {
       return NextResponse.json(
         {
-          error: 'NOT_FOUND',
-          message: `Section ${schedule.section_id} not found`
+          error: "NOT_FOUND",
+          message: `Section ${schedule.section_id} not found`,
         } as ApiError,
-        { status: 404 }
+        { status: 404 },
       );
     }
 
     // Check if section allows modifications (draft or active)
-    if (section.status === 'locked' || section.status === 'closed') {
+    if (section.status === "locked" || section.status === "closed") {
       return NextResponse.json(
         {
-          error: 'INVALID_STATE',
-          message: `Cannot update schedule. Section is ${section.status}.`
+          error: "INVALID_STATE",
+          message: `Cannot update schedule. Section is ${section.status}.`,
         } as ApiError,
-        { status: 400 }
+        { status: 400 },
       );
     }
 
     // Build update data
     const updateData: any = {};
-    
+
     // Parse times if provided
     const newStartTime = startTime ? new Date(startTime) : schedule.start_time;
     const newEndTime = endTime ? new Date(endTime) : schedule.end_time;
@@ -82,10 +83,10 @@ export async function PATCH(
     if (newStartTime >= newEndTime) {
       return NextResponse.json(
         {
-          error: 'VALIDATION_ERROR',
-          message: 'Start time must be before end time'
+          error: "VALIDATION_ERROR",
+          message: "Start time must be before end time",
         } as ApiError,
-        { status: 400 }
+        { status: 400 },
       );
     }
 
@@ -98,37 +99,37 @@ export async function PATCH(
           day_of_week: newDayOfWeek,
           academic_year: schedule.academic_year,
           semester: schedule.semester,
-          status: 'active',
+          status: "active",
           OR: [
             {
               AND: [
                 { start_time: { lte: newStartTime } },
-                { end_time: { gt: newStartTime } }
-              ]
+                { end_time: { gt: newStartTime } },
+              ],
             },
             {
               AND: [
                 { start_time: { lt: newEndTime } },
-                { end_time: { gte: newEndTime } }
-              ]
+                { end_time: { gte: newEndTime } },
+              ],
             },
             {
               AND: [
                 { start_time: { gte: newStartTime } },
-                { end_time: { lte: newEndTime } }
-              ]
-            }
-          ]
-        }
+                { end_time: { lte: newEndTime } },
+              ],
+            },
+          ],
+        },
       });
 
       if (facultyConflict) {
         return NextResponse.json(
           {
-            error: 'FACULTY_CONFLICT',
-            message: 'Faculty has schedule conflict on this day and time'
+            error: "FACULTY_CONFLICT",
+            message: "Faculty has schedule conflict on this day and time",
           } as ApiError,
-          { status: 409 }
+          { status: 409 },
         );
       }
     }
@@ -142,37 +143,37 @@ export async function PATCH(
           day_of_week: newDayOfWeek,
           academic_year: schedule.academic_year,
           semester: schedule.semester,
-          status: 'active',
+          status: "active",
           OR: [
             {
               AND: [
                 { start_time: { lte: newStartTime } },
-                { end_time: { gt: newStartTime } }
-              ]
+                { end_time: { gt: newStartTime } },
+              ],
             },
             {
               AND: [
                 { start_time: { lt: newEndTime } },
-                { end_time: { gte: newEndTime } }
-              ]
+                { end_time: { gte: newEndTime } },
+              ],
             },
             {
               AND: [
                 { start_time: { gte: newStartTime } },
-                { end_time: { lte: newEndTime } }
-              ]
-            }
-          ]
-        }
+                { end_time: { lte: newEndTime } },
+              ],
+            },
+          ],
+        },
       });
 
       if (roomConflict) {
         return NextResponse.json(
           {
-            error: 'ROOM_CONFLICT',
-            message: 'Room is already booked on this day and time'
+            error: "ROOM_CONFLICT",
+            message: "Room is already booked on this day and time",
           } as ApiError,
-          { status: 409 }
+          { status: 409 },
         );
       }
     }
@@ -186,37 +187,37 @@ export async function PATCH(
           day_of_week: newDayOfWeek,
           academic_year: schedule.academic_year,
           semester: schedule.semester,
-          status: 'active',
+          status: "active",
           OR: [
             {
               AND: [
                 { start_time: { lte: newStartTime } },
-                { end_time: { gt: newStartTime } }
-              ]
+                { end_time: { gt: newStartTime } },
+              ],
             },
             {
               AND: [
                 { start_time: { lt: newEndTime } },
-                { end_time: { gte: newEndTime } }
-              ]
+                { end_time: { gte: newEndTime } },
+              ],
             },
             {
               AND: [
                 { start_time: { gte: newStartTime } },
-                { end_time: { lte: newEndTime } }
-              ]
-            }
-          ]
-        }
+                { end_time: { lte: newEndTime } },
+              ],
+            },
+          ],
+        },
       });
 
       if (sectionConflict) {
         return NextResponse.json(
           {
-            error: 'SECTION_CONFLICT',
-            message: 'Section has another class scheduled at this time'
+            error: "SECTION_CONFLICT",
+            message: "Section has another class scheduled at this time",
           } as ApiError,
-          { status: 409 }
+          { status: 409 },
         );
       }
     }
@@ -231,7 +232,7 @@ export async function PATCH(
     // Update the schedule
     const updatedSchedule = await prisma.class_schedule.update({
       where: { id: scheduleId },
-      data: updateData
+      data: updateData,
     });
 
     return NextResponse.json({
@@ -247,18 +248,18 @@ export async function PATCH(
         endTime: updatedSchedule.end_time?.toISOString(),
         academicYear: updatedSchedule.academic_year,
         semester: updatedSchedule.semester,
-        status: updatedSchedule.status
-      }
+        status: updatedSchedule.status,
+      },
     });
   } catch (error) {
-    console.error('Error updating class schedule:', error);
+    console.error("Error updating class schedule:", error);
     return NextResponse.json(
       {
-        error: 'INTERNAL_ERROR',
+        error: "INTERNAL_ERROR",
         message:
-          error instanceof Error ? error.message : 'Failed to update schedule'
+          error instanceof Error ? error.message : "Failed to update schedule",
       } as ApiError,
-      { status: 500 }
+      { status: 500 },
     );
   }
 }
@@ -269,7 +270,7 @@ export async function PATCH(
  */
 export async function DELETE(
   request: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
+  { params }: { params: Promise<{ id: string }> },
 ) {
   try {
     const { id } = await params;
@@ -278,73 +279,72 @@ export async function DELETE(
     if (isNaN(scheduleId)) {
       return NextResponse.json(
         {
-          error: 'VALIDATION_ERROR',
-          message: 'Invalid schedule ID'
+          error: "VALIDATION_ERROR",
+          message: "Invalid schedule ID",
         } as ApiError,
-        { status: 400 }
+        { status: 400 },
       );
     }
 
     // Get the schedule
     const schedule = await prisma.class_schedule.findUnique({
-      where: { id: scheduleId }
+      where: { id: scheduleId },
     });
 
     if (!schedule) {
       return NextResponse.json(
         {
-          error: 'NOT_FOUND',
-          message: `Schedule ${scheduleId} not found`
+          error: "NOT_FOUND",
+          message: `Schedule ${scheduleId} not found`,
         } as ApiError,
-        { status: 404 }
+        { status: 404 },
       );
     }
 
     // Get the section to check status
     const section = await prisma.sections.findUnique({
-      where: { id: schedule.section_id }
+      where: { id: schedule.section_id },
     });
 
     if (!section) {
       return NextResponse.json(
         {
-          error: 'NOT_FOUND',
-          message: `Section ${schedule.section_id} not found`
+          error: "NOT_FOUND",
+          message: `Section ${schedule.section_id} not found`,
         } as ApiError,
-        { status: 404 }
+        { status: 404 },
       );
     }
 
     // Check if section allows modifications (draft or active)
-    if (section.status === 'locked' || section.status === 'closed') {
+    if (section.status === "locked" || section.status === "closed") {
       return NextResponse.json(
         {
-          error: 'INVALID_STATE',
-          message: `Cannot delete schedule. Section is ${section.status}.`
+          error: "INVALID_STATE",
+          message: `Cannot delete schedule. Section is ${section.status}.`,
         } as ApiError,
-        { status: 400 }
+        { status: 400 },
       );
     }
 
     // Delete the schedule
     await prisma.class_schedule.delete({
-      where: { id: scheduleId }
+      where: { id: scheduleId },
     });
 
     return NextResponse.json(
-      { success: true, message: 'Schedule deleted successfully' },
-      { status: 200 }
+      { success: true, message: "Schedule deleted successfully" },
+      { status: 200 },
     );
   } catch (error) {
-    console.error('Error deleting class schedule:', error);
+    console.error("Error deleting class schedule:", error);
     return NextResponse.json(
       {
-        error: 'INTERNAL_ERROR',
+        error: "INTERNAL_ERROR",
         message:
-          error instanceof Error ? error.message : 'Failed to delete schedule'
+          error instanceof Error ? error.message : "Failed to delete schedule",
       } as ApiError,
-      { status: 500 }
+      { status: 500 },
     );
   }
 }
-

@@ -3,16 +3,16 @@ import { NextRequest, NextResponse } from "next/server";
 
 export async function GET(
   request: NextRequest,
-  { params }: { params: Promise<{ programId: string }> | { programId: string } }
+  { params }: { params: Promise<{ programId: string }> },
 ) {
   try {
-    const resolvedParams = await Promise.resolve(params);
+    const resolvedParams = await params;
     const programId = parseInt(resolvedParams.programId);
 
     if (isNaN(programId)) {
       return NextResponse.json(
         { error: "Invalid program ID" },
-        { status: 400 }
+        { status: 400 },
       );
     }
 
@@ -30,9 +30,11 @@ export async function GET(
   } catch (error: any) {
     console.error("Error fetching majors by program:", error);
     return NextResponse.json(
-      { error: error?.message || "Failed to fetch majors", details: error?.code || error },
-      { status: 500 }
+      {
+        error: error?.message || "Failed to fetch majors",
+        details: error?.code || error,
+      },
+      { status: 500 },
     );
   }
 }
-
