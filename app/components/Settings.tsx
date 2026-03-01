@@ -12,6 +12,8 @@ import {
   Info,
   GraduationCap,
   CalendarDays,
+  DollarSign,
+  Percent,
 } from "lucide-react";
 import { colors } from "../colors";
 
@@ -31,6 +33,11 @@ interface SemesterThresholdSettings {
   semesterStartDay: number;
   secondSemesterStartMonth: number;
   secondSemesterStartDay: number;
+}
+
+interface PaymentSettings {
+  minDownpayment: number;
+  installmentChargePercentage: number;
 }
 
 interface CurrentTermInfo {
@@ -60,6 +67,11 @@ const Settings: React.FC = () => {
     semesterStartDay: 1,
     secondSemesterStartMonth: 1, // January
     secondSemesterStartDay: 1,
+  });
+
+  const [paymentSettings, setPaymentSettings] = useState<PaymentSettings>({
+    minDownpayment: 3000,
+    installmentChargePercentage: 5,
   });
 
   useEffect(() => {
@@ -118,6 +130,13 @@ const Settings: React.FC = () => {
             settingsMap["second_semester_start_day"] || "1",
           ),
         });
+
+        setPaymentSettings({
+          minDownpayment: parseFloat(settingsMap["min_downpayment"] || "3000"),
+          installmentChargePercentage: parseFloat(
+            settingsMap["installment_charge_percentage"] || "5",
+          ),
+        });
       }
     } catch (error) {
       console.error("Failed to fetch settings:", error);
@@ -169,6 +188,17 @@ const Settings: React.FC = () => {
           key: "second_semester_start_day",
           value: settings.secondSemesterStartDay.toString(),
           description: "Second semester start day of month",
+        },
+        {
+          key: "min_downpayment",
+          value: paymentSettings.minDownpayment.toString(),
+          description: "Minimum downpayment amount for installment enrollment",
+        },
+        {
+          key: "installment_charge_percentage",
+          value: paymentSettings.installmentChargePercentage.toString(),
+          description:
+            "Percentage charge applied to installment balance (e.g., 5 for 5%)",
         },
       ];
 
@@ -990,6 +1020,255 @@ const Settings: React.FC = () => {
                       </span>
                     </div>
                   </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Payment Settings */}
+          <div
+            className='rounded-2xl p-6 bg-white'
+            style={{
+              boxShadow:
+                "0 1px 3px 0 rgba(58, 35, 19, 0.12), 0 1px 2px 0 rgba(58, 35, 19, 0.08)",
+            }}
+          >
+            <div
+              className='flex items-center gap-3 mb-6 pb-4 border-b'
+              style={{ borderColor: "rgba(58, 35, 19, 0.2)" }}
+            >
+              <div
+                className='p-2 rounded-xl shadow-sm'
+                style={{
+                  backgroundColor: colors.paper,
+                  border: `1px solid ${colors.tertiary}30`,
+                }}
+              >
+                <DollarSign
+                  className='w-5 h-5'
+                  style={{ color: colors.primary }}
+                />
+              </div>
+              <div>
+                <h2
+                  className='text-lg font-bold'
+                  style={{ color: colors.primary }}
+                >
+                  Payment Settings
+                </h2>
+                <p className='text-sm' style={{ color: colors.neutral }}>
+                  Configure downpayment and installment charge settings
+                </p>
+              </div>
+            </div>
+
+            <div className='space-y-6'>
+              {/* Minimum Downpayment */}
+              <div
+                className='p-4 rounded-xl border'
+                style={{
+                  borderColor: colors.tertiary + "30",
+                  backgroundColor: colors.paper,
+                }}
+              >
+                <div className='flex items-start justify-between gap-4'>
+                  <div className='flex-1'>
+                    <label
+                      className='block font-semibold mb-1'
+                      style={{ color: colors.primary }}
+                    >
+                      Minimum Downpayment
+                    </label>
+                    <p
+                      className='text-sm mb-3'
+                      style={{ color: colors.neutral }}
+                    >
+                      The minimum amount students must pay as downpayment for
+                      installment enrollment
+                    </p>
+                    <div className='flex items-center gap-3'>
+                      <div className='relative'>
+                        <span
+                          className='absolute left-3 top-1/2 -translate-y-1/2 font-medium'
+                          style={{ color: colors.neutral }}
+                        >
+                          ₱
+                        </span>
+                        <input
+                          type='number'
+                          min='0'
+                          step='100'
+                          value={paymentSettings.minDownpayment}
+                          onChange={(e) =>
+                            setPaymentSettings({
+                              ...paymentSettings,
+                              minDownpayment: parseFloat(e.target.value) || 0,
+                            })
+                          }
+                          className='w-40 pl-8 pr-4 py-2.5 rounded-lg border focus:outline-none focus:ring-2 text-right'
+                          style={{
+                            borderColor: colors.neutralBorder,
+                            backgroundColor: "white",
+                            color: colors.neutralDark,
+                          }}
+                        />
+                      </div>
+                      <span
+                        className='text-sm font-medium'
+                        style={{ color: colors.neutral }}
+                      >
+                        pesos
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Installment Charge Percentage */}
+              <div
+                className='p-4 rounded-xl border'
+                style={{
+                  borderColor: colors.tertiary + "30",
+                  backgroundColor: colors.paper,
+                }}
+              >
+                <div className='flex items-start justify-between gap-4'>
+                  <div className='flex-1'>
+                    <label
+                      className='block font-semibold mb-1'
+                      style={{ color: colors.primary }}
+                    >
+                      Installment Charge Percentage
+                    </label>
+                    <p
+                      className='text-sm mb-3'
+                      style={{ color: colors.neutral }}
+                    >
+                      Percentage charged on the remaining balance after
+                      downpayment for installment payments
+                    </p>
+                    <div className='flex items-center gap-3'>
+                      <input
+                        type='number'
+                        min='0'
+                        max='100'
+                        step='0.5'
+                        value={paymentSettings.installmentChargePercentage}
+                        onChange={(e) =>
+                          setPaymentSettings({
+                            ...paymentSettings,
+                            installmentChargePercentage:
+                              parseFloat(e.target.value) || 0,
+                          })
+                        }
+                        className='w-24 px-4 py-2.5 rounded-lg border focus:outline-none focus:ring-2 text-center'
+                        style={{
+                          borderColor: colors.neutralBorder,
+                          backgroundColor: "white",
+                          color: colors.neutralDark,
+                        }}
+                      />
+                      <div className='flex items-center gap-1'>
+                        <Percent
+                          className='w-4 h-4'
+                          style={{ color: colors.neutral }}
+                        />
+                        <span
+                          className='text-sm font-medium'
+                          style={{ color: colors.neutral }}
+                        >
+                          of remaining balance
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Payment Calculation Preview */}
+            <div
+              className='mt-6 p-4 rounded-xl'
+              style={{
+                backgroundColor: colors.primary + "05",
+                border: `1px solid ${colors.primary}15`,
+              }}
+            >
+              <div className='flex items-center gap-2 mb-3'>
+                <Info className='w-4 h-4' style={{ color: colors.primary }} />
+                <span className='font-medium' style={{ color: colors.primary }}>
+                  Payment Calculation Preview
+                </span>
+              </div>
+              <div
+                className='text-sm space-y-1'
+                style={{ color: colors.neutral }}
+              >
+                <p>For a sample ₱20,000 total assessment on installment:</p>
+                <div className='mt-2 pl-4 space-y-0.5'>
+                  <p>
+                    Total Matriculation:{" "}
+                    <strong>
+                      ₱
+                      {(20000 * 1.05).toLocaleString("en-PH", {
+                        minimumFractionDigits: 2,
+                      })}
+                    </strong>
+                  </p>
+                  <p>
+                    Downpayment:{" "}
+                    <strong>
+                      ₱
+                      {paymentSettings.minDownpayment.toLocaleString("en-PH", {
+                        minimumFractionDigits: 2,
+                      })}
+                    </strong>
+                  </p>
+                  <p>
+                    Balance:{" "}
+                    <strong>
+                      ₱
+                      {(
+                        20000 * 1.05 -
+                        paymentSettings.minDownpayment
+                      ).toLocaleString("en-PH", { minimumFractionDigits: 2 })}
+                    </strong>
+                  </p>
+                  <p>
+                    Installment Charge (
+                    {paymentSettings.installmentChargePercentage}%):{" "}
+                    <strong>
+                      ₱
+                      {(
+                        ((20000 * 1.05 - paymentSettings.minDownpayment) *
+                          paymentSettings.installmentChargePercentage) /
+                        100
+                      ).toLocaleString("en-PH", { minimumFractionDigits: 2 })}
+                    </strong>
+                  </p>
+                  <p>
+                    Net Balance:{" "}
+                    <strong>
+                      ₱
+                      {(
+                        (20000 * 1.05 - paymentSettings.minDownpayment) *
+                        (1 + paymentSettings.installmentChargePercentage / 100)
+                      ).toLocaleString("en-PH", { minimumFractionDigits: 2 })}
+                    </strong>
+                  </p>
+                  <p>
+                    Per Term (3 terms):{" "}
+                    <strong>
+                      ₱
+                      {(
+                        ((20000 * 1.05 - paymentSettings.minDownpayment) *
+                          (1 +
+                            paymentSettings.installmentChargePercentage /
+                              100)) /
+                        3
+                      ).toLocaleString("en-PH", { minimumFractionDigits: 2 })}
+                    </strong>
+                  </p>
                 </div>
               </div>
             </div>

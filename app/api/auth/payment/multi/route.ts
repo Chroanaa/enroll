@@ -107,20 +107,33 @@ export async function POST(request: NextRequest) {
         createdPayments.push(payment);
       }
 
+      // For installment assessments: if down_payment is not yet set AND this is NOT a schedule
+      // term payment (no scheduleLabel), then this payment is the downpayment — save it.
+      if (
+        assessment.payment_mode.toLowerCase() === "installment" &&
+        assessment.down_payment === null &&
+        !scheduleLabel
+      ) {
+        await tx.student_assessment.update({
+          where: { id: parseInt(assessmentId) },
+          data: { down_payment: totalPaymentAmount },
+        });
+      }
+
       // For installment payments, update payment_schedule if label is provided
-      if (assessment.payment_mode === "installment" && scheduleLabel) {
+      if (
+        assessment.payment_mode.toLowerCase() === "installment" &&
+        scheduleLabel
+      ) {
         const scheduleItem = assessment.payment_schedules.find(
           (s) => s.label.toLowerCase() === scheduleLabel.toLowerCase(),
         );
 
         if (scheduleItem) {
-          const scheduleAmount = Number(scheduleItem.amount);
-          if (totalPaymentAmount >= scheduleAmount) {
-            await tx.payment_schedule.update({
-              where: { id: scheduleItem.id },
-              data: { is_paid: true },
-            });
-          }
+          await tx.payment_schedule.update({
+            where: { id: scheduleItem.id },
+            data: { is_paid: true },
+          });
         }
       }
 
@@ -135,7 +148,7 @@ export async function POST(request: NextRequest) {
       );
 
       const totalDue =
-        assessment.payment_mode === "cash"
+        assessment.payment_mode.toLowerCase() === "cash"
           ? Number(assessment.total_due_cash || assessment.total_due)
           : Number(assessment.total_due_installment || assessment.total_due);
 

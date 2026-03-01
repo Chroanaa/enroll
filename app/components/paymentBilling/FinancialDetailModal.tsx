@@ -17,8 +17,11 @@ import {
   Building2,
   Hash,
   CheckCircle,
+  AlertTriangle,
+  ShieldAlert,
 } from "lucide-react";
 import { colors } from "../../colors";
+import { useSession } from "next-auth/react";
 
 interface SubjectDetail {
   id: number;
@@ -98,6 +101,7 @@ interface FinancialDetailModalProps {
   assessmentId: number | null;
   onClose: () => void;
   formatAmount: (amount: number | null | undefined) => string;
+  onPaymentSuccess?: () => void;
 }
 
 type DetailTab = "subjects" | "fees" | "payments" | "schedule";
@@ -107,7 +111,9 @@ export const FinancialDetailModal: React.FC<FinancialDetailModalProps> = ({
   assessmentId,
   onClose,
   formatAmount,
+  onPaymentSuccess,
 }) => {
+  const { data: session } = useSession();
   const [detail, setDetail] = useState<AssessmentDetail | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -115,6 +121,10 @@ export const FinancialDetailModal: React.FC<FinancialDetailModalProps> = ({
   const [expandedCategories, setExpandedCategories] = useState<Set<string>>(
     new Set(),
   );
+
+  // Low downpayment confirmation modal state
+  const [showLowDpConfirm, setShowLowDpConfirm] = useState(false);
+  const [lowDpPendingPayment, setLowDpPendingPayment] = useState(false);
 
   // Installment payment state
   const [payingSchedule, setPayingSchedule] = useState<ScheduleRecord | null>(
@@ -128,9 +138,55 @@ export const FinancialDetailModal: React.FC<FinancialDetailModalProps> = ({
     null,
   );
 
+  // Settings state for downpayment and installment charge
+  const [minDownpayment, setMinDownpayment] = useState<number>(3000);
+  const [installmentChargePercent, setInstallmentChargePercent] =
+    useState<number>(5);
+
+  // Full pay payment state
+  const [isPayingFullPay, setIsPayingFullPay] = useState(false);
+  const [fullPayLines, setFullPayLines] = useState<InstallmentPayLine[]>([
+    { id: 1, payment_type: "cash", amount: "", reference_no: "" },
+  ]);
+  const [isProcessingFullPay, setIsProcessingFullPay] = useState(false);
+  const [fullPaySuccess, setFullPaySuccess] = useState<string | null>(null);
+
+  // Downpayment state
+  const [isPayingDownpayment, setIsPayingDownpayment] = useState(false);
+  const [downpaymentLines, setDownpaymentLines] = useState<
+    InstallmentPayLine[]
+  >([{ id: 1, payment_type: "cash", amount: "", reference_no: "" }]);
+  const [isProcessingDownpayment, setIsProcessingDownpayment] = useState(false);
+  const [downpaymentSuccess, setDownpaymentSuccess] = useState<string | null>(
+    null,
+  );
+
+  // Fetch payment settings
+  const fetchPaymentSettings = async () => {
+    try {
+      const [dpRes, icRes] = await Promise.all([
+        fetch("/api/auth/settings?key=min_downpayment"),
+        fetch("/api/auth/settings?key=installment_charge_percentage"),
+      ]);
+      if (dpRes.ok) {
+        const dpData = await dpRes.json();
+        if (dpData.data?.value)
+          setMinDownpayment(parseFloat(dpData.data.value));
+      }
+      if (icRes.ok) {
+        const icData = await icRes.json();
+        if (icData.data?.value)
+          setInstallmentChargePercent(parseFloat(icData.data.value));
+      }
+    } catch {
+      // use defaults
+    }
+  };
+
   useEffect(() => {
     if (isOpen && assessmentId) {
       fetchDetail(assessmentId);
+      fetchPaymentSettings();
     }
     if (!isOpen) {
       setDetail(null);
@@ -138,6 +194,8 @@ export const FinancialDetailModal: React.FC<FinancialDetailModalProps> = ({
       setActiveTab("subjects");
       setExpandedCategories(new Set());
       resetInstallmentPayment();
+      resetFullPayPayment();
+      resetDownpaymentPayment();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isOpen, assessmentId]);
@@ -195,6 +253,297 @@ export const FinancialDetailModal: React.FC<FinancialDetailModalProps> = ({
     ]);
     setInstallmentSuccess(null);
   };
+
+  // Full pay helpers
+  const resetFullPayPayment = () => {
+    setIsPayingFullPay(false);
+    setFullPayLines([
+      { id: 1, payment_type: "cash", amount: "", reference_no: "" },
+    ]);
+    setIsProcessingFullPay(false);
+    setFullPaySuccess(null);
+  };
+
+  const openFullPay = () => {
+    if (!detail) return;
+    setIsPayingFullPay(true);
+    setFullPayLines([
+      {
+        id: 1,
+        payment_type: "cash",
+        amount: String(detail.remaining_balance),
+        reference_no: "",
+      },
+    ]);
+    setFullPaySuccess(null);
+  };
+
+  const addFullPayLine = () => {
+    const maxId = Math.max(...fullPayLines.map((l) => l.id), 0);
+    setFullPayLines([
+      ...fullPayLines,
+      { id: maxId + 1, payment_type: "cash", amount: "", reference_no: "" },
+    ]);
+  };
+
+  const removeFullPayLine = (id: number) => {
+    if (fullPayLines.length <= 1) return;
+    setFullPayLines(fullPayLines.filter((l) => l.id !== id));
+  };
+
+  const updateFullPayLine = (
+    id: number,
+    field: keyof InstallmentPayLine,
+    value: string,
+  ) => {
+    setFullPayLines(
+      fullPayLines.map((l) => (l.id === id ? { ...l, [field]: value } : l)),
+    );
+  };
+
+  const fullPayTotalPayment = useMemo(() => {
+    return fullPayLines.reduce(
+      (sum, l) => sum + (parseFloat(l.amount) || 0),
+      0,
+    );
+  }, [fullPayLines]);
+
+  const fullPayChangeAmount = useMemo(() => {
+    if (!detail) return 0;
+    return Math.max(0, fullPayTotalPayment - detail.remaining_balance);
+  }, [fullPayTotalPayment, detail]);
+
+  const canSubmitFullPay = useMemo(() => {
+    if (!detail) return false;
+    if (fullPayTotalPayment < detail.remaining_balance) return false;
+    for (const line of fullPayLines) {
+      if (!line.amount || parseFloat(line.amount) <= 0) return false;
+      if (
+        (line.payment_type === "gcash" ||
+          line.payment_type === "bank_transfer") &&
+        !line.reference_no
+      )
+        return false;
+    }
+    return true;
+  }, [detail, fullPayTotalPayment, fullPayLines]);
+
+  const handleFullPayPayment = async () => {
+    if (!detail) return;
+    setIsProcessingFullPay(true);
+    try {
+      const response = await fetch("/api/auth/payment/multi", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          assessmentId: detail.assessment_id,
+          payments: fullPayLines.map((l) => ({
+            payment_type: l.payment_type,
+            amount: parseFloat(l.amount),
+            reference_no: l.reference_no || undefined,
+          })),
+          student_number: detail.student_number,
+        }),
+      });
+
+      if (!response.ok) {
+        const errData = await response.json();
+        throw new Error(errData.error || "Failed to process payment");
+      }
+
+      const result = await response.json();
+      setFullPaySuccess(
+        result.message || "Full payment recorded successfully!",
+      );
+
+      if (assessmentId) await fetchDetail(assessmentId);
+      onPaymentSuccess?.();
+      setTimeout(() => {
+        resetFullPayPayment();
+      }, 2000);
+    } catch (err: any) {
+      setError(err.message || "Payment failed");
+    } finally {
+      setIsProcessingFullPay(false);
+    }
+  };
+
+  // Downpayment helpers
+  const resetDownpaymentPayment = () => {
+    setIsPayingDownpayment(false);
+    setDownpaymentLines([
+      { id: 1, payment_type: "cash", amount: "", reference_no: "" },
+    ]);
+    setIsProcessingDownpayment(false);
+    setDownpaymentSuccess(null);
+    setShowLowDpConfirm(false);
+    setLowDpPendingPayment(false);
+  };
+
+  // Editable downpayment amount (user can override)
+  const [customDownpaymentAmount, setCustomDownpaymentAmount] =
+    useState<number>(3000);
+
+  const openDownpayment = () => {
+    if (!detail) return;
+    setIsPayingDownpayment(true);
+    setCustomDownpaymentAmount(minDownpayment);
+    setDownpaymentLines([
+      {
+        id: 1,
+        payment_type: "cash",
+        amount: String(minDownpayment),
+        reference_no: "",
+      },
+    ]);
+    setDownpaymentSuccess(null);
+    setShowLowDpConfirm(false);
+  };
+
+  const addDownpaymentLine = () => {
+    const maxId = Math.max(...downpaymentLines.map((l) => l.id), 0);
+    setDownpaymentLines([
+      ...downpaymentLines,
+      { id: maxId + 1, payment_type: "cash", amount: "", reference_no: "" },
+    ]);
+  };
+
+  const removeDownpaymentLine = (id: number) => {
+    if (downpaymentLines.length <= 1) return;
+    setDownpaymentLines(downpaymentLines.filter((l) => l.id !== id));
+  };
+
+  const updateDownpaymentLine = (
+    id: number,
+    field: keyof InstallmentPayLine,
+    value: string,
+  ) => {
+    setDownpaymentLines(
+      downpaymentLines.map((l) => (l.id === id ? { ...l, [field]: value } : l)),
+    );
+  };
+
+  const downpaymentTotalPayment = useMemo(() => {
+    return downpaymentLines.reduce(
+      (sum, l) => sum + (parseFloat(l.amount) || 0),
+      0,
+    );
+  }, [downpaymentLines]);
+
+  const downpaymentChangeAmount = useMemo(() => {
+    return Math.max(0, downpaymentTotalPayment - customDownpaymentAmount);
+  }, [downpaymentTotalPayment, customDownpaymentAmount]);
+
+  const canSubmitDownpayment = useMemo(() => {
+    if (downpaymentTotalPayment < customDownpaymentAmount) return false;
+    for (const line of downpaymentLines) {
+      if (!line.amount || parseFloat(line.amount) <= 0) return false;
+      if (
+        (line.payment_type === "gcash" ||
+          line.payment_type === "bank_transfer") &&
+        !line.reference_no
+      )
+        return false;
+    }
+    return true;
+  }, [downpaymentTotalPayment, downpaymentLines, customDownpaymentAmount]);
+
+  // Attempt to submit downpayment - check if below minimum first
+  const attemptDownpaymentPayment = () => {
+    if (customDownpaymentAmount < minDownpayment) {
+      // Show confirmation modal with authorizer info
+      setShowLowDpConfirm(true);
+    } else {
+      handleDownpaymentPayment();
+    }
+  };
+
+  // Confirm low downpayment after authorization
+  const confirmLowDownpayment = () => {
+    setShowLowDpConfirm(false);
+    setLowDpPendingPayment(true);
+    handleDownpaymentPayment();
+  };
+
+  const handleDownpaymentPayment = async () => {
+    if (!detail) return;
+    setIsProcessingDownpayment(true);
+    try {
+      const response = await fetch("/api/auth/payment/multi", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          assessmentId: detail.assessment_id,
+          payments: downpaymentLines.map((l) => ({
+            payment_type: l.payment_type,
+            amount: parseFloat(l.amount),
+            reference_no: l.reference_no || undefined,
+          })),
+          student_number: detail.student_number,
+        }),
+      });
+
+      if (!response.ok) {
+        const errData = await response.json();
+        throw new Error(errData.error || "Failed to process downpayment");
+      }
+
+      const result = await response.json();
+      setDownpaymentSuccess(
+        result.message || "Downpayment recorded successfully!",
+      );
+
+      if (assessmentId) await fetchDetail(assessmentId);
+      onPaymentSuccess?.();
+      setTimeout(() => {
+        resetDownpaymentPayment();
+      }, 2000);
+    } catch (err: any) {
+      setError(err.message || "Payment failed");
+    } finally {
+      setIsProcessingDownpayment(false);
+    }
+  };
+
+  // Computed installment breakdown
+  const installmentBreakdown = useMemo(() => {
+    if (!detail) return null;
+    const totalMatriculation =
+      detail.payment_mode?.toLowerCase() === "installment"
+        ? detail.total_due_installment || detail.total_due
+        : detail.total_due;
+    // Use the FIXED down_payment stored in the DB (set on first payment).
+    // If not yet stored, use the editable customDownpaymentAmount during the downpayment form,
+    // or fall back to the minDownpayment default.
+    const downpayment =
+      detail.down_payment != null
+        ? detail.down_payment
+        : isPayingDownpayment
+          ? customDownpaymentAmount
+          : minDownpayment;
+    const balance = Math.max(0, totalMatriculation - downpayment);
+    const installmentCharge =
+      Math.round(balance * (installmentChargePercent / 100) * 100) / 100;
+    const netBalance = Math.round((balance + installmentCharge) * 100) / 100;
+    const perTerm = Math.round((netBalance / 3) * 100) / 100;
+    const finalsTerm = Math.round((netBalance - perTerm * 2) * 100) / 100;
+    return {
+      totalMatriculation,
+      downpayment,
+      balance,
+      installmentCharge,
+      netBalance,
+      prelim: perTerm,
+      midterm: perTerm,
+      finals: finalsTerm,
+    };
+  }, [
+    detail,
+    minDownpayment,
+    installmentChargePercent,
+    customDownpaymentAmount,
+    isPayingDownpayment,
+  ]);
 
   const addInstallPayLine = () => {
     const maxId = Math.max(...installPayLines.map((l) => l.id), 0);
@@ -278,6 +627,8 @@ export const FinancialDetailModal: React.FC<FinancialDetailModalProps> = ({
 
       // Refresh the detail data
       if (assessmentId) await fetchDetail(assessmentId);
+      // Notify parent to refresh its list
+      onPaymentSuccess?.();
 
       // Reset payment form after a short delay
       setTimeout(() => {
@@ -461,6 +812,503 @@ export const FinancialDetailModal: React.FC<FinancialDetailModalProps> = ({
                     </p>
                   </div>
                 </div>
+
+                {/* Payment Action Buttons */}
+                {detail.remaining_balance > 0 &&
+                  detail.payment_status !== "Fully Paid" && (
+                    <div className='mt-4 flex gap-3'>
+                      {detail.payment_mode?.toLowerCase() !== "installment" ? (
+                        /* FULL PAY mode - show pay full amount button */
+                        <button
+                          onClick={openFullPay}
+                          disabled={isPayingFullPay}
+                          className='flex-1 flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg text-white font-medium text-sm hover:opacity-90 transition-colors disabled:opacity-50'
+                          style={{ backgroundColor: colors.secondary }}
+                        >
+                          <DollarSign className='w-4 h-4' />
+                          Pay Full Amount (
+                          {formatAmount(detail.remaining_balance)})
+                        </button>
+                      ) : (
+                        /* INSTALLMENT mode */
+                        <>
+                          {detail.total_paid === 0 ? (
+                            /* First payment - show downpayment button */
+                            <button
+                              onClick={openDownpayment}
+                              disabled={isPayingDownpayment}
+                              className='flex-1 flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg text-white font-medium text-sm hover:opacity-90 transition-colors disabled:opacity-50'
+                              style={{ backgroundColor: colors.secondary }}
+                            >
+                              <DollarSign className='w-4 h-4' />
+                              Pay Downpayment (Min.{" "}
+                              {formatAmount(minDownpayment)})
+                            </button>
+                          ) : (
+                            /* After downpayment - guide to schedule tab */
+                            <div
+                              className='flex-1 flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg text-sm font-medium border'
+                              style={{
+                                borderColor: colors.secondary + "40",
+                                color: colors.secondary,
+                                backgroundColor: colors.secondary + "08",
+                              }}
+                            >
+                              <Calendar className='w-4 h-4' />
+                              Downpayment paid. Go to Schedule tab to pay
+                              installments.
+                            </div>
+                          )}
+                        </>
+                      )}
+                    </div>
+                  )}
+
+                {/* Full Pay Payment Form */}
+                {isPayingFullPay && detail && (
+                  <div className='mt-4 border border-green-200 rounded-lg overflow-hidden bg-green-50/30'>
+                    <div className='px-4 py-3 bg-green-100/50 border-b border-green-200 flex items-center justify-between'>
+                      <div className='flex items-center gap-2'>
+                        <DollarSign className='w-5 h-5 text-green-700' />
+                        <span className='font-semibold text-green-900 text-sm'>
+                          Full Payment —{" "}
+                          {formatAmount(detail.remaining_balance)}
+                        </span>
+                      </div>
+                      <button
+                        onClick={resetFullPayPayment}
+                        className='text-green-400 hover:text-green-600 p-1'
+                      >
+                        <X className='w-4 h-4' />
+                      </button>
+                    </div>
+                    {fullPaySuccess ? (
+                      <div className='p-4'>
+                        <div className='flex items-center gap-2 text-green-800 text-sm'>
+                          <CheckCircle className='w-5 h-5' />
+                          <span>{fullPaySuccess}</span>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className='p-4 space-y-3'>
+                        {fullPayLines.map((line, index) => (
+                          <div key={line.id} className='flex items-start gap-2'>
+                            <div className='flex-shrink-0 pt-2 text-xs text-gray-400 w-5 text-right'>
+                              {index + 1}.
+                            </div>
+                            <div className='flex-1 grid grid-cols-3 gap-2'>
+                              <div>
+                                <label className='text-xs text-gray-500 mb-1 block'>
+                                  Type
+                                </label>
+                                <div className='relative'>
+                                  <div className='absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400'>
+                                    {paymentTypeIcon(line.payment_type)}
+                                  </div>
+                                  <select
+                                    value={line.payment_type}
+                                    onChange={(e) =>
+                                      updateFullPayLine(
+                                        line.id,
+                                        "payment_type",
+                                        e.target.value,
+                                      )
+                                    }
+                                    className='w-full pl-9 pr-2 py-2 border border-gray-300 rounded-lg bg-white text-sm focus:ring-2 focus:ring-green-500 focus:border-transparent'
+                                  >
+                                    <option value='cash'>Cash</option>
+                                    <option value='gcash'>GCash</option>
+                                    <option value='bank_transfer'>Bank</option>
+                                  </select>
+                                </div>
+                              </div>
+                              <div>
+                                <label className='text-xs text-gray-500 mb-1 block'>
+                                  Amount
+                                </label>
+                                <div className='relative'>
+                                  <span className='absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400 text-sm'>
+                                    ₱
+                                  </span>
+                                  <input
+                                    type='number'
+                                    step='0.01'
+                                    min='0.01'
+                                    value={line.amount}
+                                    onChange={(e) =>
+                                      updateFullPayLine(
+                                        line.id,
+                                        "amount",
+                                        e.target.value,
+                                      )
+                                    }
+                                    placeholder='0.00'
+                                    className='w-full pl-7 pr-2 py-2 border border-gray-300 rounded-lg bg-white text-sm text-right focus:ring-2 focus:ring-green-500 focus:border-transparent'
+                                  />
+                                </div>
+                              </div>
+                              <div>
+                                <label className='text-xs text-gray-500 mb-1 block'>
+                                  Reference
+                                </label>
+                                <div className='relative'>
+                                  <Hash className='absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400 w-3.5 h-3.5' />
+                                  <input
+                                    type='text'
+                                    value={line.reference_no}
+                                    onChange={(e) =>
+                                      updateFullPayLine(
+                                        line.id,
+                                        "reference_no",
+                                        e.target.value,
+                                      )
+                                    }
+                                    placeholder={
+                                      line.payment_type === "cash"
+                                        ? "Optional"
+                                        : "Required"
+                                    }
+                                    className='w-full pl-7 pr-2 py-2 border border-gray-300 rounded-lg bg-white text-sm focus:ring-2 focus:ring-green-500 focus:border-transparent'
+                                    disabled={line.payment_type === "cash"}
+                                  />
+                                </div>
+                              </div>
+                            </div>
+                            <div className='flex-shrink-0 pt-7'>
+                              <button
+                                onClick={() => removeFullPayLine(line.id)}
+                                disabled={fullPayLines.length <= 1}
+                                className='p-1.5 text-gray-400 hover:text-red-500 disabled:opacity-30 disabled:hover:text-gray-400 transition-colors'
+                              >
+                                <Trash2 className='w-4 h-4' />
+                              </button>
+                            </div>
+                          </div>
+                        ))}
+                        <button
+                          onClick={addFullPayLine}
+                          className='flex items-center gap-1.5 text-xs font-medium text-green-600 hover:text-green-800 transition-colors mt-1'
+                        >
+                          <Plus className='w-3.5 h-3.5' />
+                          Add Payment Line
+                        </button>
+                        <div className='border-t border-green-200 pt-3 space-y-1.5'>
+                          <div className='flex justify-between text-sm'>
+                            <span className='text-gray-600'>
+                              Required Amount
+                            </span>
+                            <span className='font-medium'>
+                              {formatAmount(detail.remaining_balance)}
+                            </span>
+                          </div>
+                          <div className='flex justify-between text-sm'>
+                            <span className='text-gray-600'>Total Payment</span>
+                            <span
+                              className={`font-semibold ${fullPayTotalPayment >= detail.remaining_balance ? "text-green-600" : "text-red-600"}`}
+                            >
+                              {formatAmount(fullPayTotalPayment)}
+                            </span>
+                          </div>
+                          {fullPayChangeAmount > 0 && (
+                            <div className='flex justify-between text-sm'>
+                              <span className='text-gray-600'>Change</span>
+                              <span className='font-medium text-green-600'>
+                                {formatAmount(fullPayChangeAmount)}
+                              </span>
+                            </div>
+                          )}
+                          {fullPayTotalPayment < detail.remaining_balance && (
+                            <p className='text-xs text-red-500'>
+                              Insufficient amount. Need{" "}
+                              {formatAmount(
+                                detail.remaining_balance - fullPayTotalPayment,
+                              )}{" "}
+                              more.
+                            </p>
+                          )}
+                        </div>
+                        <div className='flex justify-end gap-2 pt-2'>
+                          <button
+                            onClick={resetFullPayPayment}
+                            className='px-4 py-2 rounded-lg text-sm font-medium text-gray-600 bg-gray-100 hover:bg-gray-200 transition-colors'
+                          >
+                            Cancel
+                          </button>
+                          <button
+                            onClick={handleFullPayPayment}
+                            disabled={!canSubmitFullPay || isProcessingFullPay}
+                            className='px-4 py-2 rounded-lg text-sm font-medium text-white hover:opacity-90 transition-colors disabled:opacity-50 flex items-center gap-2'
+                            style={{ backgroundColor: colors.secondary }}
+                          >
+                            {isProcessingFullPay ? (
+                              <>
+                                <Loader2 className='w-4 h-4 animate-spin' />
+                                Processing...
+                              </>
+                            ) : (
+                              <>
+                                <DollarSign className='w-4 h-4' />
+                                Confirm Full Payment
+                              </>
+                            )}
+                          </button>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {/* Downpayment Payment Form */}
+                {isPayingDownpayment && detail && (
+                  <div className='mt-4 border border-blue-200 rounded-lg overflow-hidden bg-blue-50/30'>
+                    <div className='px-4 py-3 bg-blue-100/50 border-b border-blue-200 flex items-center justify-between'>
+                      <div className='flex items-center gap-2'>
+                        <DollarSign className='w-5 h-5 text-blue-700' />
+                        <span className='font-semibold text-blue-900 text-sm'>
+                          Downpayment — Min. {formatAmount(minDownpayment)}
+                        </span>
+                      </div>
+                      <button
+                        onClick={resetDownpaymentPayment}
+                        className='text-blue-400 hover:text-blue-600 p-1'
+                      >
+                        <X className='w-4 h-4' />
+                      </button>
+                    </div>
+                    {downpaymentSuccess ? (
+                      <div className='p-4'>
+                        <div className='flex items-center gap-2 text-green-800 text-sm'>
+                          <CheckCircle className='w-5 h-5' />
+                          <span>{downpaymentSuccess}</span>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className='p-4 space-y-3'>
+                        {/* Editable downpayment amount */}
+                        <div className='p-3 rounded-lg border border-blue-200 bg-blue-50'>
+                          <label className='text-xs font-medium text-blue-800 mb-1.5 block'>
+                            Downpayment Amount (editable)
+                          </label>
+                          <div className='relative'>
+                            <span className='absolute left-3 top-1/2 -translate-y-1/2 text-blue-600 font-medium'>
+                              ₱
+                            </span>
+                            <input
+                              type='number'
+                              step='0.01'
+                              min='0.01'
+                              value={customDownpaymentAmount}
+                              onChange={(e) => {
+                                const val = parseFloat(e.target.value) || 0;
+                                setCustomDownpaymentAmount(val);
+                                // Auto-update the first payment line amount to match
+                                if (downpaymentLines.length === 1) {
+                                  setDownpaymentLines([
+                                    {
+                                      ...downpaymentLines[0],
+                                      amount: String(val),
+                                    },
+                                  ]);
+                                }
+                              }}
+                              className='w-full pl-8 pr-3 py-2.5 border border-blue-300 rounded-lg bg-white text-sm text-right font-semibold focus:ring-2 focus:ring-blue-500 focus:border-transparent'
+                            />
+                          </div>
+                          {customDownpaymentAmount < minDownpayment && (
+                            <div className='flex items-center gap-1.5 mt-2 text-xs text-amber-600'>
+                              <AlertTriangle className='w-3.5 h-3.5 flex-shrink-0' />
+                              <span>
+                                Below minimum ({formatAmount(minDownpayment)}).
+                                Will require authorization.
+                              </span>
+                            </div>
+                          )}
+                        </div>
+
+                        {downpaymentLines.map((line, index) => (
+                          <div key={line.id} className='flex items-start gap-2'>
+                            <div className='flex-shrink-0 pt-2 text-xs text-gray-400 w-5 text-right'>
+                              {index + 1}.
+                            </div>
+                            <div className='flex-1 grid grid-cols-3 gap-2'>
+                              <div>
+                                <label className='text-xs text-gray-500 mb-1 block'>
+                                  Type
+                                </label>
+                                <div className='relative'>
+                                  <div className='absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400'>
+                                    {paymentTypeIcon(line.payment_type)}
+                                  </div>
+                                  <select
+                                    value={line.payment_type}
+                                    onChange={(e) =>
+                                      updateDownpaymentLine(
+                                        line.id,
+                                        "payment_type",
+                                        e.target.value,
+                                      )
+                                    }
+                                    className='w-full pl-9 pr-2 py-2 border border-gray-300 rounded-lg bg-white text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent'
+                                  >
+                                    <option value='cash'>Cash</option>
+                                    <option value='gcash'>GCash</option>
+                                    <option value='bank_transfer'>Bank</option>
+                                  </select>
+                                </div>
+                              </div>
+                              <div>
+                                <label className='text-xs text-gray-500 mb-1 block'>
+                                  Amount
+                                </label>
+                                <div className='relative'>
+                                  <span className='absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400 text-sm'>
+                                    ₱
+                                  </span>
+                                  <input
+                                    type='number'
+                                    step='0.01'
+                                    min='0.01'
+                                    value={line.amount}
+                                    onChange={(e) =>
+                                      updateDownpaymentLine(
+                                        line.id,
+                                        "amount",
+                                        e.target.value,
+                                      )
+                                    }
+                                    placeholder='0.00'
+                                    className='w-full pl-7 pr-2 py-2 border border-gray-300 rounded-lg bg-white text-sm text-right focus:ring-2 focus:ring-blue-500 focus:border-transparent'
+                                  />
+                                </div>
+                              </div>
+                              <div>
+                                <label className='text-xs text-gray-500 mb-1 block'>
+                                  Reference
+                                </label>
+                                <div className='relative'>
+                                  <Hash className='absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400 w-3.5 h-3.5' />
+                                  <input
+                                    type='text'
+                                    value={line.reference_no}
+                                    onChange={(e) =>
+                                      updateDownpaymentLine(
+                                        line.id,
+                                        "reference_no",
+                                        e.target.value,
+                                      )
+                                    }
+                                    placeholder={
+                                      line.payment_type === "cash"
+                                        ? "Optional"
+                                        : "Required"
+                                    }
+                                    className='w-full pl-7 pr-2 py-2 border border-gray-300 rounded-lg bg-white text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent'
+                                    disabled={line.payment_type === "cash"}
+                                  />
+                                </div>
+                              </div>
+                            </div>
+                            <div className='flex-shrink-0 pt-7'>
+                              <button
+                                onClick={() => removeDownpaymentLine(line.id)}
+                                disabled={downpaymentLines.length <= 1}
+                                className='p-1.5 text-gray-400 hover:text-red-500 disabled:opacity-30 disabled:hover:text-gray-400 transition-colors'
+                              >
+                                <Trash2 className='w-4 h-4' />
+                              </button>
+                            </div>
+                          </div>
+                        ))}
+                        <button
+                          onClick={addDownpaymentLine}
+                          className='flex items-center gap-1.5 text-xs font-medium text-blue-600 hover:text-blue-800 transition-colors mt-1'
+                        >
+                          <Plus className='w-3.5 h-3.5' />
+                          Add Payment Line
+                        </button>
+                        <div className='border-t border-blue-200 pt-3 space-y-1.5'>
+                          <div className='flex justify-between text-sm'>
+                            <span className='text-gray-600'>
+                              Downpayment Amount
+                            </span>
+                            <span className='font-medium'>
+                              {formatAmount(customDownpaymentAmount)}
+                            </span>
+                          </div>
+                          {customDownpaymentAmount < minDownpayment && (
+                            <div className='flex items-center gap-1.5 text-xs text-amber-600 bg-amber-50 px-2 py-1.5 rounded'>
+                              <AlertTriangle className='w-3.5 h-3.5 flex-shrink-0' />
+                              <span>
+                                Below minimum downpayment of{" "}
+                                {formatAmount(minDownpayment)}
+                              </span>
+                            </div>
+                          )}
+                          <div className='flex justify-between text-sm'>
+                            <span className='text-gray-600'>Total Payment</span>
+                            <span
+                              className={`font-semibold ${downpaymentTotalPayment >= customDownpaymentAmount ? "text-green-600" : "text-red-600"}`}
+                            >
+                              {formatAmount(downpaymentTotalPayment)}
+                            </span>
+                          </div>
+                          {downpaymentChangeAmount > 0 && (
+                            <div className='flex justify-between text-sm'>
+                              <span className='text-gray-600'>Change</span>
+                              <span className='font-medium text-blue-600'>
+                                {formatAmount(downpaymentChangeAmount)}
+                              </span>
+                            </div>
+                          )}
+                          {downpaymentTotalPayment <
+                            customDownpaymentAmount && (
+                            <p className='text-xs text-red-500'>
+                              Insufficient amount. Need{" "}
+                              {formatAmount(
+                                customDownpaymentAmount -
+                                  downpaymentTotalPayment,
+                              )}{" "}
+                              more.
+                            </p>
+                          )}
+                        </div>
+                        <div className='flex justify-end gap-2 pt-2'>
+                          <button
+                            onClick={resetDownpaymentPayment}
+                            className='px-4 py-2 rounded-lg text-sm font-medium text-gray-600 bg-gray-100 hover:bg-gray-200 transition-colors'
+                          >
+                            Cancel
+                          </button>
+                          <button
+                            onClick={attemptDownpaymentPayment}
+                            disabled={
+                              !canSubmitDownpayment || isProcessingDownpayment
+                            }
+                            className='px-4 py-2 rounded-lg text-sm font-medium text-white hover:opacity-90 transition-colors disabled:opacity-50 flex items-center gap-2'
+                            style={{
+                              backgroundColor:
+                                customDownpaymentAmount < minDownpayment
+                                  ? "#d97706"
+                                  : colors.secondary,
+                            }}
+                          >
+                            {isProcessingDownpayment ? (
+                              <>
+                                <Loader2 className='w-4 h-4 animate-spin' />
+                                Processing...
+                              </>
+                            ) : (
+                              <>
+                                <DollarSign className='w-4 h-4' />
+                                Confirm Downpayment
+                              </>
+                            )}
+                          </button>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )}
               </div>
 
               {/* Tab Navigation */}
@@ -719,45 +1567,102 @@ export const FinancialDetailModal: React.FC<FinancialDetailModalProps> = ({
                             {formatAmount(detail.base_total)}
                           </span>
                         </div>
-                        {detail.insurance_amount != null &&
-                          detail.insurance_amount > 0 && (
-                            <div className='flex justify-between'>
-                              <span className='text-gray-600'>Insurance</span>
-                              <span className='font-medium'>
-                                {formatAmount(detail.insurance_amount)}
+
+                        {/* Payment Mode Specific Breakdown */}
+                        {detail.payment_mode?.toLowerCase() === "installment" &&
+                        installmentBreakdown ? (
+                          <>
+                            <div
+                              className='flex justify-between border-t border-gray-200 pt-2 mt-1'
+                              style={{ color: colors.primary }}
+                            >
+                              <span className='font-bold'>
+                                TOTAL MATRICULATION
+                              </span>
+                              <span className='font-bold text-lg'>
+                                {formatAmount(
+                                  installmentBreakdown.totalMatriculation,
+                                )}
                               </span>
                             </div>
-                          )}
-                        {detail.down_payment != null &&
-                          detail.down_payment > 0 && (
+                            <div className='flex justify-between'>
+                              <span className='text-gray-600'>Downpayment</span>
+                              <span className='font-medium'>
+                                {formatAmount(installmentBreakdown.downpayment)}
+                              </span>
+                            </div>
+                            <div className='flex justify-between border-t border-gray-100 pt-1.5'>
+                              <span className='text-gray-600'>Balance</span>
+                              <span className='font-semibold'>
+                                {formatAmount(installmentBreakdown.balance)}
+                              </span>
+                            </div>
                             <div className='flex justify-between'>
                               <span className='text-gray-600'>
-                                Down Payment
+                                Installment Charge ({installmentChargePercent}%)
                               </span>
                               <span className='font-medium'>
-                                {formatAmount(detail.down_payment)}
+                                {formatAmount(
+                                  installmentBreakdown.installmentCharge,
+                                )}
                               </span>
                             </div>
-                          )}
-                        <div
-                          className='flex justify-between border-t border-gray-200 pt-2 mt-1'
-                          style={{ color: colors.primary }}
-                        >
-                          <span className='font-bold'>TOTAL DUE</span>
-                          <span className='font-bold text-lg'>
-                            {formatAmount(detail.total_due)}
-                          </span>
-                        </div>
-                        {detail.total_due_cash != null &&
-                          detail.total_due_installment != null && (
-                            <div className='text-xs text-gray-500 text-right space-y-0.5'>
-                              <p>Cash: {formatAmount(detail.total_due_cash)}</p>
-                              <p>
-                                Installment:{" "}
-                                {formatAmount(detail.total_due_installment)}
-                              </p>
+                            <div
+                              className='flex justify-between border-t border-gray-200 pt-2 mt-1'
+                              style={{ color: colors.secondary }}
+                            >
+                              <span className='font-bold'>NET BALANCE</span>
+                              <span className='font-bold text-lg'>
+                                {formatAmount(installmentBreakdown.netBalance)}
+                              </span>
                             </div>
-                          )}
+                            <div className='border-t border-gray-100 pt-1.5 space-y-1'>
+                              <div className='flex justify-between'>
+                                <span className='text-gray-600'>Prelim</span>
+                                <span className='font-medium'>
+                                  {formatAmount(installmentBreakdown.prelim)}
+                                </span>
+                              </div>
+                              <div className='flex justify-between'>
+                                <span className='text-gray-600'>Midterm</span>
+                                <span className='font-medium'>
+                                  {formatAmount(installmentBreakdown.midterm)}
+                                </span>
+                              </div>
+                              <div className='flex justify-between'>
+                                <span className='text-gray-600'>Finals</span>
+                                <span className='font-medium'>
+                                  {formatAmount(installmentBreakdown.finals)}
+                                </span>
+                              </div>
+                            </div>
+                          </>
+                        ) : (
+                          <>
+                            {detail.insurance_amount != null &&
+                              detail.insurance_amount > 0 && (
+                                <div className='flex justify-between'>
+                                  <span className='text-gray-600'>
+                                    Insurance
+                                  </span>
+                                  <span className='font-medium'>
+                                    {formatAmount(detail.insurance_amount)}
+                                  </span>
+                                </div>
+                              )}
+                            <div
+                              className='flex justify-between border-t border-gray-200 pt-2 mt-1'
+                              style={{ color: colors.primary }}
+                            >
+                              <span className='font-bold'>
+                                TOTAL DUE (Full Pay)
+                              </span>
+                              <span className='font-bold text-lg'>
+                                {formatAmount(detail.total_due)}
+                              </span>
+                            </div>
+                          </>
+                        )}
                       </div>
                     </div>
                   </div>
@@ -846,13 +1751,124 @@ export const FinancialDetailModal: React.FC<FinancialDetailModalProps> = ({
                           . No installment schedule available.
                         </p>
                       </div>
-                    ) : detail.payment_schedule.length === 0 ? (
-                      <div className='text-center py-8 text-gray-500'>
-                        <Calendar className='w-10 h-10 mx-auto mb-2 text-gray-300' />
-                        <p>No installment schedule found.</p>
-                      </div>
                     ) : (
                       <div className='space-y-4'>
+                        {/* Installment Breakdown Summary */}
+                        {installmentBreakdown &&
+                          (() => {
+                            const paidScheduleAmount = detail.payment_schedule
+                              .filter((s) => s.is_paid)
+                              .reduce((sum, s) => {
+                                const computed = s.label
+                                  .toLowerCase()
+                                  .includes("prelim")
+                                  ? installmentBreakdown.prelim
+                                  : s.label.toLowerCase().includes("midterm")
+                                    ? installmentBreakdown.midterm
+                                    : s.label.toLowerCase().includes("final")
+                                      ? installmentBreakdown.finals
+                                      : s.amount;
+                                return sum + computed;
+                              }, 0);
+                            const remainingInstallment = Math.max(
+                              0,
+                              installmentBreakdown.netBalance -
+                                paidScheduleAmount,
+                            );
+                            return (
+                              <div className='border border-gray-200 rounded-lg overflow-hidden'>
+                                <div
+                                  className='px-4 py-2.5 font-medium text-sm flex justify-between items-center'
+                                  style={{
+                                    backgroundColor: `${colors.primary}08`,
+                                    color: colors.primary,
+                                  }}
+                                >
+                                  <span>Installment Breakdown</span>
+                                </div>
+                                <div className='px-4 py-3 space-y-1.5 text-sm'>
+                                  <div className='flex justify-between'>
+                                    <span className='text-gray-600'>
+                                      Total Matriculation
+                                    </span>
+                                    <span className='font-medium'>
+                                      {formatAmount(
+                                        installmentBreakdown.totalMatriculation,
+                                      )}
+                                    </span>
+                                  </div>
+                                  <div className='flex justify-between'>
+                                    <span className='text-gray-600'>
+                                      Downpayment{" "}
+                                      {detail.down_payment != null
+                                        ? "(Paid)"
+                                        : ""}
+                                    </span>
+                                    <span className='font-medium text-green-600'>
+                                      {formatAmount(
+                                        installmentBreakdown.downpayment,
+                                      )}
+                                    </span>
+                                  </div>
+                                  <div className='flex justify-between border-t border-gray-100 pt-1.5'>
+                                    <span className='text-gray-600'>
+                                      Balance
+                                    </span>
+                                    <span className='font-semibold'>
+                                      {formatAmount(
+                                        installmentBreakdown.balance,
+                                      )}
+                                    </span>
+                                  </div>
+                                  <div className='flex justify-between'>
+                                    <span className='text-gray-600'>
+                                      Installment Charge (
+                                      {installmentChargePercent}%)
+                                    </span>
+                                    <span className='font-medium'>
+                                      {formatAmount(
+                                        installmentBreakdown.installmentCharge,
+                                      )}
+                                    </span>
+                                  </div>
+                                  <div
+                                    className='flex justify-between border-t border-gray-200 pt-2 mt-1'
+                                    style={{ color: colors.secondary }}
+                                  >
+                                    <span className='font-bold'>
+                                      NET BALANCE
+                                    </span>
+                                    <span className='font-bold text-lg'>
+                                      {formatAmount(
+                                        installmentBreakdown.netBalance,
+                                      )}
+                                    </span>
+                                  </div>
+                                  {paidScheduleAmount > 0 && (
+                                    <>
+                                      <div className='flex justify-between pt-1'>
+                                        <span className='text-green-600 font-medium'>
+                                          Installments Paid
+                                        </span>
+                                        <span className='font-medium text-green-600'>
+                                          -{formatAmount(paidScheduleAmount)}
+                                        </span>
+                                      </div>
+                                      <div className='flex justify-between border-t border-gray-200 pt-2 mt-1'>
+                                        <span className='font-bold text-red-600'>
+                                          REMAINING
+                                        </span>
+                                        <span className='font-bold text-lg text-red-600'>
+                                          {formatAmount(remainingInstallment)}
+                                        </span>
+                                      </div>
+                                    </>
+                                  )}
+                                </div>
+                              </div>
+                            );
+                          })()}
+
                         {/* Success message */}
                         {installmentSuccess && (
                           <div className='flex items-center gap-2 px-4 py-3 bg-green-50 border border-green-200 rounded-lg text-green-800 text-sm'>
@@ -861,325 +1877,378 @@ export const FinancialDetailModal: React.FC<FinancialDetailModalProps> = ({
                           </div>
                         )}
 
-                        <div className='overflow-x-auto'>
-                          <table className='w-full'>
-                            <thead>
-                              <tr className='bg-gray-50 border-b border-gray-200'>
-                                <th className='px-4 py-2.5 text-left text-xs font-medium text-gray-500 uppercase tracking-wider'>
-                                  Period
-                                </th>
-                                <th className='px-4 py-2.5 text-left text-xs font-medium text-gray-500 uppercase tracking-wider'>
-                                  Due Date
-                                </th>
-                                <th className='px-4 py-2.5 text-right text-xs font-medium text-gray-500 uppercase tracking-wider'>
-                                  Amount
-                                </th>
-                                <th className='px-4 py-2.5 text-center text-xs font-medium text-gray-500 uppercase tracking-wider'>
-                                  Status
-                                </th>
-                                <th className='px-4 py-2.5 text-center text-xs font-medium text-gray-500 uppercase tracking-wider'>
-                                  Action
-                                </th>
-                              </tr>
-                            </thead>
-                            <tbody className='divide-y divide-gray-100'>
-                              {detail.payment_schedule.map((sched) => (
-                                <tr
-                                  key={sched.id}
-                                  className={`hover:bg-gray-50 ${sched.is_paid ? "bg-green-50/50" : ""} ${payingSchedule?.id === sched.id ? "bg-blue-50 border-l-4 border-l-blue-400" : ""}`}
-                                >
-                                  <td className='px-4 py-2.5 text-sm font-medium text-gray-900'>
-                                    {sched.label}
-                                  </td>
-                                  <td className='px-4 py-2.5 text-sm text-gray-600'>
-                                    {new Date(
-                                      sched.due_date,
-                                    ).toLocaleDateString("en-US", {
-                                      year: "numeric",
-                                      month: "short",
-                                      day: "numeric",
-                                    })}
-                                  </td>
-                                  <td className='px-4 py-2.5 text-sm text-right font-medium'>
-                                    {formatAmount(sched.amount)}
-                                  </td>
-                                  <td className='px-4 py-2.5 text-center'>
-                                    {sched.is_paid ? (
-                                      <span className='inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800'>
-                                        Paid
-                                      </span>
-                                    ) : (
-                                      <span className='inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800'>
-                                        Pending
-                                      </span>
-                                    )}
-                                  </td>
-                                  <td className='px-4 py-2.5 text-center'>
-                                    {!sched.is_paid && (
-                                      <button
-                                        onClick={() =>
-                                          openInstallmentPay(sched)
-                                        }
-                                        disabled={isProcessingInstallment}
-                                        className='inline-flex items-center gap-1 px-3 py-1 rounded-md text-xs font-medium text-white hover:opacity-90 transition-colors disabled:opacity-50'
-                                        style={{
-                                          backgroundColor: colors.secondary,
-                                        }}
+                        {detail.total_paid === 0 ? (
+                          <div className='text-center py-6 text-gray-500 bg-amber-50 border border-amber-200 rounded-lg'>
+                            <AlertTriangle className='w-8 h-8 mx-auto mb-2 text-amber-400' />
+                            <p className='font-medium text-amber-800'>
+                              Downpayment Required
+                            </p>
+                            <p className='text-sm text-amber-600 mt-1'>
+                              Please pay the downpayment first before paying
+                              installments.
+                            </p>
+                          </div>
+                        ) : detail.payment_schedule.length === 0 ? (
+                          <div className='text-center py-8 text-gray-500'>
+                            <Calendar className='w-10 h-10 mx-auto mb-2 text-gray-300' />
+                            <p>No installment schedule found.</p>
+                          </div>
+                        ) : (
+                          <>
+                            <div className='overflow-x-auto'>
+                              <table className='w-full'>
+                                <thead>
+                                  <tr className='bg-gray-50 border-b border-gray-200'>
+                                    <th className='px-4 py-2.5 text-left text-xs font-medium text-gray-500 uppercase tracking-wider'>
+                                      Period
+                                    </th>
+                                    <th className='px-4 py-2.5 text-left text-xs font-medium text-gray-500 uppercase tracking-wider'>
+                                      Due Date
+                                    </th>
+                                    <th className='px-4 py-2.5 text-right text-xs font-medium text-gray-500 uppercase tracking-wider'>
+                                      Amount
+                                    </th>
+                                    <th className='px-4 py-2.5 text-center text-xs font-medium text-gray-500 uppercase tracking-wider'>
+                                      Status
+                                    </th>
+                                    <th className='px-4 py-2.5 text-center text-xs font-medium text-gray-500 uppercase tracking-wider'>
+                                      Action
+                                    </th>
+                                  </tr>
+                                </thead>
+                                <tbody className='divide-y divide-gray-100'>
+                                  {detail.payment_schedule.map((sched) => {
+                                    // Use computed amounts from installmentBreakdown
+                                    const computedAmount = installmentBreakdown
+                                      ? sched.label
+                                          .toLowerCase()
+                                          .includes("prelim")
+                                        ? installmentBreakdown.prelim
+                                        : sched.label
+                                              .toLowerCase()
+                                              .includes("midterm")
+                                          ? installmentBreakdown.midterm
+                                          : sched.label
+                                                .toLowerCase()
+                                                .includes("final")
+                                            ? installmentBreakdown.finals
+                                            : sched.amount
+                                      : sched.amount;
+                                    return (
+                                      <tr
+                                        key={sched.id}
+                                        className={`hover:bg-gray-50 ${sched.is_paid ? "bg-green-50/50" : ""} ${payingSchedule?.id === sched.id ? "bg-blue-50 border-l-4 border-l-blue-400" : ""}`}
                                       >
-                                        <DollarSign className='w-3.5 h-3.5' />
-                                        Pay
-                                      </button>
-                                    )}
-                                  </td>
-                                </tr>
-                              ))}
-                            </tbody>
-                            <tfoot>
-                              <tr className='bg-gray-50 font-semibold'>
-                                <td
-                                  colSpan={2}
-                                  className='px-4 py-2.5 text-sm text-gray-700'
-                                >
-                                  Total
-                                </td>
-                                <td className='px-4 py-2.5 text-sm text-right'>
-                                  {formatAmount(
-                                    detail.payment_schedule.reduce(
-                                      (sum, s) => sum + s.amount,
-                                      0,
-                                    ),
-                                  )}
-                                </td>
-                                <td className='px-4 py-2.5 text-center text-xs text-gray-500'>
-                                  {
-                                    detail.payment_schedule.filter(
-                                      (s) => s.is_paid,
-                                    ).length
-                                  }
-                                  /{detail.payment_schedule.length} paid
-                                </td>
-                                <td></td>
-                              </tr>
-                            </tfoot>
-                          </table>
-                        </div>
-
-                        {/* Installment Payment Form */}
-                        {payingSchedule && (
-                          <div className='border border-blue-200 rounded-lg overflow-hidden bg-blue-50/30'>
-                            <div className='px-4 py-3 bg-blue-100/50 border-b border-blue-200 flex items-center justify-between'>
-                              <div className='flex items-center gap-2'>
-                                <DollarSign className='w-5 h-5 text-blue-700' />
-                                <span className='font-semibold text-blue-900 text-sm'>
-                                  Pay {payingSchedule.label} —{" "}
-                                  {formatAmount(payingSchedule.amount)}
-                                </span>
-                              </div>
-                              <button
-                                onClick={resetInstallmentPayment}
-                                className='text-blue-400 hover:text-blue-600 p-1'
-                              >
-                                <X className='w-4 h-4' />
-                              </button>
+                                        <td className='px-4 py-2.5 text-sm font-medium text-gray-900'>
+                                          {sched.label}
+                                        </td>
+                                        <td className='px-4 py-2.5 text-sm text-gray-600'>
+                                          {new Date(
+                                            sched.due_date,
+                                          ).toLocaleDateString("en-US", {
+                                            year: "numeric",
+                                            month: "short",
+                                            day: "numeric",
+                                          })}
+                                        </td>
+                                        <td className='px-4 py-2.5 text-sm text-right font-medium'>
+                                          {formatAmount(computedAmount)}
+                                        </td>
+                                        <td className='px-4 py-2.5 text-center'>
+                                          {sched.is_paid ? (
+                                            <span className='inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800'>
+                                              Paid
+                                            </span>
+                                          ) : (
+                                            <span className='inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800'>
+                                              Pending
+                                            </span>
+                                          )}
+                                        </td>
+                                        <td className='px-4 py-2.5 text-center'>
+                                          {!sched.is_paid && (
+                                            <button
+                                              onClick={() => {
+                                                // Override the schedule amount with computedAmount
+                                                const overriddenSched = {
+                                                  ...sched,
+                                                  amount: computedAmount,
+                                                };
+                                                openInstallmentPay(
+                                                  overriddenSched,
+                                                );
+                                              }}
+                                              disabled={isProcessingInstallment}
+                                              className='inline-flex items-center gap-1 px-3 py-1 rounded-md text-xs font-medium text-white hover:opacity-90 transition-colors disabled:opacity-50'
+                                              style={{
+                                                backgroundColor:
+                                                  colors.secondary,
+                                              }}
+                                            >
+                                              <DollarSign className='w-3.5 h-3.5' />
+                                              Pay
+                                            </button>
+                                          )}
+                                        </td>
+                                      </tr>
+                                    );
+                                  })}
+                                </tbody>
+                                <tfoot>
+                                  <tr className='bg-gray-50 font-semibold'>
+                                    <td
+                                      colSpan={2}
+                                      className='px-4 py-2.5 text-sm text-gray-700'
+                                    >
+                                      Total
+                                    </td>
+                                    <td className='px-4 py-2.5 text-sm text-right'>
+                                      {formatAmount(
+                                        installmentBreakdown?.netBalance ??
+                                          detail.payment_schedule.reduce(
+                                            (sum, s) => sum + s.amount,
+                                            0,
+                                          ),
+                                      )}
+                                    </td>
+                                    <td className='px-4 py-2.5 text-center text-xs text-gray-500'>
+                                      {
+                                        detail.payment_schedule.filter(
+                                          (s) => s.is_paid,
+                                        ).length
+                                      }
+                                      /{detail.payment_schedule.length} paid
+                                    </td>
+                                    <td></td>
+                                  </tr>
+                                </tfoot>
+                              </table>
                             </div>
 
-                            <div className='p-4 space-y-3'>
-                              {/* Payment lines */}
-                              {installPayLines.map((line, index) => (
-                                <div
-                                  key={line.id}
-                                  className='flex items-start gap-2'
-                                >
-                                  <div className='flex-shrink-0 pt-2 text-xs text-gray-400 w-5 text-right'>
-                                    {index + 1}.
+                            {/* Installment Payment Form */}
+                            {payingSchedule && (
+                              <div className='border border-blue-200 rounded-lg overflow-hidden bg-blue-50/30'>
+                                <div className='px-4 py-3 bg-blue-100/50 border-b border-blue-200 flex items-center justify-between'>
+                                  <div className='flex items-center gap-2'>
+                                    <DollarSign className='w-5 h-5 text-blue-700' />
+                                    <span className='font-semibold text-blue-900 text-sm'>
+                                      Pay {payingSchedule.label} —{" "}
+                                      {formatAmount(payingSchedule.amount)}
+                                    </span>
                                   </div>
-                                  <div className='flex-1 grid grid-cols-3 gap-2'>
-                                    {/* Payment Type */}
-                                    <div>
-                                      <label className='text-xs text-gray-500 mb-1 block'>
-                                        Type
-                                      </label>
-                                      <div className='relative'>
-                                        <div className='absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400'>
-                                          {paymentTypeIcon(line.payment_type)}
-                                        </div>
-                                        <select
-                                          value={line.payment_type}
-                                          onChange={(e) =>
-                                            updateInstallPayLine(
-                                              line.id,
-                                              "payment_type",
-                                              e.target.value,
-                                            )
-                                          }
-                                          className='w-full pl-9 pr-2 py-2 border border-gray-300 rounded-lg bg-white text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent'
-                                        >
-                                          <option value='cash'>Cash</option>
-                                          <option value='gcash'>GCash</option>
-                                          <option value='bank_transfer'>
-                                            Bank
-                                          </option>
-                                        </select>
-                                      </div>
-                                    </div>
+                                  <button
+                                    onClick={resetInstallmentPayment}
+                                    className='text-blue-400 hover:text-blue-600 p-1'
+                                  >
+                                    <X className='w-4 h-4' />
+                                  </button>
+                                </div>
 
-                                    {/* Amount */}
-                                    <div>
-                                      <label className='text-xs text-gray-500 mb-1 block'>
-                                        Amount
-                                      </label>
-                                      <div className='relative'>
-                                        <span className='absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400 text-sm'>
-                                          ₱
-                                        </span>
-                                        <input
-                                          type='number'
-                                          step='0.01'
-                                          min='0.01'
-                                          value={line.amount}
-                                          onChange={(e) =>
-                                            updateInstallPayLine(
-                                              line.id,
-                                              "amount",
-                                              e.target.value,
-                                            )
-                                          }
-                                          placeholder='0.00'
-                                          className='w-full pl-7 pr-2 py-2 border border-gray-300 rounded-lg bg-white text-sm text-right focus:ring-2 focus:ring-blue-500 focus:border-transparent'
-                                        />
-                                      </div>
-                                    </div>
-
-                                    {/* Reference */}
-                                    <div>
-                                      <label className='text-xs text-gray-500 mb-1 block'>
-                                        Reference
-                                      </label>
-                                      <div className='relative'>
-                                        <Hash className='absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400 w-3.5 h-3.5' />
-                                        <input
-                                          type='text'
-                                          value={line.reference_no}
-                                          onChange={(e) =>
-                                            updateInstallPayLine(
-                                              line.id,
-                                              "reference_no",
-                                              e.target.value,
-                                            )
-                                          }
-                                          placeholder={
-                                            line.payment_type === "cash"
-                                              ? "Optional"
-                                              : "Required"
-                                          }
-                                          className='w-full pl-7 pr-2 py-2 border border-gray-300 rounded-lg bg-white text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent'
-                                          disabled={
-                                            line.payment_type === "cash"
-                                          }
-                                        />
-                                      </div>
-                                    </div>
-                                  </div>
-
-                                  {/* Remove button */}
-                                  <div className='flex-shrink-0 pt-7'>
-                                    <button
-                                      onClick={() =>
-                                        removeInstallPayLine(line.id)
-                                      }
-                                      disabled={installPayLines.length <= 1}
-                                      className='p-1.5 text-gray-400 hover:text-red-500 disabled:opacity-30 disabled:hover:text-gray-400 transition-colors'
+                                <div className='p-4 space-y-3'>
+                                  {/* Payment lines */}
+                                  {installPayLines.map((line, index) => (
+                                    <div
+                                      key={line.id}
+                                      className='flex items-start gap-2'
                                     >
-                                      <Trash2 className='w-4 h-4' />
+                                      <div className='flex-shrink-0 pt-2 text-xs text-gray-400 w-5 text-right'>
+                                        {index + 1}.
+                                      </div>
+                                      <div className='flex-1 grid grid-cols-3 gap-2'>
+                                        {/* Payment Type */}
+                                        <div>
+                                          <label className='text-xs text-gray-500 mb-1 block'>
+                                            Type
+                                          </label>
+                                          <div className='relative'>
+                                            <div className='absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400'>
+                                              {paymentTypeIcon(
+                                                line.payment_type,
+                                              )}
+                                            </div>
+                                            <select
+                                              value={line.payment_type}
+                                              onChange={(e) =>
+                                                updateInstallPayLine(
+                                                  line.id,
+                                                  "payment_type",
+                                                  e.target.value,
+                                                )
+                                              }
+                                              className='w-full pl-9 pr-2 py-2 border border-gray-300 rounded-lg bg-white text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent'
+                                            >
+                                              <option value='cash'>Cash</option>
+                                              <option value='gcash'>
+                                                GCash
+                                              </option>
+                                              <option value='bank_transfer'>
+                                                Bank
+                                              </option>
+                                            </select>
+                                          </div>
+                                        </div>
+
+                                        {/* Amount */}
+                                        <div>
+                                          <label className='text-xs text-gray-500 mb-1 block'>
+                                            Amount
+                                          </label>
+                                          <div className='relative'>
+                                            <span className='absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400 text-sm'>
+                                              ₱
+                                            </span>
+                                            <input
+                                              type='number'
+                                              step='0.01'
+                                              min='0.01'
+                                              value={line.amount}
+                                              onChange={(e) =>
+                                                updateInstallPayLine(
+                                                  line.id,
+                                                  "amount",
+                                                  e.target.value,
+                                                )
+                                              }
+                                              placeholder='0.00'
+                                              className='w-full pl-7 pr-2 py-2 border border-gray-300 rounded-lg bg-white text-sm text-right focus:ring-2 focus:ring-blue-500 focus:border-transparent'
+                                            />
+                                          </div>
+                                        </div>
+
+                                        {/* Reference */}
+                                        <div>
+                                          <label className='text-xs text-gray-500 mb-1 block'>
+                                            Reference
+                                          </label>
+                                          <div className='relative'>
+                                            <Hash className='absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400 w-3.5 h-3.5' />
+                                            <input
+                                              type='text'
+                                              value={line.reference_no}
+                                              onChange={(e) =>
+                                                updateInstallPayLine(
+                                                  line.id,
+                                                  "reference_no",
+                                                  e.target.value,
+                                                )
+                                              }
+                                              placeholder={
+                                                line.payment_type === "cash"
+                                                  ? "Optional"
+                                                  : "Required"
+                                              }
+                                              className='w-full pl-7 pr-2 py-2 border border-gray-300 rounded-lg bg-white text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent'
+                                              disabled={
+                                                line.payment_type === "cash"
+                                              }
+                                            />
+                                          </div>
+                                        </div>
+                                      </div>
+
+                                      {/* Remove button */}
+                                      <div className='flex-shrink-0 pt-7'>
+                                        <button
+                                          onClick={() =>
+                                            removeInstallPayLine(line.id)
+                                          }
+                                          disabled={installPayLines.length <= 1}
+                                          className='p-1.5 text-gray-400 hover:text-red-500 disabled:opacity-30 disabled:hover:text-gray-400 transition-colors'
+                                        >
+                                          <Trash2 className='w-4 h-4' />
+                                        </button>
+                                      </div>
+                                    </div>
+                                  ))}
+
+                                  {/* Add line button */}
+                                  <button
+                                    onClick={addInstallPayLine}
+                                    className='flex items-center gap-1.5 text-xs font-medium text-blue-600 hover:text-blue-800 transition-colors mt-1'
+                                  >
+                                    <Plus className='w-3.5 h-3.5' />
+                                    Add Payment Line
+                                  </button>
+
+                                  {/* Payment summary */}
+                                  <div className='border-t border-blue-200 pt-3 space-y-1.5'>
+                                    <div className='flex justify-between text-sm'>
+                                      <span className='text-gray-600'>
+                                        Required Amount
+                                      </span>
+                                      <span className='font-medium'>
+                                        {formatAmount(payingSchedule.amount)}
+                                      </span>
+                                    </div>
+                                    <div className='flex justify-between text-sm'>
+                                      <span className='text-gray-600'>
+                                        Total Payment
+                                      </span>
+                                      <span
+                                        className={`font-semibold ${installTotalPayment >= payingSchedule.amount ? "text-green-600" : "text-red-600"}`}
+                                      >
+                                        {formatAmount(installTotalPayment)}
+                                      </span>
+                                    </div>
+                                    {installChangeAmount > 0 && (
+                                      <div className='flex justify-between text-sm'>
+                                        <span className='text-gray-600'>
+                                          Change
+                                        </span>
+                                        <span className='font-medium text-blue-600'>
+                                          {formatAmount(installChangeAmount)}
+                                        </span>
+                                      </div>
+                                    )}
+                                    {installTotalPayment <
+                                      payingSchedule.amount && (
+                                      <p className='text-xs text-red-500'>
+                                        Insufficient amount. Need{" "}
+                                        {formatAmount(
+                                          payingSchedule.amount -
+                                            installTotalPayment,
+                                        )}{" "}
+                                        more.
+                                      </p>
+                                    )}
+                                  </div>
+
+                                  {/* Submit buttons */}
+                                  <div className='flex justify-end gap-2 pt-2'>
+                                    <button
+                                      onClick={resetInstallmentPayment}
+                                      className='px-4 py-2 rounded-lg text-sm font-medium text-gray-600 bg-gray-100 hover:bg-gray-200 transition-colors'
+                                    >
+                                      Cancel
+                                    </button>
+                                    <button
+                                      onClick={handleInstallmentPayment}
+                                      disabled={
+                                        !canSubmitInstallment ||
+                                        isProcessingInstallment
+                                      }
+                                      className='px-4 py-2 rounded-lg text-sm font-medium text-white hover:opacity-90 transition-colors disabled:opacity-50 flex items-center gap-2'
+                                      style={{
+                                        backgroundColor: colors.secondary,
+                                      }}
+                                    >
+                                      {isProcessingInstallment ? (
+                                        <>
+                                          <Loader2 className='w-4 h-4 animate-spin' />
+                                          Processing...
+                                        </>
+                                      ) : (
+                                        <>
+                                          <DollarSign className='w-4 h-4' />
+                                          Confirm Payment
+                                        </>
+                                      )}
                                     </button>
                                   </div>
                                 </div>
-                              ))}
-
-                              {/* Add line button */}
-                              <button
-                                onClick={addInstallPayLine}
-                                className='flex items-center gap-1.5 text-xs font-medium text-blue-600 hover:text-blue-800 transition-colors mt-1'
-                              >
-                                <Plus className='w-3.5 h-3.5' />
-                                Add Payment Line
-                              </button>
-
-                              {/* Payment summary */}
-                              <div className='border-t border-blue-200 pt-3 space-y-1.5'>
-                                <div className='flex justify-between text-sm'>
-                                  <span className='text-gray-600'>
-                                    Required Amount
-                                  </span>
-                                  <span className='font-medium'>
-                                    {formatAmount(payingSchedule.amount)}
-                                  </span>
-                                </div>
-                                <div className='flex justify-between text-sm'>
-                                  <span className='text-gray-600'>
-                                    Total Payment
-                                  </span>
-                                  <span
-                                    className={`font-semibold ${installTotalPayment >= payingSchedule.amount ? "text-green-600" : "text-red-600"}`}
-                                  >
-                                    {formatAmount(installTotalPayment)}
-                                  </span>
-                                </div>
-                                {installChangeAmount > 0 && (
-                                  <div className='flex justify-between text-sm'>
-                                    <span className='text-gray-600'>
-                                      Change
-                                    </span>
-                                    <span className='font-medium text-blue-600'>
-                                      {formatAmount(installChangeAmount)}
-                                    </span>
-                                  </div>
-                                )}
-                                {installTotalPayment <
-                                  payingSchedule.amount && (
-                                  <p className='text-xs text-red-500'>
-                                    Insufficient amount. Need{" "}
-                                    {formatAmount(
-                                      payingSchedule.amount -
-                                        installTotalPayment,
-                                    )}{" "}
-                                    more.
-                                  </p>
-                                )}
                               </div>
-
-                              {/* Submit buttons */}
-                              <div className='flex justify-end gap-2 pt-2'>
-                                <button
-                                  onClick={resetInstallmentPayment}
-                                  className='px-4 py-2 rounded-lg text-sm font-medium text-gray-600 bg-gray-100 hover:bg-gray-200 transition-colors'
-                                >
-                                  Cancel
-                                </button>
-                                <button
-                                  onClick={handleInstallmentPayment}
-                                  disabled={
-                                    !canSubmitInstallment ||
-                                    isProcessingInstallment
-                                  }
-                                  className='px-4 py-2 rounded-lg text-sm font-medium text-white hover:opacity-90 transition-colors disabled:opacity-50 flex items-center gap-2'
-                                  style={{ backgroundColor: colors.secondary }}
-                                >
-                                  {isProcessingInstallment ? (
-                                    <>
-                                      <Loader2 className='w-4 h-4 animate-spin' />
-                                      Processing...
-                                    </>
-                                  ) : (
-                                    <>
-                                      <DollarSign className='w-4 h-4' />
-                                      Confirm Payment
-                                    </>
-                                  )}
-                                </button>
-                              </div>
-                            </div>
-                          </div>
+                            )}
+                          </>
                         )}
                       </div>
                     )}
@@ -1201,6 +2270,91 @@ export const FinancialDetailModal: React.FC<FinancialDetailModalProps> = ({
           </button>
         </div>
       </div>
+
+      {/* Low Downpayment Confirmation Modal */}
+      {showLowDpConfirm && (
+        <div className='fixed inset-0 z-[60] flex items-center justify-center bg-black/60 p-4'>
+          <div className='bg-white rounded-xl shadow-2xl w-full max-w-md overflow-hidden'>
+            {/* Header */}
+            <div className='px-6 py-4 bg-amber-50 border-b border-amber-200 flex items-center gap-3'>
+              <div className='p-2 rounded-full bg-amber-100'>
+                <ShieldAlert className='w-6 h-6 text-amber-600' />
+              </div>
+              <div>
+                <h3 className='text-lg font-bold text-amber-900'>
+                  Below Minimum Downpayment
+                </h3>
+                <p className='text-sm text-amber-700'>Authorization required</p>
+              </div>
+            </div>
+
+            {/* Content */}
+            <div className='px-6 py-5 space-y-4'>
+              <div className='bg-amber-50 border border-amber-200 rounded-lg p-4 space-y-2'>
+                <div className='flex justify-between text-sm'>
+                  <span className='text-gray-600'>Minimum Required</span>
+                  <span className='font-bold text-gray-900'>
+                    {formatAmount(minDownpayment)}
+                  </span>
+                </div>
+                <div className='flex justify-between text-sm'>
+                  <span className='text-gray-600'>Entered Amount</span>
+                  <span className='font-bold text-amber-600'>
+                    {formatAmount(customDownpaymentAmount)}
+                  </span>
+                </div>
+                <div className='flex justify-between text-sm border-t border-amber-200 pt-2'>
+                  <span className='text-gray-600'>Difference</span>
+                  <span className='font-bold text-red-600'>
+                    -{formatAmount(minDownpayment - customDownpaymentAmount)}
+                  </span>
+                </div>
+              </div>
+
+              <div className='bg-gray-50 border border-gray-200 rounded-lg p-4'>
+                <p className='text-xs font-medium text-gray-500 uppercase tracking-wider mb-1.5'>
+                  Authorized By
+                </p>
+                <p
+                  className='text-lg font-bold'
+                  style={{ color: colors.primary }}
+                >
+                  {session?.user?.name || "Unknown User"}
+                </p>
+                <p className='text-sm text-gray-500'>
+                  {session?.user?.email || ""}
+                </p>
+              </div>
+
+              <p className='text-sm text-gray-600'>
+                The downpayment of{" "}
+                <strong>{formatAmount(customDownpaymentAmount)}</strong> is
+                below the minimum of{" "}
+                <strong>{formatAmount(minDownpayment)}</strong>. This action
+                will be recorded. Do you wish to proceed?
+              </p>
+            </div>
+
+            {/* Actions */}
+            <div className='px-6 py-4 bg-gray-50 border-t border-gray-200 flex justify-end gap-3'>
+              <button
+                onClick={() => setShowLowDpConfirm(false)}
+                className='px-5 py-2.5 rounded-lg text-sm font-medium text-gray-700 bg-white border border-gray-300 hover:bg-gray-50 transition-colors'
+              >
+                Cancel
+              </button>
+              <button
+                onClick={confirmLowDownpayment}
+                className='px-5 py-2.5 rounded-lg text-sm font-medium text-white hover:opacity-90 transition-colors flex items-center gap-2'
+                style={{ backgroundColor: "#d97706" }}
+              >
+                <ShieldAlert className='w-4 h-4' />
+                Authorize & Proceed
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
