@@ -459,6 +459,7 @@ export const EnrollmentsTabContent: React.FC<EnrollmentsTabContentProps> = ({
           setDetailAssessmentId(null);
         }}
         formatAmount={formatAmountProp}
+        onPaymentSuccess={fetchAllStudents}
       />
     </div>
   );
