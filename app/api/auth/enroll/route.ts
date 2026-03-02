@@ -76,26 +76,29 @@ export async function POST(request: NextRequest) {
     let photoPath: string | null = null;
     const photoFile = formData.get("photo") as File | null;
     if (photoFile && photoFile.size > 0) {
-      // Create uploads directory if it doesn't exist
-      const uploadsDir = path.join(
-        process.cwd(),
-        "public",
-        "uploads",
-        "enrollments",
-      );
-      await mkdir(uploadsDir, { recursive: true });
-
-      // Generate unique filename
-      const fileName = generateUniqueFileName(photoFile.name);
-      const filePath = path.join(uploadsDir, fileName);
-
-      // Convert file to buffer and save
       const arrayBuffer = await photoFile.arrayBuffer();
       const buffer = Buffer.from(arrayBuffer);
-      await writeFile(filePath, buffer);
 
-      // Store relative path for database (accessible via /uploads/enrollments/...)
-      photoPath = `/uploads/enrollments/${fileName}`;
+      try {
+        // Try filesystem write (works locally, fails on Vercel)
+        const uploadsDir = path.join(
+          process.cwd(),
+          "public",
+          "uploads",
+          "enrollments",
+        );
+        await mkdir(uploadsDir, { recursive: true });
+
+        const fileName = generateUniqueFileName(photoFile.name);
+        const filePath = path.join(uploadsDir, fileName);
+        await writeFile(filePath, buffer);
+
+        photoPath = `/uploads/enrollments/${fileName}`;
+      } catch {
+        // Vercel has a read-only filesystem — store as base64 data URL
+        const mimeType = photoFile.type || "image/jpeg";
+        photoPath = `data:${mimeType};base64,${buffer.toString("base64")}`;
+      }
     }
 
     // Validate date of birth
