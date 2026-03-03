@@ -10,7 +10,7 @@ import {
   EnrollmentsTabContent,
   StudentSummary,
 } from "./paymentBilling/EnrollmentsTabContent";
-import { EnrollmentPaymentsTabContent } from "./paymentBilling/EnrollmentPaymentsTabContent";
+// EnrollmentPaymentsTabContent removed - payment is now handled through Student Payments tab
 import { OrderDetailsModal } from "./paymentBilling/OrderDetailsModal";
 import { VoidTransactionModal } from "./paymentBilling/VoidTransactionModal";
 import { ProductCheckoutModal } from "./paymentBilling/ProductCheckoutModal";
@@ -37,11 +37,7 @@ import { useFinancialSummary } from "./paymentBilling/hooks/useFinancialSummary"
 import { useTransactions } from "./paymentBilling/hooks/useTransactions";
 import { formatAmount } from "./paymentBilling/utils";
 
-type ActiveTab =
-  | "products"
-  | "enrollments"
-  | "enrollment_payments"
-  | "transactions";
+type ActiveTab = "products" | "enrollments" | "transactions";
 
 const PaymentBillingManagement: React.FC = () => {
   const { data: session } = useSession();
@@ -475,11 +471,6 @@ const PaymentBillingManagement: React.FC = () => {
             onCheckout={() => setIsStudentPaymentCheckoutOpen(true)}
             onUpdateCartAmount={updateStudentPaymentAmount}
           />
-        )}
-
-        {/* Enrollment Payments Tab Content */}
-        {activeTab === "enrollment_payments" && (
-          <EnrollmentPaymentsTabContent formatAmount={formatAmount} />
         )}
 
         {/* Transactions Tab Content */}

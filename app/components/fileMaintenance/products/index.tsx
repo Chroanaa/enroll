@@ -1,6 +1,6 @@
 "use client";
 import React, { useState, useMemo, useEffect } from "react";
-import { Plus, Package, Tag, Edit, Trash2 } from "lucide-react";
+import { Plus, Package, Tag, Edit, Trash2, X } from "lucide-react";
 import { colors } from "../../../colors";
 import ConfirmationModal from "../../common/ConfirmationModal";
 import SuccessModal from "../../common/SuccessModal";

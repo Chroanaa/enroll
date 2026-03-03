@@ -80,7 +80,7 @@ model enrollment {
   term                     String?   @db.VarChar(50)
   department               Int?
   course_program           String?   @db.VarChar(100)
-  photo                    String?   @db.VarChar(255)
+  photo                    String?   @db.Text
   requirements             String[]
   family_name              String?   @db.VarChar(100)
   first_name               String?   @db.VarChar(100)

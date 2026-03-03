@@ -1,5 +1,5 @@
 "use client";
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, Suspense } from "react";
 import { useSearchParams } from "next/navigation";
 import Navigation from "../components/Navigation";
 import Dashboard from "../components/Dashboard";
@@ -7,7 +7,7 @@ import StudentManagement from "../components/StudentManagement";
 import CourseManagement from "../components/CourseManagement";
 import EnrollmentManagement from "../components/enrollmentManagement";
 import EnrollmentForm from "../components/EnrollmentForm";
-import { ResidentPortalContent } from "../resident/page";
+import ResidentPortalContent from "../resident/ResidentPortalContent";
 import ForecastingAnalytics from "../components/ForecastingAnalytics";
 import StudentForecastDashboard from "../components/StudentForecastDashboard";
 import AssessmentManagement from "../components/AssessmentManagement";
@@ -34,7 +34,7 @@ import {
 import ProtectedRoute from "../components/ProtectedRoute";
 import SectionManagement from "../admin/sections/page";
 
-export default function DashboardPage() {
+function DashboardContent() {
   const searchParams = useSearchParams();
   const [currentView, setCurrentView] = useState("dashboard");
 
@@ -114,5 +114,13 @@ export default function DashboardPage() {
         <main className='flex-1 overflow-auto'>{renderCurrentView()}</main>
       </div>
     </ProtectedRoute>
+  );
+}
+
+export default function DashboardPage() {
+  return (
+    <Suspense fallback={<div>Loading...</div>}>
+      <DashboardContent />
+    </Suspense>
   );
 }

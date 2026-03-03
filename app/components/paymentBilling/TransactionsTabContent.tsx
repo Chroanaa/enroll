@@ -183,12 +183,14 @@ export const TransactionsTabContent: React.FC<TransactionsTabContentProps> = ({
           <div className='px-4 py-3 border-t border-gray-200 flex items-center justify-between'>
             <p className='text-sm text-gray-500'>
               Showing {(transactionsPage - 1) * 10 + 1} to{" "}
-              {Math.min(transactionsPage * 10, filteredOrders.length)} of {filteredOrders.length}{" "}
-              transactions
+              {Math.min(transactionsPage * 10, filteredOrders.length)} of{" "}
+              {filteredOrders.length} transactions
             </p>
             <div className='flex gap-2'>
               <button
-                onClick={() => setTransactionsPage((p) => Math.max(1, p - 1))}
+                onClick={() =>
+                  setTransactionsPage(Math.max(1, transactionsPage - 1))
+                }
                 disabled={transactionsPage === 1}
                 className='px-3 py-1 border border-gray-300 rounded-lg text-sm disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-50'
               >
@@ -196,11 +198,16 @@ export const TransactionsTabContent: React.FC<TransactionsTabContentProps> = ({
               </button>
               <button
                 onClick={() =>
-                  setTransactionsPage((p) =>
-                    Math.min(Math.ceil(filteredOrders.length / 10), p + 1),
+                  setTransactionsPage(
+                    Math.min(
+                      Math.ceil(filteredOrders.length / 10),
+                      transactionsPage + 1,
+                    ),
                   )
                 }
-                disabled={transactionsPage >= Math.ceil(filteredOrders.length / 10)}
+                disabled={
+                  transactionsPage >= Math.ceil(filteredOrders.length / 10)
+                }
                 className='px-3 py-1 border border-gray-300 rounded-lg text-sm disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-50'
               >
                 Next
@@ -228,4 +235,3 @@ export const TransactionsTabContent: React.FC<TransactionsTabContentProps> = ({
     </div>
   );
 };
-
