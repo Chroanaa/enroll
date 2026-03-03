@@ -109,18 +109,10 @@ const EducationalBackground: React.FC<EnrollmentPageProps> = ({
   };
 
   // Check for duplicate school + program combination
+  // DISABLED: Multiple students can have the same school and program combination
   const checkDuplicateSchoolProgram = async (schoolName: string, programName: string): Promise<boolean> => {
-    try {
-      // Check if this combination already exists in the database
-      const response = await Axios.get("/api/auth/enroll/check-duplicate-school-program", {
-        params: { school: schoolName, program: programName }
-      });
-      return response.data.isDuplicate || false;
-    } catch (error: any) {
-      console.error("Error checking duplicate:", error);
-      // If API error, return false to allow the save to proceed (backend will catch it)
-      return false;
-    }
+    // Always return false - allow duplicate school + program combinations
+    return false;
   };
 
   const saveCustomProgram = async (e?: React.MouseEvent) => {

@@ -102,6 +102,7 @@ export default function IrregularEnrollmentPage() {
   const [loadingSections, setLoadingSections] = useState(false);
   const [sectionProgramFilter, setSectionProgramFilter] = useState('all');
   const [sectionYearFilter, setSectionYearFilter] = useState('all');
+  const [selectedAssessmentSubject, setSelectedAssessmentSubject] = useState<any | null>(null);
 
   const [schedules, setSchedules] = useState<ClassSchedule[]>([]);
   const [loadingSchedules, setLoadingSchedules] = useState(false);
@@ -155,7 +156,7 @@ export default function IrregularEnrollmentPage() {
   }, [sections, sectionSearchQuery, sectionProgramFilter, sectionYearFilter]);
 
   useEffect(() => { if (studentSearchModal) searchStudents(); }, [studentSearchModal, studentStatusFilter]);
-  useEffect(() => { if (selectedStudent) { loadSections(); loadEnrolledSubjects(); } }, [selectedStudent, academicYear, semester]);
+  useEffect(() => { if (selectedStudent) { loadEnrolledSubjects(); } }, [selectedStudent, academicYear, semester]);
   useEffect(() => { if (selectedSection) loadSchedules(); }, [selectedSection]);
 
   const searchStudents = async () => {
@@ -166,28 +167,36 @@ export default function IrregularEnrollmentPage() {
     } catch (e) { console.error(e); } finally { setLoadingStudents(false); }
   };
 
-  const loadSections = async () => {
+  const loadSectionsBySubject = async (curriculumCourseId: number) => {
     setLoadingSections(true);
     try {
-      const res = await fetch(`/api/auth/section`);
-      if (!res.ok) return;
-      const data = await res.json();
-      const sectionsData = Array.isArray(data) ? data : data.data || [];
-      const programIds = [...new Set(sectionsData.map((s: any) => s.program_id).filter(Boolean))];
-      let programMap = new Map();
-      if (programIds.length > 0) {
-        const pr = await fetch(`/api/auth/program`);
-        if (pr.ok) {
-          const pd = await pr.json();
-          (Array.isArray(pd) ? pd : pd.data || []).forEach((p: any) => programMap.set(p.id, { code: p.code, name: p.name }));
-        }
+      console.log('[loadSectionsBySubject] Fetching sections for curriculum course:', curriculumCourseId);
+      const res = await fetch(`/api/sections-by-subject?curriculumCourseId=${curriculumCourseId}&academicYear=${academicYear}&semester=${semester}`);
+      console.log('[loadSectionsBySubject] Response status:', res.status);
+      if (!res.ok) {
+        const errorData = await res.json();
+        console.error('[loadSectionsBySubject] Error:', errorData);
+        setSections([]);
+        return;
       }
-      const allSections = sectionsData.map((s: any) => {
-        const prog = programMap.get(s.program_id);
-        return { id: s.id, sectionName: s.section_name, programCode: prog?.code || '', programName: prog?.name || '', yearLevel: s.year_level, academicYear: s.academic_year, semester: s.semester, status: s.status };
-      });
-      setSections(allSections.filter((s: Section) => s.academicYear === academicYear && s.semester === semester && s.status === 'active'));
-    } catch (e) { console.error(e); } finally { setLoadingSections(false); }
+      const data = await res.json();
+      console.log('[loadSectionsBySubject] Data received:', data);
+      setSections(data.data || []);
+    } catch (e) { 
+      console.error('[loadSectionsBySubject] Exception:', e); 
+      setSections([]); 
+    } finally { 
+      setLoadingSections(false); 
+    }
+  };
+
+  const handleSelectAssessmentSubject = async (subject: any) => {
+    setSelectedAssessmentSubject(subject);
+    await loadSectionsBySubject(subject.curriculum_course_id);
+    setSectionSearchQuery('');
+    setSectionProgramFilter('all');
+    setSectionYearFilter('all');
+    setSectionSearchModal(true);
   };
 
   const loadSchedules = async () => {
@@ -240,10 +249,12 @@ export default function IrregularEnrollmentPage() {
   const handleSelectStudent = (student: Student) => {
     setSelectedStudent(student); setStudentSearchModal(false);
     setStudentSearchQuery(''); setSelectedSection(null); setSchedules([]); setError(null);
+    setSelectedAssessmentSubject(null);
   };
 
   const handleSelectSection = (section: Section) => {
     setSelectedSection(section); setSectionSearchModal(false); setSectionSearchQuery('');
+    setSelectedAssessmentSubject(null);
   };
 
   const handleAddSubject = async (schedule: ClassSchedule) => {
@@ -433,22 +444,35 @@ export default function IrregularEnrollmentPage() {
                               return sc && sc.curriculumCourseId === subject.curriculum_course_id;
                             });
                             return (
-                              <div key={subject.id} className="flex items-center gap-2 px-3 py-2" style={{ borderBottom: idx < enrolledSubjectsFromAssessment.length - 1 ? '1px solid rgba(99,102,241,0.08)' : 'none', backgroundColor: isSectioned ? 'rgba(16,185,129,0.04)' : 'white' }}>
+                              <div 
+                                key={subject.id} 
+                                onClick={() => handleSelectAssessmentSubject(subject)}
+                                className="flex items-center gap-2 px-3 py-2 cursor-pointer hover:bg-blue-50 transition-colors group" 
+                                style={{ 
+                                  borderBottom: idx < enrolledSubjectsFromAssessment.length - 1 ? '1px solid rgba(99,102,241,0.08)' : 'none', 
+                                  backgroundColor: isSectioned ? 'rgba(16,185,129,0.04)' : 'white' 
+                                }}
+                                title="Click to find sections with this subject"
+                              >
                                 <div className="flex-1 min-w-0">
                                   <div className="text-xs font-semibold truncate" style={{ color: colors.primary }}>{subject.course_code}</div>
                                   <div className="text-[10px] truncate" style={{ color: colors.neutral }}>{subject.descriptive_title}</div>
                                 </div>
                                 <div className="flex items-center gap-1.5 flex-shrink-0">
                                   <span className="text-[10px] font-medium px-1.5 py-0.5 rounded" style={{ backgroundColor: 'rgba(149,90,39,0.08)', color: colors.secondary }}>{subject.units_total}u</span>
-                                  {isSectioned && <CheckCircle2 className="w-3 h-3" style={{ color: colors.success }} />}
+                                  {isSectioned ? (
+                                    <CheckCircle2 className="w-3 h-3" style={{ color: colors.success }} />
+                                  ) : (
+                                    <ChevronRight className="w-3 h-3 opacity-0 group-hover:opacity-100 transition-opacity" style={{ color: '#6366F1' }} />
+                                  )}
                                 </div>
                               </div>
                             );
                           })}
                         </div>
                         <div className="px-3 py-2 flex items-center justify-between" style={{ backgroundColor: 'rgba(99,102,241,0.04)', borderTop: '1px solid rgba(99,102,241,0.1)' }}>
-                          <span className="text-[10px]" style={{ color: '#6366F1' }}>{enrolledSubjectsFromAssessment.length} subjects from assessment</span>
-                          <span className="text-[10px] font-semibold" style={{ color: '#6366F1' }}>{enrolledSubjects.length} sectioned</span>
+                          <span className="text-[10px]" style={{ color: '#6366F1' }}>Click a subject to find sections</span>
+                          <span className="text-[10px] font-semibold" style={{ color: '#6366F1' }}>{enrolledSubjects.length}/{enrolledSubjectsFromAssessment.length} sectioned</span>
                         </div>
                       </div>
                     )}
@@ -480,30 +504,26 @@ export default function IrregularEnrollmentPage() {
                   {/* Section picker */}
                   <div>
                     <label className="block text-xs font-semibold mb-1.5" style={{ color: colors.primary }}>Section</label>
-                    <div
-                        onClick={() => { if (!hasAssessmentSubjects) return; setSectionSearchQuery(''); setSectionProgramFilter('all'); setSectionYearFilter('all'); setSectionSearchModal(true); }}
-                      className="w-full px-4 py-2.5 rounded-xl text-sm text-left flex items-center gap-3 transition-all"
-                      style={{
-                        border: `1.5px ${selectedSection ? 'solid' : 'dashed'} ${!hasAssessmentSubjects ? 'rgba(179,116,74,0.15)' : selectedSection ? colors.secondary : 'rgba(179,116,74,0.3)'}`,
-                        backgroundColor: !hasAssessmentSubjects ? 'rgba(241,245,249,0.5)' : selectedSection ? 'rgba(149,90,39,0.03)' : 'white',
-                        color: !hasAssessmentSubjects ? colors.neutral : selectedSection ? colors.primary : colors.neutral,
-                        cursor: !hasAssessmentSubjects ? 'not-allowed' : 'pointer',
-                        opacity: !hasAssessmentSubjects ? 0.6 : 1
-                      }}
-                    >
-                      <Users className="w-4 h-4 flex-shrink-0" style={{ color: colors.tertiary }} />
-                      <span className="flex-1 truncate">
-                        {!hasAssessmentSubjects ? 'Complete assessment first' : selectedSection ? `${selectedSection.sectionName} — ${selectedSection.programCode} Yr ${selectedSection.yearLevel}` : 'Click to pick a section...'}
-                      </span>
-                      {selectedSection && (
-                        <button
-                          onClick={e => { e.stopPropagation(); setSelectedSection(null); setSchedules([]); }}
-                          className="p-0.5 rounded hover:bg-gray-100"
-                        >
+                    {selectedSection ? (
+                      <div className="w-full px-4 py-2.5 rounded-xl text-sm text-left flex items-center gap-3 transition-all" style={{ border: `1.5px solid ${colors.secondary}`, backgroundColor: 'rgba(149,90,39,0.03)', color: colors.primary }}>
+                        <Users className="w-4 h-4 flex-shrink-0" style={{ color: colors.tertiary }} />
+                        <span className="flex-1 truncate">{selectedSection.sectionName} — {selectedSection.programCode} Yr {selectedSection.yearLevel}</span>
+                        <button onClick={() => { setSelectedSection(null); setSchedules([]); }} className="p-0.5 rounded hover:bg-gray-100">
                           <X className="w-3.5 h-3.5" style={{ color: colors.tertiary }} />
                         </button>
-                      )}
-                    </div>
+                      </div>
+                    ) : !hasAssessmentSubjects ? (
+                      <div className="w-full px-4 py-2.5 rounded-xl text-sm text-left flex items-center gap-3" style={{ border: '1.5px dashed rgba(179,116,74,0.15)', backgroundColor: 'rgba(241,245,249,0.5)', color: colors.neutral, opacity: 0.6 }}>
+                        <Users className="w-4 h-4 flex-shrink-0" style={{ color: colors.tertiary }} />
+                        <span className="flex-1 truncate">Complete assessment first</span>
+                      </div>
+                    ) : (
+                      <div className="p-3 rounded-xl text-center" style={{ border: '1px dashed rgba(99,102,241,0.2)', backgroundColor: 'rgba(99,102,241,0.02)' }}>
+                        <AlertCircle className="w-5 h-5 mx-auto mb-1" style={{ color: '#6366F1' }} />
+                        <p className="text-xs font-medium" style={{ color: colors.primary }}>Click a subject above</p>
+                        <p className="text-[10px] mt-0.5" style={{ color: colors.neutral }}>to see sections that offer it</p>
+                      </div>
+                    )}
                   </div>
 
                   {/* Available subjects list */}
@@ -749,15 +769,31 @@ export default function IrregularEnrollmentPage() {
       {sectionSearchModal && (
         <div className="fixed inset-0 flex items-center justify-center p-4 z-50 backdrop-blur-sm" style={{ backgroundColor: 'rgba(0,0,0,0.4)' }} onClick={() => setSectionSearchModal(false)}>
           <div className="rounded-2xl shadow-2xl w-full max-w-4xl max-h-[90vh] overflow-hidden flex flex-col bg-white" onClick={e => e.stopPropagation()}>
-            <div className="px-6 py-4 flex items-center justify-between border-b" style={{ borderColor: 'rgba(179,116,74,0.12)' }}>
-              <div className="flex items-center gap-3">
-                <div className="p-2 rounded-lg" style={{ backgroundColor: 'rgba(149,90,39,0.1)' }}><Users className="w-5 h-5" style={{ color: colors.secondary }} /></div>
-                <div>
-                  <h2 className="text-lg font-bold" style={{ color: colors.primary }}>Pick a Section</h2>
-                  <p className="text-xs" style={{ color: colors.neutral }}>Active sections for {academicYear} — {semester} semester</p>
+            <div className="px-6 py-4 border-b" style={{ borderColor: 'rgba(179,116,74,0.12)' }}>
+              <div className="flex items-center justify-between mb-2">
+                <div className="flex items-center gap-3">
+                  <div className="p-2 rounded-lg" style={{ backgroundColor: 'rgba(149,90,39,0.1)' }}><Users className="w-5 h-5" style={{ color: colors.secondary }} /></div>
+                  <div>
+                    <h2 className="text-lg font-bold" style={{ color: colors.primary }}>Pick a Section</h2>
+                    <p className="text-xs" style={{ color: colors.neutral }}>
+                      {selectedAssessmentSubject 
+                        ? `Sections offering ${selectedAssessmentSubject.course_code}` 
+                        : `Active sections for ${academicYear} — ${semester} semester`}
+                    </p>
+                  </div>
                 </div>
+                <button onClick={() => setSectionSearchModal(false)} className="p-2 rounded-full hover:bg-gray-100 transition-colors"><X className="w-5 h-5" style={{ color: colors.neutral }} /></button>
               </div>
-              <button onClick={() => setSectionSearchModal(false)} className="p-2 rounded-full hover:bg-gray-100 transition-colors"><X className="w-5 h-5" style={{ color: colors.neutral }} /></button>
+              {selectedAssessmentSubject && (
+                <div className="flex items-center gap-2 px-3 py-2 rounded-lg" style={{ backgroundColor: 'rgba(99,102,241,0.08)', border: '1px solid rgba(99,102,241,0.15)' }}>
+                  <BookOpen className="w-4 h-4 flex-shrink-0" style={{ color: '#6366F1' }} />
+                  <div className="flex-1 min-w-0">
+                    <span className="text-xs font-semibold" style={{ color: colors.primary }}>{selectedAssessmentSubject.course_code}</span>
+                    <span className="text-xs ml-2" style={{ color: colors.neutral }}>— {selectedAssessmentSubject.descriptive_title}</span>
+                  </div>
+                  <span className="text-[10px] px-1.5 py-0.5 rounded font-medium flex-shrink-0" style={{ backgroundColor: 'rgba(149,90,39,0.1)', color: colors.secondary }}>{selectedAssessmentSubject.units_total}u</span>
+                </div>
+              )}
             </div>
             <div className="p-5 border-b flex flex-wrap gap-3" style={{ borderColor: 'rgba(179,116,74,0.08)' }}>
               <div className="relative flex-1 min-w-40">
@@ -777,7 +813,17 @@ export default function IrregularEnrollmentPage() {
               {loadingSections ? (
                 <div className="text-center py-12"><Loader2 className="w-7 h-7 animate-spin mx-auto mb-3" style={{ color: colors.secondary }} /><p className="text-sm" style={{ color: colors.neutral }}>Loading sections...</p></div>
               ) : filteredSections.length === 0 ? (
-                <div className="text-center py-12"><Users className="w-10 h-10 mx-auto mb-3" style={{ color: colors.neutralBorder }} /><p className="text-sm" style={{ color: colors.neutral }}>No active sections found</p><p className="text-xs mt-1" style={{ color: colors.tertiary }}>Check that sections are active for {academicYear} {semester}</p></div>
+                <div className="text-center py-12">
+                  <Users className="w-10 h-10 mx-auto mb-3" style={{ color: colors.neutralBorder }} />
+                  <p className="text-sm font-medium" style={{ color: colors.neutral }}>
+                    {selectedAssessmentSubject ? `No sections offer ${selectedAssessmentSubject.course_code}` : 'No active sections found'}
+                  </p>
+                  <p className="text-xs mt-1" style={{ color: colors.tertiary }}>
+                    {selectedAssessmentSubject 
+                      ? `This subject is not available in any section for ${academicYear} ${semester}` 
+                      : `Check that sections are active for ${academicYear} ${semester}`}
+                  </p>
+                </div>
               ) : (
                 <div className="bg-white rounded-xl overflow-hidden border border-gray-100">
                   <table className="w-full">

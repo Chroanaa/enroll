@@ -24,7 +24,8 @@ import {
   GraduationCap,
   UserCircle,
   Building2,
-  CalendarDays
+  CalendarDays,
+  Info
 } from 'lucide-react';
 
 interface ScheduleBuilderProps {
@@ -37,7 +38,8 @@ const DAYS = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'
 const TIME_SLOTS = [
   '07:00', '07:30', '08:00', '08:30', '09:00', '09:30', '10:00', '10:30',
   '11:00', '11:30', '12:00', '12:30', '13:00', '13:30', '14:00', '14:30',
-  '15:00', '15:30', '16:00', '16:30', '17:00', '17:30', '18:00', '18:30'
+  '15:00', '15:30', '16:00', '16:30', '17:00', '17:30', '18:00', '18:30',
+  '19:00', '19:30', '20:00', '20:30', '21:00'
 ];
 
 export function ScheduleBuilder({
@@ -48,6 +50,7 @@ export function ScheduleBuilder({
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [schedules, setSchedules] = useState<any[]>([]);
+  const [allSchedules, setAllSchedules] = useState<any[]>([]); // All schedules across all sections
 
   const [formData, setFormData] = useState({
     curriculumCourseId: '',
@@ -114,13 +117,21 @@ export function ScheduleBuilder({
         setRooms(Array.isArray(roomsData) ? roomsData.filter((r: any) => r.status === 'available' || r.status === 'active') : []);
       }
 
-      // Load existing schedules
+      // Load existing schedules for this section
       const scheduleData = await getClassSchedules({
         sectionId: section!.id,
         academicYear: section!.academicYear,
         semester: section!.semester
       });
       setSchedules(scheduleData);
+
+      // Load ALL schedules for the same academic year and semester (across all sections)
+      // This is used for room conflict prevention
+      const allScheduleData = await getClassSchedules({
+        academicYear: section!.academicYear,
+        semester: section!.semester
+      });
+      setAllSchedules(allScheduleData);
     } catch (err) {
       console.error('Failed to load schedule data:', err);
       setError(err instanceof Error ? err.message : 'Failed to load schedule data');
@@ -134,6 +145,63 @@ export function ScheduleBuilder({
       ...prev,
       [name]: value
     }));
+  };
+
+  // Check if a time slot conflicts with existing room schedules (across ALL sections)
+  const hasRoomConflict = (roomId: string, day: string, startTime: string, endTime: string): boolean => {
+    if (!roomId || !day || !startTime || !endTime) return false;
+
+    const startHour = parseInt(startTime.split(':')[0]);
+    const startMin = parseInt(startTime.split(':')[1]);
+    const endHour = parseInt(endTime.split(':')[0]);
+    const endMin = parseInt(endTime.split(':')[1]);
+    
+    const proposedStart = startHour * 60 + startMin;
+    const proposedEnd = endHour * 60 + endMin;
+
+    // Check ALL schedules (across all sections) for the same room and day
+    return allSchedules.some(schedule => {
+      if (schedule.roomId !== parseInt(roomId)) return false;
+      if (schedule.dayOfWeek !== day) return false;
+
+      const existingStartDate = new Date(schedule.startTime);
+      const existingEndDate = new Date(schedule.endTime);
+      const existingStart = existingStartDate.getHours() * 60 + existingStartDate.getMinutes();
+      const existingEnd = existingEndDate.getHours() * 60 + existingEndDate.getMinutes();
+
+      // Check for overlap: (start1 < end2) AND (start2 < end1)
+      return proposedStart < existingEnd && existingStart < proposedEnd;
+    });
+  };
+
+  // Check if a specific start time would conflict (across ALL sections)
+  const isStartTimeConflicted = (time: string): boolean => {
+    if (!formData.roomId || !formData.dayOfWeek) return false;
+    
+    // Check for any overlapping schedules at this start time
+    const startHour = parseInt(time.split(':')[0]);
+    const startMin = parseInt(time.split(':')[1]);
+    const proposedStart = startHour * 60 + startMin;
+
+    return allSchedules.some(schedule => {
+      if (schedule.roomId !== parseInt(formData.roomId)) return false;
+      if (schedule.dayOfWeek !== formData.dayOfWeek) return false;
+
+      const existingStartDate = new Date(schedule.startTime);
+      const existingEndDate = new Date(schedule.endTime);
+      const existingStart = existingStartDate.getHours() * 60 + existingStartDate.getMinutes();
+      const existingEnd = existingEndDate.getHours() * 60 + existingEndDate.getMinutes();
+
+      // A start time is conflicted if it falls within an existing schedule
+      return proposedStart >= existingStart && proposedStart < existingEnd;
+    });
+  };
+
+  // Check if a specific end time would conflict
+  const isEndTimeConflicted = (time: string): boolean => {
+    if (!formData.roomId || !formData.dayOfWeek || !formData.startTime) return false;
+    
+    return hasRoomConflict(formData.roomId, formData.dayOfWeek, formData.startTime, time);
   };
 
   const handleAddSchedule = async (e: React.FormEvent) => {
@@ -170,6 +238,13 @@ export function ScheduleBuilder({
         return;
       }
 
+      // Check for room conflicts
+      if (hasRoomConflict(formData.roomId, formData.dayOfWeek, formData.startTime, formData.endTime)) {
+        setError('This room is already occupied during the selected time slot. Please choose a different time or room.');
+        setLoading(false);
+        return;
+      }
+
       const startDate = new Date();
       startDate.setHours(startHour, startMin, 0);
 
@@ -195,6 +270,13 @@ export function ScheduleBuilder({
         semester: section!.semester
       });
       setSchedules(updatedSchedules);
+
+      // Also reload all schedules for conflict checking
+      const updatedAllSchedules = await getClassSchedules({
+        academicYear: section!.academicYear,
+        semester: section!.semester
+      });
+      setAllSchedules(updatedAllSchedules);
       
       // Show success message
       const course = curriculum.find(c => c.id === parseInt(formData.curriculumCourseId));
@@ -246,6 +328,13 @@ export function ScheduleBuilder({
         semester: section!.semester
       });
       setSchedules(updatedSchedules);
+
+      // Also reload all schedules for conflict checking
+      const updatedAllSchedules = await getClassSchedules({
+        academicYear: section!.academicYear,
+        semester: section!.semester
+      });
+      setAllSchedules(updatedAllSchedules);
       
       setSuccessModal({
         isOpen: true,
@@ -641,6 +730,22 @@ export function ScheduleBuilder({
                       </div>
                     </div>
 
+                    {/* Conflict Prevention Info */}
+                    {formData.roomId && formData.dayOfWeek && (
+                      <div
+                        className="rounded-lg p-3 flex items-start gap-2.5 text-xs"
+                        style={{
+                          backgroundColor: `${colors.info}08`,
+                          border: `1px solid ${colors.info}20`,
+                        }}
+                      >
+                        <Info className="w-3.5 h-3.5 flex-shrink-0 mt-0.5" style={{ color: colors.info }} />
+                        <div style={{ color: colors.neutralDark }}>
+                          <strong>Smart Conflict Prevention:</strong> Time slots occupied by <strong>any section</strong> in this room will be automatically disabled.
+                        </div>
+                      </div>
+                    )}
+
                     <div className="grid grid-cols-2 gap-4">
                       <div>
                         <label className="flex items-center gap-2 text-xs font-semibold mb-1.5" style={{ color: colors.primary }}>
@@ -668,11 +773,14 @@ export function ScheduleBuilder({
                           }}
                         >
                           <option value="">Select start time</option>
-                          {TIME_SLOTS.map((time) => (
-                            <option key={time} value={time}>
-                              {time}
-                            </option>
-                          ))}
+                          {TIME_SLOTS.map((time) => {
+                            const isConflicted = isStartTimeConflicted(time);
+                            return (
+                              <option key={time} value={time} disabled={isConflicted}>
+                                {time} {isConflicted ? '(Room Occupied)' : ''}
+                              </option>
+                            );
+                          })}
                         </select>
                       </div>
 
@@ -720,13 +828,21 @@ export function ScheduleBuilder({
                             const startTotal = startHour * 60 + startMin;
                             const endTotal = endHour * 60 + endMin;
                             
+                            const isInvalid = endTotal <= startTotal;
+                            const isConflicted = !isInvalid && isEndTimeConflicted(time);
+                            const disabled = isInvalid || isConflicted;
+                            
+                            let label = time;
+                            if (isInvalid) label += ' (Invalid)';
+                            else if (isConflicted) label += ' (Room Conflict)';
+                            
                             return (
                               <option 
                                 key={time} 
                                 value={time}
-                                disabled={endTotal <= startTotal}
+                                disabled={disabled}
                               >
-                                {time} {endTotal <= startTotal ? '(Invalid)' : ''}
+                                {label}
                               </option>
                             );
                           })}
