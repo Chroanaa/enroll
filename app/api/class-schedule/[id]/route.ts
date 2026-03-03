@@ -1,7 +1,6 @@
-import { NextRequest, NextResponse } from "next/server";
-import { prisma } from "../../../lib/prisma";
-
-type ApiError = { error: string; message: string };
+import { NextRequest, NextResponse } from 'next/server';
+import { prisma } from '../../../lib/prisma';
+import { ApiError } from '../../../types/sectionTypes';
 
 /**
  * PATCH /api/class-schedule/{id}

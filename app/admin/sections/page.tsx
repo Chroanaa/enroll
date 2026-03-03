@@ -182,8 +182,10 @@ export default function SectionsPage() {
           </div>
           <button
             onClick={() => router.push('/admin/irregular-enrollment')}
-            className="flex items-center gap-2 px-4 py-2 rounded-lg font-medium text-sm transition-all hover:shadow-md"
-            style={{ backgroundColor: 'rgba(245, 158, 11, 0.1)', color: '#D97706' }}
+            className="flex items-center gap-2 px-6 py-3 text-white rounded-lg font-medium text-sm transition-colors hover:shadow-md"
+            style={{ backgroundColor: colors.secondary }}
+            onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = colors.primary)}
+            onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = colors.secondary)}
           >
             <BookOpen className="w-4 h-4" />
             Manual Enrollment
