@@ -1,5 +1,5 @@
 import React from "react";
-import { FolderTree, BookOpen, User, Users, Edit2, Trash2 } from "lucide-react";
+import { FolderTree, BookOpen, Users, Edit2, Trash2 } from "lucide-react";
 import { Section } from "../../../types";
 import { colors } from "../../../colors";
 import { getStatusColor } from "../utils";
@@ -36,9 +36,6 @@ const SectionTable: React.FC<SectionTableProps> = ({
                 Program
               </th>
               <th className='px-6 py-4 text-left text-xs font-bold uppercase tracking-wider text-gray-600'>
-                Advisor
-              </th>
-              <th className='px-6 py-4 text-left text-xs font-bold uppercase tracking-wider text-gray-600'>
                 Student Count
               </th>
               <th className='px-6 py-4 text-left text-xs font-bold uppercase tracking-wider text-gray-600'>
@@ -53,11 +50,10 @@ const SectionTable: React.FC<SectionTableProps> = ({
             {isLoading ? (
               <TableSkeleton
                 rows={5}
-                columns={6}
+                columns={5}
                 columnConfigs={[
                   { type: "avatar-text" }, // Section
                   { type: "icon-text" }, // Program
-                  { type: "icon-text" }, // Advisor
                   { type: "icon-text" }, // Student Count
                   { type: "badge" }, // Status
                   { type: "actions" }, // Actions
@@ -65,7 +61,7 @@ const SectionTable: React.FC<SectionTableProps> = ({
               />
             ) : sections.length === 0 ? (
               <tr>
-                <td colSpan={6} className='px-6 py-12 text-center text-gray-500'>
+                <td colSpan={5} className='px-6 py-12 text-center text-gray-500'>
                   <div className='flex flex-col items-center justify-center gap-3'>
                     <div
                       className='p-3 rounded-full'
@@ -125,14 +121,6 @@ const SectionTable: React.FC<SectionTableProps> = ({
                         <BookOpen className='w-3.5 h-3.5 text-gray-400' />
                         <span className='text-sm text-gray-600'>
                           {section.programName || "N/A"}
-                        </span>
-                      </div>
-                    </td>
-                    <td className='px-6 py-4 whitespace-nowrap'>
-                      <div className='flex items-center gap-2'>
-                        <User className='w-3.5 h-3.5 text-gray-400' />
-                        <span className='text-sm text-gray-600'>
-                          {section.advisor || "N/A"}
                         </span>
                       </div>
                     </td>

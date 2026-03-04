@@ -25,6 +25,7 @@ import {
   TrendingUp,
   Package,
   Percent,
+  Receipt,
 } from "lucide-react";
 import Image from "next/image";
 import { useSession, signOut } from "next-auth/react";
@@ -123,6 +124,12 @@ const Navigation: React.FC<NavigationProps> = ({
         label: "Subject",
         icon: BookOpen,
         allowedRoles: [ROLES.ADMIN, ROLES.REGISTRAR, ROLES.FACULTY],
+      },
+      {
+        id: "miscellaneous-fees",
+        label: "Miscellaneous Fees",
+        icon: Receipt,
+        allowedRoles: [ROLES.ADMIN, ROLES.CASHIER],
       },
     ],
     [],
