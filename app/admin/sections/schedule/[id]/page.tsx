@@ -1784,7 +1784,7 @@ export default function BuildSchedulePage() {
                             </td>
                             <td className="py-3 px-4">
                               <span className="text-sm text-gray-700">
-                                {f.department || "N/A"}
+                                {f.departmentName || "N/A"}
                               </span>
                             </td>
                             <td className="py-3 px-4">

@@ -254,7 +254,7 @@ model class_schedule {
   id                       Int                        @id @default(autoincrement())
   section_id               Int
   curriculum_course_id     Int
-  faculty_id               Int
+  faculty_id               Int?
   room_id                  Int
   day_of_week              String                     @db.VarChar(255)
   start_time               DateTime                   @db.Timestamp(6)

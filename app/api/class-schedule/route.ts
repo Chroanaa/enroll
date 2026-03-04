@@ -305,15 +305,18 @@ export async function GET(request: NextRequest) {
     });
 
     // Fetch faculty, room, and curriculum course data for all schedules
-    const facultyIds = [...new Set(schedules.map((s: any) => s.faculty_id))];
+    // Filter out null faculty_ids since faculty assignment is optional
+    const facultyIds = [...new Set(schedules.map((s: any) => s.faculty_id).filter((id: any) => id !== null))];
     const roomIds = [...new Set(schedules.map((s: any) => s.room_id))];
     const curriculumCourseIds = [...new Set(schedules.map((s: any) => s.curriculum_course_id))];
 
     const [facultyList, roomList, curriculumCourseList] = await Promise.all([
-      prisma.faculty.findMany({
-        where: { id: { in: facultyIds } },
-        select: { id: true, first_name: true, last_name: true }
-      }),
+      facultyIds.length > 0 
+        ? prisma.faculty.findMany({
+            where: { id: { in: facultyIds } },
+            select: { id: true, first_name: true, last_name: true }
+          })
+        : [],
       prisma.room.findMany({
         where: { id: { in: roomIds } },
         select: { id: true, room_number: true, capacity: true }
@@ -334,9 +337,9 @@ export async function GET(request: NextRequest) {
       })
     ]);
 
-    const facultyMap = new Map(facultyList.map((f: any) => [f.id, f]));
-    const roomMap = new Map(roomList.map((r: any) => [r.id, r]));
-    const curriculumCourseMap = new Map(curriculumCourseList.map((c: any) => [c.id, c]));
+    const facultyMap = new Map(facultyList.map((f: any) => [f.id, f] as [number, any]));
+    const roomMap = new Map(roomList.map((r: any) => [r.id, r] as [number, any]));
+    const curriculumCourseMap = new Map(curriculumCourseList.map((c: any) => [c.id, c] as [number, any]));
 
     const response = schedules.map((schedule: any) => {
       const curriculumCourse = curriculumCourseMap.get(schedule.curriculum_course_id);
