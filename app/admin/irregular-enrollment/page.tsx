@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import Navigation from '../../components/Navigation';
 import ConfirmationModal from '../../components/common/ConfirmationModal';
 import SuccessModal from '../../components/common/SuccessModal';
+import { useProgramsWithMajors } from '../../hooks/useProgramsWithMajors';
 import { colors } from '../../colors';
 import {
   ArrowLeft, Search, AlertCircle, Loader2, BookOpen,
@@ -87,6 +88,7 @@ function StepIndicator({ step, currentStep }: { step: number; currentStep: numbe
 
 export default function IrregularEnrollmentPage() {
   const router = useRouter();
+  const { programs: programsWithMajors, loading: loadingPrograms } = useProgramsWithMajors();
 
   const [students, setStudents] = useState<Student[]>([]);
   const [selectedStudent, setSelectedStudent] = useState<Student | null>(null);
@@ -135,11 +137,6 @@ export default function IrregularEnrollmentPage() {
     );
   }, [students, studentSearchQuery]);
 
-  const sectionProgramOptions = useMemo(() => {
-    const codes = [...new Set(sections.map(s => s.programCode).filter(Boolean))].sort();
-    return codes;
-  }, [sections]);
-
   const sectionYearOptions = useMemo(() => {
     const years = [...new Set(sections.map(s => s.yearLevel).filter(Boolean))].sort((a, b) => a - b);
     return years;
@@ -149,11 +146,24 @@ export default function IrregularEnrollmentPage() {
     return sections.filter(s => {
       const q = sectionSearchQuery.toLowerCase();
       const matchesSearch = !q || s.sectionName.toLowerCase().includes(q) || s.programCode?.toLowerCase().includes(q);
-      const matchesProgram = sectionProgramFilter === 'all' || s.programCode === sectionProgramFilter;
+      
+      // Handle program filter with new format (programId or programId-majorId)
+      let matchesProgram = sectionProgramFilter === 'all';
+      if (!matchesProgram && sectionProgramFilter) {
+        // Extract programId from filter value (e.g., "7" or "7-9")
+        const filterProgramId = sectionProgramFilter.split('-')[0];
+        // Match against section's programCode (need to find programId from code)
+        // For now, match by program code directly
+        const selectedProgram = programsWithMajors.find(p => p.value === sectionProgramFilter);
+        if (selectedProgram) {
+          matchesProgram = s.programCode === selectedProgram.programCode;
+        }
+      }
+      
       const matchesYear = sectionYearFilter === 'all' || s.yearLevel === parseInt(sectionYearFilter);
       return matchesSearch && matchesProgram && matchesYear;
     });
-  }, [sections, sectionSearchQuery, sectionProgramFilter, sectionYearFilter]);
+  }, [sections, sectionSearchQuery, sectionProgramFilter, sectionYearFilter, programsWithMajors]);
 
   useEffect(() => { if (studentSearchModal) searchStudents(); }, [studentSearchModal, studentStatusFilter]);
   useEffect(() => { if (selectedStudent) { loadEnrolledSubjects(); } }, [selectedStudent, academicYear, semester]);
@@ -800,9 +810,13 @@ export default function IrregularEnrollmentPage() {
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4" style={{ color: colors.tertiary }} />
                 <input type="text" value={sectionSearchQuery} onChange={e => setSectionSearchQuery(e.target.value)} placeholder="Section name..." autoFocus className="w-full pl-9 pr-4 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-amber-400" />
               </div>
-              <select value={sectionProgramFilter} onChange={e => setSectionProgramFilter(e.target.value)} className="px-3 py-2 border border-gray-200 rounded-lg text-sm bg-white" style={{ color: colors.primary }}>
-                <option value="all">All Programs</option>
-                {sectionProgramOptions.map(code => <option key={code} value={code}>{code}</option>)}
+              <select value={sectionProgramFilter} onChange={e => setSectionProgramFilter(e.target.value)} className="px-3 py-2 border border-gray-200 rounded-lg text-sm bg-white" style={{ color: colors.primary }} disabled={loadingPrograms}>
+                <option value="all">{loadingPrograms ? "Loading..." : "All Programs"}</option>
+                {programsWithMajors.map(program => (
+                  <option key={program.value} value={program.value}>
+                    {program.label}
+                  </option>
+                ))}
               </select>
               <select value={sectionYearFilter} onChange={e => setSectionYearFilter(e.target.value)} className="px-3 py-2 border border-gray-200 rounded-lg text-sm bg-white" style={{ color: colors.primary }}>
                 <option value="all">All Years</option>

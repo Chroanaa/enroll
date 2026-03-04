@@ -197,11 +197,11 @@ export function ScheduleBuilder({
     });
   };
 
-  // Check if a specific end time would conflict
+  // Check if a specific end time would conflict - REMOVED ROOM CONFLICT CHECK
+  // Only check for invalid times (end time must be after start time)
   const isEndTimeConflicted = (time: string): boolean => {
-    if (!formData.roomId || !formData.dayOfWeek || !formData.startTime) return false;
-    
-    return hasRoomConflict(formData.roomId, formData.dayOfWeek, formData.startTime, time);
+    // No longer checking room conflicts in dropdown
+    return false;
   };
 
   const handleAddSchedule = async (e: React.FormEvent) => {
@@ -210,15 +210,15 @@ export function ScheduleBuilder({
     setLoading(true);
 
     try {
+      // Faculty is optional - other fields are required
       if (
         !formData.curriculumCourseId ||
-        !formData.facultyId ||
         !formData.roomId ||
         !formData.dayOfWeek ||
         !formData.startTime ||
         !formData.endTime
       ) {
-        setError('All fields are required');
+        setError('Subject, Room, Day, Start Time, and End Time are required');
         setLoading(false);
         return;
       }
@@ -238,12 +238,8 @@ export function ScheduleBuilder({
         return;
       }
 
-      // Check for room conflicts
-      if (hasRoomConflict(formData.roomId, formData.dayOfWeek, formData.startTime, formData.endTime)) {
-        setError('This room is already occupied during the selected time slot. Please choose a different time or room.');
-        setLoading(false);
-        return;
-      }
+      // REMOVED: Room conflict check - allow scheduling even with room conflicts
+      // Users can resolve conflicts later
 
       const startDate = new Date();
       startDate.setHours(startHour, startMin, 0);
@@ -254,7 +250,7 @@ export function ScheduleBuilder({
       const schedule = await createClassSchedule({
         sectionId: section!.id,
         curriculumCourseId: parseInt(formData.curriculumCourseId),
-        facultyId: parseInt(formData.facultyId),
+        facultyId: formData.facultyId ? parseInt(formData.facultyId) : null, // Optional
         roomId: parseInt(formData.roomId),
         dayOfWeek: formData.dayOfWeek,
         startTime: startDate.toISOString(),
@@ -628,7 +624,7 @@ export function ScheduleBuilder({
                       <div>
                         <label className="flex items-center gap-2 text-xs font-semibold mb-1.5" style={{ color: colors.primary }}>
                           <UserCircle className="w-3.5 h-3.5" />
-                          Faculty <span style={{ color: colors.danger }}>*</span>
+                          Faculty <span className="text-xs font-normal" style={{ color: colors.neutral }}>(Optional)</span>
                         </label>
                         <select
                           value={formData.facultyId}
@@ -650,7 +646,7 @@ export function ScheduleBuilder({
                             e.currentTarget.style.boxShadow = 'none';
                           }}
                         >
-                          <option value="">Select faculty</option>
+                          <option value="">No faculty assigned</option>
                           {faculty.map((f) => (
                             <option key={f.id} value={f.id.toString()}>
                               {f.first_name} {f.last_name}
@@ -830,19 +826,18 @@ export function ScheduleBuilder({
                             
                             const isInvalid = endTotal <= startTotal;
                             const isConflicted = !isInvalid && isEndTimeConflicted(time);
-                            const disabled = isInvalid || isConflicted;
                             
-                            let label = time;
-                            if (isInvalid) label += ' (Invalid)';
-                            else if (isConflicted) label += ' (Room Conflict)';
+                            // Skip invalid and conflicted times - don't show them in dropdown
+                            if (isInvalid || isConflicted) {
+                              return null;
+                            }
                             
                             return (
                               <option 
                                 key={time} 
                                 value={time}
-                                disabled={disabled}
                               >
-                                {label}
+                                {time}
                               </option>
                             );
                           })}

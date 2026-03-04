@@ -29,11 +29,10 @@ export async function POST(request: NextRequest) {
   try {
     const body: CreateClassScheduleRequest = await request.json();
 
-    // Validate required fields
+    // Validate required fields - Faculty is optional
     if (
       !body.sectionId ||
       !body.curriculumCourseId ||
-      !body.facultyId ||
       !body.roomId ||
       !body.dayOfWeek ||
       !body.startTime ||
@@ -44,7 +43,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json(
         {
           error: 'VALIDATION_ERROR',
-          message: 'Missing required fields'
+          message: 'Missing required fields (faculty is optional)'
         } as ApiError,
         { status: 400 }
       );
@@ -126,19 +125,21 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Verify faculty exists
-    const faculty = await prisma.faculty.findUnique({
-      where: { id: body.facultyId }
-    });
+    // Verify faculty exists (only if provided)
+    if (body.facultyId) {
+      const faculty = await prisma.faculty.findUnique({
+        where: { id: body.facultyId }
+      });
 
-    if (!faculty) {
-      return NextResponse.json(
-        {
-          error: 'NOT_FOUND',
-          message: `Faculty ${body.facultyId} not found`
-        } as ApiError,
-        { status: 404 }
-      );
+      if (!faculty) {
+        return NextResponse.json(
+          {
+            error: 'NOT_FOUND',
+            message: `Faculty ${body.facultyId} not found`
+          } as ApiError,
+          { status: 404 }
+        );
+      }
     }
 
     // Verify room exists
@@ -156,17 +157,27 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Run conflict checks
-    const [roomConflict, facultyConflict, sectionConflict, subjectDuplicate] =
-      await Promise.all([
-        conflictChecker.checkRoomConflict(
-          body.roomId,
-          body.dayOfWeek,
-          startTime,
-          endTime,
-          body.academicYear,
-          body.semester
-        ),
+    // Run conflict checks - REMOVED room conflict, keep faculty conflict only if faculty assigned
+    const conflictChecks = [
+      conflictChecker.checkSectionConflict(
+        body.sectionId,
+        body.dayOfWeek,
+        startTime,
+        endTime,
+        body.academicYear,
+        body.semester
+      ),
+      conflictChecker.checkSubjectDuplication(
+        body.sectionId,
+        body.curriculumCourseId,
+        body.academicYear,
+        body.semester
+      )
+    ];
+
+    // Only check faculty conflict if faculty is assigned
+    if (body.facultyId) {
+      conflictChecks.push(
         conflictChecker.checkFacultyConflict(
           body.facultyId,
           body.dayOfWeek,
@@ -174,32 +185,16 @@ export async function POST(request: NextRequest) {
           endTime,
           body.academicYear,
           body.semester
-        ),
-        conflictChecker.checkSectionConflict(
-          body.sectionId,
-          body.dayOfWeek,
-          startTime,
-          endTime,
-          body.academicYear,
-          body.semester
-        ),
-        conflictChecker.checkSubjectDuplication(
-          body.sectionId,
-          body.curriculumCourseId,
-          body.academicYear,
-          body.semester
         )
-      ]);
-
-    if (roomConflict) {
-      return NextResponse.json(
-        {
-          error: 'ROOM_CONFLICT',
-          message: `Room is already booked on ${body.dayOfWeek} from ${startTime} to ${endTime}`
-        } as ApiError,
-        { status: 409 }
       );
     }
+
+    const results = await Promise.all(conflictChecks);
+    const sectionConflict = results[0];
+    const subjectDuplicate = results[1];
+    const facultyConflict = results[2]; // Will be undefined if faculty not assigned
+
+    // Room conflict check removed - allow scheduling even with room conflicts
 
     if (facultyConflict) {
       return NextResponse.json(
@@ -231,13 +226,13 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Create class schedule
+    // Create class schedule - faculty_id can be null
     const schedule = await prisma.$transaction(async (tx: any) => {
       return await tx.class_schedule.create({
         data: {
           section_id: body.sectionId,
           curriculum_course_id: body.curriculumCourseId,
-          faculty_id: body.facultyId,
+          faculty_id: body.facultyId || null, // Allow null faculty
           room_id: body.roomId,
           day_of_week: body.dayOfWeek,
           start_time: startTime,

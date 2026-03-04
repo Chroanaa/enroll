@@ -132,6 +132,8 @@ export function WeeklyScheduleCalendar({
       schedules.forEach((other, otherIndex) => {
         if (index === otherIndex) return;
         if (schedule.dayOfWeek !== other.dayOfWeek) return;
+        // Only flag as conflict if same room (different rooms can have classes at same time)
+        if (schedule.roomNumber !== other.roomNumber) return;
         
         const otherStart = timeToMinutes(other.startTime);
         const otherEnd = timeToMinutes(other.endTime);
@@ -371,7 +373,7 @@ export function WeeklyScheduleCalendar({
               {hasConflict && (
                 <div className="mt-2 pt-2 border-t border-gray-700 text-red-400 flex items-center gap-1.5 text-[10px]">
                   <AlertTriangle className="w-3 h-3 flex-shrink-0" />
-                  <span>Time conflict detected</span>
+                  <span>Room conflict: Same room has overlapping schedule</span>
                 </div>
               )}
             </div>

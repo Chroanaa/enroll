@@ -442,14 +442,14 @@ export default function BuildSchedulePage() {
     setLoading(true);
 
     try {
+      // Faculty is optional - other fields are required
       if (
-        !formData.facultyId ||
         !formData.roomId ||
         !formData.dayOfWeek ||
         !formData.startTime ||
         !formData.endTime
       ) {
-        setError('All fields are required');
+        setError('Room, Day, Start Time, and End Time are required');
         setLoading(false);
         return;
       }
@@ -478,7 +478,7 @@ export default function BuildSchedulePage() {
       await createClassSchedule({
         sectionId: section!.id,
         curriculumCourseId: selectedCourse.id,
-        facultyId: parseInt(formData.facultyId),
+        facultyId: formData.facultyId ? parseInt(formData.facultyId) : null, // Optional faculty
         roomId: parseInt(formData.roomId),
         dayOfWeek: formData.dayOfWeek,
         startTime: startDate.toISOString(),
@@ -1019,7 +1019,7 @@ export default function BuildSchedulePage() {
                     <div>
                       <label className="flex items-center gap-2 text-xs font-semibold mb-2" style={{ color: colors.primary }}>
                         <UserCircle className="w-4 h-4" style={{ color: colors.tertiary }} />
-                        Faculty <span style={{ color: colors.danger }}>*</span>
+                        Faculty <span className="text-xs font-normal" style={{ color: colors.neutral }}>(Optional)</span>
                       </label>
                       <button
                         type="button"
@@ -1039,7 +1039,7 @@ export default function BuildSchedulePage() {
                         <span className="truncate">
                           {loadingResources 
                             ? 'Loading faculty...' 
-                            : selectedFacultyDisplay || 'Search faculty...'}
+                            : selectedFacultyDisplay || 'No faculty assigned'}
                         </span>
                         <Search className="w-4 h-4 flex-shrink-0" style={{ color: colors.tertiary }} />
                       </button>
@@ -1197,19 +1197,18 @@ export default function BuildSchedulePage() {
                           
                           const isInvalid = endTotal <= startTotal;
                           const isConflicted = !isInvalid && isEndTimeConflicted(time);
-                          const disabled = isInvalid || isConflicted;
                           
-                          let label = time;
-                          if (isInvalid) label += ' (Invalid)';
-                          else if (isConflicted) label += ' (Room Conflict)';
+                          // Skip invalid and conflicted times - don't show them in dropdown
+                          if (isInvalid || isConflicted) {
+                            return null;
+                          }
                           
                           return (
                             <option 
                               key={time} 
                               value={time}
-                              disabled={disabled}
                             >
-                              {label}
+                              {time}
                             </option>
                           );
                         })}
