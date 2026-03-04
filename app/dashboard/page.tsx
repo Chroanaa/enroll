@@ -39,6 +39,8 @@ function DashboardContent() {
   const searchParams = useSearchParams();
   const [currentView, setCurrentView] = useState("dashboard");
 
+  console.log("DashboardContent render - currentView:", currentView);
+
   // Read view from URL params on mount
   useEffect(() => {
     const view = searchParams.get("view");
@@ -47,7 +49,13 @@ function DashboardContent() {
     }
   }, [searchParams]);
 
+  const handleViewChange = (view: string) => {
+    console.log("handleViewChange called with:", view);
+    setCurrentView(view);
+  };
+
   const renderCurrentView = () => {
+    console.log("renderCurrentView - currentView:", currentView);
     switch (currentView) {
       case "dashboard":
         return <Dashboard />;
@@ -113,7 +121,7 @@ function DashboardContent() {
   return (
     <ProtectedRoute>
       <div className='flex h-screen bg-gray-50'>
-        <Navigation currentView={currentView} onViewChange={setCurrentView} />
+        <Navigation currentView={currentView} onViewChange={handleViewChange} />
         <main className='flex-1 overflow-auto'>{renderCurrentView()}</main>
       </div>
     </ProtectedRoute>

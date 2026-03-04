@@ -14,7 +14,20 @@ import SchedulingManagement from "./components/SchedulingManagement";
 import PaymentBillingManagement from "./components/PaymentBillingManagement";
 import CurriculumManagement from "./components/curriculum";
 import SectionManagementPage from "./admin/sections/page";
-import { Building, Section, Room, Department, Program, Major, Faculty, Fees } from "./components/fileMaintenance";
+import { 
+  Building, 
+  Section, 
+  Room, 
+  Department, 
+  Program, 
+  Major, 
+  Faculty, 
+  Fees,
+  Discount,
+  Subject,
+  Products,
+  SchoolsPrograms
+} from "./components/fileMaintenance";
 import MiscellaneousFees from "./components/MiscellaneousFees";
 import ProtectedRoute from "./components/ProtectedRoute";
 import { AuthProvider } from "./contexts/AuthContext";
@@ -73,6 +86,14 @@ function App() {
         return <Faculty />;
       case "file-maintenance-fees":
         return <Fees />;
+      case "file-maintenance-discount":
+        return <Discount />;
+      case "file-maintenance-products":
+        return <Products />;
+      case "file-maintenance-schools-programs":
+        return <SchoolsPrograms />;
+      case "file-maintenance-subject":
+        return <Subject />;
       case "miscellaneous-fees":
         return <MiscellaneousFees />;
       default:

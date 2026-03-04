@@ -931,10 +931,10 @@ const AssessmentManagement: React.FC = () => {
     fixedAmountTotal,
   ]);
 
-  // Optimized fee fetching with caching
+  // Optimized fee fetching with caching - using summarized fees endpoint
   const fetchFees = async () => {
     try {
-      const response = await fetch("/api/auth/fees", {
+      const response = await fetch("/api/auth/fees/summarized", {
         cache: 'force-cache', // Cache fees for better performance
         next: { revalidate: 300 }, // Revalidate every 5 minutes
       });
