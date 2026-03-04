@@ -132,6 +132,8 @@ export function WeeklyScheduleCalendar({
       schedules.forEach((other, otherIndex) => {
         if (index === otherIndex) return;
         if (schedule.dayOfWeek !== other.dayOfWeek) return;
+        // Only flag as conflict if same room (different rooms can have classes at same time)
+        if (schedule.roomNumber !== other.roomNumber) return;
         
         const otherStart = timeToMinutes(other.startTime);
         const otherEnd = timeToMinutes(other.endTime);
@@ -208,13 +210,13 @@ export function WeeklyScheduleCalendar({
           backgroundColor: deleteMode 
             ? (isHovered || isSelectedForDelete ? '#DC2626' : '#EF4444') 
             : editMode && canEditFaculty
-            ? (isHovered ? '#2563EB' : '#3B82F6')
-            : (hasConflict || isPreviewConflict ? '#EF4444' : colors.secondary),
+            ? (isHovered ? '#1D4ED8' : '#2563EB')
+            : (hasConflict || isPreviewConflict ? '#EF4444' : colors.primary),
           zIndex: isHovered ? 20 : 10,
           transform: isHovered ? 'scale(1.01)' : 'scale(1)',
           boxShadow: isHovered 
-            ? '0 4px 12px -2px rgba(0, 0, 0, 0.3)' 
-            : '0 1px 3px 0 rgba(0, 0, 0, 0.1)',
+            ? '0 4px 12px -2px rgba(58, 35, 19, 0.4)' 
+            : '0 1px 3px 0 rgba(58, 35, 19, 0.15)',
           border: isSelectedForDelete ? '2px solid #991B1B' : 'none',
         }}
         onMouseEnter={() => setHoveredSchedule(schedule.id)}
@@ -371,7 +373,7 @@ export function WeeklyScheduleCalendar({
               {hasConflict && (
                 <div className="mt-2 pt-2 border-t border-gray-700 text-red-400 flex items-center gap-1.5 text-[10px]">
                   <AlertTriangle className="w-3 h-3 flex-shrink-0" />
-                  <span>Time conflict detected</span>
+                  <span>Room conflict: Same room has overlapping schedule</span>
                 </div>
               )}
             </div>
@@ -395,16 +397,16 @@ export function WeeklyScheduleCalendar({
         className="absolute left-0.5 right-0.5 rounded-lg border-2 border-dashed transition-all duration-200"
         style={{
           height: `${height - 2}px`,
-          backgroundColor: hasConflicts ? 'rgba(239, 68, 68, 0.3)' : 'rgba(59, 130, 246, 0.3)',
-          borderColor: hasConflicts ? '#EF4444' : '#3B82F6',
+          backgroundColor: hasConflicts ? 'rgba(239, 68, 68, 0.3)' : 'rgba(179, 116, 74, 0.3)',
+          borderColor: hasConflicts ? '#EF4444' : colors.tertiary,
           zIndex: 5,
         }}
       >
         <div className="p-1.5 h-full flex flex-col justify-center items-center text-center">
-          <div className="font-semibold text-xs leading-tight" style={{ color: hasConflicts ? '#DC2626' : '#2563EB' }}>
+          <div className="font-semibold text-xs leading-tight" style={{ color: hasConflicts ? '#DC2626' : colors.secondary }}>
             {previewBlock.courseCode || 'Preview'}
           </div>
-          <div className="text-[9px] mt-0.5 leading-tight" style={{ color: hasConflicts ? '#DC2626' : '#2563EB' }}>
+          <div className="text-[9px] mt-0.5 leading-tight" style={{ color: hasConflicts ? '#DC2626' : colors.secondary }}>
             {formatTime(previewBlock.startTime).replace(' ', '')} - {formatTime(previewBlock.endTime).replace(' ', '')}
           </div>
         </div>
@@ -502,18 +504,18 @@ export function WeeklyScheduleCalendar({
           )}
           {editMode && canEditFaculty && (
             <div className="flex items-center gap-1.5">
-              <div className="w-3 h-3 rounded" style={{ backgroundColor: '#3B82F6' }}></div>
+              <div className="w-3 h-3 rounded" style={{ backgroundColor: '#2563EB' }}></div>
               <span style={{ color: '#2563EB', fontWeight: 500 }}>Click to edit schedule</span>
             </div>
           )}
           {!deleteMode && !editMode && (
             <>
               <div className="flex items-center gap-1.5">
-                <div className="w-3 h-3 rounded" style={{ backgroundColor: colors.secondary }}></div>
+                <div className="w-3 h-3 rounded" style={{ backgroundColor: colors.primary }}></div>
                 <span style={{ color: colors.primary }}>Scheduled</span>
               </div>
               <div className="flex items-center gap-1.5">
-                <div className="w-3 h-3 rounded border-2 border-dashed" style={{ backgroundColor: 'rgba(59, 130, 246, 0.2)', borderColor: '#3B82F6' }}></div>
+                <div className="w-3 h-3 rounded border-2 border-dashed" style={{ backgroundColor: 'rgba(179, 116, 74, 0.2)', borderColor: colors.tertiary }}></div>
                 <span style={{ color: colors.primary }}>Preview</span>
               </div>
               <div className="flex items-center gap-1.5">
@@ -546,12 +548,12 @@ export function WeeklyScheduleCalendar({
         <div
           className="rounded-lg p-3 flex items-center gap-2.5"
           style={{
-            backgroundColor: '#EFF6FF',
-            border: '1px solid rgba(59, 130, 246, 0.2)',
+            backgroundColor: 'rgba(37, 99, 235, 0.08)',
+            border: `1px solid rgba(37, 99, 235, 0.2)`,
           }}
         >
           <Edit2 className="w-4 h-4 flex-shrink-0" style={{ color: '#2563EB' }} />
-          <div className="text-xs" style={{ color: '#1D4ED8' }}>
+          <div className="text-xs" style={{ color: '#1E40AF' }}>
             <strong>Edit Mode:</strong> Click on any schedule block to edit faculty, room, day, and time.
           </div>
         </div>

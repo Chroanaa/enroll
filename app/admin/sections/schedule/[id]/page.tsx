@@ -40,7 +40,8 @@ const DAYS = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'
 const TIME_SLOTS = [
   '07:00', '07:30', '08:00', '08:30', '09:00', '09:30', '10:00', '10:30',
   '11:00', '11:30', '12:00', '12:30', '13:00', '13:30', '14:00', '14:30',
-  '15:00', '15:30', '16:00', '16:30', '17:00', '17:30', '18:00', '18:30'
+  '15:00', '15:30', '16:00', '16:30', '17:00', '17:30', '18:00', '18:30',
+  '19:00', '19:30', '20:00', '20:30', '21:00'
 ];
 
 export default function BuildSchedulePage() {
@@ -150,7 +151,7 @@ export default function BuildSchedulePage() {
   // Tab state for switching between form and calendar view
   const [activeTab, setActiveTab] = useState<'schedule' | 'calendar'>('schedule');
 
-  // Occupied slots state - shows what rooms/faculty are already booked
+  // Occupied slots state - shows what rooms/faculty are already scheduled
   const [occupiedSlots, setOccupiedSlots] = useState<any[]>([]);
   const [loadingOccupied, setLoadingOccupied] = useState(false);
 
@@ -234,14 +235,14 @@ export default function BuildSchedulePage() {
     loadScheduleData();
   }, [sectionId]);
 
-  // Fetch occupied slots when day changes
+  // Fetch occupied slots when day or room changes
   useEffect(() => {
     if (formData.dayOfWeek && section) {
       fetchOccupiedSlots(formData.dayOfWeek);
     } else {
       setOccupiedSlots([]);
     }
-  }, [formData.dayOfWeek, section]);
+  }, [formData.dayOfWeek, formData.roomId, section]);
 
   // Fetch occupied slots for edit modal when day changes or modal opens (excludes current schedule)
   useEffect(() => {
@@ -395,6 +396,41 @@ export default function BuildSchedulePage() {
     }));
   };
 
+  // Check if a start time conflicts with occupied slots for the selected room
+  const isStartTimeConflicted = (time: string): boolean => {
+    if (!formData.roomId || !formData.dayOfWeek || occupiedSlots.length === 0) return false;
+
+    const [hour, min] = time.split(':').map(Number);
+    const proposedStartMinutes = hour * 60 + min;
+
+    return occupiedSlots.some(slot => {
+      // Check if this occupied slot is for the same room
+      if (slot.roomId !== parseInt(formData.roomId)) return false;
+
+      // A start time is conflicted if it falls within an existing schedule
+      return proposedStartMinutes >= slot.startMinutes && proposedStartMinutes < slot.endMinutes;
+    });
+  };
+
+  // Check if an end time would create a conflict for the selected room
+  const isEndTimeConflicted = (time: string): boolean => {
+    if (!formData.roomId || !formData.dayOfWeek || !formData.startTime || occupiedSlots.length === 0) return false;
+
+    const [startHour, startMin] = formData.startTime.split(':').map(Number);
+    const proposedStartMinutes = startHour * 60 + startMin;
+    
+    const [endHour, endMin] = time.split(':').map(Number);
+    const proposedEndMinutes = endHour * 60 + endMin;
+
+    return occupiedSlots.some(slot => {
+      // Check if this occupied slot is for the same room
+      if (slot.roomId !== parseInt(formData.roomId)) return false;
+
+      // Check for overlap: (start1 < end2) AND (start2 < end1)
+      return proposedStartMinutes < slot.endMinutes && slot.startMinutes < proposedEndMinutes;
+    });
+  };
+
   const handleAddSchedule = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedCourse) {
@@ -406,14 +442,14 @@ export default function BuildSchedulePage() {
     setLoading(true);
 
     try {
+      // Faculty is optional - other fields are required
       if (
-        !formData.facultyId ||
         !formData.roomId ||
         !formData.dayOfWeek ||
         !formData.startTime ||
         !formData.endTime
       ) {
-        setError('All fields are required');
+        setError('Room, Day, Start Time, and End Time are required');
         setLoading(false);
         return;
       }
@@ -442,7 +478,7 @@ export default function BuildSchedulePage() {
       await createClassSchedule({
         sectionId: section!.id,
         curriculumCourseId: selectedCourse.id,
-        facultyId: parseInt(formData.facultyId),
+        facultyId: formData.facultyId ? parseInt(formData.facultyId) : null, // Optional faculty
         roomId: parseInt(formData.roomId),
         dayOfWeek: formData.dayOfWeek,
         startTime: startDate.toISOString(),
@@ -504,8 +540,8 @@ export default function BuildSchedulePage() {
         setConflictModal({
           isOpen: true,
           type: 'room',
-          title: 'Room Already Booked',
-          message: `Room ${selectedRoom?.room_number || ''} is already booked during this time slot.`,
+          title: 'Room Already Occupied',
+          message: `Room ${selectedRoom?.room_number || ''} is already occupied during this time slot.`,
           day: formData.dayOfWeek,
           startTime: formatTimeDisplay(formData.startTime),
           endTime: formatTimeDisplay(formData.endTime),
@@ -983,7 +1019,7 @@ export default function BuildSchedulePage() {
                     <div>
                       <label className="flex items-center gap-2 text-xs font-semibold mb-2" style={{ color: colors.primary }}>
                         <UserCircle className="w-4 h-4" style={{ color: colors.tertiary }} />
-                        Faculty <span style={{ color: colors.danger }}>*</span>
+                        Faculty <span className="text-xs font-normal" style={{ color: colors.neutral }}>(Optional)</span>
                       </label>
                       <button
                         type="button"
@@ -1003,7 +1039,7 @@ export default function BuildSchedulePage() {
                         <span className="truncate">
                           {loadingResources 
                             ? 'Loading faculty...' 
-                            : selectedFacultyDisplay || 'Search faculty...'}
+                            : selectedFacultyDisplay || 'No faculty assigned'}
                         </span>
                         <Search className="w-4 h-4 flex-shrink-0" style={{ color: colors.tertiary }} />
                       </button>
@@ -1105,11 +1141,14 @@ export default function BuildSchedulePage() {
                         }}
                       >
                         <option value="">Start time</option>
-                        {TIME_SLOTS.map((time) => (
-                          <option key={time} value={time}>
-                            {time}
-                          </option>
-                        ))}
+                        {TIME_SLOTS.map((time) => {
+                          const isConflicted = isStartTimeConflicted(time);
+                          return (
+                            <option key={time} value={time} disabled={isConflicted}>
+                              {time} {isConflicted ? '(Room Occupied)' : ''}
+                            </option>
+                          );
+                        })}
                       </select>
                     </div>
 
@@ -1156,13 +1195,20 @@ export default function BuildSchedulePage() {
                           const startTotal = startHour * 60 + startMin;
                           const endTotal = endHour * 60 + endMin;
                           
+                          const isInvalid = endTotal <= startTotal;
+                          const isConflicted = !isInvalid && isEndTimeConflicted(time);
+                          
+                          // Skip invalid and conflicted times - don't show them in dropdown
+                          if (isInvalid || isConflicted) {
+                            return null;
+                          }
+                          
                           return (
                             <option 
                               key={time} 
                               value={time}
-                              disabled={endTotal <= startTotal}
                             >
-                              {time} {endTotal <= startTotal ? '(Invalid)' : ''}
+                              {time}
                             </option>
                           );
                         })}
@@ -1184,8 +1230,8 @@ export default function BuildSchedulePage() {
                     </div>
                   </div>
 
-                  {/* Occupied Slots Display - Shows what's already booked on selected day */}
-                  {formData.dayOfWeek && (
+                  {/* Occupied Slots Display - Shows what's already scheduled for the selected room and day */}
+                  {formData.dayOfWeek && formData.roomId && (
                     <div
                       className="rounded-lg p-4"
                       style={{
@@ -1193,11 +1239,19 @@ export default function BuildSchedulePage() {
                         border: '1px solid rgba(179, 116, 74, 0.15)',
                       }}
                     >
-                      <div className="flex items-center gap-2 mb-3">
-                        <AlertCircle className="w-4 h-4" style={{ color: colors.warning }} />
-                        <h3 className="text-xs font-semibold" style={{ color: colors.primary }}>
-                          Already Booked on {formData.dayOfWeek}
-                        </h3>
+                      <div className="mb-3">
+                        <div className="flex items-center gap-2 mb-1">
+                          <AlertCircle className="w-4 h-4" style={{ color: colors.warning }} />
+                          <h3 className="text-xs font-semibold" style={{ color: colors.primary }}>
+                            {(() => {
+                              const selectedRoom = rooms.find(r => r.id === parseInt(formData.roomId));
+                              return `Room Schedule - ${selectedRoom?.room_number || 'Room'} on ${formData.dayOfWeek}`;
+                            })()}
+                          </h3>
+                        </div>
+                        <p className="text-[10px] ml-6" style={{ color: colors.neutral }}>
+                          Showing conflicts from <strong>all sections</strong> to prevent double-booking
+                        </p>
                       </div>
                       
                       {loadingOccupied ? (
@@ -1205,13 +1259,13 @@ export default function BuildSchedulePage() {
                           <Loader2 className="w-3 h-3 animate-spin" />
                           Loading occupied slots...
                         </div>
-                      ) : occupiedSlots.length === 0 ? (
+                      ) : occupiedSlots.filter(slot => slot.roomId === parseInt(formData.roomId)).length === 0 ? (
                         <p className="text-xs" style={{ color: colors.success }}>
-                          ✓ No existing schedules on {formData.dayOfWeek}. All rooms and faculty are available.
+                          ✓ This room is available on {formData.dayOfWeek}. No conflicts.
                         </p>
                       ) : (
                         <div className="space-y-2 max-h-40 overflow-y-auto">
-                          {occupiedSlots.map((slot, index) => (
+                          {occupiedSlots.filter(slot => slot.roomId === parseInt(formData.roomId)).map((slot, index) => (
                             <div
                               key={index}
                               className="flex items-center justify-between p-2 rounded text-xs"
@@ -1234,13 +1288,13 @@ export default function BuildSchedulePage() {
                                 </span>
                               </div>
                               <span 
-                                className="px-2 py-0.5 rounded text-[10px]"
+                                className="px-2 py-0.5 rounded text-[10px] font-medium"
                                 style={{ 
-                                  backgroundColor: slot.isCurrentSection ? 'rgba(149, 90, 39, 0.15)' : 'rgba(179, 116, 74, 0.1)',
-                                  color: slot.isCurrentSection ? colors.secondary : colors.tertiary 
+                                  backgroundColor: slot.isCurrentSection ? 'rgba(149, 90, 39, 0.15)' : 'rgba(14, 165, 233, 0.1)',
+                                  color: slot.isCurrentSection ? colors.secondary : colors.info 
                                 }}
                               >
-                                {slot.isCurrentSection ? '(This Section)' : slot.sectionName}
+                                {slot.isCurrentSection ? '(This Section)' : `${slot.sectionName} (Other Section)`}
                               </span>
                             </div>
                           ))}
@@ -1917,7 +1971,7 @@ export default function BuildSchedulePage() {
                 >
                   <AlertCircle className="w-4 h-4" />
                   <div>
-                    <span className="font-medium">Room is already booked on this day and time</span>
+                    <span className="font-medium">Room is already occupied on this day and time</span>
                     <span className="text-xs block mt-0.5">
                       {editConflicts.room.startTime} - {editConflicts.room.endTime} • {editConflicts.room.sectionName} • {editConflicts.room.facultyName}
                     </span>

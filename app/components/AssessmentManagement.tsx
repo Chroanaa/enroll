@@ -1,15 +1,18 @@
 "use client";
 import React, { useState, useEffect, useMemo, useCallback, useRef } from "react";
 import { useSearchParams } from "next/navigation";
-import { Calculator, CheckCircle2 } from "lucide-react";
+import { Calculator, CheckCircle2, List, UserPlus } from "lucide-react";
 import { colors } from "../colors";
 import { defaultFormStyles } from "../utils/formStyles";
 import { useAcademicTerm } from "../hooks/useAcademicTerm";
+import { useProgramsWithMajors } from "../hooks/useProgramsWithMajors";
 import SuccessModal from "./common/SuccessModal";
 import ErrorModal from "./common/ErrorModal";
 import StudentSearchModal from "./common/StudentSearchModal";
 import ConfirmationModal from "./common/ConfirmationModal";
 import AssessmentSummaryModal, { AssessmentSummaryData } from "./common/AssessmentSummaryModal";
+import AssessmentStudentList from "./assessmentManagement/AssessmentStudentList";
+import SearchFilters from "./common/SearchFilters";
 import type { Fee, PaymentDetail, EnrolledSubject } from "./assessmentManagement/types";
 import { StudentInfoSection } from "./assessmentManagement/StudentInfoSection";
 import { EnrolledSubjectsTab } from "./assessmentManagement/EnrolledSubjectsTab";
@@ -27,8 +30,22 @@ import {
 const AssessmentManagement: React.FC = () => {
   const searchParams = useSearchParams();
   const { currentTerm, loading: termLoading } = useAcademicTerm();
+  const { programs: programsWithMajors, loading: loadingPrograms } = useProgramsWithMajors();
   const [fees, setFees] = useState<Fee[]>([]);
   const [loading, setLoading] = useState(true);
+
+  // View Mode: 'form' or 'list'
+  const [viewMode, setViewMode] = useState<'form' | 'list'>('list');
+
+  // Student List State
+  const [students, setStudents] = useState<any[]>([]);
+  const [loadingStudents, setLoadingStudents] = useState(false);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [filterProgram, setFilterProgram] = useState("");
+  const [filterYearLevel, setFilterYearLevel] = useState("");
+  const [filterAssessmentStatus, setFilterAssessmentStatus] = useState("");
+  const [filterAcademicYear, setFilterAcademicYear] = useState("");
+  const [filterSemester, setFilterSemester] = useState("");
 
   // Form data
   const [studentName, setStudentName] = useState("");
@@ -932,6 +949,85 @@ const AssessmentManagement: React.FC = () => {
     }
   };
 
+  // Fetch students with assessment status
+  const fetchStudents = async () => {
+    // Use filter values if set, otherwise use current term
+    const academicYear = filterAcademicYear || currentTerm?.academicYear;
+    const semester = filterSemester || (currentTerm?.semester === "First" ? "1" : "2");
+    
+    if (!academicYear || !semester) return;
+    
+    setLoadingStudents(true);
+    try {
+      const params = new URLSearchParams({
+        academicYear,
+        semester,
+      });
+      
+      if (searchQuery) params.append("search", searchQuery);
+      if (filterProgram) params.append("programId", filterProgram);
+      if (filterYearLevel) params.append("yearLevel", filterYearLevel);
+      if (filterAssessmentStatus) params.append("assessmentStatus", filterAssessmentStatus);
+      
+      console.log("Fetching students with params:", {
+        academicYear,
+        semester,
+        searchQuery,
+        filterProgram,
+        filterYearLevel,
+        filterAssessmentStatus,
+      });
+      
+      const url = `/api/auth/assessment/all-summaries?${params.toString()}`;
+      console.log("Fetch URL:", url);
+      
+      const response = await fetch(url);
+      if (response.ok) {
+        const result = await response.json();
+        console.log("Received students:", result);
+        setStudents(result.data || []);
+      } else {
+        const error = await response.json();
+        console.error("Error response:", error);
+      }
+    } catch (error) {
+      console.error("Error fetching students:", error);
+    } finally {
+      setLoadingStudents(false);
+    }
+  };
+
+  // Fetch students when filters change
+  useEffect(() => {
+    if (viewMode === 'list' && (currentTerm || (filterAcademicYear && filterSemester))) {
+      console.log("Triggering fetchStudents due to filter change");
+      fetchStudents();
+    }
+  }, [viewMode, currentTerm, searchQuery, filterProgram, filterYearLevel, filterAssessmentStatus, filterAcademicYear, filterSemester]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Set default academic year and semester when currentTerm loads
+  useEffect(() => {
+    if (currentTerm && !filterAcademicYear && !filterSemester) {
+      setFilterAcademicYear(currentTerm.academicYear);
+      setFilterSemester(currentTerm.semester === "First" ? "1" : "2");
+    }
+  }, [currentTerm]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Handle student selection from list
+  const handleSelectStudentFromList = (studentNum: string) => {
+    setStudentNumber(studentNum);
+    setViewMode('form');
+  };
+
+  // Handle view assessment (read-only mode)
+  const handleViewAssessment = (studentNum: string) => {
+    // TODO: Implement view-only assessment modal or navigate to view page
+    console.log("View assessment for student:", studentNum);
+    // For now, just open the form in view mode
+    setStudentNumber(studentNum);
+    setViewMode('form');
+  };
+
   const formatCurrency = (amount: number) => {
     return new Intl.NumberFormat('en-PH', {
       style: 'decimal',
@@ -1214,8 +1310,202 @@ const AssessmentManagement: React.FC = () => {
               </p>
             </div>
           </div>
+
+          {/* View Mode Toggle */}
+          <div className="flex gap-2">
+            <button
+              onClick={() => setViewMode('list')}
+              className={`px-4 py-2 rounded-lg font-semibold text-sm transition-all flex items-center gap-2 ${
+                viewMode === 'list'
+                  ? 'text-white shadow-md'
+                  : 'text-gray-600 bg-white border border-gray-200 hover:border-gray-300'
+              }`}
+              style={{
+                backgroundColor: viewMode === 'list' ? colors.secondary : undefined,
+              }}
+            >
+              <List className="w-4 h-4" />
+              Student List
+            </button>
+            <button
+              onClick={() => setViewMode('form')}
+              className={`px-4 py-2 rounded-lg font-semibold text-sm transition-all flex items-center gap-2 ${
+                viewMode === 'form'
+                  ? 'text-white shadow-md'
+                  : 'text-gray-600 bg-white border border-gray-200 hover:border-gray-300'
+              }`}
+              style={{
+                backgroundColor: viewMode === 'form' ? colors.secondary : undefined,
+              }}
+            >
+              <UserPlus className="w-4 h-4" />
+              Assessment Form
+            </button>
+          </div>
         </div>
 
+        {/* Student List View */}
+        {viewMode === 'list' && (
+          <div className="space-y-4 animate-in slide-in-from-bottom-4 duration-500">
+            {/* Search and Filters */}
+            <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-4">
+              <div className="flex items-center justify-between mb-3">
+                <h3 className="text-sm font-bold text-gray-800">Filter Students</h3>
+                <button
+                  onClick={() => {
+                    setSearchQuery("");
+                    setFilterProgram("");
+                    setFilterYearLevel("");
+                    setFilterAssessmentStatus("");
+                    if (currentTerm) {
+                      setFilterAcademicYear(currentTerm.academicYear);
+                      setFilterSemester(currentTerm.semester === "First" ? "1" : "2");
+                    }
+                  }}
+                  className="px-3 py-1 text-xs font-medium rounded-lg transition-all hover:bg-gray-100"
+                  style={{ color: colors.secondary }}
+                >
+                  Clear Filters
+                </button>
+              </div>
+              
+              {/* Compact Single Row Layout */}
+              <div className="grid grid-cols-2 md:grid-cols-6 gap-2">
+                {/* Search - First Item */}
+                <input
+                  type="text"
+                  placeholder="Search student..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  className="w-full px-2 py-1.5 text-xs rounded-lg border bg-white transition-all focus:outline-none focus:ring-1 focus:ring-offset-0"
+                  style={{ borderColor: colors.tertiary + "30" }}
+                />
+
+                {/* Academic Year */}
+                <div className="relative">
+                  <select
+                    value={filterAcademicYear}
+                    onChange={(e) => setFilterAcademicYear(e.target.value)}
+                    className="w-full px-2 py-1.5 text-xs rounded-lg border bg-white appearance-none cursor-pointer transition-all focus:outline-none focus:ring-1 focus:ring-offset-0"
+                    style={{ borderColor: colors.tertiary + "30" }}
+                  >
+                    <option value="">Academic Year</option>
+                    {Array.from({ length: 8 }, (_, i) => {
+                      const startYear = new Date().getFullYear() - 3 + i;
+                      const endYear = startYear + 1;
+                      const yearStr = `${startYear}-${endYear}`;
+                      return (
+                        <option key={yearStr} value={yearStr}>
+                          {yearStr}
+                        </option>
+                      );
+                    })}
+                  </select>
+                  <div className="absolute right-2 top-1/2 -translate-y-1/2 pointer-events-none">
+                    <svg width="10" height="10" viewBox="0 0 12 12" fill="none">
+                      <path d="M2.5 4.5L6 8L9.5 4.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+                    </svg>
+                  </div>
+                </div>
+
+                {/* Semester */}
+                <div className="relative">
+                  <select
+                    value={filterSemester}
+                    onChange={(e) => setFilterSemester(e.target.value)}
+                    className="w-full px-2 py-1.5 text-xs rounded-lg border bg-white appearance-none cursor-pointer transition-all focus:outline-none focus:ring-1 focus:ring-offset-0"
+                    style={{ borderColor: colors.tertiary + "30" }}
+                  >
+                    <option value="">Semester</option>
+                    <option value="1">First Sem</option>
+                    <option value="2">Second Sem</option>
+                    <option value="3">Summer</option>
+                  </select>
+                  <div className="absolute right-2 top-1/2 -translate-y-1/2 pointer-events-none">
+                    <svg width="10" height="10" viewBox="0 0 12 12" fill="none">
+                      <path d="M2.5 4.5L6 8L9.5 4.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+                    </svg>
+                  </div>
+                </div>
+
+                {/* Assessment Status */}
+                <div className="relative">
+                  <select
+                    value={filterAssessmentStatus}
+                    onChange={(e) => setFilterAssessmentStatus(e.target.value)}
+                    className="w-full px-2 py-1.5 text-xs rounded-lg border bg-white appearance-none cursor-pointer transition-all focus:outline-none focus:ring-1 focus:ring-offset-0"
+                    style={{ borderColor: colors.tertiary + "30" }}
+                  >
+                    <option value="">All Status</option>
+                    <option value="assessed">Assessed</option>
+                    <option value="not_assessed">Not Assessed</option>
+                  </select>
+                  <div className="absolute right-2 top-1/2 -translate-y-1/2 pointer-events-none">
+                    <svg width="10" height="10" viewBox="0 0 12 12" fill="none">
+                      <path d="M2.5 4.5L6 8L9.5 4.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+                    </svg>
+                  </div>
+                </div>
+
+                {/* Program */}
+                <div className="relative">
+                  <select
+                    value={filterProgram}
+                    onChange={(e) => setFilterProgram(e.target.value)}
+                    disabled={loadingPrograms}
+                    className="w-full px-2 py-1.5 text-xs rounded-lg border bg-white appearance-none cursor-pointer transition-all focus:outline-none focus:ring-1 focus:ring-offset-0 disabled:opacity-50"
+                    style={{ borderColor: colors.tertiary + "30" }}
+                  >
+                    <option value="">{loadingPrograms ? "Loading..." : "All Programs"}</option>
+                    {programsWithMajors.map((program) => (
+                      <option key={program.value} value={program.value}>
+                        {program.label}
+                      </option>
+                    ))}
+                  </select>
+                  <div className="absolute right-2 top-1/2 -translate-y-1/2 pointer-events-none">
+                    <svg width="10" height="10" viewBox="0 0 12 12" fill="none">
+                      <path d="M2.5 4.5L6 8L9.5 4.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+                    </svg>
+                  </div>
+                </div>
+
+                {/* Year Level */}
+                <div className="relative">
+                  <select
+                    value={filterYearLevel}
+                    onChange={(e) => setFilterYearLevel(e.target.value)}
+                    className="w-full px-2 py-1.5 text-xs rounded-lg border bg-white appearance-none cursor-pointer transition-all focus:outline-none focus:ring-1 focus:ring-offset-0"
+                    style={{ borderColor: colors.tertiary + "30" }}
+                  >
+                    <option value="">All Years</option>
+                    <option value="1">Year 1</option>
+                    <option value="2">Year 2</option>
+                    <option value="3">Year 3</option>
+                    <option value="4">Year 4</option>
+                  </select>
+                  <div className="absolute right-2 top-1/2 -translate-y-1/2 pointer-events-none">
+                    <svg width="10" height="10" viewBox="0 0 12 12" fill="none">
+                      <path d="M2.5 4.5L6 8L9.5 4.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+                    </svg>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Student Table */}
+            <AssessmentStudentList
+              students={students}
+              onSelectStudent={handleSelectStudentFromList}
+              onViewAssessment={handleViewAssessment}
+              loading={loadingStudents}
+            />
+          </div>
+        )}
+
+        {/* Assessment Form View */}
+        {viewMode === 'form' && (
+          <>
         {/* Student Information Card - Always Visible */}
         <StudentInfoSection
           studentNumber={studentNumber}
@@ -1358,6 +1648,8 @@ const AssessmentManagement: React.FC = () => {
               </div>
             )}
           </div>
+        )}
+        </>
         )}
       </div>
 

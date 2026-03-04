@@ -80,7 +80,7 @@ model enrollment {
   term                     String?   @db.VarChar(50)
   department               Int?
   course_program           String?   @db.VarChar(100)
-  photo                    String?   @db.Text
+  photo                    String?
   requirements             String[]
   family_name              String?   @db.VarChar(100)
   first_name               String?   @db.VarChar(100)
@@ -534,4 +534,37 @@ model assessment_audit {
   @@index([assessment_id], map: "idx_assessment_audit_assessment")
   @@index([action], map: "idx_assessment_audit_action")
   @@index([created_at], map: "idx_assessment_audit_created_at")
+}
+
+/// Fee category table stores titles like "Miscellaneous 2026"
+model fee_category {
+  id                 Int                 @id @default(autoincrement())
+  title              String              @db.VarChar(255)
+  description        String?
+  academic_year      String              @db.VarChar(20)
+  category_type      String              @default("miscellaneous") @db.VarChar(50)
+  status             String              @default("active") @db.VarChar(10)
+  created_at         DateTime?           @default(now()) @db.Timestamp(6)
+  updated_at         DateTime?           @default(now()) @updatedAt @db.Timestamp(6)
+  miscellaneous_fees miscellaneous_fee[]
+
+  @@unique([academic_year, category_type], map: "uq_fee_category_year_type")
+  @@index([academic_year, category_type], map: "idx_fee_category_year_type")
+  @@index([status], map: "idx_fee_category_status")
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+model miscellaneous_fee {
+  id          Int          @id @default(autoincrement())
+  category_id Int
+  item        String       @db.VarChar(255)
+  amount      Decimal      @default(0.00) @db.Decimal(10, 2)
+  status      String       @default("active") @db.VarChar(10)
+  created_at  DateTime?    @default(now()) @db.Timestamp(6)
+  updated_at  DateTime?    @default(now()) @updatedAt @db.Timestamp(6)
+  category    fee_category @relation(fields: [category_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "fk_miscellaneous_fee_category")
+
+  @@index([category_id], map: "idx_miscellaneous_fee_category")
+  @@index([status], map: "idx_miscellaneous_fee_status")
+  @@map("miscellaneous_fees")
 }

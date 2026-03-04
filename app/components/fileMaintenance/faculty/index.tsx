@@ -204,7 +204,7 @@ const FacultyManagement: React.FC = () => {
           headers: {
             "Content-Type": "application/json",
           },
-          body: JSON.stringify(deleteConfirmation.facultyId),
+          body: JSON.stringify({ id: deleteConfirmation.facultyId }),
         });
 
         if (!response.ok) {

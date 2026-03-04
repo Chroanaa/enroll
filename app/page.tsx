@@ -15,6 +15,7 @@ import PaymentBillingManagement from "./components/PaymentBillingManagement";
 import CurriculumManagement from "./components/curriculum";
 import SectionManagementPage from "./admin/sections/page";
 import { Building, Section, Room, Department, Program, Major, Faculty, Fees } from "./components/fileMaintenance";
+import MiscellaneousFees from "./components/MiscellaneousFees";
 import ProtectedRoute from "./components/ProtectedRoute";
 import { AuthProvider } from "./contexts/AuthContext";
 import { useSession } from "next-auth/react";
@@ -72,6 +73,8 @@ function App() {
         return <Faculty />;
       case "file-maintenance-fees":
         return <Fees />;
+      case "miscellaneous-fees":
+        return <MiscellaneousFees />;
       default:
         return <Dashboard />;
     }

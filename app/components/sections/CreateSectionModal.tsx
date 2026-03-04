@@ -5,7 +5,9 @@ import { SectionResponse, CreateSectionRequest } from '../../types/sectionTypes'
 import { createSection } from '../../utils/sectionApi';
 import { termValidator } from '../../utils/sectionService';
 import { colors } from '../../colors';
-import { Users, X, CheckCircle2, GraduationCap, UserCircle, Hash } from 'lucide-react';
+import { Users, X, CheckCircle2, GraduationCap, Hash } from 'lucide-react';
+import { useProgramsWithMajors } from '../../hooks/useProgramsWithMajors';
+import { generateSectionName, fetchExistingSectionsByPrefix, generateSectionPrefix } from '../../utils/sectionNameGenerator';
 
 interface CreateSectionModalProps {
   isOpen: boolean;
@@ -33,14 +35,15 @@ export function CreateSectionModal({
   } | null>(null);
 
   const [formData, setFormData] = useState({
-    programId: '',
+    programMajorValue: '', // Combined program-major value (e.g., "1" or "1-5")
     yearLevel: '',
     sectionName: '',
-    advisor: '',
     maxCapacity: '',
     academicYear: '',
     semester: ''
   });
+
+  const { programs, loading: programsLoading } = useProgramsWithMajors();
 
   useEffect(() => {
     if (isOpen) {
@@ -62,11 +65,49 @@ export function CreateSectionModal({
     }
   };
 
-  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
+  const handleInputChange = async (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
     const { name, value } = e.target;
     setFormData((prev) => ({
       ...prev,
       [name]: value
+    }));
+
+    // Auto-generate section name when program-major or year level changes
+    if (name === 'programMajorValue' || name === 'yearLevel') {
+      const programMajorValue = name === 'programMajorValue' ? value : formData.programMajorValue;
+      const yearLevel = name === 'yearLevel' ? value : formData.yearLevel;
+
+      if (programMajorValue && yearLevel) {
+        await generateAndSetSectionName(programMajorValue, parseInt(yearLevel));
+      }
+    }
+  };
+
+  const generateAndSetSectionName = async (programMajorValue: string, yearLevel: number) => {
+    // Find the selected program-major combination
+    const selected = programs.find((p) => p.value === programMajorValue);
+    
+    if (!selected) return;
+
+    const { programCode, majorName } = selected;
+
+    // Generate prefix
+    const prefix = generateSectionPrefix(programCode, majorName, yearLevel);
+
+    // Fetch existing sections with this prefix
+    const existingSections = await fetchExistingSectionsByPrefix(prefix);
+
+    // Generate the section name
+    const sectionName = generateSectionName(
+      programCode,
+      majorName,
+      yearLevel,
+      existingSections
+    );
+
+    setFormData((prev) => ({
+      ...prev,
+      sectionName,
     }));
   };
 
@@ -78,10 +119,9 @@ export function CreateSectionModal({
     try {
       // Validate form
       if (
-        !formData.programId ||
+        !formData.programMajorValue ||
         !formData.yearLevel ||
         !formData.sectionName ||
-        !formData.advisor ||
         !formData.maxCapacity ||
         !formData.academicYear ||
         !formData.semester
@@ -91,13 +131,21 @@ export function CreateSectionModal({
         return;
       }
 
+      // Extract programId from the combined value
+      const selected = programs.find((p) => p.value === formData.programMajorValue);
+      if (!selected) {
+        setError('Invalid program selection');
+        setLoading(false);
+        return;
+      }
+
       const request: CreateSectionRequest = {
-        programId: parseInt(formData.programId),
+        programId: selected.programId,
         yearLevel: parseInt(formData.yearLevel),
         academicYear: formData.academicYear,
         semester: formData.semester,
         sectionName: formData.sectionName,
-        advisor: formData.advisor,
+        advisor: '', // Empty advisor field
         maxCapacity: parseInt(formData.maxCapacity)
       };
 
@@ -107,10 +155,9 @@ export function CreateSectionModal({
       
       // Reset form
       setFormData({
-        programId: '',
+        programMajorValue: '',
         yearLevel: '',
         sectionName: '',
-        advisor: '',
         maxCapacity: '',
         academicYear: currentTerm?.academicYear.toString() || '',
         semester: currentTerm?.semester ? normalizeSemesterValue(currentTerm.semester.toString()) : ''
@@ -187,12 +234,13 @@ export function CreateSectionModal({
             <div>
               <label className="flex items-center gap-2 text-xs font-semibold mb-1.5" style={{ color: colors.primary }}>
                 <GraduationCap className="w-3.5 h-3.5" />
-                Program <span className="text-red-500">*</span>
+                Program - Major <span className="text-red-500">*</span>
               </label>
               <select
-                name="programId"
-                value={formData.programId}
+                name="programMajorValue"
+                value={formData.programMajorValue}
                 onChange={handleInputChange}
+                disabled={programsLoading}
                 className="w-full px-3 py-2 border rounded-lg text-sm transition-all focus:ring-2 focus:ring-offset-0"
                 style={{
                   outline: 'none',
@@ -209,9 +257,14 @@ export function CreateSectionModal({
                 }}
                 required
               >
-                <option value="">Select program</option>
-                <option value="1">Computer Science</option>
-                <option value="2">Information Technology</option>
+                <option value="">
+                  {programsLoading ? 'Loading programs...' : 'Select program - major'}
+                </option>
+                {programs.map((program) => (
+                  <option key={program.value} value={program.value}>
+                    {program.label}
+                  </option>
+                ))}
               </select>
             </div>
 
@@ -254,10 +307,10 @@ export function CreateSectionModal({
             <input
               type="text"
               name="sectionName"
-              placeholder="e.g., A, B-1, Diamond"
+              placeholder="Auto-generated (e.g., BSIT1 - 1)"
               value={formData.sectionName}
               onChange={handleInputChange}
-              className="w-full px-3 py-2 border rounded-lg text-sm transition-all focus:ring-2 focus:ring-offset-0"
+              className="w-full px-3 py-2 border rounded-lg text-sm transition-all focus:ring-2 focus:ring-offset-0 bg-gray-50"
               style={{
                 outline: 'none',
                 color: colors.primary,
@@ -271,37 +324,12 @@ export function CreateSectionModal({
                 e.currentTarget.style.borderColor = colors.neutralBorder;
                 e.currentTarget.style.boxShadow = 'none';
               }}
+              readOnly
               required
             />
-          </div>
-
-          <div>
-            <label className="flex items-center gap-2 text-xs font-semibold mb-1.5" style={{ color: colors.primary }}>
-              <UserCircle className="w-3.5 h-3.5" />
-              Advisor <span className="text-red-500">*</span>
-            </label>
-            <input
-              type="text"
-              name="advisor"
-              placeholder="Faculty name"
-              value={formData.advisor}
-              onChange={handleInputChange}
-              className="w-full px-3 py-2 border rounded-lg text-sm transition-all focus:ring-2 focus:ring-offset-0"
-              style={{
-                outline: 'none',
-                color: colors.primary,
-                borderColor: colors.neutralBorder,
-              }}
-              onFocus={(e) => {
-                e.currentTarget.style.borderColor = colors.secondary;
-                e.currentTarget.style.boxShadow = `0 0 0 3px ${colors.secondary}20`;
-              }}
-              onBlur={(e) => {
-                e.currentTarget.style.borderColor = colors.neutralBorder;
-                e.currentTarget.style.boxShadow = 'none';
-              }}
-              required
-            />
+            <p className="text-xs text-gray-500 mt-1">
+              Section name is auto-generated based on Program-Major and Year Level
+            </p>
           </div>
 
           <div>

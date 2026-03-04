@@ -1,17 +1,18 @@
-import axios from "axios";
 import { NextResponse, NextRequest } from "next/server";
 import { prisma } from "@/app/lib/prisma";
 
 export async function POST(request: NextRequest) {
   try {
     const data = await request.json();
+    // Remove id field if it exists - it should be auto-generated
+    const { id, ...facultyData } = data;
+    
     const newFaculty = await prisma.faculty.create({
-      data: {
-        ...data,
-      },
+      data: facultyData,
     });
     return NextResponse.json(newFaculty);
   } catch (error) {
+    console.error("Error creating faculty:", error);
     return NextResponse.json(
       { error: error instanceof Error ? error.message : String(error) },
       { status: 500 }
@@ -20,9 +21,14 @@ export async function POST(request: NextRequest) {
 }
 export async function GET() {
   try {
-    const faculties = await prisma.faculty.findMany();
+    const faculties = await prisma.faculty.findMany({
+      orderBy: {
+        last_name: 'asc',
+      },
+    });
     return NextResponse.json(faculties);
   } catch (error) {
+    console.error("Error fetching faculties:", error);
     return NextResponse.json(
       { error: "Failed to fetch faculties" },
       { status: 500 }
@@ -31,14 +37,23 @@ export async function GET() {
 }
 export async function DELETE(request: NextRequest) {
   try {
-    const id = await request.json();
+    const { id } = await request.json();
+    
+    if (!id) {
+      return NextResponse.json(
+        { error: "Faculty ID is required" },
+        { status: 400 }
+      );
+    }
+    
     const deletedFaculty = await prisma.faculty.delete({
-      where: { id },
+      where: { id: Number(id) },
     });
     return NextResponse.json(deletedFaculty);
   } catch (error) {
+    console.error("Error deleting faculty:", error);
     return NextResponse.json(
-      { error: "Failed to delete faculty" },
+      { error: error instanceof Error ? error.message : "Failed to delete faculty" },
       { status: 500 }
     );
   }
@@ -47,23 +62,45 @@ export async function PATCH(nextRequest: NextRequest) {
   try {
     const data = await nextRequest.json();
     const { id, ...updateData } = data;
-    const validFields = ["name", "code", "description", "status"];
+    
+    if (!id) {
+      return NextResponse.json(
+        { error: "Faculty ID is required" },
+        { status: 400 }
+      );
+    }
+    
+    // Define valid fields for faculty update
+    const validFields = [
+      "employee_id",
+      "first_name",
+      "last_name",
+      "middle_name",
+      "email",
+      "phone",
+      "department_id",
+      "position",
+      "specialization",
+      "status"
+    ];
+    
     const cleanData = Object.keys(updateData)
       .filter((key) => validFields.includes(key))
       .reduce((obj: any, key) => {
         obj[key] = (updateData as any)[key];
         return obj;
       }, {});
+    
     const updatedFaculty = await prisma.faculty.update({
-      where: { id: data.id },
-      data: {
-        ...cleanData,
-      },
+      where: { id: Number(id) },
+      data: cleanData,
     });
+    
     return NextResponse.json(updatedFaculty);
   } catch (error) {
+    console.error("Error updating faculty:", error);
     return NextResponse.json(
-      { error: "Failed to update faculty" },
+      { error: error instanceof Error ? error.message : "Failed to update faculty" },
       { status: 500 }
     );
   }

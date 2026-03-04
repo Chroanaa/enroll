@@ -4,7 +4,6 @@ import {
   FolderTree,
   Hash,
   BookOpen,
-  User,
   Users,
   CheckCircle2,
   X,
@@ -16,6 +15,8 @@ import { getPrograms } from "../../../utils/programUtils";
 import { colors } from "../../../colors";
 import ConfirmationModal from "../../common/ConfirmationModal";
 import { useAcademicTermContext } from "../../../contexts/AcademicTermContext";
+import { useProgramsWithMajors } from "../../../hooks/useProgramsWithMajors";
+import { generateSectionName, fetchExistingSectionsByPrefix, generateSectionPrefix } from "../../../utils/sectionNameGenerator";
 
 interface SectionFormProps {
   section: Section | null;
@@ -71,6 +72,9 @@ const SectionForm: React.FC<SectionFormProps> = ({
   const [programs, setPrograms] = useState<Program[]>([]);
   const [showSaveConfirmation, setShowSaveConfirmation] = useState(false);
   const [showCancelWarning, setShowCancelWarning] = useState(false);
+  const [programMajorValue, setProgramMajorValue] = useState<string>("");
+
+  const { programs: programsWithMajors, loading: programsLoading } = useProgramsWithMajors();
 
   const academicYearOptions = [2024, 2025, 2026, 2027, 2028].map((startYear) => ({
     value: startYear,
@@ -88,6 +92,52 @@ const SectionForm: React.FC<SectionFormProps> = ({
     }
   }, [currentTerm, section]);
 
+  // Set initial program-major value when editing
+  useEffect(() => {
+    if (section && section.program_id && programsWithMajors.length > 0) {
+      const matchingProgram = programsWithMajors.find(
+        (p) => p.programId === section.program_id
+      );
+      if (matchingProgram) {
+        setProgramMajorValue(matchingProgram.value);
+      }
+    }
+  }, [section, programsWithMajors]);
+
+  // Auto-generate section name when program-major or year level changes
+  useEffect(() => {
+    const generateName = async () => {
+      if (programMajorValue && formData.year_level && !section) {
+        const selected = programsWithMajors.find((p) => p.value === programMajorValue);
+        
+        if (!selected) return;
+
+        const { programCode, majorName } = selected;
+
+        // Generate prefix
+        const prefix = generateSectionPrefix(programCode, majorName, formData.year_level);
+
+        // Fetch existing sections with this prefix
+        const existingSections = await fetchExistingSectionsByPrefix(prefix);
+
+        // Generate the section name
+        const sectionName = generateSectionName(
+          programCode,
+          majorName,
+          formData.year_level,
+          existingSections
+        );
+
+        setFormData((prev) => ({
+          ...prev,
+          section_name: sectionName,
+        }));
+      }
+    };
+
+    generateName();
+  }, [programMajorValue, formData.year_level, programsWithMajors, section]);
+
   React.useEffect(() => {
     const fetchPrograms = async () => {
       try {
@@ -101,12 +151,24 @@ const SectionForm: React.FC<SectionFormProps> = ({
     fetchPrograms();
   }, []);
 
+  const handleProgramMajorChange = (value: string) => {
+    setProgramMajorValue(value);
+    
+    // Extract programId from the selected value
+    const selected = programsWithMajors.find((p) => p.value === value);
+    if (selected) {
+      setFormData({
+        ...formData,
+        program_id: selected.programId,
+      });
+    }
+  };
+
   const hasChanges = () => {
     if (!section) return false;
     return (
       formData.section_name !== initialFormData.current.section_name ||
       formData.program_id !== initialFormData.current.program_id ||
-      formData.advisor !== initialFormData.current.advisor ||
       formData.student_count !== initialFormData.current.student_count ||
       formData.status !== initialFormData.current.status ||
       formData.year_level !== initialFormData.current.year_level ||
@@ -119,8 +181,7 @@ const SectionForm: React.FC<SectionFormProps> = ({
     e.preventDefault();
     if (
       formData.section_name &&
-      formData.program_id &&
-      formData.advisor !== undefined
+      formData.program_id
     ) {
       if (section && hasChanges()) {
         setShowSaveConfirmation(true);
@@ -133,15 +194,14 @@ const SectionForm: React.FC<SectionFormProps> = ({
   const performSave = () => {
     if (
       formData.section_name &&
-      formData.program_id &&
-      formData.advisor !== undefined
+      formData.program_id
     ) {
       const programName =
         programs.find((p) => p.id === formData.program_id)?.name || "";
       const sectionData: Partial<Section> = {
         section_name: formData.section_name!,
         program_id: formData.program_id!,
-        advisor: formData.advisor || "",
+        advisor: '', // Empty advisor field
         student_count: formData.student_count || 0,
         status: (formData.status as "draft" | "active" | "closed" | "inactive") || "draft",
         year_level: formData.year_level,
@@ -248,6 +308,7 @@ const SectionForm: React.FC<SectionFormProps> = ({
                     border: "1px solid #E5E7EB",
                     outline: "none",
                     color: "#6B5B4F",
+                    backgroundColor: !section ? '#F9FAFB' : 'white',
                   }}
                   onFocus={(e) => {
                     e.currentTarget.style.borderColor = colors.secondary;
@@ -257,9 +318,15 @@ const SectionForm: React.FC<SectionFormProps> = ({
                     e.currentTarget.style.borderColor = "#E5E7EB";
                     e.currentTarget.style.boxShadow = "none";
                   }}
-                  placeholder="e.g. A"
+                  placeholder={!section ? "Auto-generated (e.g., BSIT1 - 1)" : "e.g. A"}
+                  readOnly={!section}
                   required
                 />
+                {!section && (
+                  <p className="text-xs text-gray-500 mt-1">
+                    Section name is auto-generated based on Program-Major and Year Level
+                  </p>
+                )}
               </div>
 
               <div>
@@ -268,16 +335,12 @@ const SectionForm: React.FC<SectionFormProps> = ({
                   style={{ color: colors.primary }}
                 >
                   <BookOpen className='w-4 h-4 text-gray-400' />
-                  Program <span className='text-red-500'>*</span>
+                  Program - Major <span className='text-red-500'>*</span>
                 </label>
                 <select
-                  value={formData.program_id?.toString() || ""}
-                  onChange={(e) =>
-                    setFormData({
-                      ...formData,
-                      program_id: parseInt(e.target.value),
-                    })
-                  }
+                  value={programMajorValue}
+                  onChange={(e) => handleProgramMajorChange(e.target.value)}
+                  disabled={programsLoading}
                   className='w-full rounded-xl px-4 py-2.5 transition-all border-gray-200 focus:ring-2 focus:ring-offset-0 bg-white'
                   style={{
                     border: "1px solid #E5E7EB",
@@ -294,46 +357,15 @@ const SectionForm: React.FC<SectionFormProps> = ({
                   }}
                   required
                 >
-                  <option value=''>Select Program</option>
-                  {programs.map((program) => (
-                    <option key={program.id} value={program.id}>
-                      {program.code} - {program.name}
+                  <option value=''>
+                    {programsLoading ? 'Loading programs...' : 'Select program - major'}
+                  </option>
+                  {programsWithMajors.map((program) => (
+                    <option key={program.value} value={program.value}>
+                      {program.label}
                     </option>
                   ))}
                 </select>
-              </div>
-
-              <div className='md:col-span-2'>
-                <label
-                  className='flex items-center gap-2 text-sm font-semibold mb-2'
-                  style={{ color: colors.primary }}
-                >
-                  <User className='w-4 h-4 text-gray-400' />
-                  Advisor <span className='text-red-500'>*</span>
-                </label>
-                <input
-                  type='text'
-                  value={formData.advisor || ""}
-                  onChange={(e) =>
-                    setFormData({ ...formData, advisor: e.target.value })
-                  }
-                  className='w-full rounded-xl px-4 py-2.5 transition-all border-gray-200 focus:ring-2 focus:ring-offset-0'
-                  style={{
-                    border: "1px solid #E5E7EB",
-                    outline: "none",
-                    color: "#6B5B4F",
-                  }}
-                  onFocus={(e) => {
-                    e.currentTarget.style.borderColor = colors.secondary;
-                    e.currentTarget.style.boxShadow = `0 0 0 3px ${colors.secondary}20`;
-                  }}
-                  onBlur={(e) => {
-                    e.currentTarget.style.borderColor = "#E5E7EB";
-                    e.currentTarget.style.boxShadow = "none";
-                  }}
-                  placeholder="e.g. Dr. John Doe"
-                  required
-                />
               </div>
 
               <div>

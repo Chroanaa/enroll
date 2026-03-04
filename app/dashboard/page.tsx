@@ -31,6 +31,7 @@ import {
   Products,
   SchoolsPrograms,
 } from "../components/fileMaintenance";
+import MiscellaneousFees from "../components/MiscellaneousFees";
 import ProtectedRoute from "../components/ProtectedRoute";
 import SectionManagement from "../admin/sections/page";
 
@@ -100,6 +101,8 @@ function DashboardContent() {
         return <Subject />;
       case "file-maintenance-schools-programs":
         return <SchoolsPrograms />;
+      case "miscellaneous-fees":
+        return <MiscellaneousFees />;
       case "settings":
         return <Settings />;
       default:
