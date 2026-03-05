@@ -59,31 +59,26 @@ export default function FacultySubjectManagementPage() {
   };
 
   return (
-    <div className="p-6 space-y-6">
+    <div className="w-full space-y-6 p-6 font-sans" style={{ backgroundColor: colors.paper }}>
       {/* Header */}
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-3">
-          <div
-            className="p-3 rounded-xl"
-            style={{ backgroundColor: `${colors.primary}15` }}
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+        <div>
+          <h1
+            className="text-3xl font-bold tracking-tight"
+            style={{ color: colors.primary }}
           >
-            <Users2 className="w-6 h-6" style={{ color: colors.primary }} />
-          </div>
-          <div>
-            <h1 className="text-2xl font-bold" style={{ color: colors.primary }}>
-              Faculty Subject Management
-            </h1>
-            <p className="text-sm" style={{ color: colors.neutral }}>
-              Manage subjects taught by faculty members
-            </p>
-          </div>
+            Faculty Subject Management
+          </h1>
+          <p className="text-gray-500 mt-1">
+            Manage subjects taught by faculty members
+          </p>
         </div>
       </div>
 
       {/* Search */}
       <div className="relative">
         <Search
-          className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5"
+          className="absolute left-4 top-1/2 transform -translate-y-1/2 w-5 h-5"
           style={{ color: colors.neutral }}
         />
         <input
@@ -91,11 +86,19 @@ export default function FacultySubjectManagementPage() {
           placeholder="Search by name, email, or department..."
           value={searchTerm}
           onChange={(e) => setSearchTerm(e.target.value)}
-          className="w-full pl-10 pr-4 py-3 rounded-lg border text-sm"
+          className="w-full pl-12 pr-4 py-3 rounded-lg border text-sm focus:outline-none focus:ring-2 transition-all shadow-sm"
           style={{
-            backgroundColor: colors.paper,
-            borderColor: `${colors.tertiary}30`,
+            backgroundColor: 'white',
+            borderColor: colors.neutralBorder,
             color: colors.primary,
+          }}
+          onFocus={(e) => {
+            e.currentTarget.style.borderColor = colors.secondary;
+            e.currentTarget.style.boxShadow = `0 0 0 3px ${colors.secondary}15`;
+          }}
+          onBlur={(e) => {
+            e.currentTarget.style.borderColor = colors.neutralBorder;
+            e.currentTarget.style.boxShadow = '';
           }}
         />
       </div>
@@ -107,36 +110,32 @@ export default function FacultySubjectManagementPage() {
         </div>
       ) : (
         <div
-          className="rounded-xl overflow-hidden"
+          className="rounded-xl overflow-hidden shadow-sm"
           style={{
-            backgroundColor: colors.paper,
-            border: `1px solid ${colors.tertiary}20`,
+            backgroundColor: 'white',
+            border: `1px solid ${colors.neutralBorder}`,
           }}
         >
           <table className="w-full">
             <thead>
-              <tr style={{ backgroundColor: `${colors.primary}08` }}>
+              <tr style={{ backgroundColor: colors.secondary }}>
                 <th
-                  className="px-6 py-4 text-left text-sm font-semibold"
-                  style={{ color: colors.primary }}
+                  className="px-6 py-4 text-left text-sm font-semibold text-white"
                 >
                   Faculty
                 </th>
                 <th
-                  className="px-6 py-4 text-left text-sm font-semibold"
-                  style={{ color: colors.primary }}
+                  className="px-6 py-4 text-left text-sm font-semibold text-white"
                 >
                   Department
                 </th>
                 <th
-                  className="px-6 py-4 text-left text-sm font-semibold"
-                  style={{ color: colors.primary }}
+                  className="px-6 py-4 text-left text-sm font-semibold text-white"
                 >
                   Email
                 </th>
                 <th
-                  className="px-6 py-4 text-center text-sm font-semibold"
-                  style={{ color: colors.primary }}
+                  className="px-6 py-4 text-center text-sm font-semibold text-white"
                 >
                   Action
                 </th>
@@ -153,35 +152,37 @@ export default function FacultySubjectManagementPage() {
                 filteredFaculties.map((faculty) => (
                   <tr
                     key={faculty.id}
-                    className="border-t transition-colors"
-                    style={{ borderColor: `${colors.tertiary}15` }}
+                    className="border-t transition-colors hover:bg-gray-50"
+                    style={{ borderColor: colors.neutralBorder }}
                   >
                     <td className="px-6 py-4">
                       <div>
-                        <div className="font-medium text-sm" style={{ color: colors.primary }}>
+                        <div className="font-semibold text-sm" style={{ color: colors.primary }}>
                           {faculty.first_name} {faculty.middle_name ? `${faculty.middle_name} ` : ''}{faculty.last_name}
                         </div>
-                        <div className="text-xs" style={{ color: colors.neutral }}>
+                        <div className="text-xs mt-0.5" style={{ color: colors.neutral }}>
                           {faculty.employee_id}
                         </div>
                       </div>
                     </td>
-                    <td className="px-6 py-4 text-sm" style={{ color: colors.primary }}>
+                    <td className="px-6 py-4 text-sm font-medium" style={{ color: colors.neutralDark }}>
                       {faculty.departmentName}
                     </td>
-                    <td className="px-6 py-4 text-sm" style={{ color: colors.primary }}>
+                    <td className="px-6 py-4 text-sm" style={{ color: colors.neutral }}>
                       {faculty.email}
                     </td>
                     <td className="px-6 py-4 text-center">
                       <button
                         onClick={() => handleManage(faculty.id)}
-                        className="px-4 py-2 rounded-lg text-sm font-medium text-white transition-all"
-                        style={{ backgroundColor: colors.primary }}
+                        className="px-6 py-2 rounded-lg text-sm font-medium text-white transition-all hover:shadow-md"
+                        style={{ backgroundColor: colors.secondary }}
                         onMouseEnter={(e) => {
-                          e.currentTarget.style.backgroundColor = colors.secondary;
+                          e.currentTarget.style.backgroundColor = colors.primary;
+                          e.currentTarget.style.transform = 'translateY(-1px)';
                         }}
                         onMouseLeave={(e) => {
-                          e.currentTarget.style.backgroundColor = colors.primary;
+                          e.currentTarget.style.backgroundColor = colors.secondary;
+                          e.currentTarget.style.transform = 'translateY(0)';
                         }}
                       >
                         Manage

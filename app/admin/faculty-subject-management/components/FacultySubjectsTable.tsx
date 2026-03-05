@@ -2,8 +2,10 @@
 
 import React, { useState, useEffect } from 'react';
 import { colors } from '../../../colors';
-import { Plus, Loader2, Trash2, AlertTriangle } from 'lucide-react';
+import { Plus, Loader2, Trash2 } from 'lucide-react';
 import AddSubjectModal from './AddSubjectModal';
+import ConfirmationModal from '../../../components/common/ConfirmationModal';
+import SuccessModal from '../../../components/common/SuccessModal';
 
 interface Schedule {
   id: number;
@@ -44,7 +46,25 @@ export default function FacultySubjectsTable({
   const [schedules, setSchedules] = useState<Schedule[]>([]);
   const [loading, setLoading] = useState(true);
   const [showAddModal, setShowAddModal] = useState(false);
-  const [deleteConfirm, setDeleteConfirm] = useState<number | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
+  
+  // Confirmation modal state
+  const [confirmModal, setConfirmModal] = useState<{
+    isOpen: boolean;
+    schedule: Schedule | null;
+  }>({
+    isOpen: false,
+    schedule: null
+  });
+
+  // Success modal state
+  const [successModal, setSuccessModal] = useState<{
+    isOpen: boolean;
+    message: string;
+  }>({
+    isOpen: false,
+    message: ''
+  });
 
   useEffect(() => {
     fetchSchedules();
@@ -68,18 +88,36 @@ export default function FacultySubjectsTable({
     }
   };
 
-  const handleDelete = async (scheduleId: number) => {
+  const handleDelete = async () => {
+    if (!confirmModal.schedule) return;
+
+    setIsDeleting(true);
     try {
-      const response = await fetch(`/api/class-schedule/${scheduleId}`, {
+      const response = await fetch(`/api/class-schedule/${confirmModal.schedule.id}`, {
         method: 'DELETE',
       });
       if (!response.ok) throw new Error('Failed to delete schedule');
+      
+      setSuccessModal({
+        isOpen: true,
+        message: `Subject "${confirmModal.schedule.courseCode}" has been successfully removed from the faculty's schedule.`
+      });
+      
       await fetchSchedules();
-      setDeleteConfirm(null);
     } catch (error) {
       console.error('Error deleting schedule:', error);
       alert('Failed to delete schedule');
+    } finally {
+      setIsDeleting(false);
+      setConfirmModal({ isOpen: false, schedule: null });
     }
+  };
+
+  const handleDeleteClick = (schedule: Schedule) => {
+    setConfirmModal({
+      isOpen: true,
+      schedule
+    });
   };
 
   const formatTime = (timeStr: string): string => {
@@ -97,8 +135,10 @@ export default function FacultySubjectsTable({
       <div className="flex justify-end">
         <button
           onClick={() => setShowAddModal(true)}
-          className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium text-white transition-all"
-          style={{ backgroundColor: colors.primary }}
+          className="flex items-center gap-2 px-6 py-3 rounded-lg text-sm font-medium text-white transition-all hover:shadow-md"
+          style={{ backgroundColor: colors.secondary }}
+          onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = colors.primary)}
+          onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = colors.secondary)}
         >
           <Plus className="w-4 h-4" />
           Add Subject
@@ -112,31 +152,31 @@ export default function FacultySubjectsTable({
         </div>
       ) : (
         <div
-          className="rounded-xl overflow-hidden"
+          className="rounded-xl overflow-hidden shadow-sm"
           style={{
-            backgroundColor: colors.paper,
-            border: `1px solid ${colors.tertiary}20`,
+            backgroundColor: 'white',
+            border: `1px solid ${colors.neutralBorder}`,
           }}
         >
           <table className="w-full">
             <thead>
-              <tr style={{ backgroundColor: `${colors.primary}08` }}>
-                <th className="px-6 py-4 text-left text-sm font-semibold" style={{ color: colors.primary }}>
+              <tr style={{ backgroundColor: colors.secondary }}>
+                <th className="px-6 py-4 text-left text-sm font-semibold text-white">
                   Subject
                 </th>
-                <th className="px-6 py-4 text-left text-sm font-semibold" style={{ color: colors.primary }}>
+                <th className="px-6 py-4 text-left text-sm font-semibold text-white">
                   Section
                 </th>
-                <th className="px-6 py-4 text-left text-sm font-semibold" style={{ color: colors.primary }}>
+                <th className="px-6 py-4 text-left text-sm font-semibold text-white">
                   Day
                 </th>
-                <th className="px-6 py-4 text-left text-sm font-semibold" style={{ color: colors.primary }}>
+                <th className="px-6 py-4 text-left text-sm font-semibold text-white">
                   Time
                 </th>
-                <th className="px-6 py-4 text-left text-sm font-semibold" style={{ color: colors.primary }}>
+                <th className="px-6 py-4 text-left text-sm font-semibold text-white">
                   Room
                 </th>
-                <th className="px-6 py-4 text-center text-sm font-semibold" style={{ color: colors.primary }}>
+                <th className="px-6 py-4 text-center text-sm font-semibold text-white">
                   Action
                 </th>
               </tr>
@@ -152,61 +192,47 @@ export default function FacultySubjectsTable({
                 schedules.map((schedule) => (
                   <tr
                     key={schedule.id}
-                    className="border-t transition-colors"
-                    style={{ borderColor: `${colors.tertiary}15` }}
+                    className="border-t transition-colors hover:bg-gray-50"
+                    style={{ borderColor: colors.neutralBorder }}
                   >
                     <td className="px-6 py-4">
                       <div>
-                        <div className="font-medium text-sm" style={{ color: colors.primary }}>
+                        <div className="font-semibold text-sm" style={{ color: colors.primary }}>
                           {schedule.courseCode}
                         </div>
-                        <div className="text-xs" style={{ color: colors.neutral }}>
+                        <div className="text-xs mt-0.5" style={{ color: colors.neutral }}>
                           {schedule.courseTitle}
                         </div>
                       </div>
                     </td>
-                    <td className="px-6 py-4 text-sm" style={{ color: colors.primary }}>
+                    <td className="px-6 py-4 text-sm font-medium" style={{ color: colors.primary }}>
                       {schedule.sectionName || schedule.section?.section_name || 'N/A'}
                     </td>
-                    <td className="px-6 py-4 text-sm" style={{ color: colors.primary }}>
+                    <td className="px-6 py-4 text-sm" style={{ color: colors.neutralDark }}>
                       {schedule.dayOfWeek}
                     </td>
-                    <td className="px-6 py-4 text-sm" style={{ color: colors.primary }}>
+                    <td className="px-6 py-4 text-sm" style={{ color: colors.neutralDark }}>
                       {formatTime(schedule.startTime)} - {formatTime(schedule.endTime)}
                     </td>
-                    <td className="px-6 py-4 text-sm" style={{ color: colors.primary }}>
+                    <td className="px-6 py-4 text-sm font-medium" style={{ color: colors.secondary }}>
                       {schedule.room.room_number}
                     </td>
                     <td className="px-6 py-4 text-center">
-                      {deleteConfirm === schedule.id ? (
-                        <div className="flex items-center justify-center gap-2">
-                          <button
-                            onClick={() => handleDelete(schedule.id)}
-                            className="px-3 py-1 rounded text-xs font-medium text-white"
-                            style={{ backgroundColor: colors.danger }}
-                          >
-                            Confirm
-                          </button>
-                          <button
-                            onClick={() => setDeleteConfirm(null)}
-                            className="px-3 py-1 rounded text-xs font-medium"
-                            style={{
-                              backgroundColor: `${colors.neutral}20`,
-                              color: colors.primary,
-                            }}
-                          >
-                            Cancel
-                          </button>
-                        </div>
-                      ) : (
-                        <button
-                          onClick={() => setDeleteConfirm(schedule.id)}
-                          className="p-2 rounded-lg transition-colors"
-                          style={{ backgroundColor: `${colors.danger}15` }}
-                        >
-                          <Trash2 className="w-4 h-4" style={{ color: colors.danger }} />
-                        </button>
-                      )}
+                      <button
+                        onClick={() => handleDeleteClick(schedule)}
+                        className="p-2 rounded-lg transition-all hover:shadow-sm"
+                        style={{ backgroundColor: `${colors.danger}15` }}
+                        onMouseEnter={(e) => {
+                          e.currentTarget.style.backgroundColor = `${colors.danger}25`;
+                          e.currentTarget.style.transform = 'scale(1.05)';
+                        }}
+                        onMouseLeave={(e) => {
+                          e.currentTarget.style.backgroundColor = `${colors.danger}15`;
+                          e.currentTarget.style.transform = 'scale(1)';
+                        }}
+                      >
+                        <Trash2 className="w-4 h-4" style={{ color: colors.danger }} />
+                      </button>
                     </td>
                   </tr>
                 ))
@@ -229,6 +255,32 @@ export default function FacultySubjectsTable({
           }}
         />
       )}
+
+      {/* Confirmation Modal */}
+      <ConfirmationModal
+        isOpen={confirmModal.isOpen}
+        onClose={() => setConfirmModal({ isOpen: false, schedule: null })}
+        onConfirm={handleDelete}
+        title="Remove Subject Assignment"
+        message={
+          confirmModal.schedule
+            ? `Are you sure you want to remove "${confirmModal.schedule.courseCode}" (${confirmModal.schedule.courseTitle}) from this faculty's schedule?\n\nSection: ${confirmModal.schedule.sectionName || 'N/A'}\nDay: ${confirmModal.schedule.dayOfWeek}\nTime: ${formatTime(confirmModal.schedule.startTime)} - ${formatTime(confirmModal.schedule.endTime)}`
+            : ''
+        }
+        confirmText="Remove Subject"
+        variant="danger"
+        icon={<Trash2 className="w-6 h-6" />}
+        isLoading={isDeleting}
+      />
+
+      {/* Success Modal */}
+      <SuccessModal
+        isOpen={successModal.isOpen}
+        onClose={() => setSuccessModal({ isOpen: false, message: '' })}
+        message={successModal.message}
+        autoClose={true}
+        autoCloseDelay={3000}
+      />
     </div>
   );
 }

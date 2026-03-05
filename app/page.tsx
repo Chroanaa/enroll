@@ -14,6 +14,7 @@ import SchedulingManagement from "./components/SchedulingManagement";
 import PaymentBillingManagement from "./components/PaymentBillingManagement";
 import CurriculumManagement from "./components/curriculum";
 import SectionManagementPage from "./admin/sections/page";
+import FacultySubjectManagementPage from "./admin/faculty-subject-management/page";
 import { 
   Building, 
   Section, 
@@ -66,6 +67,8 @@ function App() {
         return <SchedulingManagement />;
       case "section-management":
         return <SectionManagementPage />;
+      case "faculty-subject-management":
+        return <FacultySubjectManagementPage />;
       case "payment-billing":
         return <PaymentBillingManagement />;
       case "curriculum":

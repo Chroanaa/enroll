@@ -166,14 +166,15 @@ export default function AddSubjectModal({
       if (!response.ok) throw new Error('Failed to check conflicts');
       const result = await response.json();
       
-      if (result.conflicts && result.conflicts.length > 0) {
-        const conflictTypes = result.conflicts.map((c: any) => c.type).join(', ');
-        setConflict(`Conflict detected: ${conflictTypes}`);
+      if (result.hasConflicts && result.conflicts && result.conflicts.length > 0) {
+        const conflictMessages = result.conflicts.map((c: any) => c.message).join('\n');
+        setConflict(conflictMessages);
       } else {
         setConflict(null);
       }
     } catch (error) {
       console.error('Error checking conflicts:', error);
+      setConflict('Unable to check conflicts. Please try again.');
     }
   };
 
@@ -400,11 +401,11 @@ export default function AddSubjectModal({
           {conflict && (
             <div className="p-4 flex items-start gap-3" style={{ backgroundColor: '#FEF2F2' }}>
               <AlertTriangle className="w-5 h-5 flex-shrink-0" style={{ color: colors.danger }} />
-              <div>
+              <div className="flex-1">
                 <p className="text-sm font-semibold" style={{ color: colors.danger }}>
                   Schedule Conflict
                 </p>
-                <p className="text-xs mt-1" style={{ color: colors.danger }}>
+                <p className="text-xs mt-1 whitespace-pre-line" style={{ color: colors.danger }}>
                   {conflict}
                 </p>
               </div>

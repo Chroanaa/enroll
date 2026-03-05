@@ -4,6 +4,7 @@ import React, { useState, useEffect } from 'react';
 import { colors } from '@/app/colors';
 import { ArrowLeft, Calendar, List, Loader2 } from 'lucide-react';
 import { useRouter, useParams } from 'next/navigation';
+import Navigation from '@/app/components/Navigation';
 import FacultySubjectsTable from '@/app/admin/faculty-subject-management/components/FacultySubjectsTable';
 import FacultyCalendarView from '@/app/admin/faculty-subject-management/components/FacultyCalendarView';
 
@@ -23,19 +24,64 @@ export default function FacultySubjectManagementDetailPage() {
   const [faculty, setFaculty] = useState<Faculty | null>(null);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<'list' | 'calendar'>('list');
-  const [academicYear, setAcademicYear] = useState('2024-2025');
-  const [semester, setSemester] = useState('first');
+  const [academicYear, setAcademicYear] = useState('');
+  const [semester, setSemester] = useState('');
   const [workload, setWorkload] = useState(0);
+  const [availableYears, setAvailableYears] = useState<string[]>([]);
+
+  // Handle navigation view changes
+  const handleViewChange = (view: string) => {
+    if (view === 'faculty-subject-management') {
+      router.push('/dashboard?view=faculty-subject-management');
+      return;
+    }
+    router.push(`/dashboard?view=${view}`);
+  };
 
   useEffect(() => {
+    fetchAcademicTerm();
     fetchFaculty();
   }, [facultyId]);
 
   useEffect(() => {
-    if (faculty) {
+    if (faculty && academicYear && semester) {
       fetchWorkload();
     }
   }, [faculty, academicYear, semester]);
+
+  const fetchAcademicTerm = async () => {
+    try {
+      const response = await fetch('/api/auth/academic-term');
+      if (!response.ok) throw new Error('Failed to fetch academic term');
+      const result = await response.json();
+      
+      if (result.success && result.data.currentTerm) {
+        setAcademicYear(result.data.currentTerm.academicYear);
+        setSemester(result.data.currentTerm.semesterCode);
+        
+        // Generate available years (current year ± 2 years)
+        const currentYear = parseInt(result.data.currentTerm.academicYear.split('-')[0]);
+        const years = [];
+        for (let i = -2; i <= 2; i++) {
+          const year = currentYear + i;
+          years.push(`${year}-${year + 1}`);
+        }
+        setAvailableYears(years);
+      }
+    } catch (error) {
+      console.error('Error fetching academic term:', error);
+      // Fallback to default values
+      const currentYear = new Date().getFullYear();
+      setAcademicYear(`${currentYear}-${currentYear + 1}`);
+      setSemester('first');
+      const years = [];
+      for (let i = -2; i <= 2; i++) {
+        const year = currentYear + i;
+        years.push(`${year}-${year + 1}`);
+      }
+      setAvailableYears(years);
+    }
+  };
 
   const fetchFaculty = async () => {
     try {
@@ -67,43 +113,43 @@ export default function FacultySubjectManagementDetailPage() {
     }
   };
 
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center h-screen">
-        <Loader2 className="w-8 h-8 animate-spin" style={{ color: colors.primary }} />
-      </div>
-    );
-  }
-
-  if (!faculty) {
-    return (
-      <div className="p-6">
+  return (
+    <div className="flex h-screen overflow-hidden">
+      <Navigation currentView="faculty-subject-management" onViewChange={handleViewChange} />
+      <div className="flex-1 flex flex-col overflow-y-auto" style={{ backgroundColor: colors.paper }}>
+    <div className="w-full space-y-6 p-6 font-sans">
+      {loading ? (
+        <div className="flex items-center justify-center py-12">
+          <Loader2 className="w-8 h-8 animate-spin" style={{ color: colors.primary }} />
+        </div>
+      ) : !faculty ? (
         <div className="text-center py-12">
           <p className="text-lg" style={{ color: colors.neutral }}>
             Faculty not found
           </p>
         </div>
-      </div>
-    );
-  }
-
-  return (
-    <div className="p-6 space-y-6">
+      ) : (
+        <>
       {/* Header */}
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-4">
+      <div className="flex flex-col md:flex-row md:items-start justify-between gap-4">
+        <div className="flex items-start gap-4">
           <button
-            onClick={() => router.back()}
-            className="p-2 rounded-lg transition-colors"
+            onClick={() => router.push('/dashboard?view=faculty-subject-management')}
+            className="p-2 rounded-lg transition-all hover:shadow-md mt-1"
             style={{ backgroundColor: `${colors.primary}15` }}
+            onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = `${colors.primary}25`)}
+            onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = `${colors.primary}15`)}
           >
             <ArrowLeft className="w-5 h-5" style={{ color: colors.primary }} />
           </button>
           <div>
-            <h1 className="text-2xl font-bold" style={{ color: colors.primary }}>
-              {faculty.first_name} {faculty.middle_name ? `${faculty.middle_name} ` : ''}{faculty.last_name}
+            <h1
+              className="text-3xl font-bold tracking-tight"
+              style={{ color: colors.primary }}
+            >
+              {faculty.first_name.toUpperCase()} {faculty.middle_name ? `${faculty.middle_name.charAt(0).toUpperCase()} ` : ''}{faculty.last_name.toUpperCase()}
             </h1>
-            <p className="text-sm" style={{ color: colors.neutral }}>
+            <p className="text-gray-500 mt-1">
               {faculty.departmentName} • Current Workload: {workload} subject{workload !== 1 ? 's' : ''}
             </p>
           </div>
@@ -112,61 +158,89 @@ export default function FacultySubjectManagementDetailPage() {
 
       {/* Filters */}
       <div
-        className="p-4 rounded-xl flex items-center gap-4"
+        className="p-6 rounded-xl shadow-sm"
         style={{
-          backgroundColor: colors.paper,
-          border: `1px solid ${colors.tertiary}20`,
+          backgroundColor: 'white',
+          border: `1px solid ${colors.neutralBorder}`,
         }}
       >
-        <div className="flex-1">
-          <label className="block text-xs font-medium mb-1" style={{ color: colors.neutral }}>
-            Academic Year
-          </label>
-          <select
-            value={academicYear}
-            onChange={(e) => setAcademicYear(e.target.value)}
-            className="w-full px-3 py-2 rounded-lg border text-sm"
-            style={{
-              backgroundColor: colors.paper,
-              borderColor: `${colors.tertiary}30`,
-              color: colors.primary,
-            }}
-          >
-            <option value="2024-2025">2024-2025</option>
-            <option value="2025-2026">2025-2026</option>
-          </select>
-        </div>
-        <div className="flex-1">
-          <label className="block text-xs font-medium mb-1" style={{ color: colors.neutral }}>
-            Semester
-          </label>
-          <select
-            value={semester}
-            onChange={(e) => setSemester(e.target.value)}
-            className="w-full px-3 py-2 rounded-lg border text-sm"
-            style={{
-              backgroundColor: colors.paper,
-              borderColor: `${colors.tertiary}30`,
-              color: colors.primary,
-            }}
-          >
-            <option value="first">First Semester</option>
-            <option value="second">Second Semester</option>
-            <option value="summer">Summer</option>
-          </select>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div>
+            <label className="block text-sm font-medium mb-2" style={{ color: colors.primary }}>
+              Academic Year
+            </label>
+            <select
+              value={academicYear}
+              onChange={(e) => setAcademicYear(e.target.value)}
+              disabled={!academicYear || availableYears.length === 0}
+              className="w-full px-4 py-2.5 rounded-lg border text-sm focus:outline-none focus:ring-2 transition-all"
+              style={{
+                backgroundColor: 'white',
+                borderColor: colors.neutralBorder,
+                color: colors.primary,
+              }}
+              onFocus={(e) => (e.currentTarget.style.borderColor = colors.secondary)}
+              onBlur={(e) => (e.currentTarget.style.borderColor = colors.neutralBorder)}
+            >
+              {availableYears.length === 0 ? (
+                <option value="">Loading...</option>
+              ) : (
+                availableYears.map((year) => (
+                  <option key={year} value={year}>
+                    {year}
+                  </option>
+                ))
+              )}
+            </select>
+          </div>
+          <div>
+            <label className="block text-sm font-medium mb-2" style={{ color: colors.primary }}>
+              Semester
+            </label>
+            <select
+              value={semester}
+              onChange={(e) => setSemester(e.target.value)}
+              disabled={!semester}
+              className="w-full px-4 py-2.5 rounded-lg border text-sm focus:outline-none focus:ring-2 transition-all"
+              style={{
+                backgroundColor: 'white',
+                borderColor: colors.neutralBorder,
+                color: colors.primary,
+              }}
+              onFocus={(e) => (e.currentTarget.style.borderColor = colors.secondary)}
+              onBlur={(e) => (e.currentTarget.style.borderColor = colors.neutralBorder)}
+            >
+              <option value="first">First Semester</option>
+              <option value="second">Second Semester</option>
+              <option value="summer">Summer</option>
+            </select>
+          </div>
         </div>
       </div>
 
       {/* Tabs */}
-      <div className="flex gap-2">
+      <div className="flex gap-2 border-b" style={{ borderColor: colors.neutralBorder }}>
         <button
           onClick={() => setActiveTab('list')}
-          className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all ${
+          className={`flex items-center gap-2 px-6 py-3 text-sm font-medium transition-all relative ${
             activeTab === 'list' ? 'text-white' : ''
           }`}
           style={{
-            backgroundColor: activeTab === 'list' ? colors.primary : `${colors.primary}15`,
-            color: activeTab === 'list' ? 'white' : colors.primary,
+            backgroundColor: activeTab === 'list' ? colors.secondary : 'transparent',
+            color: activeTab === 'list' ? 'white' : colors.neutral,
+            borderRadius: activeTab === 'list' ? '8px 8px 0 0' : '0',
+          }}
+          onMouseEnter={(e) => {
+            if (activeTab !== 'list') {
+              e.currentTarget.style.backgroundColor = colors.neutralLight;
+              e.currentTarget.style.color = colors.primary;
+            }
+          }}
+          onMouseLeave={(e) => {
+            if (activeTab !== 'list') {
+              e.currentTarget.style.backgroundColor = 'transparent';
+              e.currentTarget.style.color = colors.neutral;
+            }
           }}
         >
           <List className="w-4 h-4" />
@@ -174,12 +248,25 @@ export default function FacultySubjectManagementDetailPage() {
         </button>
         <button
           onClick={() => setActiveTab('calendar')}
-          className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all ${
+          className={`flex items-center gap-2 px-6 py-3 text-sm font-medium transition-all relative ${
             activeTab === 'calendar' ? 'text-white' : ''
           }`}
           style={{
-            backgroundColor: activeTab === 'calendar' ? colors.primary : `${colors.primary}15`,
-            color: activeTab === 'calendar' ? 'white' : colors.primary,
+            backgroundColor: activeTab === 'calendar' ? colors.secondary : 'transparent',
+            color: activeTab === 'calendar' ? 'white' : colors.neutral,
+            borderRadius: activeTab === 'calendar' ? '8px 8px 0 0' : '0',
+          }}
+          onMouseEnter={(e) => {
+            if (activeTab !== 'calendar') {
+              e.currentTarget.style.backgroundColor = colors.neutralLight;
+              e.currentTarget.style.color = colors.primary;
+            }
+          }}
+          onMouseLeave={(e) => {
+            if (activeTab !== 'calendar') {
+              e.currentTarget.style.backgroundColor = 'transparent';
+              e.currentTarget.style.color = colors.neutral;
+            }
           }}
         >
           <Calendar className="w-4 h-4" />
@@ -202,6 +289,10 @@ export default function FacultySubjectManagementDetailPage() {
           semester={semester}
         />
       )}
+        </>
+      )}
+    </div>
+      </div>
     </div>
   );
 }

@@ -34,6 +34,7 @@ import {
 import MiscellaneousFees from "../components/MiscellaneousFees";
 import ProtectedRoute from "../components/ProtectedRoute";
 import SectionManagement from "../admin/sections/page";
+import FacultySubjectManagement from "../admin/faculty-subject-management/page";
 
 function DashboardContent() {
   const searchParams = useSearchParams();
@@ -81,6 +82,8 @@ function DashboardContent() {
         return <PaymentBillingManagement />;
       case "section-management":
         return <SectionManagement />;
+      case "faculty-subject-management":
+        return <FacultySubjectManagement />;
       case "curriculum":
         return <CurriculumManagement />;
       case "file-maintenance":

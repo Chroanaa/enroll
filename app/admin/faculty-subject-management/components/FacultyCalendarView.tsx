@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { colors } from '../../../colors';
-import { Loader2 } from 'lucide-react';
+import { Loader2, Calendar } from 'lucide-react';
 import { WeeklyScheduleCalendar } from '../../../components/sections/WeeklyScheduleCalendar';
 
 interface Schedule {
@@ -23,6 +23,8 @@ interface FacultyCalendarViewProps {
   semester: string;
 }
 
+const DAYS_OF_WEEK = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+
 export default function FacultyCalendarView({
   facultyId,
   academicYear,
@@ -31,6 +33,8 @@ export default function FacultyCalendarView({
   const [schedules, setSchedules] = useState<Schedule[]>([]);
   const [loading, setLoading] = useState(true);
   const [facultyName, setFacultyName] = useState('');
+  const [selectedDay, setSelectedDay] = useState<string>('all');
+  const [includeSaturday, setIncludeSaturday] = useState(true);
 
   useEffect(() => {
     fetchSchedules();
@@ -88,18 +92,86 @@ export default function FacultyCalendarView({
     );
   }
 
+  // Filter schedules based on selected day
+  const filteredSchedules = selectedDay === 'all' 
+    ? schedules 
+    : schedules.filter(s => s.dayOfWeek === selectedDay);
+
+  // Determine which days to show in calendar
+  const visibleDays = includeSaturday 
+    ? ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday']
+    : ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'];
+
   return (
-    <div
-      className="p-6 rounded-xl"
-      style={{
-        backgroundColor: colors.paper,
-        border: `1px solid ${colors.tertiary}20`,
-      }}
-    >
-      <WeeklyScheduleCalendar
-        schedules={schedules}
-        readOnly={true}
-      />
+    <div className="space-y-4">
+      {/* Filters */}
+      <div
+        className="p-4 rounded-xl"
+        style={{
+          backgroundColor: 'white',
+          border: `1px solid ${colors.neutralBorder}`,
+        }}
+      >
+        <div className="flex flex-wrap items-center gap-4">
+          <div className="flex items-center gap-2">
+            <Calendar className="w-4 h-4" style={{ color: colors.primary }} />
+            <label className="text-sm font-medium" style={{ color: colors.primary }}>
+              Filter by Day:
+            </label>
+          </div>
+          <select
+            value={selectedDay}
+            onChange={(e) => setSelectedDay(e.target.value)}
+            className="px-4 py-2 rounded-lg border text-sm focus:outline-none focus:ring-2 transition-all"
+            style={{
+              backgroundColor: 'white',
+              borderColor: colors.neutralBorder,
+              color: colors.primary,
+            }}
+            onFocus={(e) => (e.currentTarget.style.borderColor = colors.secondary)}
+            onBlur={(e) => (e.currentTarget.style.borderColor = colors.neutralBorder)}
+          >
+            <option value="all">All Days</option>
+            {DAYS_OF_WEEK.map((day) => (
+              <option key={day} value={day}>
+                {day}
+              </option>
+            ))}
+          </select>
+
+          <div className="flex items-center gap-2 ml-auto">
+            <input
+              type="checkbox"
+              id="includeSaturday"
+              checked={includeSaturday}
+              onChange={(e) => setIncludeSaturday(e.target.checked)}
+              className="w-4 h-4 rounded border-gray-300 text-primary focus:ring-2 focus:ring-primary"
+            />
+            <label
+              htmlFor="includeSaturday"
+              className="text-sm font-medium cursor-pointer"
+              style={{ color: colors.primary }}
+            >
+              Include Saturday
+            </label>
+          </div>
+        </div>
+      </div>
+
+      {/* Calendar */}
+      <div
+        className="p-6 rounded-xl"
+        style={{
+          backgroundColor: 'white',
+          border: `1px solid ${colors.neutralBorder}`,
+        }}
+      >
+        <WeeklyScheduleCalendar
+          schedules={filteredSchedules}
+          readOnly={true}
+          visibleDays={visibleDays}
+        />
+      </div>
     </div>
   );
 }

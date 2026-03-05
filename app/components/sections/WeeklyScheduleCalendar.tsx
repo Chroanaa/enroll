@@ -31,9 +31,10 @@ interface WeeklyScheduleCalendarProps {
   onEditFaculty?: (schedule: ScheduleBlock) => void;
   readOnly?: boolean;
   canEditFaculty?: boolean;
+  visibleDays?: string[];
 }
 
-const DAYS = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'];
+const DEFAULT_DAYS = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'];
 const START_HOUR = 7;
 const END_HOUR = 21;
 const SLOT_MINUTES = 30;
@@ -95,9 +96,12 @@ export function WeeklyScheduleCalendar({
   onDeleteSchedule,
   onEditFaculty,
   readOnly = false,
-  canEditFaculty = false
+  canEditFaculty = false,
+  visibleDays = DEFAULT_DAYS
 }: WeeklyScheduleCalendarProps) {
   const [hoveredSlot, setHoveredSlot] = useState<{ day: string; time: string } | null>(null);
+  
+  const DAYS = visibleDays;
   const [hoveredSchedule, setHoveredSchedule] = useState<number | null>(null);
   const [deleteMode, setDeleteMode] = useState(false);
   const [editMode, setEditMode] = useState(false);

@@ -52,12 +52,9 @@ export const EnrolledSubjectsTab: React.FC<EnrolledSubjectsTabProps> = ({
     enrolledSubjects.map((s) => (s as any).curriculum_course_id || s.id)
   );
 
-  // Calculate display total units (lec + lab combined) - different from tuition calculation units
+  // Calculate display total units (lecture + lab combined for display purposes)
+  // Note: Includes fixed amount subjects in display, but payment calculation excludes them
   const displayTotalUnits = enrolledSubjects.reduce((total, subject) => {
-    // Skip fixed amount subjects from unit count
-    if (subject.fixedAmount !== undefined && subject.fixedAmount !== null && subject.fixedAmount > 0) {
-      return total;
-    }
     const lecUnits = subject.units_lec || 0;
     const labUnits = subject.units_lab || 0;
     return total + lecUnits + labUnits;
@@ -166,29 +163,27 @@ export const EnrolledSubjectsTab: React.FC<EnrolledSubjectsTabProps> = ({
             <Plus className="w-4 h-4" />
             Add Subject
           </button>
-          {enrolledSubjects.length > 0 && (
-            <button
-              onClick={handleToggleEditMode}
-              className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold transition-all border"
-              style={{
-                borderColor: colors.secondary + "30",
-                color: colors.secondary,
-                backgroundColor: "white",
-              }}
-            >
-              {isEditMode ? (
-                <>
-                  <Save className="w-4 h-4" />
-                  Save Changes
-                </>
-              ) : (
-                <>
-                  <Edit className="w-4 h-4" />
-                  Edit Subject
-                </>
-              )}
-            </button>
-          )}
+          <button
+            onClick={handleToggleEditMode}
+            className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold transition-all border"
+            style={{
+              borderColor: colors.secondary + "30",
+              color: colors.secondary,
+              backgroundColor: "white",
+            }}
+          >
+            {isEditMode ? (
+              <>
+                <Save className="w-4 h-4" />
+                Save Changes
+              </>
+            ) : (
+              <>
+                <Edit className="w-4 h-4" />
+                Edit Subject
+              </>
+            )}
+          </button>
         </div>
       </div>
 
