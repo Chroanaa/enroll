@@ -201,6 +201,12 @@ const Navigation: React.FC<NavigationProps> = ({
             icon: FolderTree,
             allowedRoles: [ROLES.ADMIN, ROLES.REGISTRAR],
           },
+          {
+            id: "faculty-subject-management",
+            label: "Faculty Subject Management",
+            icon: Users2,
+            allowedRoles: [ROLES.ADMIN, ROLES.REGISTRAR],
+          },
         ],
       },
       {
