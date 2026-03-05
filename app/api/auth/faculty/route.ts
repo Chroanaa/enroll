@@ -26,7 +26,29 @@ export async function GET() {
         last_name: 'asc',
       },
     });
-    return NextResponse.json(faculties);
+
+    // Fetch all departments
+    const departments = await prisma.department.findMany({
+      select: {
+        id: true,
+        name: true,
+      },
+    });
+
+    // Create a map for quick lookup
+    const departmentMap = new Map(
+      departments.map((dept) => [dept.id, dept.name])
+    );
+
+    // Add department name to each faculty
+    const facultiesWithDepartment = faculties.map((faculty) => ({
+      ...faculty,
+      departmentName: faculty.department_id 
+        ? departmentMap.get(faculty.department_id) || 'N/A'
+        : 'N/A',
+    }));
+
+    return NextResponse.json(facultiesWithDepartment);
   } catch (error) {
     console.error("Error fetching faculties:", error);
     return NextResponse.json(

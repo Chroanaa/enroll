@@ -285,6 +285,8 @@ export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url);
     const sectionId = searchParams.get('sectionId');
+    const facultyId = searchParams.get('facultyId');
+    const curriculumCourseId = searchParams.get('curriculumCourseId');
     const academicYear = searchParams.get('academicYear');
     const semester = searchParams.get('semester');
     const status = searchParams.get('status');
@@ -292,6 +294,8 @@ export async function GET(request: NextRequest) {
     const where: any = {};
 
     if (sectionId) where.section_id = parseInt(sectionId);
+    if (facultyId) where.faculty_id = parseInt(facultyId);
+    if (curriculumCourseId) where.curriculum_course_id = parseInt(curriculumCourseId);
     if (academicYear) where.academic_year = academicYear;
     if (semester) where.semester = semester;
     if (status) where.status = status;
@@ -304,16 +308,20 @@ export async function GET(request: NextRequest) {
       ]
     });
 
-    // Fetch faculty, room, and curriculum course data for all schedules
-    const facultyIds = [...new Set(schedules.map((s: any) => s.faculty_id))];
+    // Fetch faculty, room, curriculum course, and section data for all schedules
+    // Filter out null faculty_ids since faculty assignment is optional
+    const facultyIds = [...new Set(schedules.map((s: any) => s.faculty_id).filter((id: any) => id !== null))];
     const roomIds = [...new Set(schedules.map((s: any) => s.room_id))];
     const curriculumCourseIds = [...new Set(schedules.map((s: any) => s.curriculum_course_id))];
+    const sectionIds = [...new Set(schedules.map((s: any) => s.section_id))];
 
-    const [facultyList, roomList, curriculumCourseList] = await Promise.all([
-      prisma.faculty.findMany({
-        where: { id: { in: facultyIds } },
-        select: { id: true, first_name: true, last_name: true }
-      }),
+    const [facultyList, roomList, curriculumCourseList, sectionList] = await Promise.all([
+      facultyIds.length > 0 
+        ? prisma.faculty.findMany({
+            where: { id: { in: facultyIds } },
+            select: { id: true, first_name: true, last_name: true }
+          })
+        : [],
       prisma.room.findMany({
         where: { id: { in: roomIds } },
         select: { id: true, room_number: true, capacity: true }
@@ -331,18 +339,25 @@ export async function GET(request: NextRequest) {
           units_lab: true,
           units_total: true
         }
+      }),
+      prisma.sections.findMany({
+        where: { id: { in: sectionIds } },
+        select: { id: true, section_name: true }
       })
     ]);
 
-    const facultyMap = new Map(facultyList.map((f: any) => [f.id, f]));
-    const roomMap = new Map(roomList.map((r: any) => [r.id, r]));
-    const curriculumCourseMap = new Map(curriculumCourseList.map((c: any) => [c.id, c]));
+    const facultyMap = new Map(facultyList.map((f: any) => [f.id, f] as [number, any]));
+    const roomMap = new Map(roomList.map((r: any) => [r.id, r] as [number, any]));
+    const curriculumCourseMap = new Map(curriculumCourseList.map((c: any) => [c.id, c] as [number, any]));
+    const sectionMap = new Map(sectionList.map((s: any) => [s.id, s] as [number, any]));
 
     const response = schedules.map((schedule: any) => {
       const curriculumCourse = curriculumCourseMap.get(schedule.curriculum_course_id);
+      const section = sectionMap.get(schedule.section_id);
       return {
         id: schedule.id,
         sectionId: schedule.section_id,
+        sectionName: section?.section_name || 'Unknown',
         curriculumCourseId: schedule.curriculum_course_id,
         facultyId: schedule.faculty_id,
         roomId: schedule.room_id,
@@ -354,6 +369,7 @@ export async function GET(request: NextRequest) {
         status: schedule.status as 'active' | 'cancelled',
         faculty: facultyMap.get(schedule.faculty_id) || null,
         room: roomMap.get(schedule.room_id) || null,
+        section: section || null,
         // Subject details from curriculum_course
         courseCode: curriculumCourse?.course_code || `Course ${schedule.curriculum_course_id}`,
         courseTitle: curriculumCourse?.descriptive_title || '',

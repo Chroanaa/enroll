@@ -34,10 +34,13 @@ import {
 import MiscellaneousFees from "../components/MiscellaneousFees";
 import ProtectedRoute from "../components/ProtectedRoute";
 import SectionManagement from "../admin/sections/page";
+import FacultySubjectManagement from "../admin/faculty-subject-management/page";
 
 function DashboardContent() {
   const searchParams = useSearchParams();
   const [currentView, setCurrentView] = useState("dashboard");
+
+  console.log("DashboardContent render - currentView:", currentView);
 
   // Read view from URL params on mount
   useEffect(() => {
@@ -47,7 +50,13 @@ function DashboardContent() {
     }
   }, [searchParams]);
 
+  const handleViewChange = (view: string) => {
+    console.log("handleViewChange called with:", view);
+    setCurrentView(view);
+  };
+
   const renderCurrentView = () => {
+    console.log("renderCurrentView - currentView:", currentView);
     switch (currentView) {
       case "dashboard":
         return <Dashboard />;
@@ -73,6 +82,8 @@ function DashboardContent() {
         return <PaymentBillingManagement />;
       case "section-management":
         return <SectionManagement />;
+      case "faculty-subject-management":
+        return <FacultySubjectManagement />;
       case "curriculum":
         return <CurriculumManagement />;
       case "file-maintenance":
@@ -113,7 +124,7 @@ function DashboardContent() {
   return (
     <ProtectedRoute>
       <div className='flex h-screen bg-gray-50'>
-        <Navigation currentView={currentView} onViewChange={setCurrentView} />
+        <Navigation currentView={currentView} onViewChange={handleViewChange} />
         <main className='flex-1 overflow-auto'>{renderCurrentView()}</main>
       </div>
     </ProtectedRoute>

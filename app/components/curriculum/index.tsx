@@ -11,27 +11,35 @@ import SuccessModal from "../common/SuccessModal";
 import ErrorModal from "../common/ErrorModal";
 import Pagination from "../common/Pagination";
 import { getCurriculums, getCurriculumsFresh } from "@/app/utils/curriculumUtils";
+import TableSkeleton from "../common/TableSkeleton";
 const CurriculumManagement: React.FC = () => {
   const router = useRouter();
   const [curriculumList, setCurriculumList] = useState<Curriculum[]>([]);
+  const [loading, setLoading] = useState(true);
 
   // Function to fetch curriculums
   const fetchCurriculums = async () => {
     try {
+      setLoading(true);
       const data = await getCurriculums();
       setCurriculumList(data);
     } catch (error) {
       console.error("Failed to fetch curriculums:", error);
+    } finally {
+      setLoading(false);
     }
   };
 
   // Function to force fresh fetch (bypasses cache)
   const fetchCurriculumsFresh = async () => {
     try {
+      setLoading(true);
       const data = await getCurriculumsFresh();
       setCurriculumList(data);
     } catch (error) {
       console.error("Failed to fetch curriculums:", error);
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -303,7 +311,40 @@ const CurriculumManagement: React.FC = () => {
         </div>
 
         {/* Curriculum List */}
-        {filteredCurriculum.length === 0 ? (
+        {loading ? (
+          <div className='bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden'>
+            <div className='overflow-x-auto'>
+              <table className='min-w-full divide-y divide-gray-200'>
+                <thead className='bg-gray-50'>
+                  <tr>
+                    <th className='px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider'>Program</th>
+                    <th className='px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider'>Code</th>
+                    <th className='px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider'>Major</th>
+                    <th className='px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider'>Effective Year</th>
+                    <th className='px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider'>Total Units</th>
+                    <th className='px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider'>Status</th>
+                    <th className='px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider'>Actions</th>
+                  </tr>
+                </thead>
+                <tbody className='bg-white divide-y divide-gray-200'>
+                  <TableSkeleton 
+                    rows={5} 
+                    columns={7}
+                    columnConfigs={[
+                      { type: 'text', width: 'w-48' },
+                      { type: 'text', width: 'w-24' },
+                      { type: 'text', width: 'w-32' },
+                      { type: 'text', width: 'w-24' },
+                      { type: 'text', width: 'w-20' },
+                      { type: 'badge' },
+                      { type: 'actions' }
+                    ]}
+                  />
+                </tbody>
+              </table>
+            </div>
+          </div>
+        ) : filteredCurriculum.length === 0 ? (
           <div className='bg-white rounded-2xl shadow-sm border border-gray-100 p-12 text-center'>
             <div className='flex flex-col items-center justify-center gap-4'>
               <div

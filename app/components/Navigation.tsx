@@ -201,6 +201,12 @@ const Navigation: React.FC<NavigationProps> = ({
             icon: FolderTree,
             allowedRoles: [ROLES.ADMIN, ROLES.REGISTRAR],
           },
+          {
+            id: "faculty-subject-management",
+            label: "Faculty Subject Management",
+            icon: Users2,
+            allowedRoles: [ROLES.ADMIN, ROLES.REGISTRAR],
+          },
         ],
       },
       {
@@ -493,7 +499,11 @@ const Navigation: React.FC<NavigationProps> = ({
                                     onClick={(e) => {
                                       e.preventDefault();
                                       e.stopPropagation();
+                                      console.log("Submenu item clicked:", subItem.id);
+                                      console.log("onViewChange type:", typeof onViewChange);
+                                      console.log("Calling onViewChange with:", subItem.id);
                                       onViewChange(subItem.id);
+                                      console.log("onViewChange called successfully");
                                     }}
                                     className='w-full flex items-center justify-start gap-3 px-3 py-2 rounded-lg text-sm font-medium transition-all duration-200'
                                     style={
