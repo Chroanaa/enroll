@@ -235,7 +235,7 @@ export default function BuildSchedulePage() {
     loadScheduleData();
   }, [sectionId]);
 
-  // Fetch occupied slots when day or room changes
+  // Fetch occupied slots when day changes (even without room selection)
   useEffect(() => {
     if (formData.dayOfWeek && section) {
       fetchOccupiedSlots(formData.dayOfWeek);
@@ -280,13 +280,17 @@ export default function BuildSchedulePage() {
     
     setLoadingOccupied(true);
     try {
-      const response = await fetch(
-        `/api/class-schedule/conflicts?dayOfWeek=${day}&academicYear=${section.academicYear}&semester=${section.semester}&currentSectionId=${section.id}`
-      );
+      const url = `/api/class-schedule/conflicts?dayOfWeek=${day}&academicYear=${section.academicYear}&semester=${section.semester}&currentSectionId=${section.id}`;
+      console.log('Fetching occupied slots:', url);
+      
+      const response = await fetch(url);
       
       if (response.ok) {
         const data = await response.json();
+        console.log('Occupied slots response:', data);
         setOccupiedSlots(data.data?.occupiedSlots || []);
+      } else {
+        console.error('Failed to fetch occupied slots:', response.status, response.statusText);
       }
     } catch (err) {
       console.error('Failed to fetch occupied slots:', err);
@@ -390,44 +394,99 @@ export default function BuildSchedulePage() {
   };
 
   const handleInputChange = (name: string, value: string) => {
-    setFormData((prev) => ({
-      ...prev,
-      [name]: value
-    }));
-  };
-
-  // Check if a start time conflicts with occupied slots for the selected room
-  const isStartTimeConflicted = (time: string): boolean => {
-    if (!formData.roomId || !formData.dayOfWeek || occupiedSlots.length === 0) return false;
-
-    const [hour, min] = time.split(':').map(Number);
-    const proposedStartMinutes = hour * 60 + min;
-
-    return occupiedSlots.some(slot => {
-      // Check if this occupied slot is for the same room
-      if (slot.roomId !== parseInt(formData.roomId)) return false;
-
-      // A start time is conflicted if it falls within an existing schedule
-      return proposedStartMinutes >= slot.startMinutes && proposedStartMinutes < slot.endMinutes;
+    setFormData((prev) => {
+      const newData = {
+        ...prev,
+        [name]: value
+      };
+      
+      // If day changes, reset times to avoid invalid selections
+      if (name === 'dayOfWeek') {
+        newData.startTime = '';
+        newData.endTime = '';
+      }
+      
+      // If start time changes, reset end time to avoid invalid selections
+      if (name === 'startTime') {
+        newData.endTime = '';
+      }
+      
+      return newData;
     });
   };
 
-  // Check if an end time would create a conflict for the selected room
-  const isEndTimeConflicted = (time: string): boolean => {
-    if (!formData.roomId || !formData.dayOfWeek || !formData.startTime || occupiedSlots.length === 0) return false;
-
-    const [startHour, startMin] = formData.startTime.split(':').map(Number);
-    const proposedStartMinutes = startHour * 60 + startMin;
+  // Get section's occupied time slots for the selected day
+  const getSectionOccupiedSlots = () => {
+    if (!section || !formData.dayOfWeek || occupiedSlots.length === 0) return [];
     
-    const [endHour, endMin] = time.split(':').map(Number);
-    const proposedEndMinutes = endHour * 60 + endMin;
+    const sectionSlots = occupiedSlots.filter(slot => 
+      slot.isCurrentSection && slot.sectionId === section.id
+    );
+    
+    // Debug logging
+    console.log('getSectionOccupiedSlots:', {
+      sectionId: section.id,
+      dayOfWeek: formData.dayOfWeek,
+      totalOccupiedSlots: occupiedSlots.length,
+      sectionSlots: sectionSlots.length,
+      occupiedSlots: occupiedSlots.map(s => ({
+        id: s.id,
+        sectionId: s.sectionId,
+        isCurrentSection: s.isCurrentSection,
+        time: `${s.startTime}-${s.endTime}`
+      }))
+    });
+    
+    return sectionSlots;
+  };
 
-    return occupiedSlots.some(slot => {
-      // Check if this occupied slot is for the same room
-      if (slot.roomId !== parseInt(formData.roomId)) return false;
+  // Check if a time falls within or overlaps with any occupied slot
+  const isTimeInOccupiedRange = (timeMinutes: number, sectionSlots: any[]): boolean => {
+    return sectionSlots.some(slot => {
+      // Time is occupied if it falls within an existing schedule (inclusive of start, exclusive of end)
+      return timeMinutes >= slot.startMinutes && timeMinutes < slot.endMinutes;
+    });
+  };
 
-      // Check for overlap: (start1 < end2) AND (start2 < end1)
-      return proposedStartMinutes < slot.endMinutes && slot.startMinutes < proposedEndMinutes;
+  // Get available start times (excluding times that fall within occupied slots)
+  const getAvailableStartTimes = () => {
+    const sectionSlots = getSectionOccupiedSlots();
+    if (sectionSlots.length === 0) return TIME_SLOTS;
+
+    return TIME_SLOTS.filter(time => {
+      const [hour, min] = time.split(':').map(Number);
+      const timeMinutes = hour * 60 + min;
+      
+      // Exclude if this time falls within any occupied slot
+      return !isTimeInOccupiedRange(timeMinutes, sectionSlots);
+    });
+  };
+
+  // Get available end times (excluding times that would create overlap)
+  const getAvailableEndTimes = () => {
+    if (!formData.startTime) return [];
+
+    const sectionSlots = getSectionOccupiedSlots();
+    const [startHour, startMin] = formData.startTime.split(':').map(Number);
+    const startTotal = startHour * 60 + startMin;
+
+    return TIME_SLOTS.filter(time => {
+      const [endHour, endMin] = time.split(':').map(Number);
+      const endTotal = endHour * 60 + endMin;
+      
+      // Must be after start time
+      if (endTotal <= startTotal) return false;
+
+      // If no occupied slots, all times after start are valid
+      if (sectionSlots.length === 0) return true;
+
+      // Check if the proposed time range (startTotal to endTotal) overlaps with any occupied slot
+      const hasOverlap = sectionSlots.some(slot => {
+        // Overlap occurs if: (start1 < end2) AND (start2 < end1)
+        return startTotal < slot.endMinutes && endTotal > slot.startMinutes;
+      });
+
+      return !hasOverlap;
     });
   };
 
@@ -1124,7 +1183,8 @@ export default function BuildSchedulePage() {
                       <select
                         value={formData.startTime}
                         onChange={(e) => handleInputChange('startTime', e.target.value)}
-                        className="w-full px-3 py-2.5 rounded-lg text-sm transition-all"
+                        disabled={!formData.dayOfWeek}
+                        className="w-full px-3 py-2.5 rounded-lg text-sm transition-all disabled:opacity-50 disabled:cursor-not-allowed"
                         style={{
                           outline: 'none',
                           color: colors.primary,
@@ -1132,8 +1192,10 @@ export default function BuildSchedulePage() {
                           border: '1px solid rgba(179, 116, 74, 0.2)',
                         }}
                         onFocus={(e) => {
-                          e.currentTarget.style.borderColor = colors.secondary;
-                          e.currentTarget.style.boxShadow = '0 0 0 3px rgba(149, 90, 39, 0.1)';
+                          if (!e.currentTarget.disabled) {
+                            e.currentTarget.style.borderColor = colors.secondary;
+                            e.currentTarget.style.boxShadow = '0 0 0 3px rgba(149, 90, 39, 0.1)';
+                          }
                         }}
                         onBlur={(e) => {
                           e.currentTarget.style.borderColor = 'rgba(179, 116, 74, 0.2)';
@@ -1141,14 +1203,11 @@ export default function BuildSchedulePage() {
                         }}
                       >
                         <option value="">Start time</option>
-                        {TIME_SLOTS.map((time) => {
-                          const isConflicted = isStartTimeConflicted(time);
-                          return (
-                            <option key={time} value={time} disabled={isConflicted}>
-                              {time} {isConflicted ? '(Room Occupied)' : ''}
-                            </option>
-                          );
-                        })}
+                        {getAvailableStartTimes().map((time) => (
+                          <option key={time} value={time}>
+                            {time}
+                          </option>
+                        ))}
                       </select>
                     </div>
 
@@ -1180,38 +1239,11 @@ export default function BuildSchedulePage() {
                         }}
                       >
                         <option value="">End time</option>
-                        {TIME_SLOTS.map((time) => {
-                          if (!formData.startTime) return (
-                            <option key={time} value={time}>
-                              {time}
-                            </option>
-                          );
-                          
-                          const startHour = parseInt(formData.startTime.split(':')[0]);
-                          const startMin = parseInt(formData.startTime.split(':')[1]);
-                          const endHour = parseInt(time.split(':')[0]);
-                          const endMin = parseInt(time.split(':')[1]);
-                          
-                          const startTotal = startHour * 60 + startMin;
-                          const endTotal = endHour * 60 + endMin;
-                          
-                          const isInvalid = endTotal <= startTotal;
-                          const isConflicted = !isInvalid && isEndTimeConflicted(time);
-                          
-                          // Skip invalid and conflicted times - don't show them in dropdown
-                          if (isInvalid || isConflicted) {
-                            return null;
-                          }
-                          
-                          return (
-                            <option 
-                              key={time} 
-                              value={time}
-                            >
-                              {time}
-                            </option>
-                          );
-                        })}
+                        {getAvailableEndTimes().map((time) => (
+                          <option key={time} value={time}>
+                            {time}
+                          </option>
+                        ))}
                       </select>
                       {formData.startTime && formData.endTime && (
                         <p className="text-xs mt-1" style={{ color: colors.neutral }}>
@@ -1230,8 +1262,8 @@ export default function BuildSchedulePage() {
                     </div>
                   </div>
 
-                  {/* Occupied Slots Display - Shows what's already scheduled for the selected room and day */}
-                  {formData.dayOfWeek && formData.roomId && (
+                  {/* Occupied Slots Display - Shows section's existing schedules on selected day */}
+                  {formData.dayOfWeek && section && (
                     <div
                       className="rounded-lg p-4"
                       style={{
@@ -1243,63 +1275,64 @@ export default function BuildSchedulePage() {
                         <div className="flex items-center gap-2 mb-1">
                           <AlertCircle className="w-4 h-4" style={{ color: colors.warning }} />
                           <h3 className="text-xs font-semibold" style={{ color: colors.primary }}>
-                            {(() => {
-                              const selectedRoom = rooms.find(r => r.id === parseInt(formData.roomId));
-                              return `Room Schedule - ${selectedRoom?.room_number || 'Room'} on ${formData.dayOfWeek}`;
-                            })()}
+                            Section Schedule on {formData.dayOfWeek}
                           </h3>
                         </div>
                         <p className="text-[10px] ml-6" style={{ color: colors.neutral }}>
-                          Showing conflicts from <strong>all sections</strong> to prevent double-booking
+                          Existing schedules for this section on this day
                         </p>
                       </div>
                       
                       {loadingOccupied ? (
                         <div className="flex items-center gap-2 text-xs" style={{ color: colors.neutral }}>
                           <Loader2 className="w-3 h-3 animate-spin" />
-                          Loading occupied slots...
+                          Loading schedule...
                         </div>
-                      ) : occupiedSlots.filter(slot => slot.roomId === parseInt(formData.roomId)).length === 0 ? (
-                        <p className="text-xs" style={{ color: colors.success }}>
-                          ✓ This room is available on {formData.dayOfWeek}. No conflicts.
-                        </p>
-                      ) : (
-                        <div className="space-y-2 max-h-40 overflow-y-auto">
-                          {occupiedSlots.filter(slot => slot.roomId === parseInt(formData.roomId)).map((slot, index) => (
-                            <div
-                              key={index}
-                              className="flex items-center justify-between p-2 rounded text-xs"
-                              style={{
-                                backgroundColor: slot.isCurrentSection ? 'rgba(149, 90, 39, 0.08)' : 'white',
-                                border: `1px solid ${slot.isCurrentSection ? 'rgba(149, 90, 39, 0.2)' : 'rgba(179, 116, 74, 0.1)'}`,
-                              }}
-                            >
-                              <div className="flex items-center gap-3">
-                                <span className="font-medium" style={{ color: colors.danger }}>
-                                  {slot.startTime} - {slot.endTime}
-                                </span>
-                                <span style={{ color: colors.primary }}>
-                                  <Building2 className="w-3 h-3 inline mr-1" />
-                                  {slot.roomNumber}
-                                </span>
-                                <span style={{ color: colors.neutral }}>
-                                  <UserCircle className="w-3 h-3 inline mr-1" />
-                                  {slot.facultyName}
-                                </span>
-                              </div>
-                              <span 
-                                className="px-2 py-0.5 rounded text-[10px] font-medium"
-                                style={{ 
-                                  backgroundColor: slot.isCurrentSection ? 'rgba(149, 90, 39, 0.15)' : 'rgba(14, 165, 233, 0.1)',
-                                  color: slot.isCurrentSection ? colors.secondary : colors.info 
+                      ) : (() => {
+                        const sectionSlots = getSectionOccupiedSlots();
+                        
+                        return sectionSlots.length === 0 ? (
+                          <p className="text-xs" style={{ color: colors.success }}>
+                            ✓ No existing schedules on {formData.dayOfWeek}. All times available.
+                          </p>
+                        ) : (
+                          <div className="space-y-2 max-h-40 overflow-y-auto">
+                            {sectionSlots.map((slot, index) => (
+                              <div
+                                key={index}
+                                className="flex items-center justify-between p-2 rounded text-xs"
+                                style={{
+                                  backgroundColor: 'rgba(239, 68, 68, 0.08)',
+                                  border: '1px solid rgba(239, 68, 68, 0.2)',
                                 }}
                               >
-                                {slot.isCurrentSection ? '(This Section)' : `${slot.sectionName} (Other Section)`}
-                              </span>
-                            </div>
-                          ))}
-                        </div>
-                      )}
+                                <div className="flex items-center gap-3">
+                                  <span className="font-medium" style={{ color: colors.danger }}>
+                                    {slot.startTime} - {slot.endTime}
+                                  </span>
+                                  <span style={{ color: colors.primary }}>
+                                    <Building2 className="w-3 h-3 inline mr-1" />
+                                    {slot.roomNumber}
+                                  </span>
+                                  <span style={{ color: colors.neutral }}>
+                                    <UserCircle className="w-3 h-3 inline mr-1" />
+                                    {slot.facultyName}
+                                  </span>
+                                </div>
+                                <span 
+                                  className="px-2 py-0.5 rounded text-[10px] font-medium"
+                                  style={{ 
+                                    backgroundColor: 'rgba(239, 68, 68, 0.15)',
+                                    color: colors.danger 
+                                  }}
+                                >
+                                  (Occupied)
+                                </span>
+                              </div>
+                            ))}
+                          </div>
+                        );
+                      })()}
                     </div>
                   )}
 

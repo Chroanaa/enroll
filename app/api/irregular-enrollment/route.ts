@@ -17,6 +17,8 @@ export async function GET(request: NextRequest) {
     const academicYear = searchParams.get('academicYear');
     const semester = searchParams.get('semester');
 
+    console.log('[irregular-enrollment GET] Request params:', { studentNumber, academicYear, semester });
+
     if (!studentNumber) {
       return NextResponse.json({ data: [] });
     }
@@ -29,6 +31,8 @@ export async function GET(request: NextRequest) {
         ...(semester && { semester: semester })
       }
     });
+
+    console.log('[irregular-enrollment GET] Found student_sections:', studentSections.length);
 
     if (studentSections.length === 0) {
       return NextResponse.json({ data: [] });
@@ -44,12 +48,14 @@ export async function GET(request: NextRequest) {
           student_section_id: { in: studentSectionIds }
         }
       });
+      console.log('[irregular-enrollment GET] Found subject assignments:', subjectAssignments.length);
     } catch (e) {
       // Table might not exist yet
-      console.log('student_section_subjects table not available');
+      console.log('[irregular-enrollment GET] student_section_subjects table not available:', e);
     }
 
     if (subjectAssignments.length === 0) {
+      console.log('[irregular-enrollment GET] No subject assignments found, returning empty array');
       return NextResponse.json({ data: [] });
     }
 
@@ -58,6 +64,8 @@ export async function GET(request: NextRequest) {
     const schedules = await prisma.class_schedule.findMany({
       where: { id: { in: scheduleIds } }
     });
+
+    console.log('[irregular-enrollment GET] Found schedules:', schedules.length);
 
     // Get section details
     const sectionIds = [...new Set(schedules.map(s => s.section_id))];
@@ -75,23 +83,29 @@ export async function GET(request: NextRequest) {
     });
     const courseMap = new Map(curriculumCourses.map(c => [c.id, c]));
 
-    // Get faculty and room details
-    const facultyIds = [...new Set(schedules.map(s => s.faculty_id))];
+    // Get faculty and room details (filter out nulls)
+    const facultyIds = [...new Set(schedules.map(s => s.faculty_id).filter((id): id is number => id !== null))];
     const roomIds = [...new Set(schedules.map(s => s.room_id))];
 
     const [facultyList, roomList] = await Promise.all([
-      prisma.faculty.findMany({
-        where: { id: { in: facultyIds } },
-        select: { id: true, first_name: true, last_name: true }
-      }),
+      facultyIds.length > 0 
+        ? prisma.faculty.findMany({
+            where: { id: { in: facultyIds } },
+            select: { id: true, first_name: true, last_name: true }
+          })
+        : [],
       prisma.room.findMany({
         where: { id: { in: roomIds } },
         select: { id: true, room_number: true }
       })
     ]);
 
-    const facultyMap = new Map(facultyList.map(f => [f.id, f]));
-    const roomMap = new Map(roomList.map(r => [r.id, r]));
+    const facultyMap = new Map<number, { id: number; first_name: string; last_name: string }>(
+      facultyList.map(f => [f.id, f] as [number, { id: number; first_name: string; last_name: string }])
+    );
+    const roomMap = new Map<number, { id: number; room_number: string }>(
+      roomList.map(r => [r.id, r] as [number, { id: number; room_number: string }])
+    );
 
     // Build response
     const enrolledSubjects = subjectAssignments.map(sa => {
@@ -100,7 +114,7 @@ export async function GET(request: NextRequest) {
 
       const section = sectionMap.get(schedule.section_id);
       const course = courseMap.get(schedule.curriculum_course_id);
-      const faculty = facultyMap.get(schedule.faculty_id);
+      const faculty = schedule.faculty_id ? facultyMap.get(schedule.faculty_id) : null;
       const room = roomMap.get(schedule.room_id);
 
       return {
@@ -119,10 +133,12 @@ export async function GET(request: NextRequest) {
       };
     }).filter(Boolean);
 
+    console.log('[irregular-enrollment GET] Returning enrolled subjects:', enrolledSubjects.length);
+
     return NextResponse.json({ data: enrolledSubjects });
 
   } catch (error) {
-    console.error('Error fetching enrolled subjects:', error);
+    console.error('[irregular-enrollment GET] Error:', error);
     return NextResponse.json(
       { error: 'Failed to fetch enrolled subjects' },
       { status: 500 }

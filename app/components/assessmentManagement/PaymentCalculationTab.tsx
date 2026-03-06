@@ -455,7 +455,7 @@ export const PaymentCalculationTab: React.FC<PaymentCalculationTabProps> = ({
               </span>
               <input
                 type="number"
-                value={totalFees || ""}
+                value={baseTotal || ""}
                 readOnly
                 className="w-32 px-3 py-2 rounded-lg border text-right text-sm bg-white/50"
                 style={{

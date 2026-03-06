@@ -238,12 +238,14 @@ export async function GET(request: NextRequest) {
     });
     const roomMap = new Map(rooms.map(r => [r.id, r.room_number]));
 
-    // Get faculty info
-    const facultyIds = [...new Set(schedules.map(s => s.faculty_id))];
-    const facultyList = await prisma.faculty.findMany({
-      where: { id: { in: facultyIds } },
-      select: { id: true, first_name: true, last_name: true }
-    });
+    // Get faculty info (filter out null faculty_id values)
+    const facultyIds = [...new Set(schedules.map(s => s.faculty_id).filter(id => id !== null))];
+    const facultyList = facultyIds.length > 0 
+      ? await prisma.faculty.findMany({
+          where: { id: { in: facultyIds } },
+          select: { id: true, first_name: true, last_name: true }
+        })
+      : [];
     const facultyMap = new Map(facultyList.map(f => [f.id, `${f.first_name} ${f.last_name}`]));
 
     // Format response with time as HH:mm for easier comparison
@@ -259,7 +261,7 @@ export async function GET(request: NextRequest) {
         roomId: schedule.room_id,
         roomNumber: roomMap.get(schedule.room_id) || 'Unknown',
         facultyId: schedule.faculty_id,
-        facultyName: facultyMap.get(schedule.faculty_id) || 'Unknown',
+        facultyName: schedule.faculty_id ? (facultyMap.get(schedule.faculty_id) || 'Unknown') : 'No Faculty',
         startTime: `${startDate.getHours().toString().padStart(2, '0')}:${startDate.getMinutes().toString().padStart(2, '0')}`,
         endTime: `${endDate.getHours().toString().padStart(2, '0')}:${endDate.getMinutes().toString().padStart(2, '0')}`,
         startMinutes: startDate.getHours() * 60 + startDate.getMinutes(),

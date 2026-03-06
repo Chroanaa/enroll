@@ -25,6 +25,10 @@ interface Student {
   programCode: string;
   programName: string;
   academicStatus: string;
+  paymentStatus?: 'Unpaid' | 'Partial' | 'Fully Paid' | null;
+  paymentMode?: string | null;
+  totalDue?: number | null;
+  totalPaid?: number | null;
 }
 
 interface Section {
@@ -118,6 +122,9 @@ export default function IrregularEnrollmentPage() {
 
   const [deleteModal, setDeleteModal] = useState<{ isOpen: boolean; subject: EnrolledSubject | null }>({ isOpen: false, subject: null });
   const [successModal, setSuccessModal] = useState<{ isOpen: boolean; message: string }>({ isOpen: false, message: '' });
+  const [paymentWarningModal, setPaymentWarningModal] = useState<{ isOpen: boolean; student: Student | null }>({ isOpen: false, student: null });
+  const [enrollConfirmModal, setEnrollConfirmModal] = useState(false);
+  const [enrolling, setEnrolling] = useState(false);
 
   const [academicYear, setAcademicYear] = useState('2025-2026');
   const [semester, setSemester] = useState('second');
@@ -172,7 +179,7 @@ export default function IrregularEnrollmentPage() {
   const searchStudents = async () => {
     setLoadingStudents(true);
     try {
-      const res = await fetch(`/api/auth/students/search?listAll=true&academicStatus=${studentStatusFilter}&limit=100`);
+      const res = await fetch(`/api/auth/students/search?listAll=true&academicStatus=${studentStatusFilter}&limit=100&academicYear=${academicYear}&semester=${semester}`);
       if (res.ok) { const d = await res.json(); setStudents(d.data || []); }
     } catch (e) { console.error(e); } finally { setLoadingStudents(false); }
   };
@@ -257,9 +264,58 @@ export default function IrregularEnrollmentPage() {
   };
 
   const handleSelectStudent = (student: Student) => {
+    // Check if student has unpaid or no payment status
+    if (!student.paymentStatus || student.paymentStatus === 'Unpaid') {
+      setPaymentWarningModal({ isOpen: true, student });
+      return;
+    }
+    
+    // Proceed with selection for Partial or Fully Paid students
     setSelectedStudent(student); setStudentSearchModal(false);
     setStudentSearchQuery(''); setSelectedSection(null); setSchedules([]); setError(null);
     setSelectedAssessmentSubject(null);
+  };
+
+  const handleConfirmUnpaidStudent = () => {
+    if (paymentWarningModal.student) {
+      setSelectedStudent(paymentWarningModal.student);
+      setStudentSearchModal(false);
+      setStudentSearchQuery('');
+      setSelectedSection(null);
+      setSchedules([]);
+      setError(null);
+      setSelectedAssessmentSubject(null);
+    }
+    setPaymentWarningModal({ isOpen: false, student: null });
+  };
+
+  const handleEnrollStudent = async () => {
+    if (!selectedStudent) return;
+    
+    setEnrolling(true);
+    try {
+      const response = await fetch(`/api/auth/enroll/${selectedStudent.studentId}/status`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status: 1 }) // 1 = Enrolled
+      });
+
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.message || 'Failed to enroll student');
+      }
+
+      setEnrollConfirmModal(false);
+      setSuccessModal({ 
+        isOpen: true, 
+        message: `${selectedStudent.name} has been successfully enrolled!\n\nStatus changed to "Enrolled" with ${enrolledSubjects.length} subjects (${totalUnits} units).` 
+      });
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Failed to enroll student');
+      setEnrollConfirmModal(false);
+    } finally {
+      setEnrolling(false);
+    }
   };
 
   const handleSelectSection = (section: Section) => {
@@ -287,6 +343,7 @@ export default function IrregularEnrollmentPage() {
       if (!res.ok) throw new Error(data.message || data.error || 'Failed to add subject');
       setSuccessModal({ isOpen: true, message: `Added ${schedule.courseCode} — ${schedule.courseTitle}` });
       await loadEnrolledSubjects();
+      await loadSchedules(); // Reload schedules to update the available subjects list
     } catch (e) { setError(e instanceof Error ? e.message : 'Failed to add subject'); } finally { setSubmitting(false); }
   };
 
@@ -694,12 +751,36 @@ export default function IrregularEnrollmentPage() {
 
               {/* Footer summary */}
               {selectedStudent && enrolledSubjects.length > 0 && (
-                <div className="px-5 py-3 flex-shrink-0 flex items-center justify-between" style={{ borderTop: '1px solid rgba(179,116,74,0.08)', backgroundColor: 'rgba(253,251,248,0.6)' }}>
-                  <span className="text-xs" style={{ color: colors.neutral }}>{enrolledSubjects.length} of {enrolledSubjectsFromAssessment.length} subjects sectioned</span>
-                  <span className="text-xs font-semibold" style={{ color: totalUnits >= 18 ? colors.success : colors.warning }}>
-                    {totalUnits >= 18 ? '✓ Full load' : 'Partial load'}
-                  </span>
-                </div>
+                <>
+                  <div className="px-5 py-3 flex-shrink-0 flex items-center justify-between" style={{ borderTop: '1px solid rgba(179,116,74,0.08)', backgroundColor: 'rgba(253,251,248,0.6)' }}>
+                    <span className="text-xs" style={{ color: colors.neutral }}>{enrolledSubjects.length} of {enrolledSubjectsFromAssessment.length} subjects sectioned</span>
+                    <span className="text-xs font-semibold" style={{ color: totalUnits >= 18 ? colors.success : colors.warning }}>
+                      {totalUnits >= 18 ? '✓ Full load' : 'Partial load'}
+                    </span>
+                  </div>
+                  
+                  {/* Enroll Button */}
+                  <div className="px-5 py-4 flex-shrink-0" style={{ borderTop: '1px solid rgba(179,116,74,0.08)', backgroundColor: 'white' }}>
+                    <button
+                      onClick={() => setEnrollConfirmModal(true)}
+                      disabled={enrolling}
+                      className="w-full px-4 py-3 rounded-xl text-sm font-semibold text-white transition-all hover:shadow-lg disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                      style={{ backgroundColor: colors.success }}
+                    >
+                      {enrolling ? (
+                        <>
+                          <Loader2 className="w-4 h-4 animate-spin" />
+                          <span>Enrolling...</span>
+                        </>
+                      ) : (
+                        <>
+                          <CheckCircle2 className="w-4 h-4" />
+                          <span>Enroll Student</span>
+                        </>
+                      )}
+                    </button>
+                  </div>
+                </>
               )}
             </div>
 
@@ -744,6 +825,7 @@ export default function IrregularEnrollmentPage() {
                       <th className="text-left py-3 px-4 text-xs font-semibold uppercase tracking-wide" style={{ color: colors.tertiary }}>Student</th>
                       <th className="text-left py-3 px-4 text-xs font-semibold uppercase tracking-wide" style={{ color: colors.tertiary }}>Program</th>
                       <th className="text-left py-3 px-4 text-xs font-semibold uppercase tracking-wide" style={{ color: colors.tertiary }}>Status</th>
+                      <th className="text-left py-3 px-4 text-xs font-semibold uppercase tracking-wide" style={{ color: colors.tertiary }}>Payment</th>
                       <th className="py-3 px-4" />
                     </tr></thead>
                     <tbody>
@@ -760,6 +842,25 @@ export default function IrregularEnrollmentPage() {
                             <span className="text-xs px-2 py-0.5 rounded-full font-medium" style={{ backgroundColor: student.academicStatus === 'irregular' ? 'rgba(245,158,11,0.1)' : 'rgba(16,185,129,0.1)', color: student.academicStatus === 'irregular' ? '#D97706' : '#059669' }}>
                               {student.academicStatus || 'regular'}
                             </span>
+                          </td>
+                          <td className="py-3 px-4">
+                            {student.paymentStatus ? (
+                              <div className="flex flex-col gap-0.5">
+                                <span className="text-xs px-2 py-0.5 rounded-full font-medium inline-block w-fit" style={{
+                                  backgroundColor: student.paymentStatus === 'Fully Paid' ? 'rgba(16,185,129,0.1)' : student.paymentStatus === 'Partial' ? 'rgba(245,158,11,0.1)' : 'rgba(239,68,68,0.1)',
+                                  color: student.paymentStatus === 'Fully Paid' ? '#059669' : student.paymentStatus === 'Partial' ? '#D97706' : '#DC2626'
+                                }}>
+                                  {student.paymentStatus}
+                                </span>
+                                {student.totalDue !== null && student.totalPaid !== null && (
+                                  <span className="text-[10px]" style={{ color: colors.tertiary }}>
+                                    ₱{student.totalPaid.toLocaleString()} / ₱{student.totalDue.toLocaleString()}
+                                  </span>
+                                )}
+                              </div>
+                            ) : (
+                              <span className="text-xs" style={{ color: colors.neutral }}>—</span>
+                            )}
                           </td>
                           <td className="py-3 px-4 text-right">
                             <button onClick={e => { e.stopPropagation(); handleSelectStudent(student); }} className="px-3 py-1.5 rounded-lg text-xs font-semibold text-white transition-all hover:opacity-90" style={{ backgroundColor: colors.secondary }}>Select</button>
@@ -873,6 +974,18 @@ export default function IrregularEnrollmentPage() {
       )}
 
       <ConfirmationModal
+        isOpen={enrollConfirmModal}
+        onClose={() => setEnrollConfirmModal(false)}
+        onConfirm={handleEnrollStudent}
+        title="Confirm Enrollment"
+        message={`Are you sure you want to enroll ${selectedStudent?.name}?\n\nThis will change their enrollment status to "Enrolled".\n\n${enrolledSubjects.length} subjects enrolled\n${totalUnits} total units\nAcademic Year: ${academicYear}\nSemester: ${semester}`}
+        confirmText="Enroll Student"
+        cancelText="Cancel"
+        variant="success"
+        isLoading={enrolling}
+      />
+
+      <ConfirmationModal
         isOpen={deleteModal.isOpen}
         onClose={() => setDeleteModal({ isOpen: false, subject: null })}
         onConfirm={handleRemoveSubject}
@@ -880,6 +993,21 @@ export default function IrregularEnrollmentPage() {
         message={`Remove ${deleteModal.subject?.courseCode || ''} — ${deleteModal.subject?.courseTitle || ''} from this student's enrollment?`}
         confirmText="Remove"
         variant="danger"
+      />
+
+      <ConfirmationModal
+        isOpen={paymentWarningModal.isOpen}
+        onClose={() => setPaymentWarningModal({ isOpen: false, student: null })}
+        onConfirm={handleConfirmUnpaidStudent}
+        title="Payment Warning"
+        message={
+          paymentWarningModal.student?.paymentStatus === 'Unpaid'
+            ? `${paymentWarningModal.student?.name || 'This student'} (${paymentWarningModal.student?.studentNumber || ''}) has not made any payment for ${academicYear} ${semester} semester.\n\nTotal Due: ₱${paymentWarningModal.student?.totalDue?.toLocaleString() || '0'}\nTotal Paid: ₱${paymentWarningModal.student?.totalPaid?.toLocaleString() || '0'}\n\nDo you want to proceed with sectioning this student?`
+            : `${paymentWarningModal.student?.name || 'This student'} (${paymentWarningModal.student?.studentNumber || ''}) has no payment assessment for ${academicYear} ${semester} semester.\n\nThe student may not have completed the assessment process or payment has not been recorded.\n\nDo you want to proceed with sectioning this student?`
+        }
+        confirmText="Proceed Anyway"
+        cancelText="Cancel"
+        variant="warning"
       />
 
       <SuccessModal
