@@ -817,8 +817,20 @@ export const FinancialDetailModal: React.FC<FinancialDetailModalProps> = ({
                 {detail.remaining_balance > 0 &&
                   detail.payment_status !== "Fully Paid" && (
                     <div className='mt-4 flex gap-3'>
-                      {detail.payment_mode?.toLowerCase() !== "installment" ? (
-                        /* FULL PAY mode - show pay full amount button */
+                      {detail.total_paid === 0 ? (
+                        /* First payment - show downpayment button (for ALL modes) */
+                        <button
+                          onClick={openDownpayment}
+                          disabled={isPayingDownpayment}
+                          className='flex-1 flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg text-white font-medium text-sm hover:opacity-90 transition-colors disabled:opacity-50'
+                          style={{ backgroundColor: colors.secondary }}
+                        >
+                          <DollarSign className='w-4 h-4' />
+                          Pay Downpayment (Min. {formatAmount(minDownpayment)})
+                        </button>
+                      ) : detail.payment_mode?.toLowerCase() !==
+                        "installment" ? (
+                        /* FULL PAY mode after downpayment - show pay remaining balance */
                         <button
                           onClick={openFullPay}
                           disabled={isPayingFullPay}
@@ -826,40 +838,23 @@ export const FinancialDetailModal: React.FC<FinancialDetailModalProps> = ({
                           style={{ backgroundColor: colors.secondary }}
                         >
                           <DollarSign className='w-4 h-4' />
-                          Pay Full Amount (
+                          Pay Remaining Balance (
                           {formatAmount(detail.remaining_balance)})
                         </button>
                       ) : (
-                        /* INSTALLMENT mode */
-                        <>
-                          {detail.total_paid === 0 ? (
-                            /* First payment - show downpayment button */
-                            <button
-                              onClick={openDownpayment}
-                              disabled={isPayingDownpayment}
-                              className='flex-1 flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg text-white font-medium text-sm hover:opacity-90 transition-colors disabled:opacity-50'
-                              style={{ backgroundColor: colors.secondary }}
-                            >
-                              <DollarSign className='w-4 h-4' />
-                              Pay Downpayment (Min.{" "}
-                              {formatAmount(minDownpayment)})
-                            </button>
-                          ) : (
-                            /* After downpayment - guide to schedule tab */
-                            <div
-                              className='flex-1 flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg text-sm font-medium border'
-                              style={{
-                                borderColor: colors.secondary + "40",
-                                color: colors.secondary,
-                                backgroundColor: colors.secondary + "08",
-                              }}
-                            >
-                              <Calendar className='w-4 h-4' />
-                              Downpayment paid. Go to Schedule tab to pay
-                              installments.
-                            </div>
-                          )}
-                        </>
+                        /* INSTALLMENT mode after downpayment - guide to schedule tab */
+                        <div
+                          className='flex-1 flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg text-sm font-medium border'
+                          style={{
+                            borderColor: colors.secondary + "40",
+                            color: colors.secondary,
+                            backgroundColor: colors.secondary + "08",
+                          }}
+                        >
+                          <Calendar className='w-4 h-4' />
+                          Downpayment paid. Go to Schedule tab to pay
+                          installments.
+                        </div>
                       )}
                     </div>
                   )}
