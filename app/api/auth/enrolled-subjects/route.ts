@@ -157,26 +157,28 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    // Fetch enrolled subjects with prerequisite resolution
-    // The prerequisite field in curriculum_course stores JSON like {"subjectIds":[28]}
+    // Fetch enrolled subjects with prerequisite resolution.
+    // Falls back to the subject table when the curriculum_course row has been
+    // removed (e.g. after a curriculum delete/recreate), so data is never lost.
     const enrolledSubjects = await prisma.$queryRaw<any[]>`
       SELECT 
         es.*,
-        cc.course_code,
-        cc.descriptive_title,
-        cc.units_lec,
-        cc.units_lab,
-        cc.lecture_hour,
-        cc.lab_hour,
+        COALESCE(cc.course_code, s.code)             AS course_code,
+        COALESCE(cc.descriptive_title, s.name)       AS descriptive_title,
+        COALESCE(cc.units_lec, s.units_lec)          AS units_lec,
+        COALESCE(cc.units_lab, s.units_lab)          AS units_lab,
+        COALESCE(cc.lecture_hour, s.lecture_hour)    AS lecture_hour,
+        COALESCE(cc.lab_hour, s.lab_hour)            AS lab_hour,
         cc.prerequisite,
-        cc.year_level as curriculum_year_level,
-        cc."fixedAmount" as fixed_amount
+        cc.year_level                                AS curriculum_year_level,
+        COALESCE(cc."fixedAmount", s."fixedAmount")  AS fixed_amount
       FROM enrolled_subjects es
       LEFT JOIN curriculum_course cc ON es.curriculum_course_id = cc.id
+      LEFT JOIN subject s ON es.subject_id = s.id
       WHERE es.student_number = ${studentNumber}
         AND es.academic_year = ${academicYear}
         AND es.semester = ${semesterNum}
-      ORDER BY cc.course_code
+      ORDER BY COALESCE(cc.course_code, s.code)
     `;
 
     // Optimize prerequisite fetching: collect all unique subject IDs first, then batch fetch

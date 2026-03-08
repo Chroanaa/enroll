@@ -63,22 +63,23 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    // Get enrolled subjects
+    // Get enrolled subjects — fallback to subject table if curriculum_course row is gone
     const enrolledSubjects = await prisma.$queryRaw<any[]>`
       SELECT 
         es.*,
-        cc.course_code,
-        cc.descriptive_title,
-        cc.units_lec,
-        cc.units_lab,
-        cc.units_total,
-        cc."fixedAmount" AS fixed_amount
+        COALESCE(cc.course_code, s.code)                    AS course_code,
+        COALESCE(cc.descriptive_title, s.name)              AS descriptive_title,
+        COALESCE(cc.units_lec, s.units_lec)                 AS units_lec,
+        COALESCE(cc.units_lab, s.units_lab)                 AS units_lab,
+        COALESCE(cc.units_total, es.units_total)            AS units_total,
+        COALESCE(cc."fixedAmount", s."fixedAmount")         AS fixed_amount
       FROM enrolled_subjects es
       LEFT JOIN curriculum_course cc ON es.curriculum_course_id = cc.id
+      LEFT JOIN subject s ON es.subject_id = s.id
       WHERE es.student_number = ${studentNumber}
         AND es.academic_year = ${academicYear}
         AND es.semester = ${semester}
-      ORDER BY cc.course_code
+      ORDER BY COALESCE(cc.course_code, s.code)
     `;
 
     // Get assessment fees breakdown
