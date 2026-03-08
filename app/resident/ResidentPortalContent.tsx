@@ -10,17 +10,47 @@ import {
   CheckCircle,
   Loader2,
   ChevronRight,
+  ChevronLeft,
   History,
   School,
   LayoutDashboard,
   GraduationCap,
+  Eye,
+  Users,
 } from "lucide-react";
 import { colors } from "../colors";
 import SuccessModal from "../components/common/SuccessModal";
 import ErrorModal from "../components/common/ErrorModal";
-import StudentSearchModal from "../components/common/StudentSearchModal";
 import { formatTerm } from "../utils/termUtils";
 import { useAcademicTerm } from "../hooks/useAcademicTerm";
+
+interface ResidentStudent {
+  id: number;
+  student_number: string;
+  first_name: string;
+  middle_name?: string;
+  last_name: string;
+  email_address?: string;
+  contact_number?: string;
+  program?: {
+    id: number;
+    code: string;
+    name: string;
+    department_name?: string;
+  } | null;
+  major?: {
+    id: number;
+    code: string;
+    name: string;
+  } | null;
+  year_level?: number;
+  term?: string;
+  academic_year?: string;
+  admission_date?: string;
+  admission_status?: string;
+  academic_status?: string;
+  status?: number;
+}
 
 interface StudentData {
   enrollment_id?: number;
@@ -75,6 +105,18 @@ interface EnrollmentHistory {
 
 export default function ResidentPortalContent() {
   const router = useRouter();
+  
+  // Table list state
+  const [students, setStudents] = useState<ResidentStudent[]>([]);
+  const [isLoadingList, setIsLoadingList] = useState(true);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
+  const [totalCount, setTotalCount] = useState(0);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [admissionStatusFilter, setAdmissionStatusFilter] = useState("all");
+  const limit = 10;
+  
+  // Selected student state
   const [inputStudentNumber, setInputStudentNumber] = useState<string>("");
   const [studentNumber, setStudentNumber] = useState<string>("");
   const [studentData, setStudentData] = useState<StudentData | null>(null);
@@ -86,7 +128,6 @@ export default function ResidentPortalContent() {
   const [showSuccess, setShowSuccess] = useState(false);
   const [showError, setShowError] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
-  const [showSearchModal, setShowSearchModal] = useState(false);
 
   // Academic Term hook
   const { currentTerm, loading: termLoading } = useAcademicTerm({
@@ -117,6 +158,35 @@ export default function ResidentPortalContent() {
       }
     }
   }, [currentTerm, studentData]);
+
+  // Fetch resident students list
+  const fetchResidentStudents = async () => {
+    setIsLoadingList(true);
+    try {
+      const response = await fetch(
+        `/api/auth/resident/students?page=${currentPage}&limit=${limit}&search=${searchQuery}&admissionStatus=${admissionStatusFilter}`
+      );
+      if (response.ok) {
+        const data = await response.json();
+        setStudents(data.data || []);
+        setTotalPages(data.pagination.totalPages);
+        setTotalCount(data.pagination.totalCount);
+      } else {
+        console.error("Failed to fetch resident students");
+      }
+    } catch (error) {
+      console.error("Error fetching resident students:", error);
+    } finally {
+      setIsLoadingList(false);
+    }
+  };
+
+  // Fetch students on mount and when page/search/filter changes
+  useEffect(() => {
+    if (!studentData) {
+      fetchResidentStudents();
+    }
+  }, [currentPage, searchQuery, admissionStatusFilter, studentData]);
 
   const handleSearchStudent = async (studentNum?: string) => {
     const studentNumberToSearch = studentNum || inputStudentNumber.trim();
@@ -167,6 +237,10 @@ export default function ResidentPortalContent() {
     handleSearchStudent(selectedStudentNumber);
   };
 
+  const handleViewStudent = (student: ResidentStudent) => {
+    handleSearchStudent(student.student_number);
+  };
+
   const fetchEnrollmentHistory = async (studentNum: string) => {
     try {
       const response = await fetch(
@@ -211,6 +285,8 @@ export default function ResidentPortalContent() {
         // Refresh enrollment history and reload student data
         fetchEnrollmentHistory(studentNumber);
         handleSearchStudent(studentNumber);
+        // Refresh the list in the background
+        fetchResidentStudents();
       } else {
         setErrorMessage(data.error || "Failed to submit enrollment");
         setShowError(true);
@@ -234,6 +310,8 @@ export default function ResidentPortalContent() {
     setYearLevel(1);
     setErrorMessage("");
     setShowError(false);
+    // Refresh the list
+    fetchResidentStudents();
   };
 
   // Compute year level display
@@ -334,119 +412,371 @@ export default function ResidentPortalContent() {
           </div>
         </div>
 
-        {/* Search Section */}
-        <div
-          className={`bg-white rounded-2xl transition-all duration-300 ${
-            studentData ? "p-4" : "p-8 sm:p-12"
-          }`}
-          style={{
-            border: `1px solid ${colors.tertiary}20`,
-            boxShadow: "0 4px 20px -2px rgba(0, 0, 0, 0.05)",
-          }}
-        >
-          {!studentData && (
-            <div className='text-center mb-8'>
-              <div
-                className='w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4'
-                style={{ backgroundColor: colors.primary + "10" }}
-              >
-                <Search size={32} style={{ color: colors.primary }} />
+        {!studentData ? (
+          // Table List View
+          <div
+            className='bg-white rounded-2xl'
+            style={{
+              border: `1px solid ${colors.tertiary}20`,
+              boxShadow: "0 4px 20px -2px rgba(0, 0, 0, 0.05)",
+            }}
+          >
+            {/* Tabs for Admission Status Filter */}
+            <div className='border-b border-gray-100'>
+              <div className='flex gap-1 p-2'>
+                {[
+                  { value: "all", label: "All Students" },
+                  { value: "new", label: "New" },
+                  { value: "transferee", label: "Transferee" },
+                  { value: "resident", label: "Resident" },
+                ].map((tab) => (
+                  <button
+                    key={tab.value}
+                    onClick={() => {
+                      setAdmissionStatusFilter(tab.value);
+                      setCurrentPage(1);
+                    }}
+                    className='px-6 py-3 rounded-lg font-medium transition-all hover:shadow-md'
+                    style={
+                      admissionStatusFilter === tab.value
+                        ? {
+                            backgroundColor: colors.primary,
+                            color: "white",
+                            boxShadow: "0 2px 8px rgba(0,0,0,0.1)",
+                          }
+                        : {
+                            backgroundColor: "transparent",
+                            color: colors.primary,
+                          }
+                    }
+                    onMouseEnter={(e) => {
+                      if (admissionStatusFilter !== tab.value) {
+                        e.currentTarget.style.backgroundColor =
+                          colors.primary + "10";
+                      }
+                    }}
+                    onMouseLeave={(e) => {
+                      if (admissionStatusFilter !== tab.value) {
+                        e.currentTarget.style.backgroundColor = "transparent";
+                      }
+                    }}
+                  >
+                    {tab.label}
+                  </button>
+                ))}
               </div>
-              <h2
-                className='text-xl font-semibold mb-2'
-                style={{ color: colors.primary }}
-              >
-                Find Student
-              </h2>
-              <p className='text-gray-500 max-w-md mx-auto'>
-                Enter a student number to view their profile and process
-                re-enrollment.
-              </p>
             </div>
-          )}
 
-          <div className={`max-w-2xl mx-auto ${studentData ? "" : "mb-4"}`}>
-            <div className='flex gap-3'>
-              <div className='flex-1 relative group'>
-                <div className='absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none'>
-                  <Search
-                    className='h-5 w-5 transition-colors'
-                    style={{ color: colors.tertiary }}
+            {/* Search Bar */}
+            <div className='p-6 border-b border-gray-100'>
+              <div className='flex gap-3 items-center'>
+                <div className='flex-1 relative'>
+                  <div className='absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none'>
+                    <Search
+                      className='h-5 w-5'
+                      style={{ color: colors.tertiary }}
+                    />
+                  </div>
+                  <input
+                    type='text'
+                    value={searchQuery}
+                    onChange={(e) => {
+                      setSearchQuery(e.target.value);
+                      setCurrentPage(1);
+                    }}
+                    placeholder='Search by student number or name...'
+                    className='w-full pl-12 pr-4 py-3 rounded-xl border transition-all focus:outline-none focus:ring-4'
+                    style={{
+                      borderColor: colors.tertiary + "30",
+                      color: colors.primary,
+                    }}
+                    onFocus={(e) => {
+                      e.currentTarget.style.borderColor = colors.secondary;
+                      e.currentTarget.style.boxShadow = `0 0 0 4px ${colors.secondary}10`;
+                    }}
+                    onBlur={(e) => {
+                      e.currentTarget.style.borderColor = colors.tertiary + "30";
+                      e.currentTarget.style.boxShadow = "none";
+                    }}
                   />
                 </div>
-                <input
-                  type='text'
-                  value={inputStudentNumber}
-                  onChange={(e) => setInputStudentNumber(e.target.value)}
-                  onClick={() => setShowSearchModal(true)}
-                  onKeyPress={(e) => {
-                    if (e.key === "Enter") {
-                      handleSearchStudent();
-                    }
-                  }}
-                  placeholder='Enter Student Number (e.g. 26-00001)'
-                  className='w-full pl-12 pr-4 py-3.5 rounded-xl border transition-all focus:outline-none focus:ring-4 text-lg'
+                <div
+                  className='px-4 py-3 rounded-xl font-medium'
                   style={{
-                    borderColor: colors.tertiary + "30",
+                    backgroundColor: colors.primary + "10",
                     color: colors.primary,
-                    backgroundColor: colors.paper,
                   }}
-                  onFocus={(e) => {
-                    e.currentTarget.style.borderColor = colors.secondary;
-                    e.currentTarget.style.boxShadow = `0 0 0 4px ${colors.secondary}10`;
-                  }}
-                  onBlur={(e) => {
-                    e.currentTarget.style.borderColor = colors.tertiary + "30";
-                    e.currentTarget.style.boxShadow = "none";
-                  }}
-                />
+                >
+                  Total: {totalCount} Students
+                </div>
               </div>
-              <button
-                onClick={() => handleSearchStudent()}
-                disabled={isLoading || !inputStudentNumber.trim()}
-                className='px-8 py-3.5 rounded-xl font-semibold text-white transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 shadow-lg hover:shadow-xl active:scale-95'
-                style={{ backgroundColor: colors.primary }}
-              >
-                {isLoading ? (
-                  <Loader2 className='w-5 h-5 animate-spin' />
-                ) : (
-                  <Search size={20} />
-                )}
-                <span className='hidden sm:inline'>Search</span>
-              </button>
             </div>
-          </div>
 
-          {studentData && (
-            <div
-              className='flex justify-center mt-4 pt-4 border-t border-dashed'
-              style={{ borderColor: colors.tertiary + "30" }}
-            >
-              <button
-                onClick={handleClear}
-                className='text-sm font-medium hover:underline flex items-center gap-1'
-                style={{ color: colors.secondary }}
-              >
-                <Search size={14} />
-                Search for another student
-              </button>
+            {/* Table */}
+            <div className='overflow-x-auto'>
+              {isLoadingList ? (
+                <div className='flex flex-col items-center justify-center py-12'>
+                  <Loader2
+                    className='w-12 h-12 animate-spin mb-4'
+                    style={{ color: colors.secondary }}
+                  />
+                  <p className='text-gray-500 font-medium'>
+                    Loading resident students...
+                  </p>
+                </div>
+              ) : students.length === 0 ? (
+                <div className='text-center py-12'>
+                  <div
+                    className='w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4'
+                    style={{ backgroundColor: colors.primary + "10" }}
+                  >
+                    <Users size={32} style={{ color: colors.primary }} />
+                  </div>
+                  <p className='text-gray-500 font-medium'>
+                    No resident students found
+                  </p>
+                </div>
+              ) : (
+                <table className='w-full'>
+                  <thead
+                    style={{
+                      backgroundColor: colors.paper,
+                      borderBottom: `2px solid ${colors.tertiary}20`,
+                    }}
+                  >
+                    <tr>
+                      <th
+                        className='px-6 py-4 text-left text-xs font-semibold uppercase tracking-wider'
+                        style={{ color: colors.primary }}
+                      >
+                        Student Number
+                      </th>
+                      <th
+                        className='px-6 py-4 text-left text-xs font-semibold uppercase tracking-wider'
+                        style={{ color: colors.primary }}
+                      >
+                        Name
+                      </th>
+                      <th
+                        className='px-6 py-4 text-left text-xs font-semibold uppercase tracking-wider'
+                        style={{ color: colors.primary }}
+                      >
+                        Program
+                      </th>
+                      <th
+                        className='px-6 py-4 text-left text-xs font-semibold uppercase tracking-wider'
+                        style={{ color: colors.primary }}
+                      >
+                        Year Level
+                      </th>
+                      <th
+                        className='px-6 py-4 text-left text-xs font-semibold uppercase tracking-wider'
+                        style={{ color: colors.primary }}
+                      >
+                        Admission Status
+                      </th>
+                      <th
+                        className='px-6 py-4 text-left text-xs font-semibold uppercase tracking-wider'
+                        style={{ color: colors.primary }}
+                      >
+                        Academic Status
+                      </th>
+                      <th
+                        className='px-6 py-4 text-center text-xs font-semibold uppercase tracking-wider'
+                        style={{ color: colors.primary }}
+                      >
+                        Action
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody className='divide-y divide-gray-100'>
+                    {students.map((student) => (
+                      <tr
+                        key={student.id}
+                        className='hover:bg-gray-50 transition-colors'
+                      >
+                        <td className='px-6 py-4 whitespace-nowrap'>
+                          <span
+                            className='font-medium'
+                            style={{ color: colors.primary }}
+                          >
+                            {student.student_number}
+                          </span>
+                        </td>
+                        <td className='px-6 py-4'>
+                          <div>
+                            <p
+                              className='font-medium'
+                              style={{ color: colors.primary }}
+                            >
+                              {student.first_name} {student.middle_name}{" "}
+                              {student.last_name}
+                            </p>
+                            {student.email_address && (
+                              <p className='text-xs text-gray-500'>
+                                {student.email_address}
+                              </p>
+                            )}
+                          </div>
+                        </td>
+                        <td className='px-6 py-4'>
+                          <div>
+                            <p
+                              className='text-sm font-medium'
+                              style={{ color: colors.primary }}
+                            >
+                              {student.program?.name || "N/A"}
+                            </p>
+                            {student.major && (
+                              <p className='text-xs text-gray-500'>
+                                {student.major.name}
+                              </p>
+                            )}
+                          </div>
+                        </td>
+                        <td className='px-6 py-4 whitespace-nowrap'>
+                          <span className='text-sm text-gray-700'>
+                            {student.year_level
+                              ? `${student.year_level}${
+                                  student.year_level === 1
+                                    ? "st"
+                                    : student.year_level === 2
+                                      ? "nd"
+                                      : student.year_level === 3
+                                        ? "rd"
+                                        : "th"
+                                } Year`
+                              : "N/A"}
+                          </span>
+                        </td>
+                        <td className='px-6 py-4 whitespace-nowrap'>
+                          {student.admission_status ? (
+                            <span
+                              className='inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium'
+                              style={{
+                                backgroundColor: colors.tertiary + "20",
+                                color: colors.tertiary,
+                              }}
+                            >
+                              {student.admission_status.charAt(0).toUpperCase() +
+                                student.admission_status.slice(1)}
+                            </span>
+                          ) : (
+                            <span className='text-sm text-gray-500'>N/A</span>
+                          )}
+                        </td>
+                        <td className='px-6 py-4 whitespace-nowrap'>
+                          {student.academic_status ? (
+                            <span
+                              className='inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium'
+                              style={
+                                student.academic_status.toLowerCase() ===
+                                "regular"
+                                  ? {
+                                      backgroundColor: colors.primary + "20",
+                                      color: colors.primary,
+                                    }
+                                  : {
+                                      backgroundColor: colors.secondary + "20",
+                                      color: colors.secondary,
+                                    }
+                              }
+                            >
+                              {student.academic_status.charAt(0).toUpperCase() +
+                                student.academic_status.slice(1)}
+                            </span>
+                          ) : (
+                            <span className='text-sm text-gray-500'>N/A</span>
+                          )}
+                        </td>
+                        <td className='px-6 py-4 text-center'>
+                          <button
+                            onClick={() => handleViewStudent(student)}
+                            className='inline-flex items-center gap-2 px-4 py-2 rounded-lg font-medium text-white transition-all hover:shadow-lg'
+                            style={{ backgroundColor: colors.secondary }}
+                          >
+                            <Eye size={16} />
+                            View
+                          </button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              )}
             </div>
-          )}
-        </div>
 
-        {/* Loading State */}
-        {isLoading && !studentData && (
-          <div className='flex flex-col items-center justify-center py-12 animate-in fade-in'>
-            <Loader2
-              className='w-12 h-12 animate-spin mb-4'
-              style={{ color: colors.secondary }}
-            />
-            <p className='text-gray-500 font-medium'>Loading student data...</p>
+            {/* Pagination */}
+            {!isLoadingList && students.length > 0 && (
+              <div className='px-6 py-4 border-t border-gray-100 flex items-center justify-between'>
+                <div className='text-sm text-gray-600'>
+                  Showing {(currentPage - 1) * limit + 1} to{" "}
+                  {Math.min(currentPage * limit, totalCount)} of {totalCount}{" "}
+                  students
+                </div>
+                <div className='flex items-center gap-2'>
+                  <button
+                    onClick={() => setCurrentPage((prev) => Math.max(1, prev - 1))}
+                    disabled={currentPage === 1}
+                    className='p-2 rounded-lg border transition-all disabled:opacity-50 disabled:cursor-not-allowed'
+                    style={{
+                      borderColor: colors.tertiary + "30",
+                      color: colors.primary,
+                    }}
+                  >
+                    <ChevronLeft size={20} />
+                  </button>
+                  <div className='flex items-center gap-1'>
+                    {Array.from({ length: totalPages }, (_, i) => i + 1)
+                      .filter(
+                        (page) =>
+                          page === 1 ||
+                          page === totalPages ||
+                          Math.abs(page - currentPage) <= 1
+                      )
+                      .map((page, index, array) => (
+                        <React.Fragment key={page}>
+                          {index > 0 && array[index - 1] !== page - 1 && (
+                            <span className='px-2 text-gray-400'>...</span>
+                          )}
+                          <button
+                            onClick={() => setCurrentPage(page)}
+                            className='px-4 py-2 rounded-lg font-medium transition-all'
+                            style={
+                              currentPage === page
+                                ? {
+                                    backgroundColor: colors.primary,
+                                    color: "white",
+                                  }
+                                : {
+                                    backgroundColor: "transparent",
+                                    color: colors.primary,
+                                  }
+                            }
+                          >
+                            {page}
+                          </button>
+                        </React.Fragment>
+                      ))}
+                  </div>
+                  <button
+                    onClick={() =>
+                      setCurrentPage((prev) => Math.min(totalPages, prev + 1))
+                    }
+                    disabled={currentPage === totalPages}
+                    className='p-2 rounded-lg border transition-all disabled:opacity-50 disabled:cursor-not-allowed'
+                    style={{
+                      borderColor: colors.tertiary + "30",
+                      color: colors.primary,
+                    }}
+                  >
+                    <ChevronRight size={20} />
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
-        )}
-
-        {/* Main Content Grid */}
-        {studentData && (
+        ) : (
           <div className='grid grid-cols-1 lg:grid-cols-12 gap-6 duration-500'>
             {/* Left Column: Profile & History */}
             <div className='lg:col-span-4 space-y-6'>
@@ -891,13 +1221,6 @@ export default function ResidentPortalContent() {
         onClose={() => setShowError(false)}
         title='Submission Failed'
         message={errorMessage}
-      />
-
-      {/* Student Search Modal */}
-      <StudentSearchModal
-        isOpen={showSearchModal}
-        onClose={() => setShowSearchModal(false)}
-        onSelect={handleStudentSelect}
       />
     </div>
   );

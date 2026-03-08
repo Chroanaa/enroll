@@ -65,14 +65,11 @@ const SearchFilters: React.FC<SearchFiltersProps> = ({
                 value={filter.value}
                 onChange={(e) => {
                   const newValue = e.target.value;
-                  // Try to parse as number if the original value was a number
-                  const parsedValue =
-                    typeof filter.value === "number"
-                      ? isNaN(Number(newValue))
-                        ? newValue
-                        : Number(newValue)
-                      : newValue;
-                  filter.onChange(parsedValue);
+                  // Always look up the matching option to preserve the original typed value (string or number)
+                  const matchingOption = filter.options.find(
+                    (opt) => String(opt.value) === newValue
+                  );
+                  filter.onChange(matchingOption ? matchingOption.value : newValue);
                 }}
                 className='bg-transparent border-none text-sm font-medium focus:ring-0 cursor-pointer'
                 style={{ 
@@ -80,11 +77,6 @@ const SearchFilters: React.FC<SearchFiltersProps> = ({
                   color: "#6B5B4F"
                 }}
               >
-                {filter.placeholder && (
-                  <option value={filter.placeholder}>
-                    {filter.placeholder}
-                  </option>
-                )}
                 {filter.options.map((option) => (
                   <option key={String(option.value)} value={String(option.value)}>
                     {option.label}

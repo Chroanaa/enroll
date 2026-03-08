@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { DollarSign, CreditCard, Calendar, CheckCircle } from "lucide-react";
+import { CreditCard, Calendar, CheckCircle } from "lucide-react";
 import { colors } from "../../colors";
 import type { Fee, EnrolledSubject } from "./types";
 
@@ -210,13 +210,15 @@ export const PaymentCalculationTab: React.FC<PaymentCalculationTabProps> = ({
             style={{ borderColor: colors.accent + "10" }}
           >
             <div
-              className="p-2 rounded-lg"
+              className="p-2 rounded-lg flex items-center justify-center"
               style={{ backgroundColor: colors.accent + "15" }}
             >
-              <DollarSign
-                className="w-4 h-4"
+              <span
+                className="w-4 h-4 text-sm font-bold leading-none flex items-center justify-center"
                 style={{ color: colors.secondary }}
-              />
+              >
+                ₱
+              </span>
             </div>
             <h3
               className="text-lg font-bold tracking-tight"
@@ -304,34 +306,37 @@ export const PaymentCalculationTab: React.FC<PaymentCalculationTabProps> = ({
                     )}
                   </div>
                 ) : (
-                  <input
-                    type="text"
-                    value={formatNumber(item.value || 0)}
-                    onChange={(e) =>
-                      !item.readonly &&
-                      item.setValue(parseFloat(e.target.value.replace(/,/g, '')) || 0)
-                    }
-                    readOnly={item.readonly}
-                    className="w-32 px-3 py-2 rounded-lg border text-right text-sm bg-white/50"
-                    style={{
-                      borderColor: colors.tertiary + "30",
-                      color: colors.primary,
-                    }}
-                    onFocus={(e) => {
-                      if (!item.readonly) {
-                        e.currentTarget.style.borderColor = colors.secondary;
-                        e.currentTarget.style.boxShadow = `0 0 0 3px ${colors.secondary}10`;
+                  <div className="relative flex items-center">
+                    <span className="absolute left-3 text-xs font-semibold pointer-events-none select-none" style={{ color: colors.tertiary }}>₱</span>
+                    <input
+                      type="text"
+                      value={formatNumber(item.value || 0)}
+                      onChange={(e) =>
+                        !item.readonly &&
+                        item.setValue(parseFloat(e.target.value.replace(/,/g, '')) || 0)
                       }
-                    }}
-                    onBlur={(e) => {
-                      if (!item.readonly) {
-                        e.currentTarget.style.borderColor =
-                          colors.tertiary + "30";
-                        e.currentTarget.style.boxShadow = "none";
-                      }
-                    }}
-                    placeholder="0.00"
-                  />
+                      readOnly={item.readonly}
+                      className="w-36 pl-7 pr-3 py-2 rounded-lg border text-right text-sm bg-white/50"
+                      style={{
+                        borderColor: colors.tertiary + "30",
+                        color: colors.primary,
+                      }}
+                      onFocus={(e) => {
+                        if (!item.readonly) {
+                          e.currentTarget.style.borderColor = colors.secondary;
+                          e.currentTarget.style.boxShadow = `0 0 0 3px ${colors.secondary}10`;
+                        }
+                      }}
+                      onBlur={(e) => {
+                        if (!item.readonly) {
+                          e.currentTarget.style.borderColor =
+                            colors.tertiary + "30";
+                          e.currentTarget.style.boxShadow = "none";
+                        }
+                      }}
+                      placeholder="0.00"
+                    />
+                  </div>
                 )}
               </div>
             ))}
@@ -351,17 +356,20 @@ export const PaymentCalculationTab: React.FC<PaymentCalculationTabProps> = ({
                 >
                   LAB
                 </span>
-                <input
-                  type="text"
-                  value={formatNumber(labFeeTotal)}
-                  readOnly
-                  className="w-32 px-3 py-2 rounded-lg border text-right text-sm bg-white/50"
-                  style={{
-                    borderColor: colors.tertiary + "30",
-                    color: colors.primary,
-                  }}
-                  placeholder="0.00"
-                />
+                <div className="relative flex items-center">
+                  <span className="absolute left-3 text-xs font-semibold pointer-events-none select-none" style={{ color: colors.tertiary }}>₱</span>
+                  <input
+                    type="text"
+                    value={formatNumber(labFeeTotal)}
+                    readOnly
+                    className="w-36 pl-7 pr-3 py-2 rounded-lg border text-right text-sm bg-white/50"
+                    style={{
+                      borderColor: colors.tertiary + "30",
+                      color: colors.primary,
+                    }}
+                    placeholder="0.00"
+                  />
+                </div>
               </div>
             )}
 
@@ -380,17 +388,20 @@ export const PaymentCalculationTab: React.FC<PaymentCalculationTabProps> = ({
                 >
                   {subject.course_code || subject.descriptive_title}
                 </span>
-                <input
-                  type="text"
-                  value={formatNumber(subject.fixedAmount || 0)}
-                  readOnly
-                  className="w-32 px-3 py-2 rounded-lg border text-right text-sm bg-white/50"
-                  style={{
-                    borderColor: colors.tertiary + "30",
-                    color: colors.primary,
-                  }}
-                  placeholder="0.00"
-                />
+                <div className="relative flex items-center">
+                  <span className="absolute left-3 text-xs font-semibold pointer-events-none select-none" style={{ color: colors.tertiary }}>₱</span>
+                  <input
+                    type="text"
+                    value={formatNumber(subject.fixedAmount || 0)}
+                    readOnly
+                    className="w-36 pl-7 pr-3 py-2 rounded-lg border text-right text-sm bg-white/50"
+                    style={{
+                      borderColor: colors.tertiary + "30",
+                      color: colors.primary,
+                    }}
+                    placeholder="0.00"
+                  />
+                </div>
               </div>
             ))}
 
@@ -415,34 +426,37 @@ export const PaymentCalculationTab: React.FC<PaymentCalculationTabProps> = ({
                   >
                     {fee.name}
                   </span>
-                  <input
-                    type="text"
-                    value={focusedFeeId === fee.id ? (dynamicFees[fee.id]?.toString() || "") : formatNumber(dynamicFees[fee.id] || 0)}
-                    onChange={(e) => {
-                      const raw = e.target.value.replace(/,/g, '');
-                      setDynamicFees((prev) => ({
-                        ...prev,
-                        [fee.id]: parseFloat(raw) || 0,
-                      }));
-                    }}
-                    className="w-32 px-3 py-2 rounded-lg border text-right text-sm bg-white/50"
-                    style={{
-                      borderColor: colors.tertiary + "30",
-                      color: colors.primary,
-                    }}
-                    onFocus={(e) => {
-                      setFocusedFeeId(fee.id);
-                      e.currentTarget.style.borderColor = colors.secondary;
-                      e.currentTarget.style.boxShadow = `0 0 0 3px ${colors.secondary}10`;
-                    }}
-                    onBlur={(e) => {
-                      setFocusedFeeId(null);
-                      e.currentTarget.style.borderColor =
-                        colors.tertiary + "30";
-                      e.currentTarget.style.boxShadow = "none";
-                    }}
-                    placeholder="0.00"
-                  />
+                  <div className="relative flex items-center">
+                    <span className="absolute left-3 text-xs font-semibold pointer-events-none select-none" style={{ color: colors.tertiary }}>₱</span>
+                    <input
+                      type="text"
+                      value={focusedFeeId === fee.id ? (dynamicFees[fee.id]?.toString() || "") : formatNumber(dynamicFees[fee.id] || 0)}
+                      onChange={(e) => {
+                        const raw = e.target.value.replace(/,/g, '');
+                        setDynamicFees((prev) => ({
+                          ...prev,
+                          [fee.id]: parseFloat(raw) || 0,
+                        }));
+                      }}
+                      className="w-36 pl-7 pr-3 py-2 rounded-lg border text-right text-sm bg-white/50"
+                      style={{
+                        borderColor: colors.tertiary + "30",
+                        color: colors.primary,
+                      }}
+                      onFocus={(e) => {
+                        setFocusedFeeId(fee.id);
+                        e.currentTarget.style.borderColor = colors.secondary;
+                        e.currentTarget.style.boxShadow = `0 0 0 3px ${colors.secondary}10`;
+                      }}
+                      onBlur={(e) => {
+                        setFocusedFeeId(null);
+                        e.currentTarget.style.borderColor =
+                          colors.tertiary + "30";
+                        e.currentTarget.style.boxShadow = "none";
+                      }}
+                      placeholder="0.00"
+                    />
+                  </div>
                 </div>
               ))}
 
@@ -460,18 +474,21 @@ export const PaymentCalculationTab: React.FC<PaymentCalculationTabProps> = ({
               >
                 Total Fees
               </span>
-              <input
-                type="text"
-                value={formatNumber(baseTotal)}
-                readOnly
-                className="w-32 px-3 py-2 rounded-lg border text-right text-sm bg-white/50"
-                style={{
-                  borderColor: colors.secondary + "30",
-                  color: colors.secondary,
-                  fontWeight: "bold",
-                }}
-                placeholder="0.00"
-              />
+              <div className="relative flex items-center">
+                <span className="absolute left-3 text-xs font-semibold pointer-events-none select-none" style={{ color: colors.secondary }}>₱</span>
+                <input
+                  type="text"
+                  value={formatNumber(baseTotal)}
+                  readOnly
+                  className="w-36 pl-7 pr-3 py-2 rounded-lg border text-right text-sm bg-white/50"
+                  style={{
+                    borderColor: colors.secondary + "30",
+                    color: colors.secondary,
+                    fontWeight: "bold",
+                  }}
+                  placeholder="0.00"
+                />
+              </div>
             </div>
           </div>
         </div>
@@ -549,37 +566,40 @@ export const PaymentCalculationTab: React.FC<PaymentCalculationTabProps> = ({
                 >
                   {item.label}
                 </span>
-                <input
-                  type="text"
-                  value={formatNumber(item.value || 0)}
-                  onChange={(e) =>
-                    !item.readonly &&
-                    item.setValue(parseFloat(e.target.value.replace(/,/g, '')) || 0)
-                  }
-                  readOnly={item.readonly}
-                  className="w-32 px-3 py-2 rounded-lg border text-right text-sm bg-white/50"
-                  style={{
-                    borderColor: item.highlight
-                      ? colors.secondary + "30"
-                      : colors.tertiary + "30",
-                    color: item.highlight ? colors.secondary : colors.primary,
-                    fontWeight: item.highlight ? "bold" : "normal",
-                  }}
-                  onFocus={(e) => {
-                    if (!item.readonly) {
-                      e.currentTarget.style.borderColor = colors.secondary;
-                      e.currentTarget.style.boxShadow = `0 0 0 3px ${colors.secondary}10`;
+                <div className="relative flex items-center">
+                  <span className="absolute left-3 text-xs font-semibold pointer-events-none select-none" style={{ color: item.highlight ? colors.secondary : colors.tertiary }}>₱</span>
+                  <input
+                    type="text"
+                    value={formatNumber(item.value || 0)}
+                    onChange={(e) =>
+                      !item.readonly &&
+                      item.setValue(parseFloat(e.target.value.replace(/,/g, '')) || 0)
                     }
-                  }}
-                  onBlur={(e) => {
-                    if (!item.readonly) {
-                      e.currentTarget.style.borderColor =
-                        colors.tertiary + "30";
-                      e.currentTarget.style.boxShadow = "none";
-                    }
-                  }}
-                  placeholder="0.00"
-                />
+                    readOnly={item.readonly}
+                    className="w-36 pl-7 pr-3 py-2 rounded-lg border text-right text-sm bg-white/50"
+                    style={{
+                      borderColor: item.highlight
+                        ? colors.secondary + "30"
+                        : colors.tertiary + "30",
+                      color: item.highlight ? colors.secondary : colors.primary,
+                      fontWeight: item.highlight ? "bold" : "normal",
+                    }}
+                    onFocus={(e) => {
+                      if (!item.readonly) {
+                        e.currentTarget.style.borderColor = colors.secondary;
+                        e.currentTarget.style.boxShadow = `0 0 0 3px ${colors.secondary}10`;
+                      }
+                    }}
+                    onBlur={(e) => {
+                      if (!item.readonly) {
+                        e.currentTarget.style.borderColor =
+                          colors.tertiary + "30";
+                        e.currentTarget.style.boxShadow = "none";
+                      }
+                    }}
+                    placeholder="0.00"
+                  />
+                </div>
               </div>
             ))}
           </div>
@@ -719,27 +739,30 @@ export const PaymentCalculationTab: React.FC<PaymentCalculationTabProps> = ({
                             className="px-4 py-3 border-r"
                             style={{ borderColor: colors.accent + "20" }}
                           >
-                            <input
-                              type="text"
-                              value={focusedTerm === item.term ? (item.amount?.toString() || "") : formatNumber(item.amount || 0)}
-                              onChange={(e) =>
-                                item.setAmount(parseFloat(e.target.value.replace(/,/g, '')) || 0)
-                              }
-                              className="w-full border-none outline-none bg-transparent text-right text-sm rounded-lg px-2 py-1 hover:bg-white/50 focus:bg-white focus:ring-2 focus:ring-offset-0 transition-all"
-                              style={{ color: colors.primary }}
-                              onFocus={(e) => {
-                                setFocusedTerm(item.term);
-                                e.currentTarget.style.backgroundColor = "white";
-                                e.currentTarget.style.boxShadow = `0 0 0 3px ${colors.secondary}10`;
-                              }}
-                              onBlur={(e) => {
-                                setFocusedTerm(null);
-                                e.currentTarget.style.backgroundColor =
-                                  "transparent";
-                                e.currentTarget.style.boxShadow = "none";
-                              }}
-                              placeholder="0.00"
-                            />
+                            <div className="relative flex items-center">
+                              <span className="absolute left-2 text-xs font-semibold pointer-events-none select-none" style={{ color: colors.tertiary }}>₱</span>
+                              <input
+                                type="text"
+                                value={focusedTerm === item.term ? (item.amount?.toString() || "") : formatNumber(item.amount || 0)}
+                                onChange={(e) =>
+                                  item.setAmount(parseFloat(e.target.value.replace(/,/g, '')) || 0)
+                                }
+                                className="w-full border-none outline-none bg-transparent text-right text-sm rounded-lg pl-6 pr-2 py-1 hover:bg-white/50 focus:bg-white focus:ring-2 focus:ring-offset-0 transition-all"
+                                style={{ color: colors.primary }}
+                                onFocus={(e) => {
+                                  setFocusedTerm(item.term);
+                                  e.currentTarget.style.backgroundColor = "white";
+                                  e.currentTarget.style.boxShadow = `0 0 0 3px ${colors.secondary}10`;
+                                }}
+                                onBlur={(e) => {
+                                  setFocusedTerm(null);
+                                  e.currentTarget.style.backgroundColor =
+                                    "transparent";
+                                  e.currentTarget.style.boxShadow = "none";
+                                }}
+                                placeholder="0.00"
+                              />
+                            </div>
                           </td>
                           <td className="px-4 py-3">
                             {isPaid ? (

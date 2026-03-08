@@ -13,6 +13,8 @@ const EducationalBackground: React.FC<EnrollmentPageProps> = ({
 }) => {
   const [shsPrograms, setShsPrograms] = useState<string[]>([]);
   const [schools, setSchools] = useState<string[]>([]);
+  const [loadingPrograms, setLoadingPrograms] = useState(true);
+  const [loadingSchools, setLoadingSchools] = useState(true);
   const [showProgramModal, setShowProgramModal] = useState(false);
   const [showSchoolModal, setShowSchoolModal] = useState(false);
   const [customProgram, setCustomProgram] = useState("");
@@ -32,18 +34,27 @@ const EducationalBackground: React.FC<EnrollmentPageProps> = ({
   React.useEffect(() => {
     const loadData = async () => {
       try {
+        setLoadingPrograms(true);
+        setLoadingSchools(true);
+        
         const [programsRes, schoolsRes] = await Promise.all([
           Axios.get("/api/auth/enroll/shs-programs"),
           Axios.get("/api/auth/enroll/schools"),
         ]);
+        
         if (programsRes.data?.data) {
           setShsPrograms(programsRes.data.data.map((p: any) => p.name));
         }
+        setLoadingPrograms(false);
+        
         if (schoolsRes.data?.data) {
           setSchools(schoolsRes.data.data.map((s: any) => s.name));
         }
+        setLoadingSchools(false);
       } catch (error) {
         console.error("Error loading programs/schools:", error);
+        setLoadingPrograms(false);
+        setLoadingSchools(false);
       }
     };
     loadData();
@@ -268,6 +279,7 @@ const EducationalBackground: React.FC<EnrollmentPageProps> = ({
   }, [shsPrograms]);
 
   const remarksOptions = [
+    "NONE",
     "GRADUATED WITH HIGHEST HONORS",
     "GRADUATED WITH HIGH HONORS",
     "GRADUATED WITH HONORS",
@@ -316,23 +328,28 @@ const EducationalBackground: React.FC<EnrollmentPageProps> = ({
                 data-field="last_school_attended"
                 value={formData.last_school_attended}
                 onChange={(e) => handleSchoolChange(e.target.value)}
-                className={`${inputClasses} appearance-none cursor-pointer ${fieldErrors.last_school_attended ? "border-red-500" : ""}`}
+                disabled={loadingSchools}
+                className={`${inputClasses} appearance-none cursor-pointer ${fieldErrors.last_school_attended ? "border-red-500" : ""} ${loadingSchools ? "opacity-60" : ""}`}
                 style={getInputStyle("last_school_attended")}
                 onFocus={(e) => handleFocus(e, "last_school_attended")}
                 onBlur={(e) => handleBlur(e, "last_school_attended")}
               >
-                <option value=''>Select School</option>
-                {schools.map((school) => (
+                <option value=''>{loadingSchools ? "Loading schools..." : "Select School"}</option>
+                {!loadingSchools && schools.map((school) => (
                   <option key={school} value={school}>
                     {school}
                   </option>
                 ))}
-                <option value="OTHER">OTHER</option>
+                {!loadingSchools && <option value="OTHER">OTHER</option>}
               </select>
               <div className="absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none opacity-50">
-                <svg width="12" height="12" viewBox="0 0 12 12" fill="none" xmlns="http://www.w3.org/2000/svg">
-                  <path d="M2.5 4.5L6 8L9.5 4.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
-                </svg>
+                {loadingSchools ? (
+                  <Loader2 className="w-4 h-4 animate-spin" style={{ color: colors.secondary }} />
+                ) : (
+                  <svg width="12" height="12" viewBox="0 0 12 12" fill="none" xmlns="http://www.w3.org/2000/svg">
+                    <path d="M2.5 4.5L6 8L9.5 4.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+                  </svg>
+                )}
               </div>
             </div>
             {fieldErrors.last_school_attended && (
@@ -393,22 +410,27 @@ const EducationalBackground: React.FC<EnrollmentPageProps> = ({
                 data-field="program_shs"
                 value={formData.program_shs}
                 onChange={(e) => handleProgramChange(e.target.value)}
-                className={`${inputClasses} appearance-none cursor-pointer ${fieldErrors.program_shs ? "border-red-500" : ""}`}
+                disabled={loadingPrograms}
+                className={`${inputClasses} appearance-none cursor-pointer ${fieldErrors.program_shs ? "border-red-500" : ""} ${loadingPrograms ? "opacity-60" : ""}`}
                 style={getInputStyle("program_shs")}
                 onFocus={(e) => handleFocus(e, "program_shs")}
                 onBlur={(e) => handleBlur(e, "program_shs")}
               >
-                <option value=''>Select Program</option>
-                {shsProgramOptions.map((program) => (
+                <option value=''>{loadingPrograms ? "Loading programs..." : "Select Program"}</option>
+                {!loadingPrograms && shsProgramOptions.map((program) => (
                   <option key={program} value={program}>
                     {program}
                   </option>
                 ))}
               </select>
               <div className="absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none opacity-50">
-                <svg width="12" height="12" viewBox="0 0 12 12" fill="none" xmlns="http://www.w3.org/2000/svg">
-                  <path d="M2.5 4.5L6 8L9.5 4.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
-                </svg>
+                {loadingPrograms ? (
+                  <Loader2 className="w-4 h-4 animate-spin" style={{ color: colors.secondary }} />
+                ) : (
+                  <svg width="12" height="12" viewBox="0 0 12 12" fill="none" xmlns="http://www.w3.org/2000/svg">
+                    <path d="M2.5 4.5L6 8L9.5 4.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+                  </svg>
+                )}
               </div>
             </div>
             {fieldErrors.program_shs && (

@@ -1000,7 +1000,13 @@ const AssessmentManagement: React.FC = () => {
   useEffect(() => {
     if (viewMode === 'list' && (currentTerm || (filterAcademicYear && filterSemester))) {
       console.log("Triggering fetchStudents due to filter change");
-      fetchStudents();
+      
+      // Debounce search query to avoid too many API calls
+      const debounceTimer = setTimeout(() => {
+        fetchStudents();
+      }, 300); // 300ms delay
+      
+      return () => clearTimeout(debounceTimer);
     }
   }, [viewMode, currentTerm, searchQuery, filterProgram, filterYearLevel, filterAssessmentStatus, filterAcademicYear, filterSemester]); // eslint-disable-line react-hooks/exhaustive-deps
 
