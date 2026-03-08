@@ -275,6 +275,50 @@ const StudentForecastDashboard: React.FC = () => {
     });
   }, [studentData]);
 
+  // Combined historical + predicted line chart data
+  const forecastLineChartData = useMemo(() => {
+    if (!studentData?.programData) return [];
+
+    const grouped: Record<string, Record<string, number>> = {};
+    const years = new Set<string>();
+
+    studentData.programData.forEach((item) => {
+      const program = item.program;
+      if (!grouped[program]) grouped[program] = {};
+      const year = item.academic_year || String(item.year);
+      grouped[program][year] = item.total_students;
+      years.add(year);
+    });
+
+    // Add the predicted year
+    if (predictions.length > 0) {
+      const sortedYears = Array.from(years).sort();
+      const lastYear = sortedYears[sortedYears.length - 1];
+      let nextYear: string;
+      if (lastYear.includes("-")) {
+        const startYr = parseInt(lastYear.split("-")[0]);
+        nextYear = `${startYr + 1}-${startYr + 2}`;
+      } else {
+        nextYear = String(parseInt(lastYear) + 1);
+      }
+      years.add(nextYear);
+
+      predictions.forEach((pred) => {
+        if (!grouped[pred.program]) grouped[pred.program] = {};
+        grouped[pred.program][nextYear] = pred.predicted_students;
+      });
+    }
+
+    const sortedYears = Array.from(years).sort();
+    return sortedYears.map((year) => {
+      const entry: Record<string, any> = { year };
+      Object.keys(grouped).forEach((program) => {
+        entry[program] = grouped[program][year] ?? null;
+      });
+      return entry;
+    });
+  }, [studentData, predictions]);
+
   // Prepare pandas-style table data (Year | Program | Students)
   const pandasTableData = useMemo(() => {
     if (!studentData?.programData) return [];
@@ -692,7 +736,7 @@ const StudentForecastDashboard: React.FC = () => {
           </div>
         </div>
 
-        {/* Predicted Students Per Program */}
+        {/* Predicted Students Per Program — combined matplotlib-style line chart */}
         <div
           className='bg-white rounded-xl shadow-sm border p-6 mb-8'
           style={{ borderColor: colors.neutralBorder }}
@@ -700,7 +744,7 @@ const StudentForecastDashboard: React.FC = () => {
           <div className='flex items-center gap-3 mb-6'>
             <Target className='w-6 h-6' style={{ color: colors.secondary }} />
             <h2 className='text-xl font-bold' style={{ color: colors.primary }}>
-              Predicted Students Per Program (Next Year)
+              Predicted Students Per Program (All Years)
             </h2>
             {forecastLoading && (
               <RefreshCw
@@ -710,173 +754,252 @@ const StudentForecastDashboard: React.FC = () => {
             )}
           </div>
 
-          <div className='grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mb-6'>
-            {predictions.map((prediction, index) => (
+          {forecastLineChartData.length > 0 ? (
+            <div>
+              {/* Single combined line chart with all programs */}
               <div
-                key={prediction.program}
-                className='p-4 rounded-lg border'
+                className='rounded-lg p-4 mb-6'
                 style={{
-                  borderColor: colors.neutralBorder,
-                  backgroundColor: colors.neutralLight,
+                  backgroundColor: "#FFFFFF",
+                  border: `1px solid ${colors.neutralBorder}`,
                 }}
               >
-                <div className='flex items-center justify-between mb-2'>
-                  <span
-                    className='font-semibold text-lg'
-                    style={{ color: colors.primary }}
+                <ResponsiveContainer width='100%' height={420}>
+                  <LineChart
+                    data={forecastLineChartData}
+                    margin={{ top: 10, right: 30, left: 10, bottom: 30 }}
                   >
-                    {prediction.program}
-                  </span>
-                  <div
-                    className={`flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium ${
-                      prediction.trend === "increasing"
-                        ? "bg-emerald-100 text-emerald-700"
-                        : prediction.trend === "decreasing"
-                          ? "bg-red-100 text-red-700"
-                          : "bg-gray-100 text-gray-700"
-                    }`}
+                    <CartesianGrid
+                      strokeDasharray='3 3'
+                      stroke='#E5E7EB'
+                      strokeOpacity={0.7}
+                    />
+                    <XAxis
+                      dataKey='year'
+                      tick={{ fill: "#555", fontSize: 12 }}
+                      tickLine={{ stroke: "#ccc" }}
+                      axisLine={{ stroke: "#ccc" }}
+                      angle={-30}
+                      textAnchor='end'
+                      height={60}
+                      label={{
+                        value: "academic_year",
+                        position: "insideBottom",
+                        offset: -5,
+                        fill: "#666",
+                        fontSize: 13,
+                        fontStyle: "italic",
+                      }}
+                    />
+                    <YAxis
+                      tick={{ fill: "#555", fontSize: 12 }}
+                      tickLine={{ stroke: "#ccc" }}
+                      axisLine={{ stroke: "#ccc" }}
+                      allowDecimals={false}
+                    />
+                    <Tooltip
+                      contentStyle={{
+                        backgroundColor: "white",
+                        border: "1px solid #ddd",
+                        borderRadius: "4px",
+                        fontSize: 13,
+                        boxShadow: "0 2px 8px rgba(0,0,0,0.08)",
+                      }}
+                      formatter={(value: any, name: string) => [
+                        value != null ? Number(value).toLocaleString() : "—",
+                        name,
+                      ]}
+                      labelFormatter={(label) => `Year: ${label}`}
+                    />
+                    <Legend
+                      verticalAlign='top'
+                      align='right'
+                      iconType='plainline'
+                      wrapperStyle={{
+                        fontSize: 13,
+                        paddingBottom: 10,
+                        border: "1px solid #E5E7EB",
+                        borderRadius: 4,
+                        padding: "8px 12px",
+                        backgroundColor: "#FAFAFA",
+                      }}
+                    />
+                    {uniquePrograms.map((program, index) => (
+                      <Line
+                        key={program}
+                        type='monotone'
+                        dataKey={program}
+                        stroke={CHART_COLORS[index % CHART_COLORS.length]}
+                        strokeWidth={2}
+                        dot={{
+                          r: 3,
+                          fill: CHART_COLORS[index % CHART_COLORS.length],
+                          strokeWidth: 0,
+                        }}
+                        activeDot={{ r: 5, strokeWidth: 2, stroke: "#fff" }}
+                        connectNulls
+                        name={program}
+                      />
+                    ))}
+                  </LineChart>
+                </ResponsiveContainer>
+                {predictions.length > 0 && (
+                  <p
+                    className='text-xs text-right mt-2 mr-4'
+                    style={{ color: "#888" }}
                   >
-                    {prediction.trend === "increasing" ? (
-                      <TrendingUp className='w-3 h-3' />
-                    ) : prediction.trend === "decreasing" ? (
-                      <TrendingDown className='w-3 h-3' />
-                    ) : null}
-                    {prediction.trend}
-                  </div>
-                </div>
-                <div className='flex items-baseline gap-2'>
-                  <span
-                    className='text-2xl font-bold'
-                    style={{ color: colors.secondary }}
-                  >
-                    {prediction.predicted_students.toLocaleString()}
-                  </span>
-                  <span className='text-sm' style={{ color: colors.neutral }}>
-                    predicted students
-                  </span>
-                </div>
-                <div
-                  className='text-sm mt-1'
-                  style={{
-                    color: prediction.growth_rate >= 0 ? "#10B981" : "#EF4444",
-                  }}
-                >
-                  {prediction.growth_rate >= 0 ? "+" : ""}
-                  {prediction.growth_rate.toFixed(1)}% from last year
-                </div>
+                    * Last data point (
+                    {
+                      forecastLineChartData[forecastLineChartData.length - 1]
+                        ?.year
+                    }
+                    ) represents predicted values
+                  </p>
+                )}
               </div>
-            ))}
-            {predictions.length === 0 && !forecastLoading && (
+
+              {/* Pandas-style DataFrame Table */}
               <div
-                className='col-span-full py-8 text-center'
+                className='overflow-x-auto'
+                style={{ fontFamily: "'Courier New', Consolas, monospace" }}
+              >
+                <table className='w-full border-collapse text-sm'>
+                  <thead>
+                    <tr
+                      style={{
+                        borderBottom: `2px solid ${colors.neutralBorder}`,
+                      }}
+                    >
+                      <th
+                        className='text-left py-2 px-3'
+                        style={{
+                          color: colors.neutral,
+                          backgroundColor: colors.neutralLight,
+                          fontWeight: 600,
+                        }}
+                      >
+                        &nbsp;
+                      </th>
+                      <th
+                        className='text-left py-2 px-3'
+                        style={{
+                          color: colors.primary,
+                          backgroundColor: colors.neutralLight,
+                          fontWeight: 700,
+                        }}
+                      >
+                        program
+                      </th>
+                      <th
+                        className='text-right py-2 px-3'
+                        style={{
+                          color: colors.primary,
+                          backgroundColor: colors.neutralLight,
+                          fontWeight: 700,
+                        }}
+                      >
+                        predicted_students
+                      </th>
+                      <th
+                        className='text-center py-2 px-3'
+                        style={{
+                          color: colors.primary,
+                          backgroundColor: colors.neutralLight,
+                          fontWeight: 700,
+                        }}
+                      >
+                        trend
+                      </th>
+                      <th
+                        className='text-right py-2 px-3'
+                        style={{
+                          color: colors.primary,
+                          backgroundColor: colors.neutralLight,
+                          fontWeight: 700,
+                        }}
+                      >
+                        growth_rate
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {predictions.map((prediction, index) => (
+                      <tr
+                        key={prediction.program}
+                        style={{
+                          borderBottom: `1px solid ${colors.neutralBorder}`,
+                          backgroundColor:
+                            index % 2 === 0 ? "white" : colors.neutralLight,
+                        }}
+                      >
+                        <td
+                          className='py-2 px-3 font-bold'
+                          style={{ color: colors.neutral }}
+                        >
+                          {index}
+                        </td>
+                        <td
+                          className='py-2 px-3'
+                          style={{ color: colors.primary }}
+                        >
+                          {prediction.program}
+                        </td>
+                        <td
+                          className='py-2 px-3 text-right font-semibold'
+                          style={{ color: colors.secondary }}
+                        >
+                          {prediction.predicted_students.toLocaleString()}
+                        </td>
+                        <td className='py-2 px-3 text-center'>
+                          <span
+                            className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium ${
+                              prediction.trend === "increasing"
+                                ? "bg-emerald-100 text-emerald-700"
+                                : prediction.trend === "decreasing"
+                                  ? "bg-red-100 text-red-700"
+                                  : "bg-gray-100 text-gray-700"
+                            }`}
+                          >
+                            {prediction.trend === "increasing" ? (
+                              <TrendingUp className='w-3 h-3' />
+                            ) : prediction.trend === "decreasing" ? (
+                              <TrendingDown className='w-3 h-3' />
+                            ) : null}
+                            {prediction.trend}
+                          </span>
+                        </td>
+                        <td
+                          className='py-2 px-3 text-right'
+                          style={{
+                            color:
+                              prediction.growth_rate >= 0
+                                ? "#10B981"
+                                : "#EF4444",
+                          }}
+                        >
+                          {prediction.growth_rate >= 0 ? "+" : ""}
+                          {prediction.growth_rate.toFixed(1)}%
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+                <p className='mt-1 text-xs' style={{ color: colors.neutral }}>
+                  [{predictions.length} rows x 4 columns]
+                </p>
+              </div>
+            </div>
+          ) : (
+            !forecastLoading && (
+              <div
+                className='py-8 text-center'
                 style={{ color: colors.neutral }}
               >
                 No prediction data available. Ensure FORECAST_API_URL is
                 configured.
               </div>
-            )}
-          </div>
-
-          {/* Predictions Table */}
-          <div className='overflow-x-auto'>
-            <table className='w-full border-collapse'>
-              <thead>
-                <tr
-                  style={{ borderBottom: `2px solid ${colors.neutralBorder}` }}
-                >
-                  <th
-                    className='text-left py-3 px-4 font-semibold'
-                    style={{
-                      color: colors.primary,
-                      backgroundColor: colors.neutralLight,
-                    }}
-                  >
-                    Program
-                  </th>
-                  <th
-                    className='text-right py-3 px-4 font-semibold'
-                    style={{
-                      color: colors.primary,
-                      backgroundColor: colors.neutralLight,
-                    }}
-                  >
-                    Predicted Students
-                  </th>
-                  <th
-                    className='text-center py-3 px-4 font-semibold'
-                    style={{
-                      color: colors.primary,
-                      backgroundColor: colors.neutralLight,
-                    }}
-                  >
-                    Trend
-                  </th>
-                  <th
-                    className='text-right py-3 px-4 font-semibold'
-                    style={{
-                      color: colors.primary,
-                      backgroundColor: colors.neutralLight,
-                    }}
-                  >
-                    Growth Rate
-                  </th>
-                </tr>
-              </thead>
-              <tbody>
-                {predictions.map((prediction, index) => (
-                  <tr
-                    key={prediction.program}
-                    style={{
-                      borderBottom: `1px solid ${colors.neutralBorder}`,
-                      backgroundColor:
-                        index % 2 === 0 ? "white" : colors.neutralLight,
-                    }}
-                  >
-                    <td
-                      className='py-3 px-4 font-medium'
-                      style={{ color: colors.primary }}
-                    >
-                      {prediction.program}
-                    </td>
-                    <td
-                      className='py-3 px-4 text-right font-semibold'
-                      style={{ color: colors.secondary }}
-                    >
-                      {prediction.predicted_students.toLocaleString()}
-                    </td>
-                    <td className='py-3 px-4 text-center'>
-                      <span
-                        className={`inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium ${
-                          prediction.trend === "increasing"
-                            ? "bg-emerald-100 text-emerald-700"
-                            : prediction.trend === "decreasing"
-                              ? "bg-red-100 text-red-700"
-                              : "bg-gray-100 text-gray-700"
-                        }`}
-                      >
-                        {prediction.trend === "increasing" ? (
-                          <TrendingUp className='w-3 h-3' />
-                        ) : prediction.trend === "decreasing" ? (
-                          <TrendingDown className='w-3 h-3' />
-                        ) : null}
-                        {prediction.trend}
-                      </span>
-                    </td>
-                    <td
-                      className='py-3 px-4 text-right font-medium'
-                      style={{
-                        color:
-                          prediction.growth_rate >= 0 ? "#10B981" : "#EF4444",
-                      }}
-                    >
-                      {prediction.growth_rate >= 0 ? "+" : ""}
-                      {prediction.growth_rate.toFixed(1)}%
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+            )
+          )}
         </div>
 
         {/* Students by Department */}
