@@ -226,7 +226,7 @@ export async function POST(request: NextRequest) {
       data: {
         student_number: student_number || null,
         admission_date: admission_date ? new Date(admission_date) : null,
-        admission_status: "Resident", // Always set to "Resident" for all enrollments
+        admission_status: admission_status || null,
         term: term || null,
         department: finalDepartmentId,
         course_program: finalCourseProgram,

@@ -549,6 +549,7 @@ const EnrollmentManagement: React.FC = () => {
             enrollments={paginatedEnrollments}
             onEdit={setEditingEnrollment}
             onDelete={handleDeleteEnrollment}
+            onEnrollmentStatusChange={fetchEnrollments}
           />
           <Pagination
             currentPage={currentPage}

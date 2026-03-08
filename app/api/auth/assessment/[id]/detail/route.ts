@@ -72,28 +72,45 @@ export async function GET(
       orderBy: { enrolled_at: "asc" },
     });
 
-    // Get curriculum_course details for each enrolled subject
+    // Get curriculum_course details for each enrolled subject.
+    // Also fetch subjects as a fallback for records whose curriculum_course was
+    // deleted by a destructive curriculum update.
     const curriculumCourseIds = enrolledSubjects.map(
       (es) => es.curriculum_course_id,
     );
-    const curriculumCourses = await prisma.curriculum_course.findMany({
-      where: { id: { in: curriculumCourseIds } },
-    });
+    const subjectIds = enrolledSubjects
+      .map((es) => es.subject_id)
+      .filter((id): id is number => id != null);
+
+    const [curriculumCourses, fallbackSubjects] = await Promise.all([
+      prisma.curriculum_course.findMany({
+        where: { id: { in: curriculumCourseIds } },
+      }),
+      subjectIds.length > 0
+        ? prisma.subject.findMany({ where: { id: { in: subjectIds } } })
+        : Promise.resolve([]),
+    ]);
 
     const courseMap = new Map(curriculumCourses.map((c) => [c.id, c]));
+    const subjectMap = new Map((fallbackSubjects as any[]).map((s) => [s.id, s]));
 
-    // Build subjects array
+    // Build subjects array — fall back to subject table when curriculum_course is gone
     const subjects = enrolledSubjects.map((es) => {
       const course = courseMap.get(es.curriculum_course_id);
+      const fallback = es.subject_id ? subjectMap.get(es.subject_id) : undefined;
       return {
         id: es.id,
         curriculum_course_id: es.curriculum_course_id,
-        course_code: course?.course_code || "N/A",
-        descriptive_title: course?.descriptive_title || "N/A",
-        units_lec: course?.units_lec || 0,
-        units_lab: course?.units_lab || 0,
+        course_code: course?.course_code ?? fallback?.code ?? "N/A",
+        descriptive_title: course?.descriptive_title ?? fallback?.name ?? "N/A",
+        units_lec: course?.units_lec ?? fallback?.units_lec ?? 0,
+        units_lab: course?.units_lab ?? fallback?.units_lab ?? 0,
         units_total: es.units_total || course?.units_total || 0,
-        fixed_amount: course?.fixedAmount ? Number(course.fixedAmount) : null,
+        fixed_amount: course?.fixedAmount
+          ? Number(course.fixedAmount)
+          : fallback?.fixedAmount
+          ? Number(fallback.fixedAmount)
+          : null,
         year_level: course?.year_level || es.year_level,
         status: es.status,
       };

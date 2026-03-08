@@ -89,6 +89,66 @@ export async function GET(request: NextRequest) {
         orderBy: { family_name: 'asc' }
       });
 
+      // Get payment status for students (for the irregular enrollment page)
+      const academicYear = searchParams.get('academicYear');
+      const semester = searchParams.get('semester');
+      
+      let paymentStatusMap = new Map<string, { status: string; mode: string; totalDue: number; totalPaid: number }>();
+      
+      if (academicYear && semester) {
+        const semesterNum = semester === 'first' ? 1 : semester === 'second' ? 2 : parseInt(semester);
+        const studentNumbers = students.map(s => s.student_number).filter(Boolean) as string[];
+        
+        if (studentNumbers.length > 0) {
+          // Fetch assessments and payments
+          const assessments = await prisma.student_assessment.findMany({
+            where: {
+              student_number: { in: studentNumbers },
+              academic_year: academicYear,
+              semester: semesterNum,
+              status: 'finalized'
+            },
+            select: {
+              student_number: true,
+              payment_mode: true,
+              total_due_cash: true,
+              total_due_installment: true,
+              base_total: true,
+              payments: {
+                select: {
+                  amount_paid: true
+                }
+              }
+            }
+          });
+
+          // Calculate payment status for each student
+          assessments.forEach(assessment => {
+            const totalDue = assessment.payment_mode.toLowerCase() === 'installment'
+              ? Number(assessment.total_due_installment || assessment.base_total)
+              : Number(assessment.total_due_cash || assessment.base_total);
+            
+            const totalPaid = assessment.payments.reduce((sum, p) => sum + Number(p.amount_paid), 0);
+            
+            let status: 'Unpaid' | 'Partial' | 'Fully Paid';
+            if (totalPaid === 0) {
+              status = 'Unpaid';
+            } else if (totalPaid < totalDue) {
+              status = 'Partial';
+            } else {
+              status = 'Fully Paid';
+            }
+            
+            paymentStatusMap.set(assessment.student_number, {
+              status,
+              mode: assessment.payment_mode,
+              totalDue,
+              totalPaid
+            });
+          });
+        }
+      }
+
       // Only fetch programs if we have students with programs
       const programIds = [...new Set(students.map(s => s.course_program).filter(Boolean))];
       
@@ -112,6 +172,8 @@ export async function GET(request: NextRequest) {
 
       return students.map(student => {
         const program = programMap.get(student.course_program || '');
+        const paymentInfo = student.student_number ? paymentStatusMap.get(student.student_number) : null;
+        
         return {
           studentId: student.id,
           studentNumber: student.student_number || '',
@@ -126,7 +188,11 @@ export async function GET(request: NextRequest) {
           majorId: student.major_id,
           yearLevel: student.year_level,
           academicStatus: student.academic_status || 'regular',
-          academicYear: student.academic_year
+          academicYear: student.academic_year,
+          paymentStatus: paymentInfo?.status || null,
+          paymentMode: paymentInfo?.mode || null,
+          totalDue: paymentInfo?.totalDue || null,
+          totalPaid: paymentInfo?.totalPaid || null
         };
       });
     });
