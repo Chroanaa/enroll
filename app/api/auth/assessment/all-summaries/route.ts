@@ -16,243 +16,338 @@ export async function GET(request: NextRequest) {
     const academicYear = searchParams.get("academicYear");
     const semester = searchParams.get("semester");
     const search = searchParams.get("search") || "";
-    const programFilter = searchParams.get("programId");
-    const yearLevel = searchParams.get("yearLevel");
-    const assessmentStatus = searchParams.get("assessmentStatus"); // 'assessed', 'not_assessed', or null for all
-
-    console.log("Assessment summaries request:", {
-      academicYear,
-      semester,
-      search,
-      programFilter,
-      yearLevel,
-      assessmentStatus,
-    });
+    const statusFilter = searchParams.get("status"); // 'Unpaid', 'Partial', 'Fully Paid', or null for all
 
     if (!academicYear || !semester) {
       return NextResponse.json(
         { error: "Academic year and semester are required" },
-        { status: 400 }
+        { status: 400 },
       );
     }
 
     const semesterInt = convertSemesterToInt(semester);
 
-    // Build where clause for filtering
-    const whereClause: any = {};
-    const andConditions: any[] = [];
+    // Build where clause for assessments
+    const whereClause: any = {
+      academic_year: academicYear,
+      semester: semesterInt,
+    };
 
-    // Search by student number or name
+    // Search by student number
     if (search) {
-      andConditions.push({
-        OR: [
-          { student_number: { contains: search, mode: "insensitive" } },
-          { first_name: { contains: search, mode: "insensitive" } },
-          { family_name: { contains: search, mode: "insensitive" } },
-        ],
-      });
+      whereClause.student_number = {
+        contains: search,
+        mode: "insensitive",
+      };
     }
 
-    // Filter by program (using course_program field which stores program ID as string)
-    // and major_id field for major filtering
-    // The programFilter can be:
-    // - "1" (program ID only, no major)
-    // - "1-5" (program ID 1 with major ID 5)
-    if (programFilter) {
-      const parts = programFilter.split("-");
-      const programId = parseInt(parts[0]);
-      const majorId = parts[1] ? parseInt(parts[1]) : null;
-      
-      console.log("Parsed program filter:", { programId, majorId });
-      
-      if (!isNaN(programId)) {
-        // The course_program field stores the program ID as a string
-        andConditions.push({
-          course_program: programId.toString(),
-        });
-        
-        // If major is specified, also filter by major_id
-        if (majorId && !isNaN(majorId)) {
-          andConditions.push({
-            major_id: majorId,
-          });
-          console.log(`Filtering by program ID: ${programId} and major ID: ${majorId}`);
-        } else {
-          console.log(`Filtering by program ID: ${programId} only`);
-        }
-      }
-    }
-
-    // Filter by year level
-    if (yearLevel) {
-      andConditions.push({
-        year_level: parseInt(yearLevel),
-      });
-    }
-
-    // Combine all conditions with AND
-    if (andConditions.length > 0) {
-      whereClause.AND = andConditions;
-    }
-
-    console.log("Where clause:", JSON.stringify(whereClause, null, 2));
-
-    // Fetch all enrolled students for the current term
-    const students = await prisma.enrollment.findMany({
+    // Fetch assessments with payments for the term
+    const assessments = await prisma.student_assessment.findMany({
       where: whereClause,
       select: {
         id: true,
         student_number: true,
-        first_name: true,
-        middle_name: true,
-        family_name: true,
-        year_level: true,
-        course_program: true,
-        major_id: true,
-        photo: true,
-      },
-      orderBy: [
-        { family_name: "asc" },
-        { first_name: "asc" },
-      ],
-    });
-
-    console.log(`Found ${students.length} students`);
-    
-    // Log sample course_program values to help debug
-    if (students.length > 0) {
-      console.log("Sample course_program values:", students.slice(0, 5).map(s => ({
-        student: s.student_number,
-        course_program: s.course_program,
-      })));
-    }
-
-    // Fetch program and major information to display properly
-    // Get unique program IDs from students
-    const programIds = [...new Set(
-      students
-        .map(s => s.course_program)
-        .filter(p => p !== null && p !== undefined && p !== "")
-        .map(p => parseInt(p))
-        .filter(p => !isNaN(p))
-    )];
-
-    // Fetch programs and majors
-    const programs = await prisma.program.findMany({
-      where: { id: { in: programIds } },
-      select: { id: true, code: true, name: true },
-    });
-
-    const majors = await prisma.major.findMany({
-      where: { program_id: { in: programIds } },
-      select: { id: true, name: true, program_id: true },
-    });
-
-    // Create lookup maps
-    const programMap = new Map(programs.map(p => [p.id, p]));
-    const majorsByProgram = majors.reduce((acc, major) => {
-      if (!acc[major.program_id]) acc[major.program_id] = [];
-      acc[major.program_id].push(major);
-      return acc;
-    }, {} as Record<number, typeof majors>);
-    
-    // Fetch all assessments for the current term
-    const assessments = await prisma.student_assessment.findMany({
-      where: {
-        academic_year: academicYear,
-        semester: semesterInt,
-        student_number: {
-          in: students.map((s) => s.student_number || ""),
+        academic_year: true,
+        semester: true,
+        payment_mode: true,
+        total_due: true,
+        total_due_cash: true,
+        total_due_installment: true,
+        payments: {
+          select: {
+            amount_paid: true,
+          },
         },
+      },
+      orderBy: {
+        student_number: "asc",
+      },
+    });
+
+    // Get unique student numbers to fetch enrollment info
+    const studentNumbers = [
+      ...new Set(assessments.map((a) => a.student_number)),
+    ];
+
+    // Fetch enrollment info for names and programs
+    const enrollments = await prisma.enrollment.findMany({
+      where: {
+        student_number: { in: studentNumbers },
       },
       select: {
         student_number: true,
-        created_at: true,
-        total_due_cash: true,
-        total_due_installment: true,
-        payment_mode: true,
+        first_name: true,
+        middle_name: true,
+        family_name: true,
+        course_program: true,
+        major_id: true,
+        year_level: true,
       },
+      distinct: ["student_number"],
     });
 
-    console.log(`Found ${assessments.length} assessments`);
-
-    // Create a map of student_number to assessment
-    const assessmentMap = new Map(
-      assessments.map((a) => [a.student_number, a])
+    // Create enrollment lookup map
+    const enrollmentMap = new Map(
+      enrollments.map((e) => [e.student_number, e]),
     );
 
-    // Combine student data with assessment status
-    let studentsWithAssessment = students.map((student) => {
-      const assessment = assessmentMap.get(student.student_number || "");
-      const hasAssessment = !!assessment;
-      
-      // Calculate total amount based on payment mode
-      let totalAmount = 0;
-      if (assessment) {
-        if (assessment.payment_mode === "cash") {
-          totalAmount = Number(assessment.total_due_cash) || 0;
-        } else {
-          totalAmount = Number(assessment.total_due_installment) || 0;
-        }
-      }
+    // Fetch program and major info
+    const programIds = [
+      ...new Set(
+        enrollments
+          .map((e) => e.course_program)
+          .filter((p) => p !== null && p !== undefined && p !== "")
+          .map((p) => parseInt(p!))
+          .filter((p) => !isNaN(p)),
+      ),
+    ];
 
-      // Format program display: "BSIT - no major" or "BEED - Filipino"
-      let programDisplay = "N/A";
-      if (student.course_program) {
-        const programId = parseInt(student.course_program);
+    const [programs, majors] = await Promise.all([
+      prisma.program.findMany({
+        where: { id: { in: programIds } },
+        select: { id: true, code: true, name: true },
+      }),
+      prisma.major.findMany({
+        where: { program_id: { in: programIds } },
+        select: { id: true, name: true, program_id: true },
+      }),
+    ]);
+
+    const programMap = new Map(programs.map((p) => [p.id, p]));
+
+    // Build student summaries
+    let summaries = assessments.map((assessment) => {
+      const enrollment = enrollmentMap.get(assessment.student_number);
+
+      // Build student name
+      const studentName = enrollment
+        ? [
+            enrollment.first_name,
+            enrollment.middle_name,
+            enrollment.family_name,
+          ]
+            .filter(Boolean)
+            .join(" ")
+        : assessment.student_number;
+
+      // Build program display
+      let programDisplay: string | null = null;
+      if (enrollment?.course_program) {
+        const programId = parseInt(enrollment.course_program);
         if (!isNaN(programId)) {
           const program = programMap.get(programId);
           if (program) {
-            // Check if student has a major_id
-            if (student.major_id) {
-              const major = majors.find(m => m.id === student.major_id);
-              if (major) {
-                programDisplay = `${program.code} - ${major.name}`;
-              } else {
-                programDisplay = `${program.code} - no major`;
-              }
+            if (enrollment.major_id) {
+              const major = majors.find((m) => m.id === enrollment.major_id);
+              programDisplay = major
+                ? `${program.code} - ${major.name}`
+                : program.code;
             } else {
-              programDisplay = `${program.code} - no major`;
+              programDisplay = program.code;
             }
           }
         }
       }
 
+      // Calculate total due based on payment mode
+      let totalDue = Number(assessment.total_due) || 0;
+      if (assessment.payment_mode === "cash" && assessment.total_due_cash) {
+        totalDue = Number(assessment.total_due_cash);
+      } else if (
+        assessment.payment_mode === "installment" &&
+        assessment.total_due_installment
+      ) {
+        totalDue = Number(assessment.total_due_installment);
+      }
+
+      // Calculate total paid from payments
+      const totalPaid = assessment.payments.reduce(
+        (sum, p) => sum + Number(p.amount_paid),
+        0,
+      );
+
+      const remainingBalance = Math.max(0, totalDue - totalPaid);
+
+      // Determine payment status
+      let paymentStatus: "Unpaid" | "Partial" | "Fully Paid" = "Unpaid";
+      if (totalPaid >= totalDue && totalDue > 0) {
+        paymentStatus = "Fully Paid";
+      } else if (totalPaid > 0) {
+        paymentStatus = "Partial";
+      }
+
       return {
-        id: student.id,
-        student_number: student.student_number,
-        first_name: student.first_name,
-        middle_name: student.middle_name,
-        family_name: student.family_name,
-        program_code: programDisplay,
-        program_name: programDisplay,
-        year_level: student.year_level,
-        photo: student.photo,
-        has_assessment: hasAssessment,
-        assessment_date: assessment?.created_at,
-        total_amount: totalAmount,
+        assessment_id: assessment.id,
+        student_number: assessment.student_number,
+        student_name: studentName,
+        course_program: programDisplay,
+        year_level: enrollment?.year_level ?? null,
+        academic_year: assessment.academic_year,
+        semester: assessment.semester,
+        payment_mode: assessment.payment_mode,
+        total_due: totalDue,
+        total_paid: totalPaid,
+        remaining_balance: remainingBalance,
+        payment_status: paymentStatus,
       };
     });
 
-    // Filter by assessment status if specified
-    if (assessmentStatus === "assessed") {
-      studentsWithAssessment = studentsWithAssessment.filter((s) => s.has_assessment);
-    } else if (assessmentStatus === "not_assessed") {
-      studentsWithAssessment = studentsWithAssessment.filter((s) => !s.has_assessment);
+    // Also search by name if search term provided
+    if (search) {
+      // We already filtered by student_number above, but also need name search
+      // Re-fetch without student_number filter and filter by name instead
+      const nameWhereClause: any = {
+        academic_year: academicYear,
+        semester: semesterInt,
+        status: "finalized",
+      };
+
+      const nameAssessments = await prisma.student_assessment.findMany({
+        where: nameWhereClause,
+        select: {
+          id: true,
+          student_number: true,
+          academic_year: true,
+          semester: true,
+          payment_mode: true,
+          total_due: true,
+          total_due_cash: true,
+          total_due_installment: true,
+          payments: {
+            select: {
+              amount_paid: true,
+            },
+          },
+        },
+      });
+
+      // Get enrollments that match the name search
+      const nameEnrollments = await prisma.enrollment.findMany({
+        where: {
+          OR: [
+            { first_name: { contains: search, mode: "insensitive" } },
+            { family_name: { contains: search, mode: "insensitive" } },
+          ],
+        },
+        select: {
+          student_number: true,
+          first_name: true,
+          middle_name: true,
+          family_name: true,
+          course_program: true,
+          major_id: true,
+          year_level: true,
+        },
+        distinct: ["student_number"],
+      });
+
+      const nameMatchStudentNumbers = new Set(
+        nameEnrollments.map((e) => e.student_number),
+      );
+      const existingIds = new Set(summaries.map((s) => s.assessment_id));
+
+      // Add name-matched assessments not already in results
+      for (const assessment of nameAssessments) {
+        if (
+          nameMatchStudentNumbers.has(assessment.student_number) &&
+          !existingIds.has(assessment.id)
+        ) {
+          const enrollment = nameEnrollments.find(
+            (e) => e.student_number === assessment.student_number,
+          );
+
+          const studentName = enrollment
+            ? [
+                enrollment.first_name,
+                enrollment.middle_name,
+                enrollment.family_name,
+              ]
+                .filter(Boolean)
+                .join(" ")
+            : assessment.student_number;
+
+          let programDisplay: string | null = null;
+          if (enrollment?.course_program) {
+            const programId = parseInt(enrollment.course_program);
+            if (!isNaN(programId)) {
+              const program = programMap.get(programId);
+              if (program) {
+                if (enrollment.major_id) {
+                  const major = majors.find(
+                    (m) => m.id === enrollment.major_id,
+                  );
+                  programDisplay = major
+                    ? `${program.code} - ${major.name}`
+                    : program.code;
+                } else {
+                  programDisplay = program.code;
+                }
+              }
+            }
+          }
+
+          let totalDue = Number(assessment.total_due) || 0;
+          if (assessment.payment_mode === "cash" && assessment.total_due_cash) {
+            totalDue = Number(assessment.total_due_cash);
+          } else if (
+            assessment.payment_mode === "installment" &&
+            assessment.total_due_installment
+          ) {
+            totalDue = Number(assessment.total_due_installment);
+          }
+
+          const totalPaid = assessment.payments.reduce(
+            (sum, p) => sum + Number(p.amount_paid),
+            0,
+          );
+          const remainingBalance = Math.max(0, totalDue - totalPaid);
+
+          let paymentStatus: "Unpaid" | "Partial" | "Fully Paid" = "Unpaid";
+          if (totalPaid >= totalDue && totalDue > 0) {
+            paymentStatus = "Fully Paid";
+          } else if (totalPaid > 0) {
+            paymentStatus = "Partial";
+          }
+
+          summaries.push({
+            assessment_id: assessment.id,
+            student_number: assessment.student_number,
+            student_name: studentName,
+            course_program: programDisplay,
+            year_level: enrollment?.year_level ?? null,
+            academic_year: assessment.academic_year,
+            semester: assessment.semester,
+            payment_mode: assessment.payment_mode,
+            total_due: totalDue,
+            total_paid: totalPaid,
+            remaining_balance: remainingBalance,
+            payment_status: paymentStatus,
+          });
+        }
+      }
     }
 
-    console.log(`Returning ${studentsWithAssessment.length} students after filtering`);
+    // Filter by payment status if specified
+    if (statusFilter) {
+      summaries = summaries.filter((s) => s.payment_status === statusFilter);
+    }
+
+    // Sort by student number
+    summaries.sort((a, b) => a.student_number.localeCompare(b.student_number));
 
     return NextResponse.json({
       success: true,
-      data: studentsWithAssessment,
-      total: studentsWithAssessment.length,
+      data: summaries,
+      total: summaries.length,
     });
   } catch (error) {
     console.error("Error fetching assessment summaries:", error);
     return NextResponse.json(
-      { error: "Internal server error", details: error instanceof Error ? error.message : "Unknown error" },
-      { status: 500 }
+      {
+        error: "Internal server error",
+        details: error instanceof Error ? error.message : "Unknown error",
+      },
+      { status: 500 },
     );
   }
 }
