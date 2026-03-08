@@ -935,8 +935,7 @@ const AssessmentManagement: React.FC = () => {
   const fetchFees = async () => {
     try {
       const response = await fetch("/api/auth/fees/summarized", {
-        cache: 'force-cache', // Cache fees for better performance
-        next: { revalidate: 300 }, // Revalidate every 5 minutes
+        cache: 'no-store',
       });
       if (response.ok) {
         const data = await response.json();

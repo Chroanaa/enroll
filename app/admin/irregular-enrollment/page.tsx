@@ -5,12 +5,13 @@ import { useRouter } from 'next/navigation';
 import Navigation from '../../components/Navigation';
 import ConfirmationModal from '../../components/common/ConfirmationModal';
 import SuccessModal from '../../components/common/SuccessModal';
+import RegistrationPDFViewer from '../../components/enrollment/RegistrationPDFViewer';
 import { useProgramsWithMajors } from '../../hooks/useProgramsWithMajors';
 import { colors } from '../../colors';
 import {
   ArrowLeft, Search, AlertCircle, Loader2, BookOpen,
   User, GraduationCap, Trash2, Plus, Calendar, X, Users,
-  CheckCircle2, Clock, MapPin, ChevronRight
+  CheckCircle2, Clock, MapPin, ChevronRight, Download
 } from 'lucide-react';
 
 interface Student {
@@ -125,6 +126,9 @@ export default function IrregularEnrollmentPage() {
   const [paymentWarningModal, setPaymentWarningModal] = useState<{ isOpen: boolean; student: Student | null }>({ isOpen: false, student: null });
   const [enrollConfirmModal, setEnrollConfirmModal] = useState(false);
   const [enrolling, setEnrolling] = useState(false);
+  const [showRegistrationPDF, setShowRegistrationPDF] = useState(false);
+  const [registrationData, setRegistrationData] = useState<any>(null);
+  const [loadingRegistration, setLoadingRegistration] = useState(false);
 
   const [academicYear, setAcademicYear] = useState('2025-2026');
   const [semester, setSemester] = useState('second');
@@ -250,12 +254,40 @@ export default function IrregularEnrollmentPage() {
     if (!selectedStudent) return;
     setLoadingEnrolled(true);
     try {
+      console.log('[loadEnrolledSubjects] Fetching for:', {
+        studentNumber: selectedStudent.studentNumber,
+        academicYear,
+        semester
+      });
+      
       const res = await fetch(`/api/irregular-enrollment?studentNumber=${selectedStudent.studentNumber}&academicYear=${academicYear}&semester=${semester}`);
-      if (res.ok) { const d = await res.json(); setEnrolledSubjects(d.data || []); }
+      if (res.ok) { 
+        const d = await res.json(); 
+        console.log('[loadEnrolledSubjects] Irregular enrollment data:', d.data);
+        setEnrolledSubjects(d.data || []); 
+      }
+      
       const semNum = semester === 'first' ? 1 : semester === 'second' ? 2 : parseInt(semester);
+      console.log('[loadEnrolledSubjects] Fetching assessment subjects with semNum:', semNum);
+      
       const aRes = await fetch(`/api/auth/enrolled-subjects?studentNumber=${selectedStudent.studentNumber}&academicYear=${academicYear}&semester=${semNum}`);
-      if (aRes.ok) { const ad = await aRes.json(); setEnrolledSubjectsFromAssessment(ad.data || []); }
-    } catch (e) { console.error(e); setEnrolledSubjects([]); setEnrolledSubjectsFromAssessment([]); } finally { setLoadingEnrolled(false); }
+      console.log('[loadEnrolledSubjects] Assessment API response status:', aRes.status);
+      
+      if (aRes.ok) { 
+        const ad = await aRes.json(); 
+        console.log('[loadEnrolledSubjects] Assessment subjects data:', ad);
+        setEnrolledSubjectsFromAssessment(ad.data || []); 
+      } else {
+        const errorData = await aRes.json();
+        console.error('[loadEnrolledSubjects] Assessment API error:', errorData);
+      }
+    } catch (e) { 
+      console.error('[loadEnrolledSubjects] Exception:', e); 
+      setEnrolledSubjects([]); 
+      setEnrolledSubjectsFromAssessment([]); 
+    } finally { 
+      setLoadingEnrolled(false); 
+    }
   };
 
   const formatTime = (isoTime: string) => {
@@ -315,6 +347,28 @@ export default function IrregularEnrollmentPage() {
       setEnrollConfirmModal(false);
     } finally {
       setEnrolling(false);
+    }
+  };
+
+  const handleViewRegistration = async () => {
+    if (!selectedStudent) return;
+    
+    setLoadingRegistration(true);
+    try {
+      const response = await fetch(`/api/auth/enrollment/registration?studentNumber=${selectedStudent.studentNumber}&academicYear=${academicYear}&semester=${semester}`);
+      
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error || 'Failed to load registration data');
+      }
+
+      const result = await response.json();
+      setRegistrationData(result.data);
+      setShowRegistrationPDF(true);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Failed to load registration');
+    } finally {
+      setLoadingRegistration(false);
     }
   };
 
@@ -759,8 +813,27 @@ export default function IrregularEnrollmentPage() {
                     </span>
                   </div>
                   
-                  {/* Enroll Button */}
-                  <div className="px-5 py-4 flex-shrink-0" style={{ borderTop: '1px solid rgba(179,116,74,0.08)', backgroundColor: 'white' }}>
+                  {/* Action Buttons */}
+                  <div className="px-5 py-4 flex-shrink-0 space-y-2" style={{ borderTop: '1px solid rgba(179,116,74,0.08)', backgroundColor: 'white' }}>
+                    <button
+                      onClick={handleViewRegistration}
+                      disabled={loadingRegistration}
+                      className="w-full px-4 py-3 rounded-xl text-sm font-semibold transition-all hover:shadow-lg disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                      style={{ backgroundColor: colors.secondary, color: 'white' }}
+                    >
+                      {loadingRegistration ? (
+                        <>
+                          <Loader2 className="w-4 h-4 animate-spin" />
+                          <span>Loading...</span>
+                        </>
+                      ) : (
+                        <>
+                          <Download className="w-4 h-4" />
+                          <span>View Registration</span>
+                        </>
+                      )}
+                    </button>
+                    
                     <button
                       onClick={() => setEnrollConfirmModal(true)}
                       disabled={enrolling}
@@ -1017,6 +1090,17 @@ export default function IrregularEnrollmentPage() {
         autoClose={true}
         autoCloseDelay={3000}
       />
+
+      {/* Registration PDF Viewer */}
+      {showRegistrationPDF && registrationData && (
+        <RegistrationPDFViewer
+          data={registrationData}
+          onClose={() => {
+            setShowRegistrationPDF(false);
+            setRegistrationData(null);
+          }}
+        />
+      )}
     </div>
   );
 }
