@@ -72,7 +72,7 @@ export const EnrollmentsTabContent: React.FC<EnrollmentsTabContentProps> = ({
     setIsLoadingStudents(true);
     try {
       const params = new URLSearchParams();
-      if (academicYearSearch) params.set("academic_year", academicYearSearch);
+      if (academicYearSearch) params.set("academicYear", academicYearSearch);
       if (semesterSearch) params.set("semester", String(semesterSearch));
       if (searchTerm) params.set("search", searchTerm);
 
@@ -92,9 +92,11 @@ export const EnrollmentsTabContent: React.FC<EnrollmentsTabContentProps> = ({
   };
 
   useEffect(() => {
-    fetchAllStudents();
+    if (academicYearSearch) {
+      fetchAllStudents();
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [academicYearSearch, semesterSearch]);
 
   const filteredStudents = useMemo(() => {
     let result = allStudents;

@@ -107,13 +107,9 @@ export async function POST(request: NextRequest) {
         createdPayments.push(payment);
       }
 
-      // For installment assessments: if down_payment is not yet set AND this is NOT a schedule
+      // For ALL payment modes: if down_payment is not yet set AND this is NOT a schedule
       // term payment (no scheduleLabel), then this payment is the downpayment — save it.
-      if (
-        assessment.payment_mode.toLowerCase() === "installment" &&
-        assessment.down_payment === null &&
-        !scheduleLabel
-      ) {
+      if (assessment.down_payment === null && !scheduleLabel) {
         await tx.student_assessment.update({
           where: { id: parseInt(assessmentId) },
           data: { down_payment: totalPaymentAmount },
