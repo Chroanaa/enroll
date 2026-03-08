@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useState } from "react";
 import { DollarSign, CreditCard, Calendar, CheckCircle } from "lucide-react";
 import { colors } from "../../colors";
 import type { Fee, EnrolledSubject } from "./types";
@@ -107,6 +107,10 @@ export const PaymentCalculationTab: React.FC<PaymentCalculationTabProps> = ({
       subject.fixedAmount !== null &&
       subject.fixedAmount > 0
   );
+  const [focusedFeeId, setFocusedFeeId] = useState<number | null>(null);
+  const [focusedTerm, setFocusedTerm] = useState<string | null>(null);
+  const formatNumber = (value: number): string =>
+    value.toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
   return (
     <div className="animate-in fade-in slide-in-from-top-2 duration-300">
       <div className="flex items-center justify-between mb-6">
@@ -301,11 +305,11 @@ export const PaymentCalculationTab: React.FC<PaymentCalculationTabProps> = ({
                   </div>
                 ) : (
                   <input
-                    type="number"
-                    value={item.value || ""}
+                    type="text"
+                    value={formatNumber(item.value || 0)}
                     onChange={(e) =>
                       !item.readonly &&
-                      item.setValue(parseFloat(e.target.value) || 0)
+                      item.setValue(parseFloat(e.target.value.replace(/,/g, '')) || 0)
                     }
                     readOnly={item.readonly}
                     className="w-32 px-3 py-2 rounded-lg border text-right text-sm bg-white/50"
@@ -348,8 +352,8 @@ export const PaymentCalculationTab: React.FC<PaymentCalculationTabProps> = ({
                   LAB
                 </span>
                 <input
-                  type="number"
-                  value={labFeeTotal || ""}
+                  type="text"
+                  value={formatNumber(labFeeTotal)}
                   readOnly
                   className="w-32 px-3 py-2 rounded-lg border text-right text-sm bg-white/50"
                   style={{
@@ -377,8 +381,8 @@ export const PaymentCalculationTab: React.FC<PaymentCalculationTabProps> = ({
                   {subject.course_code || subject.descriptive_title}
                 </span>
                 <input
-                  type="number"
-                  value={subject.fixedAmount || ""}
+                  type="text"
+                  value={formatNumber(subject.fixedAmount || 0)}
                   readOnly
                   className="w-32 px-3 py-2 rounded-lg border text-right text-sm bg-white/50"
                   style={{
@@ -412,12 +416,13 @@ export const PaymentCalculationTab: React.FC<PaymentCalculationTabProps> = ({
                     {fee.name}
                   </span>
                   <input
-                    type="number"
-                    value={dynamicFees[fee.id] || ""}
+                    type="text"
+                    value={focusedFeeId === fee.id ? (dynamicFees[fee.id]?.toString() || "") : formatNumber(dynamicFees[fee.id] || 0)}
                     onChange={(e) => {
+                      const raw = e.target.value.replace(/,/g, '');
                       setDynamicFees((prev) => ({
                         ...prev,
-                        [fee.id]: parseFloat(e.target.value) || 0,
+                        [fee.id]: parseFloat(raw) || 0,
                       }));
                     }}
                     className="w-32 px-3 py-2 rounded-lg border text-right text-sm bg-white/50"
@@ -426,10 +431,12 @@ export const PaymentCalculationTab: React.FC<PaymentCalculationTabProps> = ({
                       color: colors.primary,
                     }}
                     onFocus={(e) => {
+                      setFocusedFeeId(fee.id);
                       e.currentTarget.style.borderColor = colors.secondary;
                       e.currentTarget.style.boxShadow = `0 0 0 3px ${colors.secondary}10`;
                     }}
                     onBlur={(e) => {
+                      setFocusedFeeId(null);
                       e.currentTarget.style.borderColor =
                         colors.tertiary + "30";
                       e.currentTarget.style.boxShadow = "none";
@@ -454,8 +461,8 @@ export const PaymentCalculationTab: React.FC<PaymentCalculationTabProps> = ({
                 Total Fees
               </span>
               <input
-                type="number"
-                value={baseTotal || ""}
+                type="text"
+                value={formatNumber(baseTotal)}
                 readOnly
                 className="w-32 px-3 py-2 rounded-lg border text-right text-sm bg-white/50"
                 style={{
@@ -543,11 +550,11 @@ export const PaymentCalculationTab: React.FC<PaymentCalculationTabProps> = ({
                   {item.label}
                 </span>
                 <input
-                  type="number"
-                  value={item.value || ""}
+                  type="text"
+                  value={formatNumber(item.value || 0)}
                   onChange={(e) =>
                     !item.readonly &&
-                    item.setValue(parseFloat(e.target.value) || 0)
+                    item.setValue(parseFloat(e.target.value.replace(/,/g, '')) || 0)
                   }
                   readOnly={item.readonly}
                   className="w-32 px-3 py-2 rounded-lg border text-right text-sm bg-white/50"
@@ -713,18 +720,20 @@ export const PaymentCalculationTab: React.FC<PaymentCalculationTabProps> = ({
                             style={{ borderColor: colors.accent + "20" }}
                           >
                             <input
-                              type="number"
-                              value={item.amount || ""}
+                              type="text"
+                              value={focusedTerm === item.term ? (item.amount?.toString() || "") : formatNumber(item.amount || 0)}
                               onChange={(e) =>
-                                item.setAmount(parseFloat(e.target.value) || 0)
+                                item.setAmount(parseFloat(e.target.value.replace(/,/g, '')) || 0)
                               }
                               className="w-full border-none outline-none bg-transparent text-right text-sm rounded-lg px-2 py-1 hover:bg-white/50 focus:bg-white focus:ring-2 focus:ring-offset-0 transition-all"
                               style={{ color: colors.primary }}
                               onFocus={(e) => {
+                                setFocusedTerm(item.term);
                                 e.currentTarget.style.backgroundColor = "white";
                                 e.currentTarget.style.boxShadow = `0 0 0 3px ${colors.secondary}10`;
                               }}
                               onBlur={(e) => {
+                                setFocusedTerm(null);
                                 e.currentTarget.style.backgroundColor =
                                   "transparent";
                                 e.currentTarget.style.boxShadow = "none";
@@ -773,24 +782,24 @@ export const PaymentCalculationTab: React.FC<PaymentCalculationTabProps> = ({
           <div className="space-y-2">
             <div className="flex justify-between items-center py-2">
               <span className="text-sm font-medium" style={{ color: colors.primary }}>Gross Tuition:</span>
-              <span className="text-sm font-semibold" style={{ color: colors.primary }}>₱{tuition.toFixed(2)}</span>
+              <span className="text-sm font-semibold" style={{ color: colors.primary }}>₱{formatNumber(tuition)}</span>
             </div>
             <div className="flex justify-between items-center py-2">
               <span className="text-sm font-medium" style={{ color: colors.primary }}>Discount:</span>
-              <span className="text-sm font-semibold" style={{ color: colors.secondary }}>-₱{discount.toFixed(2)}</span>
+              <span className="text-sm font-semibold" style={{ color: colors.secondary }}>-₱{formatNumber(discount)}</span>
             </div>
             <div className="flex justify-between items-center py-2">
               <span className="text-sm font-medium" style={{ color: colors.primary }}>Net Tuition:</span>
-              <span className="text-sm font-semibold" style={{ color: colors.primary }}>₱{netTuition.toFixed(2)}</span>
+              <span className="text-sm font-semibold" style={{ color: colors.primary }}>₱{formatNumber(netTuition)}</span>
             </div>
             <div className="flex justify-between items-center py-2">
               <span className="text-sm font-medium" style={{ color: colors.primary }}>Dynamic Fees:</span>
-              <span className="text-sm font-semibold" style={{ color: colors.primary }}>₱{totalFees.toFixed(2)}</span>
+              <span className="text-sm font-semibold" style={{ color: colors.primary }}>₱{formatNumber(totalFees)}</span>
             </div>
             {fixedAmountTotal > 0 && (
               <div className="flex justify-between items-center py-2">
                 <span className="text-sm font-medium" style={{ color: colors.primary }}>Additional Fees:</span>
-                <span className="text-sm font-semibold" style={{ color: colors.primary }}>₱{fixedAmountTotal.toFixed(2)}</span>
+                <span className="text-sm font-semibold" style={{ color: colors.primary }}>₱{formatNumber(fixedAmountTotal)}</span>
               </div>
             )}
             <div className="border-t pt-2 mt-2" style={{ borderColor: colors.accent + "20" }}>
@@ -799,7 +808,7 @@ export const PaymentCalculationTab: React.FC<PaymentCalculationTabProps> = ({
                   {paymentMode === 'cash' ? 'TOTAL DUE (Cash):' : 'TOTAL DUE (Installment):'}
                 </span>
                 <span className="text-lg font-bold" style={{ color: colors.secondary }}>
-                  ₱{paymentMode === 'cash' ? totalDueCash.toFixed(2) : totalInstallment.toFixed(2)}
+                  ₱{paymentMode === 'cash' ? formatNumber(totalDueCash) : formatNumber(totalInstallment)}
                 </span>
               </div>
             </div>
