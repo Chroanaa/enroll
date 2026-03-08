@@ -98,7 +98,7 @@ const AssessmentStudentList: React.FC<AssessmentStudentListProps> = ({
             ) : (
               students.map((student) => (
                 <tr
-                  key={student.id}
+                  key={student.student_number}
                   className='group hover:bg-gray-50/50 transition-colors'
                 >
                   <td className='px-3 py-2 whitespace-nowrap'>

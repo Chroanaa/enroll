@@ -984,7 +984,24 @@ const AssessmentManagement: React.FC = () => {
       if (response.ok) {
         const result = await response.json();
         console.log("Received students:", result);
-        setStudents(result.data || []);
+        // Transform API response fields to match AssessmentStudentList interface
+        const rawData: any[] = result.data || [];
+        const transformedStudents = rawData.map((item: any) => ({
+          id: item.assessment_id ?? item.id,
+          student_number: item.student_number,
+          first_name: item.first_name ?? item.student_name ?? "",
+          middle_name: item.middle_name,
+          family_name: item.family_name ?? "",
+          program_code: item.program_code ?? item.course_program ?? null,
+          year_level: item.year_level ?? null,
+          has_assessment: item.has_assessment !== undefined
+            ? item.has_assessment
+            : item.assessment_id !== undefined && item.assessment_id !== null,
+          assessment_date: item.assessment_date ?? null,
+          total_amount: item.total_amount ?? item.total_due ?? null,
+          photo: item.photo ?? null,
+        }));
+        setStudents(transformedStudents);
       } else {
         const error = await response.json();
         console.error("Error response:", error);
