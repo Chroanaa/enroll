@@ -29,7 +29,9 @@ export function StudentAssignment({
   const [selectedStudents, setSelectedStudents] = useState<Set<string>>(
     new Set()
   );
-  const [assigned, setAssigned] = useState(0);
+  const [assignedStudents, setAssignedStudents] = useState<any[]>([]);
+  const [overrideCapacity, setOverrideCapacity] = useState(false);
+  const [showAssigned, setShowAssigned] = useState(false);
 
   const [filters, setFilters] = useState({
     program: '',
@@ -41,6 +43,8 @@ export function StudentAssignment({
     if (isOpen && section) {
       loadEligibleStudents();
       loadAssignedStudents();
+      setOverrideCapacity(false);
+      setShowAssigned(false);
     }
   }, [isOpen, section]);
 
@@ -80,7 +84,7 @@ export function StudentAssignment({
         academicYear: section!.academicYear,
         semester: section!.semester
       });
-      setAssigned(assignments.length);
+      setAssignedStudents(assignments);
     } catch (err) {
       console.error('Failed to load assigned students:', err);
     }
@@ -99,10 +103,11 @@ export function StudentAssignment({
   };
 
   const handleSelectAll = () => {
-    if (selectedStudents.size === filteredStudents.length) {
+    const selectableStudents = filteredStudents.filter(s => !s.isAssigned);
+    if (selectedStudents.size === selectableStudents.length && selectableStudents.length > 0) {
       setSelectedStudents(new Set());
     } else {
-      const allNumbers = filteredStudents.map((s) => s.studentNumber);
+      const allNumbers = selectableStudents.map((s) => s.studentNumber);
       setSelectedStudents(new Set(allNumbers));
     }
   };
@@ -121,13 +126,17 @@ export function StudentAssignment({
         sectionId: section!.id,
         studentNumbers: Array.from(selectedStudents),
         academicYear: section!.academicYear,
-        semester: section!.semester
+        semester: section!.semester,
+        overrideCapacity
       });
 
-      if (response.failed > 0) {
-        setError(
-          `Assigned: ${response.success}, Failed: ${response.failed}`
-        );
+      const failedCount = Array.isArray(response.failed) ? response.failed.length : (response.failed as unknown as number) || 0;
+      const assignedCount = response.assigned ?? 0;
+      if (failedCount > 0) {
+        const failedReasons = Array.isArray(response.failed)
+          ? response.failed.map((f: any) => `${f.studentNumber}: ${f.reason}`).join(', ')
+          : '';
+        setError(`Assigned: ${assignedCount}, Failed: ${failedCount}${failedReasons ? ` — ${failedReasons}` : ''}`);
       } else {
         setError(null);
       }
@@ -166,6 +175,12 @@ export function StudentAssignment({
 
   if (!section || !isOpen) return null;
 
+  const assigned = assignedStudents.length;
+  const regularCount = assignedStudents.filter(s => s.assignmentType === 'regular').length;
+  const irregularCount = assignedStudents.filter(s => s.assignmentType === 'irregular').length;
+  const isFull = section.maxCapacity > 0 && section.studentCount >= section.maxCapacity;
+  const canAssignMore = !isFull || overrideCapacity;
+
   return (
     <div
       className="fixed inset-0 flex items-center justify-center p-4 z-50 backdrop-blur-sm"
@@ -199,10 +214,9 @@ export function StudentAssignment({
                 Assign Students - {section.sectionName}
               </h2>
               <p className="text-xs text-gray-500">
-                Capacity: {section.studentCount} / {section.maxCapacity}
-                {section.studentCount >= section.maxCapacity && (
-                  <span className="text-red-600 font-medium"> (FULL)</span>
-                )}
+                Capacity: {section.studentCount} / {section.maxCapacity === 0 ? '∞' : section.maxCapacity}
+                {isFull && !overrideCapacity && <span className="text-red-600 font-medium"> (FULL)</span>}
+                {isFull && overrideCapacity && <span className="text-yellow-600 font-medium"> (OVERRIDE ON)</span>}
               </p>
             </div>
           </div>
@@ -279,11 +293,11 @@ export function StudentAssignment({
                       <input
                         type="checkbox"
                         checked={
-                          selectedStudents.size === filteredStudents.length &&
-                          filteredStudents.length > 0
+                          selectedStudents.size > 0 &&
+                          selectedStudents.size === filteredStudents.filter(s => !s.isAssigned).length
                         }
                         onChange={handleSelectAll}
-                        disabled={section.studentCount >= section.maxCapacity}
+                        disabled={!canAssignMore || filteredStudents.filter(s => !s.isAssigned).length === 0}
                         className="w-3.5 h-3.5 rounded border-gray-300 focus:ring-2 focus:ring-blue-500 cursor-pointer"
                         style={{ accentColor: colors.secondary }}
                       />
@@ -291,6 +305,7 @@ export function StudentAssignment({
                     <th className="px-3 py-2 text-left text-[10px] font-bold uppercase tracking-wider text-gray-600">Student Number</th>
                     <th className="px-3 py-2 text-left text-[10px] font-bold uppercase tracking-wider text-gray-600">Name</th>
                     <th className="px-3 py-2 text-left text-[10px] font-bold uppercase tracking-wider text-gray-600">Email</th>
+                    <th className="px-3 py-2 text-left text-[10px] font-bold uppercase tracking-wider text-gray-600">Status</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-100">
@@ -305,7 +320,7 @@ export function StudentAssignment({
                     </tr>
                   ) : filteredStudents.length === 0 ? (
                     <tr>
-                      <td colSpan={4} className="px-3 py-8 text-center text-gray-500">
+                      <td colSpan={5} className="px-3 py-8 text-center text-gray-500">
                         <div className="flex flex-col items-center justify-center gap-3">
                           <div
                             className="p-3 rounded-full"
@@ -319,40 +334,55 @@ export function StudentAssignment({
                       </td>
                     </tr>
                   ) : (
-                    filteredStudents.map((student) => (
-                      <tr key={student.studentId} className="group hover:bg-gray-50/50 transition-colors">
-                        <td className="px-3 py-2 whitespace-nowrap">
-                          <input
-                            type="checkbox"
-                            checked={selectedStudents.has(
-                              student.studentNumber
+                    filteredStudents.map((student) => {
+                      const alreadyAssigned = !!student.isAssigned;
+                      return (
+                        <tr
+                          key={student.studentId}
+                          className={`group transition-colors ${
+                            alreadyAssigned ? 'opacity-60 bg-gray-50' : 'hover:bg-gray-50/50'
+                          }`}
+                        >
+                          <td className="px-3 py-2 whitespace-nowrap">
+                            <input
+                              type="checkbox"
+                              checked={selectedStudents.has(student.studentNumber)}
+                              onChange={() => handleSelectStudent(student.studentNumber)}
+                              disabled={
+                                alreadyAssigned ||
+                                (!canAssignMore && !selectedStudents.has(student.studentNumber))
+                              }
+                              className="w-3.5 h-3.5 rounded border-gray-300 focus:ring-2 focus:ring-blue-500 cursor-pointer"
+                              style={{ accentColor: colors.secondary }}
+                            />
+                          </td>
+                          <td className="px-3 py-2 whitespace-nowrap">
+                            <span className="text-xs font-medium" style={{ color: alreadyAssigned ? '#9CA3AF' : colors.primary }}>
+                              {student.studentNumber}
+                            </span>
+                          </td>
+                          <td className="px-3 py-2 whitespace-nowrap">
+                            <span className={`text-xs font-medium ${alreadyAssigned ? 'text-gray-400' : 'text-gray-700'}`}>
+                              {student.firstName} {student.middleName} {student.lastName}
+                            </span>
+                          </td>
+                          <td className="px-3 py-2 whitespace-nowrap">
+                            <span className="text-xs text-gray-400">{student.email}</span>
+                          </td>
+                          <td className="px-3 py-2 whitespace-nowrap">
+                            {alreadyAssigned ? (
+                              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium bg-gray-100 text-gray-500">
+                                Assigned{student.assignedSectionName ? ` (${student.assignedSectionName})` : ''}
+                              </span>
+                            ) : (
+                              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium bg-green-50 text-green-700">
+                                Available
+                              </span>
                             )}
-                            onChange={() =>
-                              handleSelectStudent(student.studentNumber)
-                            }
-                            disabled={
-                              section.studentCount >= section.maxCapacity &&
-                              !selectedStudents.has(student.studentNumber)
-                            }
-                            className="w-3.5 h-3.5 rounded border-gray-300 focus:ring-2 focus:ring-blue-500 cursor-pointer"
-                            style={{ accentColor: colors.secondary }}
-                          />
-                        </td>
-                        <td className="px-3 py-2 whitespace-nowrap">
-                          <span className="text-xs font-medium" style={{ color: colors.primary }}>
-                            {student.studentNumber}
-                          </span>
-                        </td>
-                        <td className="px-3 py-2 whitespace-nowrap">
-                          <span className="text-xs font-medium text-gray-700">
-                            {student.firstName} {student.middleName} {student.lastName}
-                          </span>
-                        </td>
-                        <td className="px-3 py-2 whitespace-nowrap">
-                          <span className="text-xs text-gray-600">{student.email}</span>
-                        </td>
-                      </tr>
-                    ))
+                          </td>
+                        </tr>
+                      );
+                    })
                   )}
                 </tbody>
               </table>
@@ -367,15 +397,78 @@ export function StudentAssignment({
               borderColor: `${colors.info}30`,
             }}
           >
-            <div className="flex items-center gap-2 text-xs font-medium" style={{ color: colors.info }}>
-              <Users className="w-4 h-4" />
-              <span>
-                Selected: <strong>{selectedStudents.size}</strong> | 
-                Assigned: <strong>{assigned}</strong> | 
-                Available: <strong>{section.maxCapacity - section.studentCount}</strong>
-              </span>
+            <div className="flex flex-col gap-2">
+              <div className="flex items-center gap-2 text-xs font-medium" style={{ color: colors.info }}>
+                <Users className="w-4 h-4" />
+                <span>
+                  Selected: <strong>{selectedStudents.size}</strong> |
+                  Assigned: <strong>{assigned}</strong> |
+                  Available: <strong>{section.maxCapacity === 0 ? '∞' : Math.max(0, section.maxCapacity - section.studentCount)}</strong>
+                </span>
+              </div>
+              {assigned > 0 && (
+                <div className="flex items-center gap-2 text-xs flex-wrap">
+                  <span className="px-2 py-0.5 rounded-full bg-blue-100 text-blue-700 font-medium">Regular: {regularCount}</span>
+                  <span className="px-2 py-0.5 rounded-full bg-purple-100 text-purple-700 font-medium">Irregular: {irregularCount}</span>
+                  <button
+                    onClick={() => setShowAssigned(v => !v)}
+                    className="ml-auto text-blue-600 underline text-xs"
+                  >
+                    {showAssigned ? 'Hide' : 'View'} assigned list
+                  </button>
+                </div>
+              )}
+              {isFull && (
+                <label className="flex items-center gap-2 text-xs cursor-pointer select-none">
+                  <input
+                    type="checkbox"
+                    checked={overrideCapacity}
+                    onChange={e => setOverrideCapacity(e.target.checked)}
+                    className="w-3.5 h-3.5 rounded"
+                    style={{ accentColor: colors.secondary }}
+                  />
+                  <span className="font-medium text-yellow-700">Override capacity limit (section is full)</span>
+                </label>
+              )}
             </div>
           </div>
+
+          {/* Assigned Students List */}
+          {showAssigned && assignedStudents.length > 0 && (
+            <div
+              className="rounded-2xl border overflow-hidden"
+              style={{ borderColor: colors.neutralBorder }}
+            >
+              <div
+                className="px-3 py-2 text-[10px] font-bold uppercase tracking-wider text-gray-600"
+                style={{ backgroundColor: `${colors.primary}05`, borderBottom: `1px solid ${colors.primary}10` }}
+              >
+                Assigned Students ({assigned})
+              </div>
+              <div className="divide-y divide-gray-100 max-h-44 overflow-y-auto">
+                {assignedStudents.map(s => (
+                  <div key={s.studentNumber} className="flex items-center px-3 py-1.5 text-xs gap-2">
+                    <span className="font-medium w-24 shrink-0" style={{ color: colors.primary }}>
+                      {s.studentNumber}
+                    </span>
+                    <span className="text-gray-600 flex-1 truncate">{s.name}</span>
+                    <span
+                      className={`px-2 py-0.5 rounded-full font-medium text-[10px] shrink-0 ${
+                        s.assignmentType === 'irregular'
+                          ? 'bg-purple-100 text-purple-700'
+                          : 'bg-blue-100 text-blue-700'
+                      }`}
+                    >
+                      {s.assignmentType === 'irregular' ? 'Irregular' : 'Regular'}
+                    </span>
+                    {s.assignmentType === 'irregular' && s.subjectCount > 0 && (
+                      <span className="text-gray-400 text-[10px] shrink-0">{s.subjectCount} subj</span>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
         </div>
 
         {/* Actions */}
@@ -411,7 +504,7 @@ export function StudentAssignment({
             disabled={
               loading ||
               selectedStudents.size === 0 ||
-              section.studentCount >= section.maxCapacity
+              !canAssignMore
             }
             className="px-6 py-2.5 text-white rounded-xl transition-all font-medium flex items-center gap-2 shadow-lg disabled:opacity-50 disabled:cursor-not-allowed"
             style={{ 

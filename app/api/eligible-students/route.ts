@@ -201,28 +201,53 @@ export async function GET(request: NextRequest) {
       `After filtering by year/term: ${matchingStudents.length} students`,
     );
 
-    // Filter out already assigned students for this term
-    const eligibleStudents = [];
-    for (const enrollment of matchingStudents) {
-      if (!enrollment.student_number) continue; // Skip if no student number
+    // Get all student_section assignments for this term in bulk (one query instead of N)
+    const studentNumbers = matchingStudents
+      .map(e => e.student_number)
+      .filter(Boolean) as string[];
 
-      const isAssigned = await prisma.student_section.findUnique({
-        where: {
-          student_number_academic_year_semester: {
-            student_number: enrollment.student_number,
-            academic_year: targetAcademicYear!,
-            semester: normalizedSemester,
-          },
-        },
-      });
+    const existingAssignments = await prisma.student_section.findMany({
+      where: {
+        student_number: { in: studentNumbers },
+        academic_year: targetAcademicYear!,
+        semester: normalizedSemester,
+      },
+      select: {
+        student_number: true,
+        section_id: true,
+      },
+    });
 
-      console.log(
-        `Student ${enrollment.student_number}: assigned = ${!!isAssigned}`,
-      );
+    // Build a map of student_number -> section_id for already-assigned students
+    const assignedMap = new Map(
+      existingAssignments.map(a => [a.student_number, a.section_id])
+    );
 
-      if (!isAssigned) {
-        eligibleStudents.push({
-          studentId: enrollment.id, // Use enrollment ID
+    // Get section names for assigned students (to display "Already in Section X")
+    const assignedSectionIds = [...new Set(existingAssignments.map(a => a.section_id))];
+    const assignedSections = assignedSectionIds.length > 0
+      ? await prisma.sections.findMany({
+          where: { id: { in: assignedSectionIds } },
+          select: { id: true, section_name: true },
+        })
+      : [];
+    const sectionNameMap = new Map(assignedSections.map(s => [s.id, s.section_name]));
+
+    // Return ALL matching students — mark already-assigned ones so the UI can show/disable them
+    const eligibleStudents = matchingStudents
+      .filter(e => e.student_number)
+      .map(enrollment => {
+        const assignedSectionId = assignedMap.get(enrollment.student_number!);
+        const assignedSectionName = assignedSectionId
+          ? sectionNameMap.get(assignedSectionId) ?? null
+          : null;
+
+        console.log(
+          `Student ${enrollment.student_number}: assigned = ${!!assignedSectionId}${assignedSectionName ? ` (${assignedSectionName})` : ''}`,
+        );
+
+        return {
+          studentId: enrollment.id,
           studentNumber: enrollment.student_number,
           firstName: enrollment.first_name,
           middleName: enrollment.middle_name,
@@ -233,9 +258,10 @@ export async function GET(request: NextRequest) {
           programCode: program.code,
           programName: program.name,
           academicStatus: enrollment.academic_status || "regular",
-        });
-      }
-    }
+          isAssigned: !!assignedSectionId,
+          assignedSectionName: assignedSectionName,
+        };
+      });
 
     console.log(`Returning ${eligibleStudents.length} eligible students`);
 

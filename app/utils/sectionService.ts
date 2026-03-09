@@ -180,7 +180,8 @@ export const capacityValidator = {
 
     const currentCount = section.student_count || 0;
     const maxCapacity = section.max_capacity || 0;
-    const canAdd = currentCount + numberToAdd <= maxCapacity;
+    // maxCapacity=0 means unlimited — never block
+    const canAdd = maxCapacity === 0 || currentCount + numberToAdd <= maxCapacity;
 
     return { canAdd, currentCount, maxCapacity };
   },
@@ -204,8 +205,9 @@ export const capacityValidator = {
 
     const currentCount = section.student_count || 0;
     const maxCapacity = section.max_capacity || 0;
-    const available = Math.max(0, maxCapacity - currentCount);
-    const isFull = currentCount >= maxCapacity;
+    const available = maxCapacity === 0 ? Infinity : Math.max(0, maxCapacity - currentCount);
+    // maxCapacity=0 means unlimited — never full
+    const isFull = maxCapacity > 0 && currentCount >= maxCapacity;
 
     return { currentCount, maxCapacity, available, isFull };
   }

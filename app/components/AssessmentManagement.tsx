@@ -1178,7 +1178,33 @@ const AssessmentManagement: React.FC = () => {
 
     try {
       const semesterNum = currentTerm.semester === "First" ? 1 : 2;
-      
+
+      // Always persist enrolled subjects to enrolled_subjects table before saving assessment
+      if (enrolledSubjects.length > 0) {
+        try {
+          await fetch("/api/auth/enrolled-subjects", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              studentNumber: studentNumber.trim(),
+              programId,
+              academicYear: currentTerm.academicYear,
+              semester: semesterNum,
+              subjects: enrolledSubjects.map((s) => ({
+                id: s.id,
+                curriculum_course_id: (s as any).curriculum_course_id || s.id,
+                subject_id: s.subject_id || null,
+                year_level: s.year_level,
+                units_total: s.units_total,
+              })),
+            }),
+          });
+        } catch (enrollErr) {
+          console.error("Error saving enrolled subjects during assessment save:", enrollErr);
+          // Non-blocking: continue saving assessment even if enrolled-subjects save fails
+        }
+      }
+
       // Prepare fee snapshots
       const feeSnapshots = fees
         .filter(fee => fee.status?.toLowerCase() === "active" && fee.category?.toLowerCase() !== "tuition")

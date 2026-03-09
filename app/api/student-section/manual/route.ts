@@ -93,11 +93,11 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Check section capacity (allow override for irregular with warning)
+    // Check section capacity (allow override for irregular; maxCapacity=0 means unlimited)
     const currentCount = section.student_count || 0;
     const maxCapacity = section.max_capacity || 0;
     
-    if (currentCount >= maxCapacity && type === 'regular') {
+    if (maxCapacity > 0 && currentCount >= maxCapacity && type === 'regular') {
       return NextResponse.json(
         { error: `Section is at full capacity (${currentCount}/${maxCapacity})` },
         { status: 400 }
@@ -135,7 +135,7 @@ export async function POST(request: NextRequest) {
         }
       });
 
-      // For irregular students, create subject assignments
+      // For irregular students, create subject assignments from provided classScheduleIds
       if (type === 'irregular' && classScheduleIds && classScheduleIds.length > 0) {
         await tx.student_section_subjects.createMany({
           data: classScheduleIds.map((scheduleId: number) => ({
@@ -144,6 +144,8 @@ export async function POST(request: NextRequest) {
           }))
         });
       }
+
+      // For regular students, auto-fill student_section_subjects matched to their enrolled_subjects\n      if (type === 'regular') {\n        const semesterNum = semester === 'first' ? 1 : semester === 'second' ? 2 : 3;\n        const sectionSchedules = await tx.class_schedule.findMany({\n          where: { section_id: sectionId, status: 'active' },\n          select: { id: true, curriculum_course_id: true }\n        });\n\n        const studentEnrolledSubjects = await tx.enrolled_subjects.findMany({\n          where: {\n            student_number: studentNumber,\n            academic_year: academicYear,\n            semester: semesterNum,\n            status: 'enrolled'\n          },\n          select: { curriculum_course_id: true }\n        });\n\n        const matchingScheduleIds: number[] = [];\n        for (const es of studentEnrolledSubjects) {\n          for (const s of sectionSchedules) {\n            if (s.curriculum_course_id === es.curriculum_course_id) {\n              matchingScheduleIds.push(s.id);\n            }\n          }\n        }\n\n        const scheduleIdsToAssign = matchingScheduleIds.length > 0\n          ? matchingScheduleIds\n          : sectionSchedules.map((s: { id: number }) => s.id);\n\n        if (scheduleIdsToAssign.length > 0) {\n          await tx.student_section_subjects.createMany({\n            data: scheduleIdsToAssign.map((id: number) => ({\n              student_section_id: studentSection.id,\n              class_schedule_id: id\n            })),\n            skipDuplicates: true\n          });\n        }\n      }
 
       // Update section student count
       await tx.sections.update({

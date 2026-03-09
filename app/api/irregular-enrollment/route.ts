@@ -359,12 +359,54 @@ export async function DELETE(request: NextRequest) {
       );
     }
 
+    // Find the subject assignment first so we know its student_section_id
+    const subjectAssignment = await prisma.student_section_subjects.findUnique({
+      where: { id: parseInt(id) }
+    });
+
+    if (!subjectAssignment) {
+      return NextResponse.json(
+        { error: 'Subject assignment not found' },
+        { status: 404 }
+      );
+    }
+
+    const studentSectionId = subjectAssignment.student_section_id;
+
     // Delete the subject assignment
     await prisma.student_section_subjects.delete({
       where: { id: parseInt(id) }
     });
 
-    return NextResponse.json({ success: true });
+    // Check if this was the last subject for this student_section
+    const remainingSubjects = await prisma.student_section_subjects.count({
+      where: { student_section_id: studentSectionId }
+    });
+
+    // If no subjects remain, remove the student_section row entirely and decrement section count
+    if (remainingSubjects === 0) {
+      const studentSection = await prisma.student_section.findUnique({
+        where: { id: studentSectionId }
+      });
+
+      if (studentSection) {
+        await prisma.$transaction(async (tx) => {
+          await tx.student_section.delete({
+            where: { id: studentSectionId }
+          });
+
+          await tx.sections.update({
+            where: { id: studentSection.section_id },
+            data: { student_count: { decrement: 1 } }
+          });
+        });
+      }
+    }
+
+    return NextResponse.json({ 
+      success: true,
+      removedFromSection: remainingSubjects === 0
+    });
 
   } catch (error) {
     console.error('Error removing subject:', error);

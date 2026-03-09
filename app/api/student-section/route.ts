@@ -99,18 +99,36 @@ export async function POST(request: NextRequest) {
     const failed: Array<{ studentNumber: string; reason: string }> = [];
     let assigned = 0;
 
+    // Fetch all active class schedules for this section once (includes curriculum_course_id for matching)
+    const sectionSchedules = await prisma.class_schedule.findMany({
+      where: {
+        section_id: body.sectionId,
+        status: 'active'
+      },
+      select: { id: true, curriculum_course_id: true }
+    });
+
+    // Build a map: curriculum_course_id -> class_schedule_id for quick lookup
+    const schedulesByCourse = new Map<number, number>();
+    for (const s of sectionSchedules) {
+      // Keep first schedule per course (lecture block) to avoid duplicates
+      if (!schedulesByCourse.has(s.curriculum_course_id)) {
+        schedulesByCourse.set(s.curriculum_course_id, s.id);
+      }
+    }
+
     // Process each student
     for (const studentNumber of body.studentNumbers) {
       try {
-        // Verify student exists
-        const student = await prisma.students.findUnique({
+        // Verify student exists in enrollment (same table used by eligible-students API)
+        const student = await prisma.enrollment.findFirst({
           where: { student_number: studentNumber }
         });
 
         if (!student) {
           failed.push({
             studentNumber,
-            reason: 'Student not found'
+            reason: 'Student not found in enrollment'
           });
           continue;
         }
@@ -131,31 +149,73 @@ export async function POST(request: NextRequest) {
           continue;
         }
 
-        // Check capacity
-        const { canAdd } = await capacityValidator.canAddStudents(
-          body.sectionId,
-          1
-        );
+        // Check capacity (skip when override is requested by admin)
+        if (!body.overrideCapacity) {
+          const { canAdd } = await capacityValidator.canAddStudents(
+            body.sectionId,
+            1
+          );
 
-        if (!canAdd) {
-          failed.push({
-            studentNumber,
-            reason: 'Section is at capacity'
-          });
-          continue;
+          if (!canAdd) {
+            failed.push({
+              studentNumber,
+              reason: 'Section is at capacity'
+            });
+            continue;
+          }
         }
 
         // Assign student in transaction
         await prisma.$transaction(async (tx: any) => {
           // Insert into student_section
-          await tx.student_section.create({
+          const studentSection = await tx.student_section.create({
             data: {
               student_number: studentNumber,
               section_id: body.sectionId,
               academic_year: body.academicYear,
-              semester: normalizedSemester
+              semester: normalizedSemester,
+              assignment_type: 'regular'
             }
           });
+
+          // Get this student's enrolled_subjects for the term to match against section schedules
+          const semesterNum = normalizedSemester === 'first' ? 1 : normalizedSemester === 'second' ? 2 : 3;
+          const studentEnrolledSubjects = await tx.enrolled_subjects.findMany({
+            where: {
+              student_number: studentNumber,
+              academic_year: body.academicYear,
+              semester: semesterNum,
+              status: 'enrolled'
+            },
+            select: { curriculum_course_id: true }
+          });
+
+          // Match enrolled subjects to section class schedules by curriculum_course_id
+          const matchingScheduleIds: number[] = [];
+          for (const es of studentEnrolledSubjects) {
+            // A subject may have both lecture + lab schedules — add ALL matching ones
+            for (const s of sectionSchedules) {
+              if (s.curriculum_course_id === es.curriculum_course_id) {
+                matchingScheduleIds.push(s.id);
+              }
+            }
+          }
+
+          // If student has enrolled subjects that match section schedules, use those
+          // Otherwise fall back to all section schedules (no enrolled_subjects data yet)
+          const scheduleIdsToAssign = matchingScheduleIds.length > 0
+            ? matchingScheduleIds
+            : sectionSchedules.map(s => s.id);
+
+          if (scheduleIdsToAssign.length > 0) {
+            await tx.student_section_subjects.createMany({
+              data: scheduleIdsToAssign.map(scheduleId => ({
+                student_section_id: studentSection.id,
+                class_schedule_id: scheduleId
+              })),
+              skipDuplicates: true
+            });
+          }
 
           // Increment section student count
           await tx.sections.update({
@@ -247,15 +307,15 @@ export async function GET(request: NextRequest) {
 
     const enrollmentMap = new Map(enrollments.map(e => [e.student_number, e]));
 
-    // Get subject counts for irregular students
-    const assignmentIds = assignments.filter(a => a.assignment_type === 'irregular').map(a => a.id);
+    // Get subject counts for ALL students (regular now also populates student_section_subjects)
+    const allAssignmentIds = assignments.map(a => a.id);
     let subjectCounts: Map<number, number> = new Map();
     
-    if (assignmentIds.length > 0) {
+    if (allAssignmentIds.length > 0) {
       try {
         const subjectAssignments = await prisma.student_section_subjects.groupBy({
           by: ['student_section_id'],
-          where: { student_section_id: { in: assignmentIds } },
+          where: { student_section_id: { in: allAssignmentIds } },
           _count: { class_schedule_id: true }
         });
         subjectCounts = new Map(subjectAssignments.map(s => [s.student_section_id, s._count.class_schedule_id]));
