@@ -339,45 +339,57 @@ export async function DELETE(request: NextRequest) {
     );
   }
 }
-export async function PATCH(nextRequest: NextRequest) {
+export async function PUT(nextRequest: NextRequest) {
   try {
     const data = await nextRequest.json();
+    
+    if (!data.id) {
+      return NextResponse.json(
+        { error: "Enrollment ID is required" },
+        { status: 400 },
+      );
+    }
+    
+    // Build update object with only provided fields
+    const updateData: any = {};
+    
+    // Map of allowed fields
+    const allowedFields = [
+      'student_number', 'admission_date', 'admission_status', 'term',
+      'department', 'course_program', 'year_level', 'requirements',
+      'family_name', 'first_name', 'middle_name', 'sex', 'civil_status',
+      'birthdate', 'birthplace', 'complete_address', 'contact_number',
+      'email_address', 'emergency_contact_name', 'emergency_relationship',
+      'emergency_contact_number', 'last_school_attended', 'previous_school_year',
+      'academic_year', 'program_shs', 'remarks', 'major_id', 'academic_status'
+    ];
+    
+    allowedFields.forEach((field) => {
+      if (data[field] !== undefined) {
+        // Handle date fields
+        if (field === 'admission_date' || field === 'birthdate') {
+          updateData[field] = data[field] ? new Date(data[field]) : null;
+        }
+        // Handle numeric fields
+        else if (field === 'year_level' || field === 'major_id' || field === 'department') {
+          updateData[field] = data[field] ? parseInt(String(data[field])) : null;
+        }
+        // Handle array fields
+        else if (field === 'requirements') {
+          updateData[field] = Array.isArray(data[field]) ? data[field] : [];
+        }
+        // Handle all other fields
+        else {
+          updateData[field] = data[field] || null;
+        }
+      }
+    });
+    
     const updatedEnrollment = await prisma.enrollment.update({
       where: { id: data.id },
-      data: {
-        student_number: data.student_number || null,
-        admission_date: data.admission_date
-          ? new Date(data.admission_date)
-          : null,
-        admission_status: data.admission_status || null,
-        term: data.term || null,
-        department: data.department,
-        course_program: data.course_program || null,
-        year_level: data.year_level ? parseInt(String(data.year_level)) : null,
-        requirements: data.requirements || [],
-        family_name: data.family_name || null,
-        first_name: data.first_name || null,
-        middle_name: data.middle_name || null,
-        sex: data.sex || null,
-        civil_status: data.civil_status || null,
-        birthdate: data.birthdate ? new Date(data.birthdate) : null,
-        birthplace: data.birthplace || null,
-        complete_address: data.complete_address || null,
-        contact_number: data.contact_number || null,
-        email_address: data.email_address || null,
-        emergency_contact_name: data.emergency_contact_name || null,
-        emergency_relationship: data.emergency_relationship || null,
-        emergency_contact_number: data.emergency_contact_number || null,
-        last_school_attended: data.last_school_attended || null,
-        previous_school_year:
-          (data as any).previous_school_year ||
-          (data as any).school_year ||
-          null,
-        academic_year: (data as any).academic_year || null,
-        program_shs: data.program_shs || null,
-        remarks: data.remarks || null,
-      } as any, // Type assertion until Prisma client is regenerated
+      data: updateData,
     });
+    
     return NextResponse.json(updatedEnrollment);
   } catch (error) {
     console.error("Update enrollment error:", error);
