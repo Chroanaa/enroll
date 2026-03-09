@@ -905,16 +905,18 @@ export default function BuildSchedulePage() {
       setLoading(true);
       setError(null);
 
+      const currentSchedule = editScheduleModal.schedule;
+
       // Build update data - convert times to ISO
       const updateData: any = {};
       
-      if (editFormData.facultyId && editFormData.facultyId !== editScheduleModal.schedule.facultyId?.toString()) {
+      if (editFormData.facultyId && editFormData.facultyId !== currentSchedule.facultyId?.toString()) {
         updateData.facultyId = parseInt(editFormData.facultyId);
       }
-      if (editFormData.roomId && editFormData.roomId !== editScheduleModal.schedule.roomId?.toString()) {
+      if (editFormData.roomId && editFormData.roomId !== currentSchedule.roomId?.toString()) {
         updateData.roomId = parseInt(editFormData.roomId);
       }
-      if (editFormData.dayOfWeek && editFormData.dayOfWeek !== editScheduleModal.schedule.dayOfWeek) {
+      if (editFormData.dayOfWeek && editFormData.dayOfWeek !== currentSchedule.dayOfWeek) {
         updateData.dayOfWeek = editFormData.dayOfWeek;
       }
       
@@ -932,7 +934,22 @@ export default function BuildSchedulePage() {
         updateData.endTime = endDate.toISOString();
       }
 
-      await updateClassSchedule(editScheduleModal.schedule.id, updateData);
+      // Find sibling schedule (lecture ↔ lab partner for same subject)
+      const siblings = schedules.filter(
+        s => s.curriculumCourseId === currentSchedule.curriculumCourseId && s.id !== currentSchedule.id
+      );
+
+      // Save the main schedule
+      await updateClassSchedule(currentSchedule.id, updateData);
+
+      // If faculty changed, sync it to all sibling schedules (lecture ↔ lab)
+      if (updateData.facultyId !== undefined && siblings.length > 0) {
+        await Promise.all(
+          siblings.map(sibling =>
+            updateClassSchedule(sibling.id, { facultyId: updateData.facultyId })
+          )
+        );
+      }
 
       // Reload schedules
       const updatedSchedules = await getClassSchedules({
@@ -944,7 +961,9 @@ export default function BuildSchedulePage() {
 
       setSuccessModal({
         isOpen: true,
-        message: 'Schedule updated successfully.'
+        message: siblings.length > 0 && updateData.facultyId !== undefined
+          ? 'Schedule updated. Faculty has been synced to all lecture/lab schedules for this subject.'
+          : 'Schedule updated successfully.'
       });
 
       setEditScheduleModal({ isOpen: false, schedule: null });
