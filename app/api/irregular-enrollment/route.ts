@@ -79,7 +79,7 @@ export async function GET(request: NextRequest) {
     const curriculumCourseIds = [...new Set(schedules.map(s => s.curriculum_course_id))];
     const curriculumCourses = await prisma.curriculum_course.findMany({
       where: { id: { in: curriculumCourseIds } },
-      select: { id: true, course_code: true, descriptive_title: true, units_total: true }
+      select: { id: true, course_code: true, descriptive_title: true, units_total: true, units_lec: true, units_lab: true, lecture_hour: true, lab_hour: true }
     });
     const courseMap = new Map(curriculumCourses.map(c => [c.id, c]));
 
@@ -120,6 +120,7 @@ export async function GET(request: NextRequest) {
       return {
         id: sa.id,
         classScheduleId: schedule.id,
+        curriculumCourseId: schedule.curriculum_course_id,
         sectionId: schedule.section_id,
         sectionName: section?.section_name || '',
         courseCode: course?.course_code || `Course ${schedule.curriculum_course_id}`,
@@ -129,7 +130,11 @@ export async function GET(request: NextRequest) {
         endTime: formatTime(schedule.end_time),
         roomNumber: room?.room_number || 'TBA',
         facultyName: faculty ? `${faculty.first_name} ${faculty.last_name}` : 'TBA',
-        unitsTotal: course?.units_total || 0
+        unitsTotal: course?.units_total || 0,
+        unitsLec: course?.units_lec ?? 0,
+        unitsLab: course?.units_lab ?? 0,
+        lectureHour: course?.lecture_hour ?? 0,
+        labHour: course?.lab_hour ?? 0,
       };
     }).filter(Boolean);
 

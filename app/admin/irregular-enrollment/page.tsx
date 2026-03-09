@@ -64,6 +64,7 @@ interface ClassSchedule {
 interface EnrolledSubject {
   id: number;
   classScheduleId: number;
+  curriculumCourseId: number;
   sectionId: number;
   sectionName: string;
   courseCode: string;
@@ -74,6 +75,10 @@ interface EnrolledSubject {
   roomNumber: string;
   facultyName: string;
   unitsTotal: number;
+  unitsLec: number;
+  unitsLab: number;
+  lectureHour: number;
+  labHour: number;
 }
 
 // Step indicator component
@@ -417,7 +422,37 @@ export default function IrregularEnrollmentPage() {
     const es = schedules.find(s => s.id === e.classScheduleId);
     return es && es.curriculumCourseId === curriculumCourseId;
   });
-  const totalUnits = enrolledSubjects.reduce((sum, e) => sum + (e.unitsTotal || 0), 0);
+
+  // Group enrolled subjects by curriculumCourseId so lecture+lab show as one card
+  const groupedEnrolledSubjects = Object.values(
+    enrolledSubjects.reduce((acc, subj) => {
+      const key = subj.curriculumCourseId || subj.courseCode;
+      if (!acc[key]) {
+        acc[key] = { ...subj, slots: [subj] };
+      } else {
+        acc[key].slots.push(subj);
+      }
+      return acc;
+    }, {} as Record<string | number, EnrolledSubject & { slots: EnrolledSubject[] }>)
+  );
+
+  // Determine if a slot is lecture or lab based on duration vs curriculum hours
+  const getSlotLabel = (slot: EnrolledSubject, totalSlots: number): 'Lecture' | 'Lab' | null => {
+    if (slot.lectureHour === 0) return 'Lab'; // lab-only subject
+    if (totalSlots === 1) return null; // single slot, no label needed
+    const [sh, sm] = slot.startTime.split(':').map(Number);
+    const [eh, em] = slot.endTime.split(':').map(Number);
+    const duration = (eh * 60 + em) - (sh * 60 + sm);
+    const lecMin = slot.lectureHour * 60;
+    const labMin = slot.labHour * 60;
+    if (lecMin > 0 && Math.abs(duration - lecMin) <= 30) return 'Lecture';
+    if (labMin > 0 && Math.abs(duration - labMin) <= 30) return 'Lab';
+    // fallback: longer = lecture, shorter = lab
+    return duration >= (lecMin || duration) ? 'Lecture' : 'Lab';
+  };
+
+  // Total units: count each unique subject only once
+  const totalUnits = groupedEnrolledSubjects.reduce((sum, g) => sum + (g.unitsTotal || 0), 0);
   const assessmentTotalUnits = enrolledSubjectsFromAssessment.reduce((sum: number, s: any) => sum + (s.units_total || 0), 0);
   const hasAssessmentSubjects = enrolledSubjectsFromAssessment.length > 0;
 
@@ -770,27 +805,51 @@ export default function IrregularEnrollmentPage() {
                 </div>
               ) : (
                 <div className="flex-1 overflow-y-auto p-4 space-y-2">
-                  {enrolledSubjects.map(subject => (
-                    <div key={subject.id} className="rounded-xl p-3 group" style={{ border: '1px solid rgba(16,185,129,0.2)', backgroundColor: 'rgba(16,185,129,0.03)' }}>
+                  {groupedEnrolledSubjects.map(group => (
+                    <div key={group.curriculumCourseId || group.courseCode} className="rounded-xl p-3 group" style={{ border: '1px solid rgba(16,185,129,0.2)', backgroundColor: 'rgba(16,185,129,0.03)' }}>
                       <div className="flex items-start gap-2">
                         <div className="flex-1 min-w-0">
+                          {/* Course header */}
                           <div className="flex items-center gap-2 flex-wrap">
-                            <span className="text-sm font-bold" style={{ color: colors.primary }}>{subject.courseCode}</span>
-                            <span className="text-[10px] font-medium px-1.5 py-0.5 rounded" style={{ backgroundColor: 'rgba(149,90,39,0.08)', color: colors.secondary }}>{subject.unitsTotal}u</span>
+                            <span className="text-sm font-bold" style={{ color: colors.primary }}>{group.courseCode}</span>
+                            {/* Unit breakdown */}
+                            {group.unitsLec > 0 && group.unitsLab > 0 ? (
+                              <span className="text-[10px] font-medium px-1.5 py-0.5 rounded" style={{ backgroundColor: 'rgba(149,90,39,0.08)', color: colors.secondary }}>
+                                {group.unitsLec}lec / {group.unitsLab}lab
+                              </span>
+                            ) : (
+                              <span className="text-[10px] font-medium px-1.5 py-0.5 rounded" style={{ backgroundColor: 'rgba(149,90,39,0.08)', color: colors.secondary }}>
+                                {group.unitsTotal}u
+                              </span>
+                            )}
                           </div>
-                          <div className="text-xs mt-0.5 truncate" style={{ color: colors.neutral }}>{subject.courseTitle}</div>
-                          <div className="flex flex-wrap gap-x-2 gap-y-0.5 mt-1.5">
-                            <span className="text-[10px] px-1.5 py-0.5 rounded font-medium" style={{ backgroundColor: 'rgba(99,102,241,0.08)', color: '#6366F1' }}>{subject.sectionName}</span>
-                            <span className="flex items-center gap-1 text-[10px]" style={{ color: colors.tertiary }}>
-                              <Clock className="w-3 h-3" />{subject.dayOfWeek} {subject.startTime}–{subject.endTime}
-                            </span>
-                            <span className="flex items-center gap-1 text-[10px]" style={{ color: colors.tertiary }}>
-                              <MapPin className="w-3 h-3" />{subject.roomNumber}
-                            </span>
+                          <div className="text-xs mt-0.5 truncate" style={{ color: colors.neutral }}>{group.courseTitle}</div>
+                          <span className="text-[10px] px-1.5 py-0.5 rounded font-medium inline-block mt-1" style={{ backgroundColor: 'rgba(99,102,241,0.08)', color: '#6366F1' }}>{group.sectionName}</span>
+
+                          {/* One row per slot (lecture / lab) */}
+                          <div className="mt-2 space-y-1.5">
+                            {group.slots.map(slot => {
+                              const label = getSlotLabel(slot, group.slots.length);
+                              const isLab = label === 'Lab';
+                              return (
+                                <div key={slot.id} className="rounded-lg px-2 py-1.5" style={{ backgroundColor: isLab ? 'rgba(14,165,233,0.06)' : 'rgba(149,90,39,0.04)', border: `1px solid ${isLab ? 'rgba(14,165,233,0.15)' : 'rgba(179,116,74,0.1)'}` }}>
+                                  {label && (
+                                    <span className="text-[9px] font-bold uppercase tracking-wide mr-1.5" style={{ color: isLab ? '#0EA5E9' : colors.secondary }}>{label}</span>
+                                  )}
+                                  <span className="text-[10px]" style={{ color: colors.primary }}>
+                                    <Clock className="w-3 h-3 inline mr-0.5" style={{ color: colors.tertiary }} />
+                                    {slot.dayOfWeek} {slot.startTime}–{slot.endTime}
+                                  </span>
+                                  <span className="text-[10px] ml-2" style={{ color: colors.tertiary }}>
+                                    <MapPin className="w-3 h-3 inline mr-0.5" />{slot.roomNumber}
+                                  </span>
+                                </div>
+                              );
+                            })}
                           </div>
                         </div>
                         <button
-                          onClick={() => setDeleteModal({ isOpen: true, subject })}
+                          onClick={() => setDeleteModal({ isOpen: true, subject: group.slots[0] })}
                           className="flex-shrink-0 p-1.5 rounded-lg opacity-0 group-hover:opacity-100 transition-all hover:bg-red-50"
                           style={{ color: colors.danger }}
                           title="Remove subject"
@@ -807,7 +866,7 @@ export default function IrregularEnrollmentPage() {
               {selectedStudent && enrolledSubjects.length > 0 && (
                 <>
                   <div className="px-5 py-3 flex-shrink-0 flex items-center justify-between" style={{ borderTop: '1px solid rgba(179,116,74,0.08)', backgroundColor: 'rgba(253,251,248,0.6)' }}>
-                    <span className="text-xs" style={{ color: colors.neutral }}>{enrolledSubjects.length} of {enrolledSubjectsFromAssessment.length} subjects sectioned</span>
+                    <span className="text-xs" style={{ color: colors.neutral }}>{groupedEnrolledSubjects.length} of {enrolledSubjectsFromAssessment.length} subjects sectioned</span>
                     <span className="text-xs font-semibold" style={{ color: totalUnits >= 18 ? colors.success : colors.warning }}>
                       {totalUnits >= 18 ? '✓ Full load' : 'Partial load'}
                     </span>
