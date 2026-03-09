@@ -133,16 +133,18 @@ export const conflictChecker = {
   },
 
   /**
-   * Check if subject is already scheduled in this section
+   * Check if subject is already scheduled in this section.
+   * maxAllowed = 1 for pure-lecture subjects, 2 for subjects with a lab block.
    */
   async checkSubjectDuplication(
     sectionId: number,
     curriculumCourseId: number,
     academicYear: string,
     semester: string,
-    excludeScheduleId?: number
+    excludeScheduleId?: number,
+    maxAllowed: number = 1
   ): Promise<boolean> {
-    const existingSchedule = await prisma.class_schedule.findFirst({
+    const count = await prisma.class_schedule.count({
       where: {
         section_id: sectionId,
         curriculum_course_id: curriculumCourseId,
@@ -152,7 +154,7 @@ export const conflictChecker = {
         ...(excludeScheduleId && { id: { not: excludeScheduleId } })
       }
     });
-    return !!existingSchedule;
+    return count >= maxAllowed;
   }
 };
 

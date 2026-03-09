@@ -42,6 +42,8 @@ export interface CreateClassScheduleRequest {
   endTime: string;
   academicYear: string;
   semester: string;
+  /** Pass true when creating the lab-time-block for a lecture+lab subject */
+  isLabSchedule?: boolean;
 }
 
 export interface ClassScheduleResponse {

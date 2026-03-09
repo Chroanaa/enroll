@@ -27,7 +27,7 @@ import {
  */
 export async function POST(request: NextRequest) {
   try {
-    const body: CreateClassScheduleRequest = await request.json();
+    const body: CreateClassScheduleRequest & { isLabSchedule?: boolean } = await request.json();
 
     // Validate required fields - Faculty is optional
     if (
@@ -171,7 +171,9 @@ export async function POST(request: NextRequest) {
         body.sectionId,
         body.curriculumCourseId,
         body.academicYear,
-        body.semester
+        body.semester,
+        undefined,
+        body.isLabSchedule ? 2 : 1
       )
     ];
 
