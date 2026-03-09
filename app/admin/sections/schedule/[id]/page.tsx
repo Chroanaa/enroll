@@ -82,6 +82,15 @@ export default function BuildSchedulePage() {
     endTime: ''
   });
 
+  // Lab schedule block (used when selected course has lab hours)
+  const [labFormData, setLabFormData] = useState({
+    roomId: '',
+    dayOfWeek: '',
+    startTime: '',
+    endTime: ''
+  });
+  const [breakMinutes, setBreakMinutes] = useState<number>(60);
+
   const [deleteConfirm, setDeleteConfirm] = useState<{
     isOpen: boolean;
     scheduleId: number | null;
@@ -415,6 +424,32 @@ export default function BuildSchedulePage() {
     });
   };
 
+  const handleLabInputChange = (name: string, value: string) => {
+    setLabFormData(prev => {
+      const next = { ...prev, [name]: value };
+      if (name === 'dayOfWeek') { next.startTime = ''; next.endTime = ''; }
+      if (name === 'startTime') { next.endTime = ''; }
+      return next;
+    });
+  };
+
+  // Auto-fill lab start time whenever lecture end or break duration changes
+  const getAutoLabStartTime = (): string => {
+    if (!formData.endTime) return '';
+    const [h, m] = formData.endTime.split(':').map(Number);
+    const total = h * 60 + m + breakMinutes;
+    const hh = Math.floor(total / 60);
+    const mm = total % 60;
+    if (hh >= 24) return '';
+    return `${hh.toString().padStart(2, '0')}:${mm.toString().padStart(2, '0')}`;
+  };
+
+  /** True when the selected course has lab hours */
+  const hasLab = !!(
+    selectedCourse &&
+    (Number(selectedCourse.units_lab) > 0 || Number(selectedCourse.lab_hour) > 0)
+  );
+
   // Get section's occupied time slots for the selected day
   const getSectionOccupiedSlots = () => {
     if (!section || !formData.dayOfWeek || occupiedSlots.length === 0) return [];
@@ -546,6 +581,38 @@ export default function BuildSchedulePage() {
         semester: section!.semester
       });
 
+      // If course has lab, also create the lab time-block schedule
+      if (hasLab) {
+        if (!labFormData.roomId || !labFormData.dayOfWeek || !labFormData.startTime || !labFormData.endTime) {
+          setError('Lab Room, Day, Start Time and End Time are required for lab subjects');
+          setLoading(false);
+          return;
+        }
+        const [lsh, lsm] = labFormData.startTime.split(':').map(Number);
+        const [leh, lem] = labFormData.endTime.split(':').map(Number);
+        if (leh * 60 + lem <= lsh * 60 + lsm) {
+          setError('Lab end time must be after lab start time');
+          setLoading(false);
+          return;
+        }
+        const labStart = new Date();
+        labStart.setHours(lsh, lsm, 0);
+        const labEnd = new Date();
+        labEnd.setHours(leh, lem, 0);
+        await createClassSchedule({
+          sectionId: section!.id,
+          curriculumCourseId: selectedCourse.id,
+          facultyId: formData.facultyId ? parseInt(formData.facultyId) : null,
+          roomId: parseInt(labFormData.roomId),
+          dayOfWeek: labFormData.dayOfWeek,
+          startTime: labStart.toISOString(),
+          endTime: labEnd.toISOString(),
+          academicYear: section!.academicYear,
+          semester: section!.semester,
+          isLabSchedule: true,
+        } as any);
+      }
+
       // Reload schedules
       const updatedSchedules = await getClassSchedules({
         sectionId: section!.id,
@@ -569,6 +636,8 @@ export default function BuildSchedulePage() {
         startTime: '',
         endTime: ''
       });
+      setLabFormData({ roomId: '', dayOfWeek: '', startTime: '', endTime: '' });
+      setBreakMinutes(60);
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : 'Failed to add schedule';
       
@@ -1019,7 +1088,11 @@ export default function BuildSchedulePage() {
                               {course.descriptive_title}
                             </div>
                             <div className="text-[10px]" style={{ color: colors.tertiary }}>
-                              {course.units_total} units
+                              {Number(course.units_lec) > 0 && Number(course.units_lab) > 0
+                                ? `${course.units_lec} lec / ${course.units_lab} lab`
+                                : Number(course.units_lec) > 0
+                                ? `${course.units_lec} lec`
+                                : `${course.units_total} units`}
                             </div>
                           </div>
                           {isScheduled && (
@@ -1261,6 +1334,153 @@ export default function BuildSchedulePage() {
                       )}
                     </div>
                   </div>
+
+                  {/* Lab Schedule Block */}
+                  {hasLab && (
+                    <div
+                      className="rounded-lg p-4 space-y-3"
+                      style={{
+                        backgroundColor: 'rgba(99, 102, 241, 0.04)',
+                        border: '1px solid rgba(99, 102, 241, 0.18)',
+                      }}
+                    >
+                      <div className="flex items-center gap-2 mb-1">
+                        <span className="text-xs font-semibold" style={{ color: '#4f46e5' }}>🧪 Lab Schedule</span>
+                        <span className="text-[10px] px-1.5 py-0.5 rounded-full font-medium" style={{ backgroundColor: 'rgba(99,102,241,0.1)', color: '#4f46e5' }}>
+                          {selectedCourse.units_lab} lab unit{selectedCourse.units_lab !== 1 ? 's' : ''}
+                        </span>
+                      </div>
+
+                      {/* Break / Gap */}
+                      <div className="flex items-center gap-3">
+                        <label className="text-xs font-medium whitespace-nowrap" style={{ color: colors.primary }}>
+                          Break after lecture
+                        </label>
+                        <div className="flex items-center gap-1">
+                          {[30, 60, 90, 120].map(mins => (
+                            <button
+                              key={mins}
+                              type="button"
+                              onClick={() => setBreakMinutes(mins)}
+                              className="px-2 py-1 rounded text-[10px] font-medium transition-all"
+                              style={{
+                                backgroundColor: breakMinutes === mins ? 'rgba(99,102,241,0.15)' : 'white',
+                                border: `1px solid ${breakMinutes === mins ? '#4f46e5' : 'rgba(179,116,74,0.2)'}`,
+                                color: breakMinutes === mins ? '#4f46e5' : colors.neutral,
+                              }}
+                            >
+                              {mins}m
+                            </button>
+                          ))}
+                          <input
+                            type="number"
+                            min={0}
+                            max={240}
+                            value={breakMinutes}
+                            onChange={e => setBreakMinutes(Math.max(0, parseInt(e.target.value) || 0))}
+                            className="w-14 px-2 py-1 rounded text-[10px] text-center"
+                            style={{ border: '1px solid rgba(179,116,74,0.2)', color: colors.primary }}
+                          />
+                          <span className="text-[10px]" style={{ color: colors.neutral }}>min</span>
+                        </div>
+                        {formData.endTime && (
+                          <span className="text-[10px]" style={{ color: '#4f46e5' }}>
+                            Lab starts at: <strong>{getAutoLabStartTime() || '—'}</strong>
+                          </span>
+                        )}
+                      </div>
+
+                      {/* Lab Room + Day + Start + End */}
+                      <div className="grid grid-cols-2 gap-3">
+                        <div>
+                          <label className="flex items-center gap-1 text-xs font-semibold mb-1.5" style={{ color: colors.primary }}>
+                            <Building2 className="w-3.5 h-3.5" style={{ color: '#4f46e5' }} />
+                            Lab Room <span style={{ color: colors.danger }}>*</span>
+                          </label>
+                          <select
+                            value={labFormData.roomId}
+                            onChange={e => handleLabInputChange('roomId', e.target.value)}
+                            className="w-full px-3 py-2 rounded-lg text-sm transition-all"
+                            style={{ outline: 'none', color: colors.primary, backgroundColor: 'white', border: '1px solid rgba(99,102,241,0.3)' }}
+                          >
+                            <option value="">Select lab room</option>
+                            {rooms.map(room => (
+                              <option key={room.id} value={room.id.toString()}>
+                                {room.room_number} (Cap: {room.capacity})
+                              </option>
+                            ))}
+                          </select>
+                        </div>
+                        <div>
+                          <label className="flex items-center gap-1 text-xs font-semibold mb-1.5" style={{ color: colors.primary }}>
+                            <Calendar className="w-3.5 h-3.5" style={{ color: '#4f46e5' }} />
+                            Lab Day <span style={{ color: colors.danger }}>*</span>
+                          </label>
+                          <select
+                            value={labFormData.dayOfWeek}
+                            onChange={e => handleLabInputChange('dayOfWeek', e.target.value)}
+                            className="w-full px-3 py-2 rounded-lg text-sm transition-all"
+                            style={{ outline: 'none', color: colors.primary, backgroundColor: 'white', border: '1px solid rgba(99,102,241,0.3)' }}
+                          >
+                            <option value="">Select day</option>
+                            {DAYS.map(day => <option key={day} value={day}>{day}</option>)}
+                          </select>
+                        </div>
+                      </div>
+                      <div className="grid grid-cols-2 gap-3">
+                        <div>
+                          <label className="flex items-center gap-1 text-xs font-semibold mb-1.5" style={{ color: colors.primary }}>
+                            <Clock className="w-3.5 h-3.5" style={{ color: '#4f46e5' }} />
+                            Lab Start <span style={{ color: colors.danger }}>*</span>
+                          </label>
+                          <select
+                            value={labFormData.startTime}
+                            onChange={e => handleLabInputChange('startTime', e.target.value)}
+                            className="w-full px-3 py-2 rounded-lg text-sm transition-all"
+                            style={{ outline: 'none', color: colors.primary, backgroundColor: 'white', border: '1px solid rgba(99,102,241,0.3)' }}
+                          >
+                            <option value="">{getAutoLabStartTime() ? `Suggested: ${getAutoLabStartTime()}` : 'Select start time'}</option>
+                            {TIME_SLOTS.map(t => (
+                              <option key={t} value={t} style={{ fontWeight: t === getAutoLabStartTime() ? 'bold' : 'normal' }}>
+                                {t}{t === getAutoLabStartTime() ? ' ← suggested' : ''}
+                              </option>
+                            ))}
+                          </select>
+                        </div>
+                        <div>
+                          <label className="flex items-center gap-1 text-xs font-semibold mb-1.5" style={{ color: colors.primary }}>
+                            <Clock className="w-3.5 h-3.5" style={{ color: '#4f46e5' }} />
+                            Lab End <span style={{ color: colors.danger }}>*</span>
+                          </label>
+                          <select
+                            value={labFormData.endTime}
+                            onChange={e => handleLabInputChange('endTime', e.target.value)}
+                            disabled={!labFormData.startTime}
+                            className="w-full px-3 py-2 rounded-lg text-sm transition-all disabled:opacity-50"
+                            style={{ outline: 'none', color: colors.primary, backgroundColor: 'white', border: '1px solid rgba(99,102,241,0.3)' }}
+                          >
+                            <option value="">Select end time</option>
+                            {TIME_SLOTS.filter(t => {
+                              if (!labFormData.startTime) return false;
+                              const [sh, sm] = labFormData.startTime.split(':').map(Number);
+                              const [eh, em] = t.split(':').map(Number);
+                              return eh * 60 + em > sh * 60 + sm;
+                            }).map(t => <option key={t} value={t}>{t}</option>)}
+                          </select>
+                          {labFormData.startTime && labFormData.endTime && (
+                            <p className="text-xs mt-1" style={{ color: '#4f46e5' }}>
+                              Lab duration: {(() => {
+                                const [sh, sm] = labFormData.startTime.split(':').map(Number);
+                                const [eh, em] = labFormData.endTime.split(':').map(Number);
+                                const d = (eh * 60 + em) - (sh * 60 + sm);
+                                return `${Math.floor(d/60)}h${d%60>0?` ${d%60}m`:''}`;
+                              })()}
+                            </p>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  )}
 
                   {/* Occupied Slots Display - Shows section's existing schedules on selected day */}
                   {formData.dayOfWeek && section && (

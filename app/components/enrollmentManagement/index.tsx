@@ -3,6 +3,7 @@ import React, { useState, useMemo, useEffect, useRef } from "react";
 import { Plus, Upload, X, FileSpreadsheet, AlertCircle } from "lucide-react";
 import { colors } from "../../colors";
 import { getEnrollments } from "@/app/utils/getEnrollments";
+import { cacheManager, CACHE_KEYS } from "@/app/utils/cache";
 import ConfirmationModal from "../common/ConfirmationModal";
 import SuccessModal from "../common/SuccessModal";
 import ErrorModal from "../common/ErrorModal";
@@ -13,6 +14,7 @@ import SearchFilters from "../common/SearchFilters";
 import EnrollmentTable from "./EnrollmentTable";
 import Pagination from "../common/Pagination";
 import EnrollmentForm from "./EnrollmentForm";
+import EditEnrollmentModal from "./EditEnrollmentModal";
 
 // --- Internal Import Modal Component ---
 interface ImportModalProps {
@@ -257,6 +259,7 @@ const EnrollmentManagement: React.FC = () => {
 
   const fetchEnrollments = async () => {
     try {
+      cacheManager.invalidate(CACHE_KEYS.ENROLLMENTS);
       const data = await getEnrollments();
       if (Array.isArray(data)) {
         setEnrollments(data as Enrollment[]);
@@ -337,8 +340,9 @@ const EnrollmentManagement: React.FC = () => {
   const handleSaveEnrollment = async (enrollmentData: Enrollment) => {
     try {
       if (editingEnrollment) {
+        setLoading(true); // Show loading during update
         const response = await fetch("/api/auth/enroll", {
-          method: "PATCH",
+          method: "PUT",
           headers: {
             "Content-Type": "application/json",
           },
@@ -350,13 +354,25 @@ const EnrollmentManagement: React.FC = () => {
           throw new Error(errorData.error || "Failed to update enrollment");
         }
 
-        setEnrollments((prev) =>
-          prev.map((e) => (e.id === enrollmentData.id ? enrollmentData : e))
-        );
-        setEditingEnrollment(null);
+        // Get the updated enrollment from response
+        const updatedEnrollment = await response.json();
+        
+        // Re-fetch to get all enriched data (program codes, etc.)
+        await fetchEnrollments();
+        
+        // Find the updated enrollment in the fresh data to pass to modal
+        const freshEnrollments = await getEnrollments();
+        const refreshedEnrollment = Array.isArray(freshEnrollments) 
+          ? freshEnrollments.find((e: any) => e.id === updatedEnrollment.id)
+          : null;
+        
+        // Update the editing enrollment with fresh data so modal refreshes
+        if (refreshedEnrollment) {
+          setEditingEnrollment(refreshedEnrollment as Enrollment);
+        }
 
-        const studentName = `${enrollmentData.first_name || ""} ${
-          enrollmentData.family_name || ""
+        const studentName = `${updatedEnrollment.first_name || ""} ${
+          updatedEnrollment.family_name || ""
         }`.trim();
         setSuccessModal({
           isOpen: true,
@@ -364,6 +380,7 @@ const EnrollmentManagement: React.FC = () => {
             studentName || "student"
           }" has been updated successfully.`,
         });
+        setLoading(false);
       } else {
         const response = await fetch("/api/auth/enroll", {
           method: "POST",
@@ -396,6 +413,7 @@ const EnrollmentManagement: React.FC = () => {
         });
       }
     } catch (error: any) {
+      setLoading(false); // Reset loading on error
       setErrorModal({
         isOpen: true,
         message:
@@ -563,14 +581,24 @@ const EnrollmentManagement: React.FC = () => {
         </div>
 
         {/* Add/Edit Enrollment Form */}
-        {(isAddingEnrollment || editingEnrollment) && (
+        {isAddingEnrollment && (
           <EnrollmentForm
-            enrollment={editingEnrollment || undefined}
             onSave={handleSaveEnrollment}
             onCancel={() => {
-              setEditingEnrollment(null);
               setIsAddingEnrollment(false);
             }}
+          />
+        )}
+
+        {/* Edit Enrollment Modal */}
+        {editingEnrollment && (
+          <EditEnrollmentModal
+            enrollment={editingEnrollment}
+            onSaved={async () => {
+              await fetchEnrollments();
+              setSuccessModal({ isOpen: true, message: "Enrollment updated successfully." });
+            }}
+            onCancel={() => setEditingEnrollment(null)}
           />
         )}
 
