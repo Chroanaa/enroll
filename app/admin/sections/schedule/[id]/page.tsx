@@ -94,11 +94,15 @@ export default function BuildSchedulePage() {
   const [deleteConfirm, setDeleteConfirm] = useState<{
     isOpen: boolean;
     scheduleId: number | null;
+    siblingIds: number[]; // all schedules for same course (lecture + lab)
     scheduleInfo: string;
+    hasMultiple: boolean;
   }>({
     isOpen: false,
     scheduleId: null,
-    scheduleInfo: ''
+    siblingIds: [],
+    scheduleInfo: '',
+    hasMultiple: false
   });
 
   const [successModal, setSuccessModal] = useState<{
@@ -163,6 +167,10 @@ export default function BuildSchedulePage() {
   // Occupied slots state - shows what rooms/faculty are already scheduled
   const [occupiedSlots, setOccupiedSlots] = useState<any[]>([]);
   const [loadingOccupied, setLoadingOccupied] = useState(false);
+
+  // Lab occupied slots (for lab schedule conflict prevention)
+  const [labOccupiedSlots, setLabOccupiedSlots] = useState<any[]>([]);
+  const [loadingLabOccupied, setLoadingLabOccupied] = useState(false);
 
   // Edit schedule modal state (full edit: faculty, room, day, time)
   const [editScheduleModal, setEditScheduleModal] = useState<{
@@ -253,6 +261,15 @@ export default function BuildSchedulePage() {
     }
   }, [formData.dayOfWeek, formData.roomId, section]);
 
+  // Fetch lab occupied slots when lab day changes
+  useEffect(() => {
+    if (labFormData.dayOfWeek && section) {
+      fetchLabOccupiedSlots(labFormData.dayOfWeek);
+    } else {
+      setLabOccupiedSlots([]);
+    }
+  }, [labFormData.dayOfWeek, section]);
+
   // Fetch occupied slots for edit modal when day changes or modal opens (excludes current schedule)
   useEffect(() => {
     if (editScheduleModal.isOpen && editFormData.dayOfWeek && section && editScheduleModal.schedule) {
@@ -283,7 +300,7 @@ export default function BuildSchedulePage() {
     }
   };
 
-  // Fetch all occupied slots for a given day (from ALL sections including current)
+  // Fetch all occupied slots for a given day (from ALL sections including current))
   const fetchOccupiedSlots = async (day: string) => {
     if (!section) return;
     
@@ -305,6 +322,24 @@ export default function BuildSchedulePage() {
       console.error('Failed to fetch occupied slots:', err);
     } finally {
       setLoadingOccupied(false);
+    }
+  };
+
+  // Fetch occupied slots for the lab day (for lab conflict prevention)
+  const fetchLabOccupiedSlots = async (day: string) => {
+    if (!section) return;
+    setLoadingLabOccupied(true);
+    try {
+      const url = `/api/class-schedule/conflicts?dayOfWeek=${day}&academicYear=${section.academicYear}&semester=${section.semester}&currentSectionId=${section.id}`;
+      const response = await fetch(url);
+      if (response.ok) {
+        const data = await response.json();
+        setLabOccupiedSlots(data.data?.occupiedSlots || []);
+      }
+    } catch (err) {
+      console.error('Failed to fetch lab occupied slots:', err);
+    } finally {
+      setLoadingLabOccupied(false);
     }
   };
 
@@ -403,6 +438,11 @@ export default function BuildSchedulePage() {
   };
 
   const handleInputChange = (name: string, value: string) => {
+    // When lecture day changes, auto-populate the lab day too
+    if (name === 'dayOfWeek') {
+      setLabFormData(prev => ({ ...prev, dayOfWeek: value, startTime: '', endTime: '' }));
+    }
+
     setFormData((prev) => {
       const newData = {
         ...prev,
@@ -415,9 +455,22 @@ export default function BuildSchedulePage() {
         newData.endTime = '';
       }
       
-      // If start time changes, reset end time to avoid invalid selections
-      if (name === 'startTime') {
-        newData.endTime = '';
+      // If start time changes, auto-calculate end time from curriculum lecture_hour
+      if (name === 'startTime' && value) {
+        const lectureHours = selectedCourse ? Number(selectedCourse.lecture_hour) : 0;
+        if (lectureHours > 0) {
+          const [h, m] = value.split(':').map(Number);
+          const totalMin = h * 60 + m + lectureHours * 60;
+          const endH = Math.floor(totalMin / 60);
+          const endM = totalMin % 60;
+          if (endH < 24) {
+            newData.endTime = `${endH.toString().padStart(2, '0')}:${endM.toString().padStart(2, '0')}`;
+          } else {
+            newData.endTime = '';
+          }
+        } else {
+          newData.endTime = '';
+        }
       }
       
       return newData;
@@ -428,7 +481,23 @@ export default function BuildSchedulePage() {
     setLabFormData(prev => {
       const next = { ...prev, [name]: value };
       if (name === 'dayOfWeek') { next.startTime = ''; next.endTime = ''; }
-      if (name === 'startTime') { next.endTime = ''; }
+      // If lab start changes, auto-calculate lab end time from curriculum lab_hour
+      if (name === 'startTime' && value) {
+        const labHours = selectedCourse ? Number(selectedCourse.lab_hour) : 0;
+        if (labHours > 0) {
+          const [h, m] = value.split(':').map(Number);
+          const totalMin = h * 60 + m + labHours * 60;
+          const endH = Math.floor(totalMin / 60);
+          const endM = totalMin % 60;
+          if (endH < 24) {
+            next.endTime = `${endH.toString().padStart(2, '0')}:${endM.toString().padStart(2, '0')}`;
+          } else {
+            next.endTime = '';
+          }
+        } else {
+          next.endTime = '';
+        }
+      }
       return next;
     });
   };
@@ -497,7 +566,7 @@ export default function BuildSchedulePage() {
     });
   };
 
-  // Get available end times (excluding times that would create overlap)
+  // Get available end times (capped by lecture_hour from curriculum, no overlap with occupied slots)
   const getAvailableEndTimes = () => {
     if (!formData.startTime) return [];
 
@@ -505,22 +574,80 @@ export default function BuildSchedulePage() {
     const [startHour, startMin] = formData.startTime.split(':').map(Number);
     const startTotal = startHour * 60 + startMin;
 
+    // Derive max duration from curriculum lecture_hour (in hours → minutes)
+    const lectureHours = selectedCourse ? Number(selectedCourse.lecture_hour) : 0;
+    const maxDurationMinutes = lectureHours > 0 ? lectureHours * 60 : null;
+
     return TIME_SLOTS.filter(time => {
       const [endHour, endMin] = time.split(':').map(Number);
       const endTotal = endHour * 60 + endMin;
-      
-      // Must be after start time
-      if (endTotal <= startTotal) return false;
+      const duration = endTotal - startTotal;
 
-      // If no occupied slots, all times after start are valid
+      // Must be after start time
+      if (duration <= 0) return false;
+
+      // Must not exceed the curriculum lecture hours (if defined)
+      if (maxDurationMinutes !== null && duration > maxDurationMinutes) return false;
+
+      // If no occupied slots, all valid times in range are good
       if (sectionSlots.length === 0) return true;
 
-      // Check if the proposed time range (startTotal to endTotal) overlaps with any occupied slot
-      const hasOverlap = sectionSlots.some(slot => {
-        // Overlap occurs if: (start1 < end2) AND (start2 < end1)
-        return startTotal < slot.endMinutes && endTotal > slot.startMinutes;
-      });
+      // Check if the proposed time range overlaps with any occupied slot
+      const hasOverlap = sectionSlots.some(slot =>
+        startTotal < slot.endMinutes && endTotal > slot.startMinutes
+      );
+      return !hasOverlap;
+    });
+  };
 
+  // Get section's occupied slots for the lab day
+  const getLabSectionOccupiedSlots = () => {
+    if (!section || !labFormData.dayOfWeek || labOccupiedSlots.length === 0) return [];
+    return labOccupiedSlots.filter(slot => slot.isCurrentSection && slot.sectionId === section.id);
+  };
+
+  // Get available lab start times (only from suggested start onward, excluding occupied slots)
+  const getLabAvailableStartTimes = () => {
+    const sectionSlots = getLabSectionOccupiedSlots();
+    const autoStart = getAutoLabStartTime();
+    const [autoHour, autoMin] = autoStart ? autoStart.split(':').map(Number) : [0, 0];
+    const autoMinutes = autoStart ? autoHour * 60 + autoMin : 0;
+
+    return TIME_SLOTS.filter(time => {
+      const [hour, min] = time.split(':').map(Number);
+      const timeMinutes = hour * 60 + min;
+      // Only show times at or after the suggested lab start time
+      if (autoStart && timeMinutes < autoMinutes) return false;
+      // Exclude if this time falls within any occupied slot
+      return !isTimeInOccupiedRange(timeMinutes, sectionSlots);
+    });
+  };
+
+  // Get available lab end times (capped by lab_hour from curriculum, no overlap with occupied slots)
+  const getLabAvailableEndTimes = () => {
+    if (!labFormData.startTime) return [];
+    const sectionSlots = getLabSectionOccupiedSlots();
+    const [startHour, startMin] = labFormData.startTime.split(':').map(Number);
+    const startTotal = startHour * 60 + startMin;
+
+    // Derive max duration from curriculum lab_hour (in hours → minutes)
+    const labHours = selectedCourse ? Number(selectedCourse.lab_hour) : 0;
+    const maxDurationMinutes = labHours > 0 ? labHours * 60 : null;
+
+    return TIME_SLOTS.filter(time => {
+      const [endHour, endMin] = time.split(':').map(Number);
+      const endTotal = endHour * 60 + endMin;
+      const duration = endTotal - startTotal;
+
+      if (duration <= 0) return false;
+
+      // Must not exceed the curriculum lab hours (if defined)
+      if (maxDurationMinutes !== null && duration > maxDurationMinutes) return false;
+
+      if (sectionSlots.length === 0) return true;
+      const hasOverlap = sectionSlots.some(slot =>
+        startTotal < slot.endMinutes && endTotal > slot.startMinutes
+      );
       return !hasOverlap;
     });
   };
@@ -709,11 +836,25 @@ export default function BuildSchedulePage() {
     const course = curriculum.find(c => c.id === schedule.curriculumCourseId);
     const facultyMember = faculty.find(f => f.id === schedule.facultyId);
     const room = rooms.find(r => r.id === schedule.roomId);
-    
+
+    // Find ALL schedules for the same subject (lecture + lab siblings)
+    const siblings = schedules.filter(
+      s => s.curriculumCourseId === schedule.curriculumCourseId
+    );
+    const siblingIds = siblings.map(s => s.id);
+    const hasMultiple = siblings.length > 1;
+
+    const baseInfo = `${course?.course_code || 'Course'} - ${facultyMember ? `${facultyMember.first_name} ${facultyMember.last_name}` : 'No Faculty'} - ${room?.room_number || 'Room'}`;
+    const info = hasMultiple
+      ? `${course?.course_code || 'Course'} (${siblings.length} schedules: lecture + lab)`
+      : baseInfo;
+
     setDeleteConfirm({
       isOpen: true,
       scheduleId: schedule.id,
-      scheduleInfo: `${course?.course_code || 'Course'} - ${facultyMember ? `${facultyMember.first_name} ${facultyMember.last_name}` : 'Faculty'} - ${room?.room_number || 'Room'}`
+      siblingIds,
+      scheduleInfo: info,
+      hasMultiple
     });
   };
 
@@ -764,16 +905,18 @@ export default function BuildSchedulePage() {
       setLoading(true);
       setError(null);
 
+      const currentSchedule = editScheduleModal.schedule;
+
       // Build update data - convert times to ISO
       const updateData: any = {};
       
-      if (editFormData.facultyId && editFormData.facultyId !== editScheduleModal.schedule.facultyId?.toString()) {
+      if (editFormData.facultyId && editFormData.facultyId !== currentSchedule.facultyId?.toString()) {
         updateData.facultyId = parseInt(editFormData.facultyId);
       }
-      if (editFormData.roomId && editFormData.roomId !== editScheduleModal.schedule.roomId?.toString()) {
+      if (editFormData.roomId && editFormData.roomId !== currentSchedule.roomId?.toString()) {
         updateData.roomId = parseInt(editFormData.roomId);
       }
-      if (editFormData.dayOfWeek && editFormData.dayOfWeek !== editScheduleModal.schedule.dayOfWeek) {
+      if (editFormData.dayOfWeek && editFormData.dayOfWeek !== currentSchedule.dayOfWeek) {
         updateData.dayOfWeek = editFormData.dayOfWeek;
       }
       
@@ -791,7 +934,22 @@ export default function BuildSchedulePage() {
         updateData.endTime = endDate.toISOString();
       }
 
-      await updateClassSchedule(editScheduleModal.schedule.id, updateData);
+      // Find sibling schedule (lecture ↔ lab partner for same subject)
+      const siblings = schedules.filter(
+        s => s.curriculumCourseId === currentSchedule.curriculumCourseId && s.id !== currentSchedule.id
+      );
+
+      // Save the main schedule
+      await updateClassSchedule(currentSchedule.id, updateData);
+
+      // If faculty changed, sync it to all sibling schedules (lecture ↔ lab)
+      if (updateData.facultyId !== undefined && siblings.length > 0) {
+        await Promise.all(
+          siblings.map(sibling =>
+            updateClassSchedule(sibling.id, { facultyId: updateData.facultyId })
+          )
+        );
+      }
 
       // Reload schedules
       const updatedSchedules = await getClassSchedules({
@@ -803,7 +961,9 @@ export default function BuildSchedulePage() {
 
       setSuccessModal({
         isOpen: true,
-        message: 'Schedule updated successfully.'
+        message: siblings.length > 0 && updateData.facultyId !== undefined
+          ? 'Schedule updated. Faculty has been synced to all lecture/lab schedules for this subject.'
+          : 'Schedule updated successfully.'
       });
 
       setEditScheduleModal({ isOpen: false, schedule: null });
@@ -820,8 +980,13 @@ export default function BuildSchedulePage() {
     try {
       setLoading(true);
       setError(null);
-      
-      await deleteClassSchedule(deleteConfirm.scheduleId);
+
+      // Delete all siblings (lecture + lab) in parallel
+      const idsToDelete = deleteConfirm.siblingIds.length > 0
+        ? deleteConfirm.siblingIds
+        : [deleteConfirm.scheduleId];
+
+      await Promise.all(idsToDelete.map(id => deleteClassSchedule(id)));
       
       const updatedSchedules = await getClassSchedules({
         sectionId: section!.id,
@@ -832,13 +997,17 @@ export default function BuildSchedulePage() {
       
       setSuccessModal({
         isOpen: true,
-        message: 'Schedule has been deleted successfully.'
+        message: deleteConfirm.hasMultiple
+          ? 'All schedules (lecture + lab) for this subject have been deleted successfully.'
+          : 'Schedule has been deleted successfully.'
       });
       
       setDeleteConfirm({
         isOpen: false,
         scheduleId: null,
-        scheduleInfo: ''
+        siblingIds: [],
+        scheduleInfo: '',
+        hasMultiple: false
       });
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to delete schedule');
@@ -1330,6 +1499,11 @@ export default function BuildSchedulePage() {
                             const minutes = duration % 60;
                             return `${hours}h ${minutes > 0 ? `${minutes}m` : ''}`;
                           })()}
+                          {selectedCourse?.lecture_hour > 0 && (
+                            <span className="ml-2" style={{ color: colors.tertiary }}>
+                              (max {selectedCourse.lecture_hour}h from curriculum)
+                            </span>
+                          )}
                         </p>
                       )}
                     </div>
@@ -1338,70 +1512,86 @@ export default function BuildSchedulePage() {
                   {/* Lab Schedule Block */}
                   {hasLab && (
                     <div
-                      className="rounded-lg p-4 space-y-3"
+                      className="rounded-xl p-5 space-y-4"
                       style={{
-                        backgroundColor: 'rgba(99, 102, 241, 0.04)',
-                        border: '1px solid rgba(99, 102, 241, 0.18)',
+                        backgroundColor: '#FDFCFA',
+                        border: '1px solid rgba(179, 116, 74, 0.12)',
+                        boxShadow: '0 2px 6px rgba(58, 35, 19, 0.06)',
                       }}
                     >
-                      <div className="flex items-center gap-2 mb-1">
-                        <span className="text-xs font-semibold" style={{ color: '#4f46e5' }}>🧪 Lab Schedule</span>
-                        <span className="text-[10px] px-1.5 py-0.5 rounded-full font-medium" style={{ backgroundColor: 'rgba(99,102,241,0.1)', color: '#4f46e5' }}>
-                          {selectedCourse.units_lab} lab unit{selectedCourse.units_lab !== 1 ? 's' : ''}
-                        </span>
-                      </div>
-
-                      {/* Break / Gap */}
-                      <div className="flex items-center gap-3">
-                        <label className="text-xs font-medium whitespace-nowrap" style={{ color: colors.primary }}>
-                          Break after lecture
-                        </label>
-                        <div className="flex items-center gap-1">
-                          {[30, 60, 90, 120].map(mins => (
-                            <button
-                              key={mins}
-                              type="button"
-                              onClick={() => setBreakMinutes(mins)}
-                              className="px-2 py-1 rounded text-[10px] font-medium transition-all"
-                              style={{
-                                backgroundColor: breakMinutes === mins ? 'rgba(99,102,241,0.15)' : 'white',
-                                border: `1px solid ${breakMinutes === mins ? '#4f46e5' : 'rgba(179,116,74,0.2)'}`,
-                                color: breakMinutes === mins ? '#4f46e5' : colors.neutral,
-                              }}
-                            >
-                              {mins}m
-                            </button>
-                          ))}
-                          <input
-                            type="number"
-                            min={0}
-                            max={240}
-                            value={breakMinutes}
-                            onChange={e => setBreakMinutes(Math.max(0, parseInt(e.target.value) || 0))}
-                            className="w-14 px-2 py-1 rounded text-[10px] text-center"
-                            style={{ border: '1px solid rgba(179,116,74,0.2)', color: colors.primary }}
-                          />
-                          <span className="text-[10px]" style={{ color: colors.neutral }}>min</span>
-                        </div>
-                        {formData.endTime && (
-                          <span className="text-[10px]" style={{ color: '#4f46e5' }}>
-                            Lab starts at: <strong>{getAutoLabStartTime() || '—'}</strong>
+                      {/* Lab Header */}
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                          <CalendarDays className="w-5 h-5" style={{ color: colors.secondary }} />
+                          <h2 className="text-base font-semibold" style={{ color: colors.primary }}>
+                            Lab Schedule
+                          </h2>
+                          <span
+                            className="text-[10px] px-2 py-0.5 rounded-full font-medium"
+                            style={{
+                              backgroundColor: `${colors.secondary}15`,
+                              color: colors.secondary,
+                              border: `1px solid ${colors.secondary}30`,
+                            }}
+                          >
+                            {selectedCourse.units_lab} lab unit{selectedCourse.units_lab !== 1 ? 's' : ''}
                           </span>
-                        )}
+                        </div>
+                        {/* Break selector */}
+                        <div className="flex items-center gap-2">
+                          <span className="text-xs font-medium whitespace-nowrap" style={{ color: colors.neutral }}>
+                            Break after lecture:
+                          </span>
+                          <div className="flex items-center gap-1">
+                            {[30, 60, 90, 120].map(mins => (
+                              <button
+                                key={mins}
+                                type="button"
+                                onClick={() => setBreakMinutes(mins)}
+                                className="px-2 py-1 rounded text-[10px] font-medium transition-all"
+                                style={{
+                                  backgroundColor: breakMinutes === mins ? `${colors.secondary}18` : 'white',
+                                  border: `1px solid ${breakMinutes === mins ? colors.secondary : 'rgba(179,116,74,0.2)'}`,
+                                  color: breakMinutes === mins ? colors.secondary : colors.neutral,
+                                }}
+                              >
+                                {mins}m
+                              </button>
+                            ))}
+                            <input
+                              type="number"
+                              min={0}
+                              max={240}
+                              value={breakMinutes}
+                              onChange={e => setBreakMinutes(Math.max(0, parseInt(e.target.value) || 0))}
+                              className="w-14 px-2 py-1 rounded text-[10px] text-center"
+                              style={{ border: '1px solid rgba(179,116,74,0.2)', color: colors.primary, backgroundColor: 'white' }}
+                            />
+                            <span className="text-[10px]" style={{ color: colors.neutral }}>min</span>
+                          </div>
+                        </div>
                       </div>
 
-                      {/* Lab Room + Day + Start + End */}
-                      <div className="grid grid-cols-2 gap-3">
+                      {/* Lab Room + Day */}
+                      <div className="grid grid-cols-2 gap-4">
                         <div>
-                          <label className="flex items-center gap-1 text-xs font-semibold mb-1.5" style={{ color: colors.primary }}>
-                            <Building2 className="w-3.5 h-3.5" style={{ color: '#4f46e5' }} />
+                          <label className="flex items-center gap-2 text-xs font-semibold mb-2" style={{ color: colors.primary }}>
+                            <Building2 className="w-4 h-4" style={{ color: colors.tertiary }} />
                             Lab Room <span style={{ color: colors.danger }}>*</span>
                           </label>
                           <select
                             value={labFormData.roomId}
                             onChange={e => handleLabInputChange('roomId', e.target.value)}
-                            className="w-full px-3 py-2 rounded-lg text-sm transition-all"
-                            style={{ outline: 'none', color: colors.primary, backgroundColor: 'white', border: '1px solid rgba(99,102,241,0.3)' }}
+                            className="w-full px-3 py-2.5 rounded-lg text-sm transition-all"
+                            style={{ outline: 'none', color: colors.primary, backgroundColor: 'white', border: '1px solid rgba(179, 116, 74, 0.2)' }}
+                            onFocus={(e) => {
+                              e.currentTarget.style.borderColor = colors.secondary;
+                              e.currentTarget.style.boxShadow = '0 0 0 3px rgba(149, 90, 39, 0.1)';
+                            }}
+                            onBlur={(e) => {
+                              e.currentTarget.style.borderColor = 'rgba(179, 116, 74, 0.2)';
+                              e.currentTarget.style.boxShadow = 'none';
+                            }}
                           >
                             <option value="">Select lab room</option>
                             {rooms.map(room => (
@@ -1412,69 +1602,98 @@ export default function BuildSchedulePage() {
                           </select>
                         </div>
                         <div>
-                          <label className="flex items-center gap-1 text-xs font-semibold mb-1.5" style={{ color: colors.primary }}>
-                            <Calendar className="w-3.5 h-3.5" style={{ color: '#4f46e5' }} />
+                          <label className="flex items-center gap-2 text-xs font-semibold mb-2" style={{ color: colors.primary }}>
+                            <Calendar className="w-4 h-4" style={{ color: colors.tertiary }} />
                             Lab Day <span style={{ color: colors.danger }}>*</span>
                           </label>
                           <select
                             value={labFormData.dayOfWeek}
                             onChange={e => handleLabInputChange('dayOfWeek', e.target.value)}
-                            className="w-full px-3 py-2 rounded-lg text-sm transition-all"
-                            style={{ outline: 'none', color: colors.primary, backgroundColor: 'white', border: '1px solid rgba(99,102,241,0.3)' }}
+                            className="w-full px-3 py-2.5 rounded-lg text-sm transition-all"
+                            style={{ outline: 'none', color: colors.primary, backgroundColor: 'white', border: '1px solid rgba(179, 116, 74, 0.2)' }}
+                            onFocus={(e) => {
+                              e.currentTarget.style.borderColor = colors.secondary;
+                              e.currentTarget.style.boxShadow = '0 0 0 3px rgba(149, 90, 39, 0.1)';
+                            }}
+                            onBlur={(e) => {
+                              e.currentTarget.style.borderColor = 'rgba(179, 116, 74, 0.2)';
+                              e.currentTarget.style.boxShadow = 'none';
+                            }}
                           >
                             <option value="">Select day</option>
                             {DAYS.map(day => <option key={day} value={day}>{day}</option>)}
                           </select>
                         </div>
                       </div>
-                      <div className="grid grid-cols-2 gap-3">
+
+                      {/* Lab Start + End */}
+                      <div className="grid grid-cols-2 gap-4">
                         <div>
-                          <label className="flex items-center gap-1 text-xs font-semibold mb-1.5" style={{ color: colors.primary }}>
-                            <Clock className="w-3.5 h-3.5" style={{ color: '#4f46e5' }} />
-                            Lab Start <span style={{ color: colors.danger }}>*</span>
+                          <label className="flex items-center gap-2 text-xs font-semibold mb-2" style={{ color: colors.primary }}>
+                            <Clock className="w-4 h-4" style={{ color: colors.tertiary }} />
+                            Lab Start Time <span style={{ color: colors.danger }}>*</span>
                           </label>
                           <select
                             value={labFormData.startTime}
                             onChange={e => handleLabInputChange('startTime', e.target.value)}
-                            className="w-full px-3 py-2 rounded-lg text-sm transition-all"
-                            style={{ outline: 'none', color: colors.primary, backgroundColor: 'white', border: '1px solid rgba(99,102,241,0.3)' }}
+                            disabled={!labFormData.dayOfWeek}
+                            className="w-full px-3 py-2.5 rounded-lg text-sm transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                            style={{ outline: 'none', color: colors.primary, backgroundColor: 'white', border: '1px solid rgba(179, 116, 74, 0.2)' }}
+                            onFocus={(e) => {
+                              if (!e.currentTarget.disabled) {
+                                e.currentTarget.style.borderColor = colors.secondary;
+                                e.currentTarget.style.boxShadow = '0 0 0 3px rgba(149, 90, 39, 0.1)';
+                              }
+                            }}
+                            onBlur={(e) => {
+                              e.currentTarget.style.borderColor = 'rgba(179, 116, 74, 0.2)';
+                              e.currentTarget.style.boxShadow = 'none';
+                            }}
                           >
-                            <option value="">{getAutoLabStartTime() ? `Suggested: ${getAutoLabStartTime()}` : 'Select start time'}</option>
-                            {TIME_SLOTS.map(t => (
-                              <option key={t} value={t} style={{ fontWeight: t === getAutoLabStartTime() ? 'bold' : 'normal' }}>
-                                {t}{t === getAutoLabStartTime() ? ' ← suggested' : ''}
-                              </option>
+                            <option value="">Start time</option>
+                            {getLabAvailableStartTimes().map(t => (
+                              <option key={t} value={t}>{t}</option>
                             ))}
                           </select>
                         </div>
                         <div>
-                          <label className="flex items-center gap-1 text-xs font-semibold mb-1.5" style={{ color: colors.primary }}>
-                            <Clock className="w-3.5 h-3.5" style={{ color: '#4f46e5' }} />
-                            Lab End <span style={{ color: colors.danger }}>*</span>
+                          <label className="flex items-center gap-2 text-xs font-semibold mb-2" style={{ color: colors.primary }}>
+                            <Clock className="w-4 h-4" style={{ color: colors.tertiary }} />
+                            Lab End Time <span style={{ color: colors.danger }}>*</span>
                           </label>
                           <select
                             value={labFormData.endTime}
                             onChange={e => handleLabInputChange('endTime', e.target.value)}
                             disabled={!labFormData.startTime}
-                            className="w-full px-3 py-2 rounded-lg text-sm transition-all disabled:opacity-50"
-                            style={{ outline: 'none', color: colors.primary, backgroundColor: 'white', border: '1px solid rgba(99,102,241,0.3)' }}
+                            className="w-full px-3 py-2.5 rounded-lg text-sm transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                            style={{ outline: 'none', color: colors.primary, backgroundColor: 'white', border: '1px solid rgba(179, 116, 74, 0.2)' }}
+                            onFocus={(e) => {
+                              if (!e.currentTarget.disabled) {
+                                e.currentTarget.style.borderColor = colors.secondary;
+                                e.currentTarget.style.boxShadow = '0 0 0 3px rgba(149, 90, 39, 0.1)';
+                              }
+                            }}
+                            onBlur={(e) => {
+                              e.currentTarget.style.borderColor = 'rgba(179, 116, 74, 0.2)';
+                              e.currentTarget.style.boxShadow = 'none';
+                            }}
                           >
-                            <option value="">Select end time</option>
-                            {TIME_SLOTS.filter(t => {
-                              if (!labFormData.startTime) return false;
-                              const [sh, sm] = labFormData.startTime.split(':').map(Number);
-                              const [eh, em] = t.split(':').map(Number);
-                              return eh * 60 + em > sh * 60 + sm;
-                            }).map(t => <option key={t} value={t}>{t}</option>)}
+                            <option value="">End time</option>
+                            {getLabAvailableEndTimes().map(t => <option key={t} value={t}>{t}</option>)}
                           </select>
                           {labFormData.startTime && labFormData.endTime && (
-                            <p className="text-xs mt-1" style={{ color: '#4f46e5' }}>
-                              Lab duration: {(() => {
+                            <p className="text-xs mt-1" style={{ color: colors.neutral }}>
+                              Duration: {(() => {
                                 const [sh, sm] = labFormData.startTime.split(':').map(Number);
                                 const [eh, em] = labFormData.endTime.split(':').map(Number);
                                 const d = (eh * 60 + em) - (sh * 60 + sm);
-                                return `${Math.floor(d/60)}h${d%60>0?` ${d%60}m`:''}`;
+                                return `${Math.floor(d/60)}h${d % 60 > 0 ? ` ${d % 60}m` : ''}`;
                               })()}
+                              {selectedCourse?.lab_hour > 0 && (
+                                <span className="ml-2" style={{ color: colors.tertiary }}>
+                                  (max {selectedCourse.lab_hour}h from curriculum)
+                                </span>
+                              )}
                             </p>
                           )}
                         </div>
@@ -1675,13 +1894,19 @@ export default function BuildSchedulePage() {
         onClose={() => setDeleteConfirm({
           isOpen: false,
           scheduleId: null,
-          scheduleInfo: ''
+          siblingIds: [],
+          scheduleInfo: '',
+          hasMultiple: false
         })}
         onConfirm={confirmDelete}
-        title="Delete Schedule"
-        message={`Are you sure you want to delete this schedule?`}
+        title={deleteConfirm.hasMultiple ? 'Delete Lecture + Lab Schedules' : 'Delete Schedule'}
+        message={
+          deleteConfirm.hasMultiple
+            ? `This subject has both a lecture and a lab schedule. Deleting one will delete all ${deleteConfirm.siblingIds.length} schedules for this subject.`
+            : `Are you sure you want to delete this schedule?`
+        }
         description={deleteConfirm.scheduleInfo}
-        confirmText="Delete"
+        confirmText="Delete All"
         cancelText="Cancel"
         variant="danger"
       />

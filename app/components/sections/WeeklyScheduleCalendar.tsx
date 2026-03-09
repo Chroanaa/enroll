@@ -34,7 +34,7 @@ interface WeeklyScheduleCalendarProps {
   visibleDays?: string[];
 }
 
-const DEFAULT_DAYS = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'];
+const DEFAULT_DAYS = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
 const START_HOUR = 7;
 const END_HOUR = 21;
 const SLOT_MINUTES = 30;
