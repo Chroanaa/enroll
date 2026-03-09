@@ -300,7 +300,7 @@ export default function BuildSchedulePage() {
     }
   };
 
-  // Fetch all occupied slots for a given day (from ALL sections including current)
+  // Fetch all occupied slots for a given day (from ALL sections including current))
   const fetchOccupiedSlots = async (day: string) => {
     if (!section) return;
     
