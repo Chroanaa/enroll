@@ -77,7 +77,7 @@ export const EnrollmentsTabContent: React.FC<EnrollmentsTabContentProps> = ({
       if (searchTerm) params.set("search", searchTerm);
 
       const response = await fetch(
-        `/api/auth/assessment/enrollments-summary?${params.toString()}`,
+        `/api/auth/assessment/all-summaries?${params.toString()}`,
       );
       if (!response.ok) {
         throw new Error("Failed to fetch student summaries");
