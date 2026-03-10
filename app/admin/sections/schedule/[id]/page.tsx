@@ -584,11 +584,13 @@ export default function BuildSchedulePage() {
     const [startHour, startMin] = formData.startTime.split(':').map(Number);
     const startTotal = startHour * 60 + startMin;
 
-    // Derive max duration: lab-only subjects use lab_hour; regular lectures use lecture_hour
-    const lectureHours = selectedCourse
-      ? (isLabOnly ? Number(selectedCourse.lab_hour) : Number(selectedCourse.lecture_hour))
+    // Derive max duration: lab-only uses lab_hour; combined subjects use total (lec + lab) hours
+    const totalHours = selectedCourse
+      ? (isLabOnly
+          ? Number(selectedCourse.lab_hour)
+          : Number(selectedCourse.lecture_hour) + Number(selectedCourse.lab_hour))
       : 0;
-    const maxDurationMinutes = lectureHours > 0 ? lectureHours * 60 : null;
+    const maxDurationMinutes = totalHours > 0 ? totalHours * 60 : null;
 
     return TIME_SLOTS.filter(time => {
       const [endHour, endMin] = time.split(':').map(Number);
@@ -637,9 +639,18 @@ export default function BuildSchedulePage() {
     const [startHour, startMin] = labFormData.startTime.split(':').map(Number);
     const startTotal = startHour * 60 + startMin;
 
-    // Derive max duration from curriculum lab_hour (in hours → minutes)
-    const labHours = selectedCourse ? Number(selectedCourse.lab_hour) : 0;
-    const maxDurationMinutes = labHours > 0 ? labHours * 60 : null;
+    // Derive max duration for lab: total hours minus however long the lecture was set
+    const totalHours = selectedCourse
+      ? Number(selectedCourse.lecture_hour) + Number(selectedCourse.lab_hour)
+      : 0;
+    let lectureDurationMinutes = 0;
+    if (formData.startTime && formData.endTime) {
+      const [lsh, lsm] = formData.startTime.split(':').map(Number);
+      const [leh, lem] = formData.endTime.split(':').map(Number);
+      lectureDurationMinutes = (leh * 60 + lem) - (lsh * 60 + lsm);
+    }
+    const remainingMinutes = totalHours > 0 ? totalHours * 60 - lectureDurationMinutes : null;
+    const maxDurationMinutes = remainingMinutes !== null && remainingMinutes > 0 ? remainingMinutes : null;
 
     return TIME_SLOTS.filter(time => {
       const [endHour, endMin] = time.split(':').map(Number);
@@ -1555,9 +1566,9 @@ export default function BuildSchedulePage() {
                                   (max {selectedCourse.lab_hour}h lab)
                                 </span>
                               )
-                            : selectedCourse?.lecture_hour > 0 && (
+                            : (Number(selectedCourse?.lecture_hour) + Number(selectedCourse?.lab_hour)) > 0 && (
                                 <span className="ml-2" style={{ color: colors.tertiary }}>
-                                  (max {selectedCourse.lecture_hour}h from curriculum)
+                                  (max {Number(selectedCourse?.lecture_hour) + Number(selectedCourse?.lab_hour)}h total)
                                 </span>
                               )
                           }
@@ -1752,11 +1763,23 @@ export default function BuildSchedulePage() {
                                 const d = (eh * 60 + em) - (sh * 60 + sm);
                                 return `${Math.floor(d/60)}h${d % 60 > 0 ? ` ${d % 60}m` : ''}`;
                               })()}
-                              {selectedCourse?.lab_hour > 0 && (
-                                <span className="ml-2" style={{ color: colors.tertiary }}>
-                                  (max {selectedCourse.lab_hour}h from curriculum)
-                                </span>
-                              )}
+                              {selectedCourse && (Number(selectedCourse.lecture_hour) + Number(selectedCourse.lab_hour)) > 0 && (() => {
+                                const totalMin = (Number(selectedCourse.lecture_hour) + Number(selectedCourse.lab_hour)) * 60;
+                                let lecMin = 0;
+                                if (formData.startTime && formData.endTime) {
+                                  const [lsh, lsm] = formData.startTime.split(':').map(Number);
+                                  const [leh, lem] = formData.endTime.split(':').map(Number);
+                                  lecMin = (leh * 60 + lem) - (lsh * 60 + lsm);
+                                }
+                                const remMin = totalMin - lecMin;
+                                const remH = Math.floor(remMin / 60);
+                                const remM = remMin % 60;
+                                return (
+                                  <span className="ml-2" style={{ color: colors.tertiary }}>
+                                    (max {remH}h{remM > 0 ? ` ${remM}m` : ''} remaining)
+                                  </span>
+                                );
+                              })()}
                             </p>
                           )}
                         </div>
