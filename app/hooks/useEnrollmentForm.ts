@@ -363,12 +363,14 @@ export const useEnrollmentForm = () => {
     }
     
     // Auto-set year_level to 1 when admission_status is "new"
-    let updatedFormData = { ...formData, [field]: processedValue };
-    if (field === "admission_status" && value === "new") {
-      updatedFormData.year_level = 1;
-    }
-    
-    setFormData(updatedFormData);
+    // Use functional setFormData so back-to-back calls don't overwrite each other
+    setFormData((prev) => {
+      const updatedFormData = { ...prev, [field]: processedValue };
+      if (field === "admission_status" && value === "new") {
+        updatedFormData.year_level = 1;
+      }
+      return updatedFormData;
+    });
 
     // Clear error for this field when user starts typing
     if (fieldErrors[field]) {
@@ -388,10 +390,10 @@ export const useEnrollmentForm = () => {
     ];
     if (nameFields.includes(field)) {
       debouncedDuplicateCheck({
-        first_name: updatedFormData.first_name,
-        family_name: updatedFormData.family_name,
-        middle_name: updatedFormData.middle_name,
-        birthdate: updatedFormData.birthdate,
+        first_name: field === "first_name" ? (processedValue as string) : formData.first_name,
+        family_name: field === "family_name" ? (processedValue as string) : formData.family_name,
+        middle_name: field === "middle_name" ? (processedValue as string) : formData.middle_name,
+        birthdate: field === "birthdate" ? (processedValue as string) : formData.birthdate,
       });
     }
     

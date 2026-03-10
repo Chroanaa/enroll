@@ -618,18 +618,13 @@ export default function BuildSchedulePage() {
     return labOccupiedSlots.filter(slot => slot.isCurrentSection && slot.sectionId === section.id);
   };
 
-  // Get available lab start times (only from suggested start onward, excluding occupied slots)
+  // Get available lab start times (all times, excluding occupied slots; suggested time is labelled in the UI)
   const getLabAvailableStartTimes = () => {
     const sectionSlots = getLabSectionOccupiedSlots();
-    const autoStart = getAutoLabStartTime();
-    const [autoHour, autoMin] = autoStart ? autoStart.split(':').map(Number) : [0, 0];
-    const autoMinutes = autoStart ? autoHour * 60 + autoMin : 0;
 
     return TIME_SLOTS.filter(time => {
       const [hour, min] = time.split(':').map(Number);
       const timeMinutes = hour * 60 + min;
-      // Only show times at or after the suggested lab start time
-      if (autoStart && timeMinutes < autoMinutes) return false;
       // Exclude if this time falls within any occupied slot
       return !isTimeInOccupiedRange(timeMinutes, sectionSlots);
     });
@@ -1713,9 +1708,15 @@ export default function BuildSchedulePage() {
                             }}
                           >
                             <option value="">Start time</option>
-                            {getLabAvailableStartTimes().map(t => (
-                              <option key={t} value={t}>{t}</option>
-                            ))}
+                            {getLabAvailableStartTimes().map(t => {
+                              const suggestedTime = getAutoLabStartTime();
+                              const isSuggested = suggestedTime && t === suggestedTime;
+                              return (
+                                <option key={t} value={t}>
+                                  {isSuggested ? `⭐ ${t} (Suggested)` : t}
+                                </option>
+                              );
+                            })}
                           </select>
                         </div>
                         <div>

@@ -506,6 +506,17 @@ const EducationalBackground: React.FC<EnrollmentPageProps> = ({
                     type="text"
                     value={customProgram}
                     onChange={(e) => setCustomProgram(e.target.value.toUpperCase())}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') {
+                        e.preventDefault();
+                        if (customProgram.trim() && !isSavingProgram) saveCustomProgram();
+                      }
+                      if (e.key === 'Escape') {
+                        e.preventDefault();
+                        setShowProgramModal(false);
+                        setCustomProgram("");
+                      }
+                    }}
                     className={inputClasses}
                     style={getInputStyle("program_shs")}
                     placeholder="Enter program name"
@@ -578,6 +589,17 @@ const EducationalBackground: React.FC<EnrollmentPageProps> = ({
                     type="text"
                     value={customSchool}
                     onChange={(e) => setCustomSchool(e.target.value.toUpperCase())}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') {
+                        e.preventDefault();
+                        if (customSchool.trim() && !isSavingSchool) saveCustomSchool();
+                      }
+                      if (e.key === 'Escape') {
+                        e.preventDefault();
+                        setShowSchoolModal(false);
+                        setCustomSchool("");
+                      }
+                    }}
                     className={inputClasses}
                     style={getInputStyle("last_school_attended")}
                     placeholder="Enter school name"

@@ -5,7 +5,7 @@ import { prisma } from "@/app/lib/prisma";
 export async function POST(request: NextRequest) {
   try {
     const data = await request.json();
-    const { id, ...roomData } = data;
+    const { id, buildingName, ...roomData } = data;
     const newRoom = await prisma.room.create({
       data: roomData,
     });

@@ -11,6 +11,7 @@ import {
 import { colors } from "../../colors";
 import { EnrollmentPageProps } from "./types";
 import { useAcademicTermContext } from "../../contexts/AcademicTermContext";
+import { getAcademicYear } from "../../utils/academicTermUtils";
 
 const AdmissionInformation: React.FC<EnrollmentPageProps> = ({
   formData,
@@ -54,6 +55,11 @@ const AdmissionInformation: React.FC<EnrollmentPageProps> = ({
     if (storedSettings.academicYear && !formData.academic_year) {
       console.log('[AdmissionInfo] Setting academic year to:', storedSettings.academicYear);
       handleInputChange("academic_year", storedSettings.academicYear);
+    } else if (!storedSettings.academicYear && !formData.academic_year) {
+      // Fall back to the academic year computed from the current date
+      const computed = getAcademicYear(new Date()).academicYear;
+      console.log('[AdmissionInfo] No stored academic year, using computed:', computed);
+      handleInputChange("academic_year", computed);
     } else {
       console.log('[AdmissionInfo] Not setting academic year. Settings:', storedSettings.academicYear, 'Form:', formData.academic_year);
     }
@@ -592,7 +598,7 @@ const AdmissionInformation: React.FC<EnrollmentPageProps> = ({
                     // Use stored academic year as base, or current year if not available
                     const baseYear = storedSettings?.academicYear 
                       ? parseInt(storedSettings.academicYear.split('-')[0])
-                      : new Date().getFullYear();
+                      : getAcademicYear(new Date()).startYear;
                     const startYear = baseYear - 2 + i; // Show 2 years before and 7 years after
                     const endYear = startYear + 1;
                     const yearValue = `${startYear}-${endYear}`;
