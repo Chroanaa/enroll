@@ -8,10 +8,11 @@ import {
   getEligibleStudents
 } from '../../utils/sectionApi';
 import { colors } from '../../colors';
-import { Users, Search, X, UserPlus, CheckCircle2, AlertTriangle, Eye, ChevronDown } from 'lucide-react';
+import { Users, Search, X, UserPlus, CheckCircle2, AlertTriangle, Eye, ChevronDown, FileText } from 'lucide-react';
 import { formatProgramDisplay } from '../../utils/programUtils';
 import ConfirmationModal from '../common/ConfirmationModal';
 import RegistrationPDFViewer from '../enrollment/RegistrationPDFViewer';
+import SectionStudentListPDFViewer from './SectionStudentListPDFViewer';
 
 interface StudentAssignmentProps {
   section: SectionResponse | null;
@@ -48,6 +49,9 @@ export function StudentAssignment({
     data: null,
     loading: false
   });
+
+  // Section student list PDF viewer
+  const [sectionListOpen, setSectionListOpen] = useState(false);
 
   const [filters, setFilters] = useState({
     program: '',
@@ -253,6 +257,21 @@ export function StudentAssignment({
   const canAssignMore = !isFull || overrideCapacity;
 
   return (
+    <>
+      {/* Section student list PDF viewer — rendered outside the modal so it covers everything */}
+      {sectionListOpen && (
+        <SectionStudentListPDFViewer
+          sectionName={section.sectionName}
+          programCode={section.programCode ?? ''}
+          programName={section.programName ?? ''}
+          yearLevel={section.yearLevel}
+          academicYear={section.academicYear}
+          semester={section.semester}
+          students={assignedStudents}
+          onClose={() => setSectionListOpen(false)}
+        />
+      )}
+
     <div
       className="fixed inset-0 flex items-center justify-center p-4 z-50 backdrop-blur-sm"
       style={{ backgroundColor: 'rgba(0,0,0,0.4)' }}
@@ -291,12 +310,23 @@ export function StudentAssignment({
               </p>
             </div>
           </div>
-          <button
-            onClick={onClose}
-            className="p-2 rounded-full hover:bg-gray-100 transition-colors text-gray-400 hover:text-gray-600"
-          >
-            <X className="w-5 h-5" />
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => setSectionListOpen(true)}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all hover:shadow-sm"
+              style={{ color: colors.primary, backgroundColor: `${colors.primary}12`, border: `1px solid ${colors.primary}20` }}
+              title="View / Print student list for this section"
+            >
+              <FileText className="w-3.5 h-3.5" />
+              View Section List ({assignedStudents.length})
+            </button>
+            <button
+              onClick={onClose}
+              className="p-2 rounded-full hover:bg-gray-100 transition-colors text-gray-400 hover:text-gray-600"
+            >
+              <X className="w-5 h-5" />
+            </button>
+          </div>
         </div>
 
         <div className="p-5 space-y-4 overflow-y-auto">
@@ -675,6 +705,8 @@ export function StudentAssignment({
           </div>
         )}
 
+        {/* Section student list PDF viewer — moved outside modal, see above */}
+
         {/* Actions */}
         <div 
           className="flex justify-end gap-3 px-5 py-4 border-t"
@@ -724,5 +756,6 @@ export function StudentAssignment({
         </div>
       </div>
     </div>
+    </>
   );
 }
