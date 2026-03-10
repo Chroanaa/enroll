@@ -63,6 +63,7 @@ export interface BulkAssignStudentsRequest {
   studentNumbers: string[];
   academicYear: string; // e.g., "2025-2026"
   semester: string; // 'First Semester', 'Second Semester', 'Summer'
+  overrideCapacity?: boolean;
 }
 
 export interface BulkAssignStudentsResponse {

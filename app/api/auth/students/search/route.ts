@@ -83,7 +83,8 @@ export async function GET(request: NextRequest) {
           major_id: true,
           year_level: true,
           academic_status: true,
-          academic_year: true
+          academic_year: true,
+          status: true,
         },
         take: limit,
         orderBy: { family_name: 'asc' }
@@ -188,6 +189,7 @@ export async function GET(request: NextRequest) {
           majorId: student.major_id,
           yearLevel: student.year_level,
           academicStatus: student.academic_status || 'regular',
+          enrollmentStatus: student.status,
           academicYear: student.academic_year,
           paymentStatus: paymentInfo?.status || null,
           paymentMode: paymentInfo?.mode || null,

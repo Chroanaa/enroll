@@ -65,12 +65,16 @@ export interface BulkAssignStudentsRequest {
   studentNumbers: string[];
   academicYear: string;
   semester: string;
+  overrideCapacity?: boolean;
 }
 
 export interface BulkAssignStudentsResponse {
-  success: number;
-  failed: number;
-  errors: Array<{ studentNumber: string; error: string }>;
+  sectionId: number;
+  assigned: number;
+  failed: Array<{
+    studentNumber: string;
+    reason: string;
+  }>;
 }
 
 // Helper function

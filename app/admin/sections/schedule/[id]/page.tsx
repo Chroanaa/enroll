@@ -455,9 +455,11 @@ export default function BuildSchedulePage() {
         newData.endTime = '';
       }
       
-      // If start time changes, auto-calculate end time from curriculum lecture_hour
+      // If start time changes, auto-calculate end time from curriculum (lab_hour for lab-only, lecture_hour otherwise)
       if (name === 'startTime' && value) {
-        const lectureHours = selectedCourse ? Number(selectedCourse.lecture_hour) : 0;
+        const lectureHours = selectedCourse
+          ? (isLabOnly ? Number(selectedCourse.lab_hour) : Number(selectedCourse.lecture_hour))
+          : 0;
         if (lectureHours > 0) {
           const [h, m] = value.split(':').map(Number);
           const totalMin = h * 60 + m + lectureHours * 60;
@@ -513,9 +515,17 @@ export default function BuildSchedulePage() {
     return `${hh.toString().padStart(2, '0')}:${mm.toString().padStart(2, '0')}`;
   };
 
-  /** True when the selected course has lab hours */
+  /** True when the selected course is lab-only (lecture_hour === 0, has lab hours) — e.g. PE/PATHFIT */
+  const isLabOnly = !!(
+    selectedCourse &&
+    Number(selectedCourse.lecture_hour) === 0 &&
+    (Number(selectedCourse.units_lab) > 0 || Number(selectedCourse.lab_hour) > 0)
+  );
+
+  /** True when the selected course has BOTH lecture and lab hours (needs separate lab block) */
   const hasLab = !!(
     selectedCourse &&
+    !isLabOnly &&
     (Number(selectedCourse.units_lab) > 0 || Number(selectedCourse.lab_hour) > 0)
   );
 
@@ -574,8 +584,10 @@ export default function BuildSchedulePage() {
     const [startHour, startMin] = formData.startTime.split(':').map(Number);
     const startTotal = startHour * 60 + startMin;
 
-    // Derive max duration from curriculum lecture_hour (in hours → minutes)
-    const lectureHours = selectedCourse ? Number(selectedCourse.lecture_hour) : 0;
+    // Derive max duration: lab-only subjects use lab_hour; regular lectures use lecture_hour
+    const lectureHours = selectedCourse
+      ? (isLabOnly ? Number(selectedCourse.lab_hour) : Number(selectedCourse.lecture_hour))
+      : 0;
     const maxDurationMinutes = lectureHours > 0 ? lectureHours * 60 : null;
 
     return TIME_SLOTS.filter(time => {
@@ -705,10 +717,12 @@ export default function BuildSchedulePage() {
         startTime: startDate.toISOString(),
         endTime: endDate.toISOString(),
         academicYear: section!.academicYear,
-        semester: section!.semester
-      });
+        semester: section!.semester,
+        // Lab-only subjects (lecture_hour=0) are treated as a single lab block
+        isLabSchedule: isLabOnly,
+      } as any);
 
-      // If course has lab, also create the lab time-block schedule
+      // If course has BOTH lecture and lab, also create the separate lab time-block schedule
       if (hasLab) {
         if (!labFormData.roomId || !labFormData.dayOfWeek || !labFormData.startTime || !labFormData.endTime) {
           setError('Lab Room, Day, Start Time and End Time are required for lab subjects');
@@ -1111,7 +1125,9 @@ export default function BuildSchedulePage() {
               >
                 <div className="text-[10px] font-medium uppercase tracking-wide" style={{ color: colors.tertiary }}>Completion</div>
                 <div className="text-2xl font-bold" style={{ color: colors.secondary }}>
-                  {curriculum.length > 0 ? Math.round((schedules.length / curriculum.length) * 100) : 0}%
+                  {curriculum.length > 0
+                    ? Math.round((new Set(schedules.map(s => s.curriculumCourseId)).size / curriculum.length) * 100)
+                    : 0}%
                 </div>
               </div>
             </div>
@@ -1257,12 +1273,22 @@ export default function BuildSchedulePage() {
                               {course.descriptive_title}
                             </div>
                             <div className="text-[10px]" style={{ color: colors.tertiary }}>
-                              {Number(course.units_lec) > 0 && Number(course.units_lab) > 0
+                              {Number(course.lecture_hour) === 0 && (Number(course.units_lab) > 0 || Number(course.lab_hour) > 0)
+                                ? `${course.units_total} units`
+                                : Number(course.units_lec) > 0 && Number(course.units_lab) > 0
                                 ? `${course.units_lec} lec / ${course.units_lab} lab`
                                 : Number(course.units_lec) > 0
                                 ? `${course.units_lec} lec`
                                 : `${course.units_total} units`}
                             </div>
+                            {Number(course.lecture_hour) === 0 && (Number(course.units_lab) > 0 || Number(course.lab_hour) > 0) && (
+                              <div
+                                className="mt-1 text-[9px] px-1.5 py-0.5 rounded-full inline-block font-medium"
+                                style={{ backgroundColor: 'rgba(14,165,233,0.12)', color: '#0EA5E9', border: '1px solid rgba(14,165,233,0.25)' }}
+                              >
+                                Lab Only
+                              </div>
+                            )}
                           </div>
                           {isScheduled && (
                             <CheckCircle2 className="w-3.5 h-3.5 flex-shrink-0" style={{ color: colors.success }} />
@@ -1286,11 +1312,23 @@ export default function BuildSchedulePage() {
                 }}
               >
                 <div className="flex items-center justify-between mb-4">
-                  <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-2 flex-wrap">
                     <CalendarDays className="w-5 h-5" style={{ color: colors.secondary }} />
                     <h2 className="text-base font-semibold" style={{ color: colors.primary }}>
                       Schedule for {selectedCourse.course_code}
                     </h2>
+                    {isLabOnly && (
+                      <span
+                        className="text-[10px] px-2 py-0.5 rounded-full font-medium"
+                        style={{
+                          backgroundColor: 'rgba(14, 165, 233, 0.12)',
+                          color: '#0EA5E9',
+                          border: '1px solid rgba(14, 165, 233, 0.3)',
+                        }}
+                      >
+                        Lab Only · {selectedCourse.lab_hour}h
+                      </span>
+                    )}
                   </div>
                   <button
                     onClick={() => setSelectedCourse(null)}
@@ -1382,6 +1420,23 @@ export default function BuildSchedulePage() {
                       </select>
                     </div>
                   </div>
+
+                  {isLabOnly && (
+                    <div
+                      className="rounded-lg p-3 flex items-start gap-2 text-xs"
+                      style={{
+                        backgroundColor: 'rgba(14, 165, 233, 0.06)',
+                        border: '1px solid rgba(14, 165, 233, 0.2)',
+                        color: '#0EA5E9',
+                      }}
+                    >
+                      <AlertCircle className="w-3.5 h-3.5 mt-0.5 flex-shrink-0" />
+                      <span>
+                        <strong>{selectedCourse.course_code}</strong> has no lecture hours — this is a <strong>lab-only</strong> subject.
+                        Set the single lab schedule below (max {selectedCourse.lab_hour}h).
+                      </span>
+                    </div>
+                  )}
 
                   <div className="grid grid-cols-3 gap-4">
                     <div>
@@ -1499,11 +1554,18 @@ export default function BuildSchedulePage() {
                             const minutes = duration % 60;
                             return `${hours}h ${minutes > 0 ? `${minutes}m` : ''}`;
                           })()}
-                          {selectedCourse?.lecture_hour > 0 && (
-                            <span className="ml-2" style={{ color: colors.tertiary }}>
-                              (max {selectedCourse.lecture_hour}h from curriculum)
-                            </span>
-                          )}
+                          {isLabOnly
+                            ? selectedCourse?.lab_hour > 0 && (
+                                <span className="ml-2" style={{ color: '#0EA5E9' }}>
+                                  (max {selectedCourse.lab_hour}h lab)
+                                </span>
+                              )
+                            : selectedCourse?.lecture_hour > 0 && (
+                                <span className="ml-2" style={{ color: colors.tertiary }}>
+                                  (max {selectedCourse.lecture_hour}h from curriculum)
+                                </span>
+                              )
+                          }
                         </p>
                       )}
                     </div>

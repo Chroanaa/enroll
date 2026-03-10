@@ -64,7 +64,7 @@ export async function GET(request: NextRequest) {
     }
 
     // Get enrolled subjects — fallback to subject table if curriculum_course row is gone
-    const enrolledSubjects = await prisma.$queryRaw<any[]>`
+    let enrolledSubjects = await prisma.$queryRaw<any[]>`
       SELECT 
         es.*,
         COALESCE(cc.course_code, s.code)                    AS course_code,
@@ -81,6 +81,48 @@ export async function GET(request: NextRequest) {
         AND es.semester = ${semester}
       ORDER BY COALESCE(cc.course_code, s.code)
     `;
+
+    // Fallback for irregular students: if enrolled_subjects is empty, get subjects
+    // directly from student_section_subjects → class_schedule → curriculum_course.
+    // This handles cases where assessment subjects were not saved to enrolled_subjects
+    // but the student was still assigned class schedules through irregular enrollment.
+    if (enrolledSubjects.length === 0) {
+      const semesterStr = semesterParam === '1' ? '1' :
+                          semesterParam === '2' ? '2' :
+                          semesterParam === 'first' ? 'first' :
+                          semesterParam === 'second' ? 'second' : semesterParam;
+
+      const sectionSubjects = await prisma.$queryRaw<any[]>`
+        SELECT DISTINCT
+          cc.id                AS curriculum_course_id,
+          NULL                 AS subject_id,
+          cc.course_code,
+          cc.descriptive_title,
+          cc.units_lec,
+          cc.units_lab,
+          cc.units_total,
+          cc."fixedAmount"     AS fixed_amount,
+          0                    AS units_total_fallback
+        FROM student_section ss
+        JOIN student_section_subjects sss ON sss.student_section_id = ss.id
+        JOIN class_schedule cs             ON cs.id = sss.class_schedule_id
+        JOIN curriculum_course cc          ON cc.id = cs.curriculum_course_id
+        WHERE ss.student_number = ${studentNumber}
+          AND ss.academic_year  = ${academicYear}
+          AND ss.semester       = ${semesterStr}
+        ORDER BY cc.course_code
+      `;
+
+      if (sectionSubjects.length > 0) {
+        enrolledSubjects = sectionSubjects.map((r: any) => ({
+          ...r,
+          units_total: r.units_total ?? 0,
+          units_lec:   r.units_lec   ?? 0,
+          units_lab:   r.units_lab   ?? 0,
+          fixed_amount: r.fixed_amount ?? null,
+        }));
+      }
+    }
 
     // Get assessment fees breakdown
     const assessmentFees = await prisma.assessment_fee.findMany({
