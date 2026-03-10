@@ -24,21 +24,59 @@ export async function GET(request: NextRequest) {
       );
     }
 
+    const parsedId = parseInt(curriculumCourseId);
+    if (isNaN(parsedId)) {
+      return NextResponse.json(
+        { error: 'Invalid curriculumCourseId' },
+        { status: 400 }
+      );
+    }
+
     console.log('[sections-by-subject] Searching for:', { curriculumCourseId, academicYear, semester });
 
-    // Build where clause
-    const whereClause: any = {
-      curriculum_course_id: parseInt(curriculumCourseId),
-      status: 'active'
+    // Resolve all curriculum_course IDs that share the same course_code.
+    // This handles curriculum-update scenarios where a subject was re-created
+    // with a new ID: enrolled_subjects may reference the old ID while the
+    // class_schedule references the new one.
+    let curriculumCourseIds: number[] = [parsedId];
+    try {
+      const sourceCC = await prisma.curriculum_course.findUnique({
+        where: { id: parsedId },
+        select: { course_code: true }
+      });
+      if (sourceCC?.course_code) {
+        const allCC = await prisma.curriculum_course.findMany({
+          where: { course_code: sourceCC.course_code },
+          select: { id: true }
+        });
+        curriculumCourseIds = allCC.map((c: { id: number }) => c.id);
+      }
+    } catch {
+      // If lookup fails, fall back to the single ID
+    }
+
+    console.log('[sections-by-subject] Resolved curriculum course IDs:', curriculumCourseIds);
+
+    // Build where clause — match any of the resolved curriculum course IDs.
+    // We also tolerate class_schedule rows whose semester column is NULL
+    // (can happen with records migrated from the old integer-semester schema).
+    const scheduleWhere: any = {
+      curriculum_course_id: { in: curriculumCourseIds },
     };
 
-    // Add optional filters
-    if (academicYear) whereClause.academic_year = academicYear;
-    if (semester) whereClause.semester = semester;
+    if (academicYear) scheduleWhere.academic_year = academicYear;
 
-    // Find all active class schedules for this curriculum course
+    // For semester: match the requested value OR null (legacy records)
+    if (semester) {
+      scheduleWhere.OR = [
+        { semester: semester },
+        { semester: null }
+      ];
+    }
+
+    // Find all class schedules for this curriculum course
     const classSchedules = await prisma.class_schedule.findMany({
-      where: whereClause,
+      where: scheduleWhere,
       select: {
         section_id: true
       }
@@ -59,11 +97,11 @@ export async function GET(request: NextRequest) {
 
     console.log('[sections-by-subject] Unique section IDs:', sectionIds);
 
-    // Fetch all sections by IDs and filter active ones
+    // Fetch all sections by IDs — include any status except 'closed'
     const sections = await prisma.sections.findMany({
       where: {
         id: { in: sectionIds },
-        status: 'active'
+        NOT: { status: 'closed' }
       }
     });
 
