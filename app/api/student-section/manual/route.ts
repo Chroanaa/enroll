@@ -8,7 +8,7 @@ import { prisma } from '../../../lib/prisma';
  * Request Body:
  * - studentNumber: string
  * - sectionId: number
- * - academicYear: string
+ * - academicYear: strings
  * - semester: string
  * - assignmentType: 'regular' | 'irregular'
  * - classScheduleIds: number[] (required for irregular, optional for regular)
