@@ -161,6 +161,7 @@ export async function GET(request: NextRequest) {
         term: true,
         academic_status: true,
         year_level: true,
+        major_id: true,
       },
     });
 
@@ -205,6 +206,60 @@ export async function GET(request: NextRequest) {
     const studentNumbers = matchingStudents
       .map(e => e.student_number)
       .filter(Boolean) as string[];
+
+    // Fetch payment info (mode + amounts) from student_assessment for each student
+    const semesterNumForAssessment = normalizedSemester === 'first' ? 1
+      : normalizedSemester === 'second' ? 2 : 3;
+    const assessments = await prisma.student_assessment.findMany({
+      where: {
+        student_number: { in: studentNumbers },
+        academic_year: targetAcademicYear!,
+        semester: semesterNumForAssessment,
+        status: 'finalized',
+      },
+      select: {
+        student_number: true,
+        payment_mode: true,
+        total_due: true,
+        total_due_cash: true,
+        total_due_installment: true,
+        payments: {
+          select: { amount_paid: true },
+        },
+      },
+    });
+    const assessmentMap = new Map(assessments.map(a => [a.student_number, a]));
+    const totalPaidMap = new Map(
+      assessments.map(a => [
+        a.student_number,
+        a.payments.reduce((sum, p) => sum + Number(p.amount_paid), 0),
+      ])
+    );
+
+    // Fetch count of enrolled_subjects per student to detect students with no assessment subjects
+    const enrolledSubjectCounts = await prisma.$queryRaw<{ student_number: string; cnt: bigint }[]>`
+      SELECT student_number, COUNT(*) AS cnt
+      FROM enrolled_subjects
+      WHERE student_number = ANY(${studentNumbers}::text[])
+        AND academic_year  = ${targetAcademicYear!}
+        AND semester       = ${semesterNumForAssessment}
+      GROUP BY student_number
+    `;
+    const enrolledSubjectCountMap = new Map(
+      enrolledSubjectCounts.map(r => [r.student_number, Number(r.cnt)])
+    );
+
+    // Batch-fetch major names for all unique major_ids
+    const uniqueMajorIds = [...new Set(
+      matchingStudents.map(e => e.major_id).filter((id): id is number => id != null)
+    )];
+    const majors = uniqueMajorIds.length > 0
+      ? await prisma.major.findMany({
+          where: { id: { in: uniqueMajorIds } },
+          select: { id: true, name: true },
+        })
+      : [];
+    const majorMap = new Map(majors.map(m => [m.id, m.name]));
 
     const existingAssignments = await prisma.student_section.findMany({
       where: {
@@ -257,9 +312,27 @@ export async function GET(request: NextRequest) {
           programId: targetProgramId!,
           programCode: program.code,
           programName: program.name,
+          majorId: enrollment.major_id ?? null,
+          majorName: enrollment.major_id ? (majorMap.get(enrollment.major_id) ?? null) : null,
           academicStatus: enrollment.academic_status || "regular",
           isAssigned: !!assignedSectionId,
           assignedSectionName: assignedSectionName,
+          // Payment info from student_assessment
+          paymentMode: assessmentMap.get(enrollment.student_number!)?.payment_mode || null,
+          totalDue: assessmentMap.has(enrollment.student_number!)
+            ? Number(assessmentMap.get(enrollment.student_number!)!.total_due)
+            : null,
+          totalDueCash: assessmentMap.has(enrollment.student_number!)
+            ? Number(assessmentMap.get(enrollment.student_number!)!.total_due_cash)
+            : null,
+          totalDueInstallment: assessmentMap.has(enrollment.student_number!)
+            ? Number(assessmentMap.get(enrollment.student_number!)!.total_due_installment)
+            : null,
+          hasAssessment: assessmentMap.has(enrollment.student_number!),
+          totalPaid: totalPaidMap.get(enrollment.student_number!) ?? 0,
+          hasPaid: (totalPaidMap.get(enrollment.student_number!) ?? 0) > 0,
+          hasEnrolledSubjects: (enrolledSubjectCountMap.get(enrollment.student_number!) ?? 0) > 0,
+          enrolledSubjectCount: enrolledSubjectCountMap.get(enrollment.student_number!) ?? 0,
         };
       });
 

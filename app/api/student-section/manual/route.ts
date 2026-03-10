@@ -145,7 +145,106 @@ export async function POST(request: NextRequest) {
         });
       }
 
-      // For regular students, auto-fill student_section_subjects matched to their enrolled_subjects\n      if (type === 'regular') {\n        const semesterNum = semester === 'first' ? 1 : semester === 'second' ? 2 : 3;\n        const sectionSchedules = await tx.class_schedule.findMany({\n          where: { section_id: sectionId, status: 'active' },\n          select: { id: true, curriculum_course_id: true }\n        });\n\n        const studentEnrolledSubjects = await tx.enrolled_subjects.findMany({\n          where: {\n            student_number: studentNumber,\n            academic_year: academicYear,\n            semester: semesterNum,\n            status: 'enrolled'\n          },\n          select: { curriculum_course_id: true }\n        });\n\n        const matchingScheduleIds: number[] = [];\n        for (const es of studentEnrolledSubjects) {\n          for (const s of sectionSchedules) {\n            if (s.curriculum_course_id === es.curriculum_course_id) {\n              matchingScheduleIds.push(s.id);\n            }\n          }\n        }\n\n        const scheduleIdsToAssign = matchingScheduleIds.length > 0\n          ? matchingScheduleIds\n          : sectionSchedules.map((s: { id: number }) => s.id);\n\n        if (scheduleIdsToAssign.length > 0) {\n          await tx.student_section_subjects.createMany({\n            data: scheduleIdsToAssign.map((id: number) => ({\n              student_section_id: studentSection.id,\n              class_schedule_id: id\n            })),\n            skipDuplicates: true\n          });\n        }\n      }
+      // For regular students, auto-fill student_section_subjects from enrolled_subjects
+      if (type === 'regular') {
+        const semesterNum = semester === 'first' ? 1 : semester === 'second' ? 2 : 3;
+
+        const sectionSchedules = await tx.class_schedule.findMany({
+          where: { section_id: sectionId, status: 'active' },
+          select: { id: true, curriculum_course_id: true }
+        });
+
+        const studentEnrolledSubjects = await tx.enrolled_subjects.findMany({
+          where: {
+            student_number: studentNumber,
+            academic_year: academicYear,
+            semester: semesterNum,
+            status: 'enrolled'
+          },
+          select: { curriculum_course_id: true }
+        });
+
+        // HARD BLOCK: student must have enrolled subjects before being assigned
+        if (studentEnrolledSubjects.length === 0) {
+          throw new Error('No enrolled subjects found for this term. Student must complete assessment first.');
+        }
+
+        // Resolve course_codes for both sides so we can match across different curriculum versions.
+        // e.g. student enrolled under BSIT 2022 curriculum, section built on BSIT 2023 curriculum —
+        // same subject "DMATH" has different curriculum_course_id in each version.
+        const sectionCurriculumIds = [...new Set(sectionSchedules.map(s => s.curriculum_course_id))];
+        const sectionCurriculumCourses = await tx.curriculum_course.findMany({
+          where: { id: { in: sectionCurriculumIds } },
+          select: { id: true, course_code: true }
+        });
+        const sectionCodeById = new Map(sectionCurriculumCourses.map(cc => [cc.id, cc.course_code]));
+
+        // Map: course_code -> all schedule ids
+        const schedulesByCourseCode = new Map<string, number[]>();
+        for (const s of sectionSchedules) {
+          const code = sectionCodeById.get(s.curriculum_course_id);
+          if (code) {
+            if (!schedulesByCourseCode.has(code)) schedulesByCourseCode.set(code, []);
+            schedulesByCourseCode.get(code)!.push(s.id);
+          }
+        }
+
+        const enrolledCurriculumIds = [...new Set(studentEnrolledSubjects.map(es => es.curriculum_course_id))];
+
+        // Try direct id match first; if no results, enrolled_subjects.curriculum_course_id
+        // actually stores subject_id, so bridge via curriculum_course.subject_id
+        const enrolledCurriculumCourses = await tx.curriculum_course.findMany({
+          where: { id: { in: enrolledCurriculumIds } },
+          select: { id: true, subject_id: true, course_code: true }
+        });
+        const enrolledBySubjectId = enrolledCurriculumCourses.length === 0
+          ? await tx.curriculum_course.findMany({
+              where: { subject_id: { in: enrolledCurriculumIds } },
+              select: { id: true, subject_id: true, course_code: true }
+            })
+          : [];
+        // Last fallback: enrolled_subjects.curriculum_course_id is actually subject.id
+        const enrolledBySubjectTable = (enrolledCurriculumCourses.length === 0 && enrolledBySubjectId.length === 0)
+          ? await tx.subject.findMany({
+              where: { id: { in: enrolledCurriculumIds } },
+              select: { id: true, code: true }
+            })
+          : [];
+
+        const enrolledCodeById = new Map<number, string>();
+        if (enrolledCurriculumCourses.length > 0) {
+          for (const cc of enrolledCurriculumCourses) enrolledCodeById.set(cc.id, cc.course_code);
+        } else if (enrolledBySubjectId.length > 0) {
+          for (const cc of enrolledBySubjectId) {
+            if (cc.subject_id != null) enrolledCodeById.set(cc.subject_id, cc.course_code);
+          }
+        } else {
+          for (const s of enrolledBySubjectTable) enrolledCodeById.set(s.id, s.code);
+        }
+
+        // Match by course_code across curriculum versions
+        const rawMatchingIds: number[] = [];
+        for (const es of studentEnrolledSubjects) {
+          const code = enrolledCodeById.get(es.curriculum_course_id);
+          if (code && schedulesByCourseCode.has(code)) {
+            rawMatchingIds.push(...schedulesByCourseCode.get(code)!);
+          }
+        }
+        const matchingScheduleIds = [...new Set(rawMatchingIds)];
+
+        // Only assign schedules that match enrolled subjects — no fallback to all section schedules
+        if (matchingScheduleIds.length === 0) {
+          throw new Error("None of the student's enrolled subjects match this section's class schedules.");
+        }
+
+        await tx.student_section_subjects.createMany({
+          data: matchingScheduleIds.map((id: number) => ({
+            student_section_id: studentSection.id,
+            class_schedule_id: id
+          })),
+          skipDuplicates: true
+        });
+      }
 
       // Update section student count
       await tx.sections.update({

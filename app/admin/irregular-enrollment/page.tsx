@@ -26,6 +26,7 @@ interface Student {
   programCode: string;
   programName: string;
   academicStatus: string;
+  enrollmentStatus?: number | null;
   paymentStatus?: 'Unpaid' | 'Partial' | 'Fully Paid' | null;
   paymentMode?: string | null;
   totalDue?: number | null;
@@ -343,6 +344,7 @@ export default function IrregularEnrollmentPage() {
       }
 
       setEnrollConfirmModal(false);
+      setSelectedStudent(prev => prev ? { ...prev, enrollmentStatus: 1 } : prev);
       setSuccessModal({ 
         isOpen: true, 
         message: `${selectedStudent.name} has been successfully enrolled!\n\nStatus changed to "Enrolled" with ${enrolledSubjects.length} subjects (${totalUnits} units).` 
@@ -894,15 +896,20 @@ export default function IrregularEnrollmentPage() {
                     </button>
                     
                     <button
-                      onClick={() => setEnrollConfirmModal(true)}
-                      disabled={enrolling}
+                      onClick={() => { if (selectedStudent?.enrollmentStatus !== 1) setEnrollConfirmModal(true); }}
+                      disabled={enrolling || selectedStudent?.enrollmentStatus === 1}
                       className="w-full px-4 py-3 rounded-xl text-sm font-semibold text-white transition-all hover:shadow-lg disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
-                      style={{ backgroundColor: colors.success }}
+                      style={{ backgroundColor: selectedStudent?.enrollmentStatus === 1 ? '#6B7280' : colors.success }}
                     >
                       {enrolling ? (
                         <>
                           <Loader2 className="w-4 h-4 animate-spin" />
                           <span>Enrolling...</span>
+                        </>
+                      ) : selectedStudent?.enrollmentStatus === 1 ? (
+                        <>
+                          <CheckCircle2 className="w-4 h-4" />
+                          <span>Enrolled</span>
                         </>
                       ) : (
                         <>
