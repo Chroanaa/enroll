@@ -961,6 +961,7 @@ const AssessmentManagement: React.FC = () => {
       const params = new URLSearchParams({
         academicYear,
         semester,
+        includeNotAssessed: "true",
       });
       
       if (searchQuery) params.append("search", searchQuery);
