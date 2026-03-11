@@ -235,6 +235,7 @@ export interface Curriculum {
   total_units: number;
   courses: CurriculumCourse[];
   status: "active" | "inactive";
+  tuition_fee_per_unit?: number;
 }
 export interface Building {
   id: number;

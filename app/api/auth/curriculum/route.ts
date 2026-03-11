@@ -61,6 +61,7 @@ export async function GET() {
       effective_year: curriculum.effective_year,
       total_units: curriculum.total_units,
       status: curriculum.status,
+      tuition_fee_per_unit: (curriculum as any).tuition_fee_per_unit != null ? Number((curriculum as any).tuition_fee_per_unit) : undefined,
       courses: curriculum.curriculum_course.map((course) => ({
         id: course.id,
         subject_id: course.subject_id,
@@ -142,13 +143,15 @@ export async function PATCH(nextRequest: NextRequest) {
         });
       }
 
-      // 3. Update existing courses in-place (preserves their IDs)
-      for (const course of toUpdate) {
-        await tx.curriculum_course.update({
-          where: { id: Number(course.id) },
-          data: mapCourseFields(course),
-        });
-      }
+      // 3. Update existing courses in-place in parallel (preserves their IDs)
+      await Promise.all(
+        toUpdate.map((course) =>
+          tx.curriculum_course.update({
+            where: { id: Number(course.id) },
+            data: mapCourseFields(course),
+          })
+        )
+      );
 
       // 4. Create truly new courses
       if (toCreate.length > 0) {
@@ -159,7 +162,7 @@ export async function PATCH(nextRequest: NextRequest) {
           })),
         });
       }
-    });
+    }, { timeout: 30000 });
 
     // Re-fetch updated curriculum to return consistent response
     const updatedCurriculum = await prisma.curriculum.findUnique({
@@ -179,6 +182,7 @@ export async function PATCH(nextRequest: NextRequest) {
       effective_year: updatedCurriculum.effective_year,
       total_units: updatedCurriculum.total_units,
       status: updatedCurriculum.status,
+      tuition_fee_per_unit: (updatedCurriculum as any).tuition_fee_per_unit != null ? Number((updatedCurriculum as any).tuition_fee_per_unit) : undefined,
       courses: updatedCurriculum.curriculum_course.map((course) => ({
         id: course.id,
         subject_id: course.subject_id,

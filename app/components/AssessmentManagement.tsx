@@ -443,6 +443,20 @@ const AssessmentManagement: React.FC = () => {
             setTotalUnits(regularUnits);
             setFixedAmountTotal(fixedAmountSum);
             setIsLoadingSubjects(false);
+            // Fetch curriculum tuition fee per unit for this student (non-blocking)
+            (() => {
+              let tuitionUrl = `/api/auth/curriculum/subjects?programId=${programIdValue}&semester=${semesterNum}`;
+              if (majorId) tuitionUrl += `&majorId=${majorId}`;
+              if (yearLevel) tuitionUrl += `&yearLevel=${yearLevel}`;
+              fetch(tuitionUrl)
+                .then(r => r.json())
+                .then(cd => {
+                  if (cd.success && cd.data?.curriculum?.tuition_fee_per_unit != null) {
+                    setTuitionPerUnit(String(cd.data.curriculum.tuition_fee_per_unit));
+                  }
+                })
+                .catch(() => {/* keep default */});
+            })();
             // Load existing assessment after subjects are loaded (non-blocking)
             loadExistingAssessment().catch(err => console.error("Error loading assessment:", err));
             return; // Exit early - we have enrolled subjects
@@ -476,6 +490,10 @@ const AssessmentManagement: React.FC = () => {
           const { regularUnits, fixedAmountSum } = calculateUnitsAndFixedAmounts(curriculumData.data.courses);
           setTotalUnits(regularUnits);
           setFixedAmountTotal(fixedAmountSum);
+          // Use curriculum's tuition fee per unit instead of hardcoded default
+          if (curriculumData.data.curriculum?.tuition_fee_per_unit != null) {
+            setTuitionPerUnit(String(curriculumData.data.curriculum.tuition_fee_per_unit));
+          }
 
           // Auto-save curriculum subjects to enrolled_subjects ONLY for resident/returnee
           // This allows them to start with curriculum and modify later (non-blocking)

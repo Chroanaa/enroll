@@ -42,6 +42,7 @@ const AddCurriculumPage: React.FC<AddCurriculumPageProps> = ({
     total_units: 0,
     courses: [],
     status: "active",
+    tuition_fee_per_unit: 570,
   });
 
   const [selectedProgramId, setSelectedProgramId] = useState<number | undefined>(

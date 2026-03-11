@@ -47,6 +47,7 @@ const EditCurriculumPage: React.FC<EditCurriculumPageProps> = ({
     total_units: curriculum.total_units || 0,
     courses: curriculum.courses || [],
     status: curriculum.status || "active",
+    tuition_fee_per_unit: curriculum.tuition_fee_per_unit ?? 570,
   });
 
   const [selectedProgramId, setSelectedProgramId] = useState<number | undefined>(
@@ -70,6 +71,7 @@ const EditCurriculumPage: React.FC<EditCurriculumPageProps> = ({
     total_units: curriculum.total_units || 0,
     courses: curriculum.courses || [],
     status: curriculum.status || "active",
+    tuition_fee_per_unit: curriculum.tuition_fee_per_unit ?? 570,
   });
 
   const [showSaveConfirmation, setShowSaveConfirmation] = useState(false);
