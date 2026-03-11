@@ -62,6 +62,21 @@ export async function GET(
       },
     });
 
+    // Resolve program ID to program code/name
+    let resolvedProgram: string | null = enrollment?.course_program || null;
+    if (resolvedProgram) {
+      const programId = parseInt(resolvedProgram);
+      if (!isNaN(programId)) {
+        const program = await prisma.program.findUnique({
+          where: { id: programId },
+          select: { code: true, name: true },
+        });
+        if (program) {
+          resolvedProgram = program.code || program.name;
+        }
+      }
+    }
+
     // Fetch enrolled subjects for this student in the same term
     const enrolledSubjects = await prisma.enrolled_subjects.findMany({
       where: {
@@ -92,12 +107,16 @@ export async function GET(
     ]);
 
     const courseMap = new Map(curriculumCourses.map((c) => [c.id, c]));
-    const subjectMap = new Map((fallbackSubjects as any[]).map((s) => [s.id, s]));
+    const subjectMap = new Map(
+      (fallbackSubjects as any[]).map((s) => [s.id, s]),
+    );
 
     // Build subjects array — fall back to subject table when curriculum_course is gone
     const subjects = enrolledSubjects.map((es) => {
       const course = courseMap.get(es.curriculum_course_id);
-      const fallback = es.subject_id ? subjectMap.get(es.subject_id) : undefined;
+      const fallback = es.subject_id
+        ? subjectMap.get(es.subject_id)
+        : undefined;
       return {
         id: es.id,
         curriculum_course_id: es.curriculum_course_id,
@@ -109,8 +128,8 @@ export async function GET(
         fixed_amount: course?.fixedAmount
           ? Number(course.fixedAmount)
           : fallback?.fixedAmount
-          ? Number(fallback.fixedAmount)
-          : null,
+            ? Number(fallback.fixedAmount)
+            : null,
         year_level: course?.year_level || es.year_level,
         status: es.status,
       };
@@ -168,7 +187,7 @@ export async function GET(
         assessment_id: assessment.id,
         student_number: assessment.student_number,
         student_name: studentName,
-        course_program: enrollment?.course_program || null,
+        course_program: resolvedProgram,
         year_level: enrollment?.year_level || null,
         academic_year: assessment.academic_year,
         semester: assessment.semester,

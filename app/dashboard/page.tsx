@@ -17,6 +17,7 @@ import PaymentBillingManagement from "../components/PaymentBillingManagement";
 import CurriculumManagement from "../components/curriculum";
 import FileMaintenanceManagement from "../components/FileMaintenanceManagement";
 import Settings from "../components/Settings";
+import AccountManagement from "../components/AccountManagement";
 import {
   Building,
   Section,
@@ -114,6 +115,8 @@ function DashboardContent() {
         return <SchoolsPrograms />;
       case "miscellaneous-fees":
         return <MiscellaneousFees />;
+      case "account-management":
+        return <AccountManagement />;
       case "settings":
         return <Settings />;
       default:

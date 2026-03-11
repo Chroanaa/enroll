@@ -15,21 +15,23 @@ import PaymentBillingManagement from "./components/PaymentBillingManagement";
 import CurriculumManagement from "./components/curriculum";
 import SectionManagementPage from "./admin/sections/page";
 import FacultySubjectManagementPage from "./admin/faculty-subject-management/page";
-import { 
-  Building, 
-  Section, 
-  Room, 
-  Department, 
-  Program, 
-  Major, 
-  Faculty, 
+import {
+  Building,
+  Section,
+  Room,
+  Department,
+  Program,
+  Major,
+  Faculty,
   Fees,
   Discount,
   Subject,
   Products,
-  SchoolsPrograms
+  SchoolsPrograms,
 } from "./components/fileMaintenance";
 import MiscellaneousFees from "./components/MiscellaneousFees";
+import AccountManagement from "./components/AccountManagement";
+import Settings from "./components/Settings";
 import ProtectedRoute from "./components/ProtectedRoute";
 import { AuthProvider } from "./contexts/AuthContext";
 import { useSession } from "next-auth/react";
@@ -40,7 +42,7 @@ function App() {
   const [currentView, setCurrentView] = useState("dashboard");
   const { data: session, status } = useSession();
   const router = useRouter();
-  
+
   // Don't redirect - let the component handle routing via currentView state
   // This allows Navigation menu to work properly
   const renderCurrentView = () => {
@@ -99,6 +101,10 @@ function App() {
         return <Subject />;
       case "miscellaneous-fees":
         return <MiscellaneousFees />;
+      case "account-management":
+        return <AccountManagement />;
+      case "settings":
+        return <Settings />;
       default:
         return <Dashboard />;
     }
@@ -123,7 +129,6 @@ function App() {
         </div>
       </ProtectedRoute>
     </AuthProvider>
-  );  
- 
+  );
 }
-export default App
+export default App;

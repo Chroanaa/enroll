@@ -77,7 +77,7 @@ const CHART_COLORS = [
 const StudentForecastDashboard: React.FC = () => {
   const [studentData, setStudentData] = useState<StudentData | null>(null);
   const [predictions, setPredictions] = useState<PredictionData[]>([]);
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(true);
   const [forecastLoading, setForecastLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -445,385 +445,119 @@ const StudentForecastDashboard: React.FC = () => {
           </div>
         )}
 
-        {/* Summary Stats */}
-        <div className='grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8'>
-          <StatCard
-            title='Total Enrolled Students'
-            value={studentData?.summary?.totalStudents?.toLocaleString() || 0}
-            icon={
-              <Users className='w-5 h-5' style={{ color: colors.secondary }} />
-            }
-            color={colors.secondary}
-          />
-          <StatCard
-            title='Programs Offered'
-            value={studentData?.summary?.totalPrograms || 0}
-            icon={
-              <BookOpen className='w-5 h-5' style={{ color: colors.success }} />
-            }
-            color={colors.success}
-          />
-          <StatCard
-            title='Terms'
-            value={studentData?.studentsByTerm?.length || 0}
-            icon={
-              <Calendar className='w-5 h-5' style={{ color: colors.info }} />
-            }
-            color={colors.info}
-          />
-          <StatCard
-            title='Departments'
-            value={studentData?.studentsByDepartment?.length || 0}
-            icon={
-              <GraduationCap
-                className='w-5 h-5'
-                style={{ color: colors.warning }}
-              />
-            }
-            color={colors.warning}
-          />
-        </div>
-
-        {/* Charts Grid */}
-        <div className='grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8'>
-          {/* Enrollment Trend Line Chart (Pandas-style) */}
-          <div
-            className='bg-white rounded-xl shadow-sm border p-6 lg:col-span-2'
-            style={{ borderColor: colors.neutralBorder }}
-          >
-            <h2
-              className='text-xl font-bold mb-6'
+        {loading && !studentData ? (
+          <div className='flex flex-col items-center justify-center py-32'>
+            <RefreshCw
+              className='w-10 h-10 animate-spin mb-4'
+              style={{ color: colors.secondary }}
+            />
+            <p
+              className='text-lg font-medium mb-1'
               style={{ color: colors.primary }}
             >
-              Enrollment Trend by Program and Year
-            </h2>
-            <ResponsiveContainer width='100%' height={350}>
-              <LineChart data={enrollmentChartData}>
-                <CartesianGrid
-                  strokeDasharray='3 3'
-                  stroke={colors.neutralBorder}
-                />
-                <XAxis
-                  dataKey='year'
-                  tick={{ fill: colors.neutral }}
-                  label={{
-                    value: "Academic Year",
-                    position: "bottom",
-                    fill: colors.neutral,
-                  }}
-                />
-                <YAxis
-                  tick={{ fill: colors.neutral }}
-                  label={{
-                    value: "Number of Students",
-                    angle: -90,
-                    position: "insideLeft",
-                    fill: colors.neutral,
-                  }}
-                />
-                <Tooltip
-                  contentStyle={{
-                    backgroundColor: "white",
-                    border: `1px solid ${colors.neutralBorder}`,
-                    borderRadius: "8px",
-                  }}
-                />
-                <Legend />
-                {uniquePrograms.map((program, index) => (
-                  <Line
-                    key={program}
-                    type='monotone'
-                    dataKey={program}
-                    stroke={CHART_COLORS[index % CHART_COLORS.length]}
-                    strokeWidth={2}
-                    dot={{
-                      r: 5,
-                      fill: CHART_COLORS[index % CHART_COLORS.length],
-                    }}
-                    name={program}
+              Loading Forecast Data
+            </p>
+            <p className='text-sm' style={{ color: colors.neutral }}>
+              Fetching enrollment data and generating predictions...
+            </p>
+          </div>
+        ) : (
+          <>
+            {/* Summary Stats */}
+            <div className='grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8'>
+              <StatCard
+                title='Total Enrolled Students'
+                value={
+                  studentData?.summary?.totalStudents?.toLocaleString() || 0
+                }
+                icon={
+                  <Users
+                    className='w-5 h-5'
+                    style={{ color: colors.secondary }}
                   />
-                ))}
-              </LineChart>
-            </ResponsiveContainer>
-          </div>
-
-          {/* Bar Chart - Students by Program & Year */}
-          <div
-            className='bg-white rounded-xl shadow-sm border p-6'
-            style={{ borderColor: colors.neutralBorder }}
-          >
-            <h2
-              className='text-xl font-bold mb-6'
-              style={{ color: colors.primary }}
-            >
-              Students by Program & Academic Year
-            </h2>
-            <ResponsiveContainer width='100%' height={300}>
-              <BarChart data={enrollmentChartData}>
-                <CartesianGrid
-                  strokeDasharray='3 3'
-                  stroke={colors.neutralBorder}
-                />
-                <XAxis dataKey='year' tick={{ fill: colors.neutral }} />
-                <YAxis tick={{ fill: colors.neutral }} />
-                <Tooltip
-                  contentStyle={{
-                    backgroundColor: "white",
-                    border: `1px solid ${colors.neutralBorder}`,
-                    borderRadius: "8px",
-                  }}
-                />
-                <Legend />
-                {uniquePrograms.map((program, index) => (
-                  <Bar
-                    key={program}
-                    dataKey={program}
-                    fill={CHART_COLORS[index % CHART_COLORS.length]}
-                    radius={[4, 4, 0, 0]}
-                  />
-                ))}
-              </BarChart>
-            </ResponsiveContainer>
-          </div>
-
-          {/* Students by Term */}
-          <div
-            className='bg-white rounded-xl shadow-sm border p-6'
-            style={{ borderColor: colors.neutralBorder }}
-          >
-            <h2
-              className='text-xl font-bold mb-6'
-              style={{ color: colors.primary }}
-            >
-              Students by Term
-            </h2>
-            <ResponsiveContainer width='100%' height={300}>
-              <PieChart>
-                <Pie
-                  data={studentData?.studentsByTerm || []}
-                  cx='50%'
-                  cy='50%'
-                  labelLine={false}
-                  outerRadius={100}
-                  fill='#8884d8'
-                  dataKey='total_students'
-                  nameKey='term'
-                  label={({ name, percent }: any) =>
-                    `${name || "N/A"} (${((percent || 0) * 100).toFixed(0)}%)`
-                  }
-                >
-                  {studentData?.studentsByTerm?.map((entry, index) => (
-                    <Cell
-                      key={`cell-${index}`}
-                      fill={CHART_COLORS[index % CHART_COLORS.length]}
-                    />
-                  ))}
-                </Pie>
-                <Tooltip
-                  formatter={(value: any) => [value, "Students"]}
-                  contentStyle={{
-                    backgroundColor: "white",
-                    border: `1px solid ${colors.neutralBorder}`,
-                    borderRadius: "8px",
-                  }}
-                />
-              </PieChart>
-            </ResponsiveContainer>
-          </div>
-        </div>
-
-        {/* Pandas-style Data Table */}
-        <div
-          className='bg-white rounded-xl shadow-sm border p-6 mb-8'
-          style={{ borderColor: colors.neutralBorder }}
-        >
-          <h2
-            className='text-xl font-bold mb-6'
-            style={{ color: colors.primary }}
-          >
-            Enrollment Data (Year | Program | Students)
-          </h2>
-          <div className='overflow-x-auto max-h-96'>
-            <table className='w-full border-collapse'>
-              <thead className='sticky top-0 bg-white'>
-                <tr
-                  style={{ borderBottom: `2px solid ${colors.neutralBorder}` }}
-                >
-                  <th
-                    className='text-left py-3 px-4 font-semibold'
-                    style={{
-                      color: colors.primary,
-                      backgroundColor: colors.neutralLight,
-                    }}
-                  >
-                    #
-                  </th>
-                  <th
-                    className='text-left py-3 px-4 font-semibold'
-                    style={{
-                      color: colors.primary,
-                      backgroundColor: colors.neutralLight,
-                    }}
-                  >
-                    Year
-                  </th>
-                  <th
-                    className='text-left py-3 px-4 font-semibold'
-                    style={{
-                      color: colors.primary,
-                      backgroundColor: colors.neutralLight,
-                    }}
-                  >
-                    Program
-                  </th>
-                  <th
-                    className='text-right py-3 px-4 font-semibold'
-                    style={{
-                      color: colors.primary,
-                      backgroundColor: colors.neutralLight,
-                    }}
-                  >
-                    Students
-                  </th>
-                </tr>
-              </thead>
-              <tbody>
-                {pandasTableData.map((row, index) => (
-                  <tr
-                    key={`${row.year}-${row.program}`}
-                    style={{
-                      borderBottom: `1px solid ${colors.neutralBorder}`,
-                      backgroundColor:
-                        index % 2 === 0 ? "white" : colors.neutralLight,
-                    }}
-                  >
-                    <td
-                      className='py-2 px-4 text-sm'
-                      style={{ color: colors.neutral }}
-                    >
-                      {index}
-                    </td>
-                    <td
-                      className='py-2 px-4 font-medium'
-                      style={{ color: colors.primary }}
-                    >
-                      {row.year}
-                    </td>
-                    <td className='py-2 px-4' style={{ color: colors.primary }}>
-                      {row.program}
-                    </td>
-                    <td
-                      className='py-2 px-4 text-right font-semibold'
-                      style={{ color: colors.secondary }}
-                    >
-                      {row.students.toLocaleString()}
-                    </td>
-                  </tr>
-                ))}
-                {pandasTableData.length === 0 && (
-                  <tr>
-                    <td
-                      colSpan={4}
-                      className='py-8 text-center'
-                      style={{ color: colors.neutral }}
-                    >
-                      No enrollment data available
-                    </td>
-                  </tr>
-                )}
-              </tbody>
-            </table>
-          </div>
-        </div>
-
-        {/* Predicted Students Per Program — combined matplotlib-style line chart */}
-        <div
-          className='bg-white rounded-xl shadow-sm border p-6 mb-8'
-          style={{ borderColor: colors.neutralBorder }}
-        >
-          <div className='flex items-center gap-3 mb-6'>
-            <Target className='w-6 h-6' style={{ color: colors.secondary }} />
-            <h2 className='text-xl font-bold' style={{ color: colors.primary }}>
-              Predicted Students Per Program (All Years)
-            </h2>
-            {forecastLoading && (
-              <RefreshCw
-                className='w-4 h-4 animate-spin'
-                style={{ color: colors.neutral }}
+                }
+                color={colors.secondary}
               />
-            )}
-          </div>
+              <StatCard
+                title='Programs Offered'
+                value={studentData?.summary?.totalPrograms || 0}
+                icon={
+                  <BookOpen
+                    className='w-5 h-5'
+                    style={{ color: colors.success }}
+                  />
+                }
+                color={colors.success}
+              />
+              <StatCard
+                title='Terms'
+                value={studentData?.studentsByTerm?.length || 0}
+                icon={
+                  <Calendar
+                    className='w-5 h-5'
+                    style={{ color: colors.info }}
+                  />
+                }
+                color={colors.info}
+              />
+              <StatCard
+                title='Departments'
+                value={studentData?.studentsByDepartment?.length || 0}
+                icon={
+                  <GraduationCap
+                    className='w-5 h-5'
+                    style={{ color: colors.warning }}
+                  />
+                }
+                color={colors.warning}
+              />
+            </div>
 
-          {forecastLineChartData.length > 0 ? (
-            <div>
-              {/* Single combined line chart with all programs */}
+            {/* Charts Grid */}
+            <div className='grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8'>
+              {/* Enrollment Trend Line Chart (Pandas-style) */}
               <div
-                className='rounded-lg p-4 mb-6'
-                style={{
-                  backgroundColor: "#FFFFFF",
-                  border: `1px solid ${colors.neutralBorder}`,
-                }}
+                className='bg-white rounded-xl shadow-sm border p-6 lg:col-span-2'
+                style={{ borderColor: colors.neutralBorder }}
               >
-                <ResponsiveContainer width='100%' height={420}>
-                  <LineChart
-                    data={forecastLineChartData}
-                    margin={{ top: 10, right: 30, left: 10, bottom: 30 }}
-                  >
+                <h2
+                  className='text-xl font-bold mb-6'
+                  style={{ color: colors.primary }}
+                >
+                  Enrollment Trend by Program and Year
+                </h2>
+                <ResponsiveContainer width='100%' height={350}>
+                  <LineChart data={enrollmentChartData}>
                     <CartesianGrid
                       strokeDasharray='3 3'
-                      stroke='#E5E7EB'
-                      strokeOpacity={0.7}
+                      stroke={colors.neutralBorder}
                     />
                     <XAxis
                       dataKey='year'
-                      tick={{ fill: "#555", fontSize: 12 }}
-                      tickLine={{ stroke: "#ccc" }}
-                      axisLine={{ stroke: "#ccc" }}
-                      angle={-30}
-                      textAnchor='end'
-                      height={60}
+                      tick={{ fill: colors.neutral }}
                       label={{
-                        value: "academic_year",
-                        position: "insideBottom",
-                        offset: -5,
-                        fill: "#666",
-                        fontSize: 13,
-                        fontStyle: "italic",
+                        value: "Academic Year",
+                        position: "bottom",
+                        fill: colors.neutral,
                       }}
                     />
                     <YAxis
-                      tick={{ fill: "#555", fontSize: 12 }}
-                      tickLine={{ stroke: "#ccc" }}
-                      axisLine={{ stroke: "#ccc" }}
-                      allowDecimals={false}
+                      tick={{ fill: colors.neutral }}
+                      label={{
+                        value: "Number of Students",
+                        angle: -90,
+                        position: "insideLeft",
+                        fill: colors.neutral,
+                      }}
                     />
                     <Tooltip
                       contentStyle={{
                         backgroundColor: "white",
-                        border: "1px solid #ddd",
-                        borderRadius: "4px",
-                        fontSize: 13,
-                        boxShadow: "0 2px 8px rgba(0,0,0,0.08)",
-                      }}
-                      formatter={(value: any, name: string) => [
-                        value != null ? Number(value).toLocaleString() : "—",
-                        name,
-                      ]}
-                      labelFormatter={(label) => `Year: ${label}`}
-                    />
-                    <Legend
-                      verticalAlign='top'
-                      align='right'
-                      iconType='plainline'
-                      wrapperStyle={{
-                        fontSize: 13,
-                        paddingBottom: 10,
-                        border: "1px solid #E5E7EB",
-                        borderRadius: 4,
-                        padding: "8px 12px",
-                        backgroundColor: "#FAFAFA",
+                        border: `1px solid ${colors.neutralBorder}`,
+                        borderRadius: "8px",
                       }}
                     />
+                    <Legend />
                     {uniquePrograms.map((program, index) => (
                       <Line
                         key={program}
@@ -832,100 +566,162 @@ const StudentForecastDashboard: React.FC = () => {
                         stroke={CHART_COLORS[index % CHART_COLORS.length]}
                         strokeWidth={2}
                         dot={{
-                          r: 3,
+                          r: 5,
                           fill: CHART_COLORS[index % CHART_COLORS.length],
-                          strokeWidth: 0,
                         }}
-                        activeDot={{ r: 5, strokeWidth: 2, stroke: "#fff" }}
-                        connectNulls
                         name={program}
                       />
                     ))}
                   </LineChart>
                 </ResponsiveContainer>
-                {predictions.length > 0 && (
-                  <p
-                    className='text-xs text-right mt-2 mr-4'
-                    style={{ color: "#888" }}
-                  >
-                    * Last data point (
-                    {
-                      forecastLineChartData[forecastLineChartData.length - 1]
-                        ?.year
-                    }
-                    ) represents predicted values
-                  </p>
-                )}
               </div>
 
-              {/* Pandas-style DataFrame Table */}
+              {/* Bar Chart - Students by Program & Year */}
               <div
-                className='overflow-x-auto'
-                style={{ fontFamily: "'Courier New', Consolas, monospace" }}
+                className='bg-white rounded-xl shadow-sm border p-6'
+                style={{ borderColor: colors.neutralBorder }}
               >
-                <table className='w-full border-collapse text-sm'>
-                  <thead>
+                <h2
+                  className='text-xl font-bold mb-6'
+                  style={{ color: colors.primary }}
+                >
+                  Students by Program & Academic Year
+                </h2>
+                <ResponsiveContainer width='100%' height={300}>
+                  <BarChart data={enrollmentChartData}>
+                    <CartesianGrid
+                      strokeDasharray='3 3'
+                      stroke={colors.neutralBorder}
+                    />
+                    <XAxis dataKey='year' tick={{ fill: colors.neutral }} />
+                    <YAxis tick={{ fill: colors.neutral }} />
+                    <Tooltip
+                      contentStyle={{
+                        backgroundColor: "white",
+                        border: `1px solid ${colors.neutralBorder}`,
+                        borderRadius: "8px",
+                      }}
+                    />
+                    <Legend />
+                    {uniquePrograms.map((program, index) => (
+                      <Bar
+                        key={program}
+                        dataKey={program}
+                        fill={CHART_COLORS[index % CHART_COLORS.length]}
+                        radius={[4, 4, 0, 0]}
+                      />
+                    ))}
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
+
+              {/* Students by Term */}
+              <div
+                className='bg-white rounded-xl shadow-sm border p-6'
+                style={{ borderColor: colors.neutralBorder }}
+              >
+                <h2
+                  className='text-xl font-bold mb-6'
+                  style={{ color: colors.primary }}
+                >
+                  Students by Term
+                </h2>
+                <ResponsiveContainer width='100%' height={300}>
+                  <PieChart>
+                    <Pie
+                      data={studentData?.studentsByTerm || []}
+                      cx='50%'
+                      cy='50%'
+                      labelLine={false}
+                      outerRadius={100}
+                      fill='#8884d8'
+                      dataKey='total_students'
+                      nameKey='term'
+                      label={({ name, percent }: any) =>
+                        `${name || "N/A"} (${((percent || 0) * 100).toFixed(0)}%)`
+                      }
+                    >
+                      {studentData?.studentsByTerm?.map((entry, index) => (
+                        <Cell
+                          key={`cell-${index}`}
+                          fill={CHART_COLORS[index % CHART_COLORS.length]}
+                        />
+                      ))}
+                    </Pie>
+                    <Tooltip
+                      formatter={(value: any) => [value, "Students"]}
+                      contentStyle={{
+                        backgroundColor: "white",
+                        border: `1px solid ${colors.neutralBorder}`,
+                        borderRadius: "8px",
+                      }}
+                    />
+                  </PieChart>
+                </ResponsiveContainer>
+              </div>
+            </div>
+
+            {/* Pandas-style Data Table */}
+            <div
+              className='bg-white rounded-xl shadow-sm border p-6 mb-8'
+              style={{ borderColor: colors.neutralBorder }}
+            >
+              <h2
+                className='text-xl font-bold mb-6'
+                style={{ color: colors.primary }}
+              >
+                Enrollment Data (Year | Program | Students)
+              </h2>
+              <div className='overflow-x-auto max-h-96'>
+                <table className='w-full border-collapse'>
+                  <thead className='sticky top-0 bg-white'>
                     <tr
                       style={{
                         borderBottom: `2px solid ${colors.neutralBorder}`,
                       }}
                     >
                       <th
-                        className='text-left py-2 px-3'
-                        style={{
-                          color: colors.neutral,
-                          backgroundColor: colors.neutralLight,
-                          fontWeight: 600,
-                        }}
-                      >
-                        &nbsp;
-                      </th>
-                      <th
-                        className='text-left py-2 px-3'
+                        className='text-left py-3 px-4 font-semibold'
                         style={{
                           color: colors.primary,
                           backgroundColor: colors.neutralLight,
-                          fontWeight: 700,
                         }}
                       >
-                        program
+                        #
                       </th>
                       <th
-                        className='text-right py-2 px-3'
+                        className='text-left py-3 px-4 font-semibold'
                         style={{
                           color: colors.primary,
                           backgroundColor: colors.neutralLight,
-                          fontWeight: 700,
                         }}
                       >
-                        predicted_students
+                        Year
                       </th>
                       <th
-                        className='text-center py-2 px-3'
+                        className='text-left py-3 px-4 font-semibold'
                         style={{
                           color: colors.primary,
                           backgroundColor: colors.neutralLight,
-                          fontWeight: 700,
                         }}
                       >
-                        trend
+                        Program
                       </th>
                       <th
-                        className='text-right py-2 px-3'
+                        className='text-right py-3 px-4 font-semibold'
                         style={{
                           color: colors.primary,
                           backgroundColor: colors.neutralLight,
-                          fontWeight: 700,
                         }}
                       >
-                        growth_rate
+                        Students
                       </th>
                     </tr>
                   </thead>
                   <tbody>
-                    {predictions.map((prediction, index) => (
+                    {pandasTableData.map((row, index) => (
                       <tr
-                        key={prediction.program}
+                        key={`${row.year}-${row.program}`}
                         style={{
                           borderBottom: `1px solid ${colors.neutralBorder}`,
                           backgroundColor:
@@ -933,118 +729,370 @@ const StudentForecastDashboard: React.FC = () => {
                         }}
                       >
                         <td
-                          className='py-2 px-3 font-bold'
+                          className='py-2 px-4 text-sm'
                           style={{ color: colors.neutral }}
                         >
                           {index}
                         </td>
                         <td
-                          className='py-2 px-3'
+                          className='py-2 px-4 font-medium'
                           style={{ color: colors.primary }}
                         >
-                          {prediction.program}
+                          {row.year}
                         </td>
                         <td
-                          className='py-2 px-3 text-right font-semibold'
+                          className='py-2 px-4'
+                          style={{ color: colors.primary }}
+                        >
+                          {row.program}
+                        </td>
+                        <td
+                          className='py-2 px-4 text-right font-semibold'
                           style={{ color: colors.secondary }}
                         >
-                          {prediction.predicted_students.toLocaleString()}
-                        </td>
-                        <td className='py-2 px-3 text-center'>
-                          <span
-                            className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium ${
-                              prediction.trend === "increasing"
-                                ? "bg-emerald-100 text-emerald-700"
-                                : prediction.trend === "decreasing"
-                                  ? "bg-red-100 text-red-700"
-                                  : "bg-gray-100 text-gray-700"
-                            }`}
-                          >
-                            {prediction.trend === "increasing" ? (
-                              <TrendingUp className='w-3 h-3' />
-                            ) : prediction.trend === "decreasing" ? (
-                              <TrendingDown className='w-3 h-3' />
-                            ) : null}
-                            {prediction.trend}
-                          </span>
-                        </td>
-                        <td
-                          className='py-2 px-3 text-right'
-                          style={{
-                            color:
-                              prediction.growth_rate >= 0
-                                ? "#10B981"
-                                : "#EF4444",
-                          }}
-                        >
-                          {prediction.growth_rate >= 0 ? "+" : ""}
-                          {prediction.growth_rate.toFixed(1)}%
+                          {row.students.toLocaleString()}
                         </td>
                       </tr>
                     ))}
+                    {pandasTableData.length === 0 && (
+                      <tr>
+                        <td
+                          colSpan={4}
+                          className='py-8 text-center'
+                          style={{ color: colors.neutral }}
+                        >
+                          No enrollment data available
+                        </td>
+                      </tr>
+                    )}
                   </tbody>
                 </table>
-                <p className='mt-1 text-xs' style={{ color: colors.neutral }}>
-                  [{predictions.length} rows x 4 columns]
-                </p>
               </div>
             </div>
-          ) : (
-            !forecastLoading && (
-              <div
-                className='py-8 text-center'
-                style={{ color: colors.neutral }}
-              >
-                No prediction data available. Ensure FORECAST_API_URL is
-                configured.
-              </div>
-            )
-          )}
-        </div>
 
-        {/* Students by Department */}
-        <div
-          className='bg-white rounded-xl shadow-sm border p-6'
-          style={{ borderColor: colors.neutralBorder }}
-        >
-          <h2
-            className='text-xl font-bold mb-6'
-            style={{ color: colors.primary }}
-          >
-            Students by Department
-          </h2>
-          <ResponsiveContainer width='100%' height={300}>
-            <BarChart
-              data={studentData?.studentsByDepartment || []}
-              layout='vertical'
+            {/* Predicted Students Per Program — combined matplotlib-style line chart */}
+            <div
+              className='bg-white rounded-xl shadow-sm border p-6 mb-8'
+              style={{ borderColor: colors.neutralBorder }}
             >
-              <CartesianGrid
-                strokeDasharray='3 3'
-                stroke={colors.neutralBorder}
-              />
-              <XAxis type='number' tick={{ fill: colors.neutral }} />
-              <YAxis
-                dataKey='department_name'
-                type='category'
-                tick={{ fill: colors.neutral, fontSize: 12 }}
-                width={120}
-              />
-              <Tooltip
-                formatter={(value: any) => [value, "Students"]}
-                contentStyle={{
-                  backgroundColor: "white",
-                  border: `1px solid ${colors.neutralBorder}`,
-                  borderRadius: "8px",
-                }}
-              />
-              <Bar
-                dataKey='total_students'
-                fill={colors.secondary}
-                radius={[0, 4, 4, 0]}
-              />
-            </BarChart>
-          </ResponsiveContainer>
-        </div>
+              <div className='flex items-center gap-3 mb-6'>
+                <Target
+                  className='w-6 h-6'
+                  style={{ color: colors.secondary }}
+                />
+                <h2
+                  className='text-xl font-bold'
+                  style={{ color: colors.primary }}
+                >
+                  Predicted Students Per Program (All Years)
+                </h2>
+                {forecastLoading && (
+                  <RefreshCw
+                    className='w-4 h-4 animate-spin'
+                    style={{ color: colors.neutral }}
+                  />
+                )}
+              </div>
+
+              {forecastLineChartData.length > 0 ? (
+                <div>
+                  {/* Single combined line chart with all programs */}
+                  <div
+                    className='rounded-lg p-4 mb-6'
+                    style={{
+                      backgroundColor: "#FFFFFF",
+                      border: `1px solid ${colors.neutralBorder}`,
+                    }}
+                  >
+                    <ResponsiveContainer width='100%' height={420}>
+                      <LineChart
+                        data={forecastLineChartData}
+                        margin={{ top: 10, right: 30, left: 10, bottom: 30 }}
+                      >
+                        <CartesianGrid
+                          strokeDasharray='3 3'
+                          stroke='#E5E7EB'
+                          strokeOpacity={0.7}
+                        />
+                        <XAxis
+                          dataKey='year'
+                          tick={{ fill: "#555", fontSize: 12 }}
+                          tickLine={{ stroke: "#ccc" }}
+                          axisLine={{ stroke: "#ccc" }}
+                          angle={-30}
+                          textAnchor='end'
+                          height={60}
+                          label={{
+                            value: "academic_year",
+                            position: "insideBottom",
+                            offset: -5,
+                            fill: "#666",
+                            fontSize: 13,
+                            fontStyle: "italic",
+                          }}
+                        />
+                        <YAxis
+                          tick={{ fill: "#555", fontSize: 12 }}
+                          tickLine={{ stroke: "#ccc" }}
+                          axisLine={{ stroke: "#ccc" }}
+                          allowDecimals={false}
+                        />
+                        <Tooltip
+                          contentStyle={{
+                            backgroundColor: "white",
+                            border: "1px solid #ddd",
+                            borderRadius: "4px",
+                            fontSize: 13,
+                            boxShadow: "0 2px 8px rgba(0,0,0,0.08)",
+                          }}
+                          formatter={(value: any, name: string) => [
+                            value != null
+                              ? Number(value).toLocaleString()
+                              : "—",
+                            name,
+                          ]}
+                          labelFormatter={(label) => `Year: ${label}`}
+                        />
+                        <Legend
+                          verticalAlign='top'
+                          align='right'
+                          iconType='plainline'
+                          wrapperStyle={{
+                            fontSize: 13,
+                            paddingBottom: 10,
+                            border: "1px solid #E5E7EB",
+                            borderRadius: 4,
+                            padding: "8px 12px",
+                            backgroundColor: "#FAFAFA",
+                          }}
+                        />
+                        {uniquePrograms.map((program, index) => (
+                          <Line
+                            key={program}
+                            type='monotone'
+                            dataKey={program}
+                            stroke={CHART_COLORS[index % CHART_COLORS.length]}
+                            strokeWidth={2}
+                            dot={{
+                              r: 3,
+                              fill: CHART_COLORS[index % CHART_COLORS.length],
+                              strokeWidth: 0,
+                            }}
+                            activeDot={{ r: 5, strokeWidth: 2, stroke: "#fff" }}
+                            connectNulls
+                            name={program}
+                          />
+                        ))}
+                      </LineChart>
+                    </ResponsiveContainer>
+                    {predictions.length > 0 && (
+                      <p
+                        className='text-xs text-right mt-2 mr-4'
+                        style={{ color: "#888" }}
+                      >
+                        * Last data point (
+                        {
+                          forecastLineChartData[
+                            forecastLineChartData.length - 1
+                          ]?.year
+                        }
+                        ) represents predicted values
+                      </p>
+                    )}
+                  </div>
+
+                  {/* Pandas-style DataFrame Table */}
+                  <div
+                    className='overflow-x-auto'
+                    style={{ fontFamily: "'Courier New', Consolas, monospace" }}
+                  >
+                    <table className='w-full border-collapse text-sm'>
+                      <thead>
+                        <tr
+                          style={{
+                            borderBottom: `2px solid ${colors.neutralBorder}`,
+                          }}
+                        >
+                          <th
+                            className='text-left py-2 px-3'
+                            style={{
+                              color: colors.neutral,
+                              backgroundColor: colors.neutralLight,
+                              fontWeight: 600,
+                            }}
+                          >
+                            &nbsp;
+                          </th>
+                          <th
+                            className='text-left py-2 px-3'
+                            style={{
+                              color: colors.primary,
+                              backgroundColor: colors.neutralLight,
+                              fontWeight: 700,
+                            }}
+                          >
+                            program
+                          </th>
+                          <th
+                            className='text-right py-2 px-3'
+                            style={{
+                              color: colors.primary,
+                              backgroundColor: colors.neutralLight,
+                              fontWeight: 700,
+                            }}
+                          >
+                            predicted_students
+                          </th>
+                          <th
+                            className='text-center py-2 px-3'
+                            style={{
+                              color: colors.primary,
+                              backgroundColor: colors.neutralLight,
+                              fontWeight: 700,
+                            }}
+                          >
+                            trend
+                          </th>
+                          <th
+                            className='text-right py-2 px-3'
+                            style={{
+                              color: colors.primary,
+                              backgroundColor: colors.neutralLight,
+                              fontWeight: 700,
+                            }}
+                          >
+                            growth_rate
+                          </th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {predictions.map((prediction, index) => (
+                          <tr
+                            key={prediction.program}
+                            style={{
+                              borderBottom: `1px solid ${colors.neutralBorder}`,
+                              backgroundColor:
+                                index % 2 === 0 ? "white" : colors.neutralLight,
+                            }}
+                          >
+                            <td
+                              className='py-2 px-3 font-bold'
+                              style={{ color: colors.neutral }}
+                            >
+                              {index}
+                            </td>
+                            <td
+                              className='py-2 px-3'
+                              style={{ color: colors.primary }}
+                            >
+                              {prediction.program}
+                            </td>
+                            <td
+                              className='py-2 px-3 text-right font-semibold'
+                              style={{ color: colors.secondary }}
+                            >
+                              {prediction.predicted_students.toLocaleString()}
+                            </td>
+                            <td className='py-2 px-3 text-center'>
+                              <span
+                                className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium ${
+                                  prediction.trend === "increasing"
+                                    ? "bg-emerald-100 text-emerald-700"
+                                    : prediction.trend === "decreasing"
+                                      ? "bg-red-100 text-red-700"
+                                      : "bg-gray-100 text-gray-700"
+                                }`}
+                              >
+                                {prediction.trend === "increasing" ? (
+                                  <TrendingUp className='w-3 h-3' />
+                                ) : prediction.trend === "decreasing" ? (
+                                  <TrendingDown className='w-3 h-3' />
+                                ) : null}
+                                {prediction.trend}
+                              </span>
+                            </td>
+                            <td
+                              className='py-2 px-3 text-right'
+                              style={{
+                                color:
+                                  prediction.growth_rate >= 0
+                                    ? "#10B981"
+                                    : "#EF4444",
+                              }}
+                            >
+                              {prediction.growth_rate >= 0 ? "+" : ""}
+                              {prediction.growth_rate.toFixed(1)}%
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                    <p
+                      className='mt-1 text-xs'
+                      style={{ color: colors.neutral }}
+                    >
+                      [{predictions.length} rows x 4 columns]
+                    </p>
+                  </div>
+                </div>
+              ) : (
+                !forecastLoading && (
+                  <div
+                    className='py-8 text-center'
+                    style={{ color: colors.neutral }}
+                  >
+                    No prediction data available. Ensure FORECAST_API_URL is
+                    configured.
+                  </div>
+                )
+              )}
+            </div>
+
+            {/* Students by Department */}
+            <div
+              className='bg-white rounded-xl shadow-sm border p-6'
+              style={{ borderColor: colors.neutralBorder }}
+            >
+              <h2
+                className='text-xl font-bold mb-6'
+                style={{ color: colors.primary }}
+              >
+                Students by Department
+              </h2>
+              <ResponsiveContainer width='100%' height={300}>
+                <BarChart
+                  data={studentData?.studentsByDepartment || []}
+                  layout='vertical'
+                >
+                  <CartesianGrid
+                    strokeDasharray='3 3'
+                    stroke={colors.neutralBorder}
+                  />
+                  <XAxis type='number' tick={{ fill: colors.neutral }} />
+                  <YAxis
+                    dataKey='department_name'
+                    type='category'
+                    tick={{ fill: colors.neutral, fontSize: 12 }}
+                    width={120}
+                  />
+                  <Tooltip
+                    formatter={(value: any) => [value, "Students"]}
+                    contentStyle={{
+                      backgroundColor: "white",
+                      border: `1px solid ${colors.neutralBorder}`,
+                      borderRadius: "8px",
+                    }}
+                  />
+                  <Bar
+                    dataKey='total_students'
+                    fill={colors.secondary}
+                    radius={[0, 4, 4, 0]}
+                  />
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+          </>
+        )}
       </div>
     </div>
   );
