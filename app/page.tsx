@@ -30,6 +30,7 @@ import {
   SchoolsPrograms
 } from "./components/fileMaintenance";
 import MiscellaneousFees from "./components/MiscellaneousFees";
+import Settings from "./components/Settings";
 import ProtectedRoute from "./components/ProtectedRoute";
 import { AuthProvider } from "./contexts/AuthContext";
 import { useSession } from "next-auth/react";
@@ -99,6 +100,8 @@ function App() {
         return <Subject />;
       case "miscellaneous-fees":
         return <MiscellaneousFees />;
+      case "settings":
+        return <Settings />;
       default:
         return <Dashboard />;
     }

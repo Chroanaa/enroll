@@ -31,6 +31,10 @@ interface PaymentCalculationTabProps {
   baseTotal: number;
   paymentMode: 'cash' | 'installment';
   onPaymentModeChange: (mode: 'cash' | 'installment') => void;
+  downPayment: number;
+  setDownPayment: (value: number) => void;
+  netBalance: number;
+  installmentChargePercentage: number;
   insuranceCharge: number;
   totalInstallment: number;
   totalDueCash: number;
@@ -78,6 +82,10 @@ export const PaymentCalculationTab: React.FC<PaymentCalculationTabProps> = ({
   baseTotal,
   paymentMode,
   onPaymentModeChange,
+  downPayment,
+  setDownPayment,
+  netBalance,
+  installmentChargePercentage,
   insuranceCharge,
   totalInstallment,
   totalDueCash,
@@ -522,27 +530,69 @@ export const PaymentCalculationTab: React.FC<PaymentCalculationTabProps> = ({
             </h3>
           </div>
           <div className="space-y-3">
+            {/* Base Total */}
+            <div
+              className="flex justify-between items-center py-2 px-3 rounded-lg border"
+              style={{ borderColor: colors.accent + "10", backgroundColor: "transparent" }}
+            >
+              <span className="text-sm font-medium" style={{ color: colors.primary }}>Base Total</span>
+              <div className="relative flex items-center">
+                <span className="absolute left-3 text-xs font-semibold pointer-events-none select-none" style={{ color: colors.tertiary }}>₱</span>
+                <input type="text" value={formatNumber(baseTotal)} readOnly
+                  className="w-36 pl-7 pr-3 py-2 rounded-lg border text-right text-sm bg-white/50"
+                  style={{ borderColor: colors.tertiary + "30", color: colors.primary }}
+                  placeholder="0.00" />
+              </div>
+            </div>
+
+            {/* Down Payment - editable */}
+            <div
+              className="flex justify-between items-center py-2 px-3 rounded-lg border"
+              style={{ borderColor: colors.secondary + "30", backgroundColor: colors.accent + "05" }}
+            >
+              <span className="text-sm font-medium" style={{ color: colors.primary }}>Down Payment</span>
+              <div className="relative flex items-center">
+                <span className="absolute left-3 text-xs font-semibold pointer-events-none select-none" style={{ color: colors.tertiary }}>₱</span>
+                <input
+                  type="text"
+                  value={focusedFeeId === -1 ? (downPayment?.toString() || "") : formatNumber(downPayment || 0)}
+                  onChange={(e) => {
+                    const raw = e.target.value.replace(/,/g, '');
+                    setDownPayment(parseFloat(raw) || 0);
+                  }}
+                  className="w-36 pl-7 pr-3 py-2 rounded-lg border text-right text-sm bg-white"
+                  style={{ borderColor: colors.secondary + "50", color: colors.primary }}
+                  onFocus={(e) => {
+                    setFocusedFeeId(-1);
+                    e.currentTarget.style.borderColor = colors.secondary;
+                    e.currentTarget.style.boxShadow = `0 0 0 3px ${colors.secondary}10`;
+                  }}
+                  onBlur={(e) => {
+                    setFocusedFeeId(null);
+                    e.currentTarget.style.borderColor = colors.secondary + "50";
+                    e.currentTarget.style.boxShadow = "none";
+                  }}
+                  placeholder="0.00"
+                />
+              </div>
+            </div>
+
+            {/* Net Balance, Ins. C., Total Ins. */}
             {[
               {
-                label: "Base Total",
-                value: baseTotal,
-                setValue: (_: number) => {},
-                key: "baseTotal",
-                readonly: true,
+                label: "Net Balance",
+                value: netBalance,
+                key: "netBalance",
               },
               {
-                label: "5% Ins. C.",
+                label: `${installmentChargePercentage}% Ins. C.`,
                 value: insuranceCharge,
-                setValue: (_: number) => {},
                 key: "insurance",
-                readonly: true,
               },
               {
                 label: "Total Ins.",
                 value: totalInstallment,
-                setValue: (_: number) => {},
                 key: "totalInstallment",
-                readonly: true,
                 highlight: true,
               },
             ].map((item) => (
@@ -550,19 +600,13 @@ export const PaymentCalculationTab: React.FC<PaymentCalculationTabProps> = ({
                 key={item.key}
                 className="flex justify-between items-center py-2 px-3 rounded-lg border"
                 style={{
-                  borderColor: item.highlight
-                    ? colors.secondary + "30"
-                    : colors.accent + "10",
-                  backgroundColor: item.highlight
-                    ? colors.accent + "08"
-                    : "transparent",
+                  borderColor: item.highlight ? colors.secondary + "30" : colors.accent + "10",
+                  backgroundColor: item.highlight ? colors.accent + "08" : "transparent",
                 }}
               >
                 <span
                   className="text-sm font-medium"
-                  style={{
-                    color: item.highlight ? colors.secondary : colors.primary,
-                  }}
+                  style={{ color: item.highlight ? colors.secondary : colors.primary }}
                 >
                   {item.label}
                 </span>
@@ -571,31 +615,12 @@ export const PaymentCalculationTab: React.FC<PaymentCalculationTabProps> = ({
                   <input
                     type="text"
                     value={formatNumber(item.value || 0)}
-                    onChange={(e) =>
-                      !item.readonly &&
-                      item.setValue(parseFloat(e.target.value.replace(/,/g, '')) || 0)
-                    }
-                    readOnly={item.readonly}
+                    readOnly
                     className="w-36 pl-7 pr-3 py-2 rounded-lg border text-right text-sm bg-white/50"
                     style={{
-                      borderColor: item.highlight
-                        ? colors.secondary + "30"
-                        : colors.tertiary + "30",
+                      borderColor: item.highlight ? colors.secondary + "30" : colors.tertiary + "30",
                       color: item.highlight ? colors.secondary : colors.primary,
                       fontWeight: item.highlight ? "bold" : "normal",
-                    }}
-                    onFocus={(e) => {
-                      if (!item.readonly) {
-                        e.currentTarget.style.borderColor = colors.secondary;
-                        e.currentTarget.style.boxShadow = `0 0 0 3px ${colors.secondary}10`;
-                      }
-                    }}
-                    onBlur={(e) => {
-                      if (!item.readonly) {
-                        e.currentTarget.style.borderColor =
-                          colors.tertiary + "30";
-                        e.currentTarget.style.boxShadow = "none";
-                      }
                     }}
                     placeholder="0.00"
                   />

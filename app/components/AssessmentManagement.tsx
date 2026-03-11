@@ -117,9 +117,14 @@ const AssessmentManagement: React.FC = () => {
   // Payment Mode
   const [paymentMode, setPaymentMode] = useState<'cash' | 'installment'>('cash');
   
-  // Installment Basis (Assessment only calculates total, payment module handles down payment)
+  // Installment Basis
   const [insuranceCharge, setInsuranceCharge] = useState(0);
   const [totalInstallment, setTotalInstallment] = useState(0);
+  const [netBalance, setNetBalance] = useState(0); // baseTotal - downPayment
+
+  // Settings-driven values
+  const [downPayment, setDownPayment] = useState(3000);
+  const [installmentChargePercentage, setInstallmentChargePercentage] = useState(5);
   
   // Base Total (before payment mode)
   const [baseTotal, setBaseTotal] = useState(0);
@@ -158,6 +163,7 @@ const AssessmentManagement: React.FC = () => {
 
   useEffect(() => {
     fetchFees();
+    fetchPaymentSettings();
   }, []);
 
   // Initialize from URL parameters
@@ -907,7 +913,8 @@ const AssessmentManagement: React.FC = () => {
       discountPercentage: selectedDiscount ? Number(selectedDiscount.percentage) : 0,
       dynamicFees,
       paymentMode,
-      // Note: downPayment is handled by Payment Module, not Assessment
+      downPayment,
+      installmentChargePercentage,
     });
 
     // Update all calculated values
@@ -921,10 +928,12 @@ const AssessmentManagement: React.FC = () => {
     if (paymentMode === 'cash') {
       setTotalDueCash(results.totalDueCash);
       setInsuranceCharge(0);
+      setNetBalance(0);
       setTotalInstallment(0);
     } else {
       setTotalDueCash(0);
       setInsuranceCharge(results.insuranceAmount || 0);
+      setNetBalance(results.netBalance || 0);
       setTotalInstallment(results.totalInstallment || 0);
       
       // Auto-distribute installments if total changes
@@ -954,6 +963,8 @@ const AssessmentManagement: React.FC = () => {
     dynamicFees,
     paymentMode,
     fixedAmountTotal,
+    downPayment,
+    installmentChargePercentage,
   ]);
 
   // Optimized fee fetching with caching - using summarized fees endpoint
@@ -970,6 +981,26 @@ const AssessmentManagement: React.FC = () => {
       console.error("Error fetching fees:", error);
     } finally {
       setLoading(false);
+    }
+  };
+
+  // Fetch payment settings (min downpayment + installment charge %) from settings API
+  const fetchPaymentSettings = async () => {
+    try {
+      const [dpRes, icRes] = await Promise.all([
+        fetch("/api/auth/settings?key=min_downpayment"),
+        fetch("/api/auth/settings?key=installment_charge_percentage"),
+      ]);
+      if (dpRes.ok) {
+        const dpData = await dpRes.json();
+        if (dpData.data?.value) setDownPayment(parseFloat(dpData.data.value));
+      }
+      if (icRes.ok) {
+        const icData = await icRes.json();
+        if (icData.data?.value) setInstallmentChargePercentage(parseFloat(icData.data.value));
+      }
+    } catch (error) {
+      console.error("Error fetching payment settings:", error);
     }
   };
 
@@ -1161,7 +1192,8 @@ const AssessmentManagement: React.FC = () => {
       return false;
     }
     if (paymentMode === 'installment') {
-      // Validate installment schedule
+      // Validate installment schedule sums to totalInstallment (netBalance + insurance charge)
+      // Down payment is collected separately and is not part of the schedule
       const validation = validateInstallmentSchedule(
         prelimAmount,
         midtermAmount,
@@ -1200,7 +1232,7 @@ const AssessmentManagement: React.FC = () => {
         });
         return false;
       }
-      // Note: Down payment validation is handled by Payment Module
+      // Down payment is separate — not validated against the schedule
     }
 
     try {
@@ -1267,11 +1299,11 @@ const AssessmentManagement: React.FC = () => {
           fixedAmountTotal: fixedAmountTotal,
           baseTotal: baseTotal,
           paymentMode: paymentMode,
-          downPayment: null, // Down payment handled by Payment Module
+          downPayment: paymentMode === 'installment' ? downPayment : null,
           insuranceAmount: paymentMode === 'installment' ? insuranceCharge : null,
           totalDueCash: paymentMode === 'cash' ? totalDueCash : null,
-          totalDueInstallment: paymentMode === 'installment' ? totalInstallment : null,
-          totalDue: paymentMode === 'cash' ? totalDueCash : totalInstallment,
+          totalDueInstallment: paymentMode === 'installment' ? (downPayment + totalInstallment) : null,
+          totalDue: paymentMode === 'cash' ? totalDueCash : (downPayment + totalInstallment),
           fees: feeSnapshots,
           paymentSchedule: paymentSchedule,
           mode: 'finalize', // Always finalize when saving from modal
@@ -1676,6 +1708,10 @@ const AssessmentManagement: React.FC = () => {
                   baseTotal={baseTotal}
                   paymentMode={paymentMode}
                   onPaymentModeChange={handlePaymentModeChange}
+                  downPayment={downPayment}
+                  setDownPayment={setDownPayment}
+                  netBalance={netBalance}
+                  installmentChargePercentage={installmentChargePercentage}
                   insuranceCharge={insuranceCharge}
                   totalInstallment={totalInstallment}
                   totalDueCash={totalDueCash}

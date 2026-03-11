@@ -165,10 +165,32 @@ export async function GET(request: NextRequest) {
       amount: Number(p.amount) || 0,
     }));
 
-    // Calculate tuition fee per unit
+    // Calculate tuition fee per unit — prefer the curriculum's stored rate
     const totalUnits = enrolledSubjects.reduce((sum: number, s: any) => sum + (Number(s.units_total) || 0), 0);
-    const tuitionFeePerUnit = totalUnits > 0 ? Number(assessment.gross_tuition) / totalUnits : 0;
+    const calculatedTuitionPerUnit = totalUnits > 0 ? Number(assessment.gross_tuition) / totalUnits : 0;
 
+    // Fetch tuition_fee_per_unit from curriculum via enrolled_subjects → curriculum_course → curriculum
+    let tuitionFeePerUnit = calculatedTuitionPerUnit;
+    try {
+      const curriculumRateRows = await prisma.$queryRaw<{ rate: number }[]>`
+        SELECT CAST(c.tuition_fee_per_unit AS FLOAT) AS rate
+        FROM enrolled_subjects es
+        JOIN curriculum_course cc ON cc.id = es.curriculum_course_id
+        JOIN curriculum c ON c.id = cc.curriculum_id
+        WHERE es.student_number = ${studentNumber}
+          AND es.academic_year  = ${academicYear}
+          AND es.semester       = ${semester}
+        LIMIT 1
+      `;
+      if (curriculumRateRows.length > 0 && curriculumRateRows[0].rate != null) {
+        tuitionFeePerUnit = Number(curriculumRateRows[0].rate);
+      }
+    } catch {
+      // Column may not exist yet in DB — fall back to calculated value
+    }
+
+
+    
     // Build response data
     const registrationData = {
       studentName: `${enrollment.family_name || ''}, ${enrollment.first_name || ''} ${enrollment.middle_name || ''}`.trim(),
@@ -216,5 +238,7 @@ export async function GET(request: NextRequest) {
       { error: "Internal server error" },
       { status: 500 }
     );
+
+  
   }
 }
