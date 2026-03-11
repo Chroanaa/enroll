@@ -7,11 +7,12 @@ import { SectionList } from '../../components/sections/SectionList';
 import { StudentAssignment } from '../../components/sections/StudentAssignment';
 import { activateSection, lockSection, unlockSection } from '../../utils/sectionApi';
 import { colors } from '../../colors';
-import { Lock, Unlock, CheckCircle, BookOpen } from 'lucide-react';
+import { Lock, Unlock, CheckCircle, BookOpen, Printer } from 'lucide-react';
 import SearchFilters from '../../components/common/SearchFilters';
 import ConfirmationModal from '../../components/common/ConfirmationModal';
 import SuccessModal from '../../components/common/SuccessModal';
 import ErrorModal from '../../components/common/ErrorModal';
+import AllSectionSchedulesPDF, { SectionForPDF } from './components/AllSectionSchedulesPDF';
 
 export default function SectionsPage() {
   const router = useRouter();
@@ -22,6 +23,12 @@ export default function SectionsPage() {
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState<'all' | 'draft' | 'active' | 'locked' | 'closed'>('all');
   const [isLoading, setIsLoading] = useState(false);
+
+  // Bulk schedule PDF state
+  const [showBulkPDF, setShowBulkPDF] = useState(false);
+  const [printPopup, setPrintPopup] = useState<Window | null>(null);
+  const [pdfSections, setPdfSections] = useState<SectionForPDF[]>([]);
+  const [loadingPdf, setLoadingPdf] = useState(false);
 
   // Modal states
   const [isStudentAssignmentOpen, setIsStudentAssignmentOpen] = useState(false);
@@ -61,6 +68,41 @@ export default function SectionsPage() {
 
 
 
+
+  const handlePrintAll = async () => {
+    // Open popup synchronously inside the click handler — browsers block window.open in async
+    const popup = window.open('', '_blank', 'width=1100,height=820,scrollbars=yes');
+    if (!popup) {
+      alert('Popup was blocked. Please allow popups for this site and try again.');
+      return;
+    }
+    setPrintPopup(popup);
+    setLoadingPdf(true);
+
+    try {
+      // Fetch all active sections
+      const res = await fetch('/api/sections');
+      const json = await res.json();
+      const sections: SectionForPDF[] = (json.data ?? []).map((s: any) => ({
+        id: s.id,
+        programId: s.programId,
+        sectionName: s.sectionName,
+        programCode: s.programCode ?? '',
+        programName: s.programName ?? '',
+        yearLevel: s.yearLevel,
+        academicYear: s.academicYear,
+        semester: s.semester,
+      }));
+      setPdfSections(sections);
+      setShowBulkPDF(true);
+    } catch (err) {
+      console.error('Failed to fetch sections for PDF:', err);
+      popup.close();
+      setPrintPopup(null);
+    } finally {
+      setLoadingPdf(false);
+    }
+  };
 
   const handleCreateSchedule = (section: SectionResponse) => {
     // Navigate to dedicated schedule page
@@ -204,16 +246,29 @@ export default function SectionsPage() {
               Create, schedule, and manage academic sections
             </p>
           </div>
-          <button
-            onClick={() => router.push('/admin/irregular-enrollment')}
-            className="flex items-center gap-2 px-6 py-3 text-white rounded-lg font-medium text-sm transition-colors hover:shadow-md"
-            style={{ backgroundColor: colors.secondary }}
-            onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = colors.primary)}
-            onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = colors.secondary)}
-          >
-            <BookOpen className="w-4 h-4" />
-            Manual Enrollment
-          </button>
+          <div className="flex items-center gap-3">
+            <button
+              onClick={handlePrintAll}
+              disabled={loadingPdf}
+              className="flex items-center gap-2 px-5 py-3 rounded-lg font-medium text-sm transition-colors hover:shadow-md disabled:opacity-50 disabled:cursor-not-allowed"
+              style={{ backgroundColor: colors.primary, color: 'white' }}
+              onMouseEnter={(e) => { if (!loadingPdf) e.currentTarget.style.backgroundColor = colors.secondary; }}
+              onMouseLeave={(e) => { if (!loadingPdf) e.currentTarget.style.backgroundColor = colors.primary; }}
+            >
+              <Printer className="w-4 h-4" />
+              {loadingPdf ? 'Loading…' : 'Print All Schedules'}
+            </button>
+            <button
+              onClick={() => router.push('/admin/irregular-enrollment')}
+              className="flex items-center gap-2 px-6 py-3 text-white rounded-lg font-medium text-sm transition-colors hover:shadow-md"
+              style={{ backgroundColor: colors.secondary }}
+              onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = colors.primary)}
+              onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = colors.secondary)}
+            >
+              <BookOpen className="w-4 h-4" />
+              Manual Enrollment
+            </button>
+          </div>
         </div>
 
         {/* Search and Filters */}
@@ -295,6 +350,15 @@ export default function SectionsPage() {
           message={errorModal.message}
           details={errorModal.details}
         />
+
+        {/* Bulk section schedules PDF — mounts, writes to popup, then unmounts */}
+        {showBulkPDF && printPopup && (
+          <AllSectionSchedulesPDF
+            sections={pdfSections}
+            popupWindow={printPopup}
+            onClose={() => { setShowBulkPDF(false); setPrintPopup(null); setPdfSections([]); }}
+          />
+        )}
     </div>
   );
 }

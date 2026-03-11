@@ -15,6 +15,7 @@ import ConfirmationModal from '../../../../components/common/ConfirmationModal';
 import SuccessModal from '../../../../components/common/SuccessModal';
 import ErrorModal from '../../../../components/common/ErrorModal';
 import { WeeklyScheduleCalendar } from '../../../../components/sections/WeeklyScheduleCalendar';
+import SectionSchedulePDFViewer from '../../../../components/sections/SectionSchedulePDFViewer';
 import Navigation from '../../../../components/Navigation';
 import { colors } from '../../../../colors';
 import { 
@@ -33,7 +34,8 @@ import {
   ArrowLeft,
   AlertCircle,
   Loader2,
-  Search
+  Search,
+  Printer
 } from 'lucide-react';
 
 const DAYS = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
@@ -123,6 +125,9 @@ export default function BuildSchedulePage() {
     title: 'Error',
     message: ''
   });
+
+  // PDF viewer state
+  const [showSchedulePDF, setShowSchedulePDF] = useState(false);
 
   // Conflict warning modal state
   const [conflictModal, setConflictModal] = useState<{
@@ -1122,6 +1127,17 @@ export default function BuildSchedulePage() {
               </div>
             </div>
             <div className="flex items-center gap-3">
+              {/* Print schedule button */}
+              <button
+                onClick={() => setShowSchedulePDF(true)}
+                disabled={schedules.length === 0}
+                className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold transition-all hover:opacity-90 disabled:opacity-40 disabled:cursor-not-allowed"
+                style={{ backgroundColor: colors.secondary, color: 'white' }}
+                title={schedules.length === 0 ? 'No schedules to print yet' : 'Print class schedule'}
+              >
+                <Printer className="w-4 h-4" />
+                Print Schedule
+              </button>
               <div 
                 className="text-right px-4 py-2 rounded-lg"
                 style={{ 
@@ -2807,6 +2823,16 @@ export default function BuildSchedulePage() {
             </div>
           </div>
         </div>
+      )}
+
+      {/* Section Schedule PDF Viewer */}
+      {showSchedulePDF && section && (
+        <SectionSchedulePDFViewer
+          section={section}
+          schedules={schedules}
+          curriculum={curriculum}
+          onClose={() => setShowSchedulePDF(false)}
+        />
       )}
     </div>
   );
