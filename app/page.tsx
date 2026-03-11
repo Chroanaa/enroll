@@ -38,19 +38,77 @@ import { useSession } from "next-auth/react";
 import { useRouter } from "next/navigation";
 import { useEffect } from "react";
 
+const ROLES = {
+  ADMIN: 1,
+  CASHIER: 2,
+  FACULTY: 3,
+  REGISTRAR: 4,
+};
+
+const VIEW_ROLES: Record<string, number[]> = {
+  dashboard: [ROLES.ADMIN, ROLES.CASHIER, ROLES.FACULTY, ROLES.REGISTRAR],
+  students: [ROLES.ADMIN, ROLES.REGISTRAR, ROLES.FACULTY],
+  courses: [ROLES.ADMIN, ROLES.REGISTRAR, ROLES.FACULTY],
+  enrollments: [ROLES.ADMIN, ROLES.REGISTRAR],
+  "enrollment-form": [ROLES.ADMIN, ROLES.REGISTRAR],
+  "resident-enrollment": [ROLES.ADMIN, ROLES.REGISTRAR],
+  forecast: [ROLES.ADMIN, ROLES.REGISTRAR],
+  "forecast-billing": [ROLES.ADMIN, ROLES.REGISTRAR],
+  assessment: [ROLES.ADMIN, ROLES.CASHIER],
+  reports: [ROLES.ADMIN, ROLES.REGISTRAR],
+  scheduling: [ROLES.ADMIN, ROLES.REGISTRAR, ROLES.FACULTY],
+  "section-management": [ROLES.ADMIN, ROLES.REGISTRAR],
+  "faculty-subject-management": [ROLES.ADMIN, ROLES.REGISTRAR],
+  "payment-billing": [ROLES.ADMIN, ROLES.CASHIER],
+  curriculum: [ROLES.ADMIN, ROLES.REGISTRAR, ROLES.FACULTY],
+  "curriculum-program": [ROLES.ADMIN, ROLES.REGISTRAR],
+  "file-maintenance-building": [ROLES.ADMIN, ROLES.REGISTRAR],
+  "file-maintenance-section": [ROLES.ADMIN, ROLES.REGISTRAR],
+  "file-maintenance-room": [ROLES.ADMIN, ROLES.REGISTRAR],
+  "file-maintenance-department": [ROLES.ADMIN, ROLES.REGISTRAR],
+  "file-maintenance-major": [ROLES.ADMIN, ROLES.REGISTRAR],
+  "file-maintenance-faculty": [ROLES.ADMIN, ROLES.REGISTRAR],
+  "file-maintenance-fees": [ROLES.ADMIN, ROLES.CASHIER],
+  "file-maintenance-discount": [ROLES.ADMIN, ROLES.CASHIER],
+  "file-maintenance-products": [ROLES.ADMIN, ROLES.CASHIER],
+  "file-maintenance-schools-programs": [ROLES.ADMIN, ROLES.REGISTRAR],
+  "file-maintenance-subject": [ROLES.ADMIN, ROLES.REGISTRAR, ROLES.FACULTY],
+  "miscellaneous-fees": [ROLES.ADMIN, ROLES.CASHIER],
+  "account-management": [ROLES.ADMIN],
+  settings: [ROLES.ADMIN],
+};
+
 function App() {
   const [currentView, setCurrentView] = useState("dashboard");
   const { data: session, status } = useSession();
   const router = useRouter();
 
-  // Don't redirect - let the component handle routing via currentView state
-  // This allows Navigation menu to work properly
+  const userRole = Number((session?.user as any)?.role) || ROLES.ADMIN;
+
+  const isViewAllowed = (view: string): boolean => {
+    const allowed = VIEW_ROLES[view];
+    if (!allowed) return false;
+    return allowed.includes(userRole);
+  };
+
+  const handleViewChange = (view: string) => {
+    if (isViewAllowed(view)) {
+      setCurrentView(view);
+    } else {
+      setCurrentView("dashboard");
+    }
+  };
+
   const renderCurrentView = () => {
+    if (!isViewAllowed(currentView)) {
+      return <Dashboard />;
+    }
+
     switch (currentView) {
       case "dashboard":
         return <Dashboard />;
       case "students":
-        return <StudentManagement onViewChange={setCurrentView} />;
+        return <StudentManagement onViewChange={handleViewChange} />;
       case "courses":
         return <CourseManagement />;
       case "enrollments":
@@ -124,7 +182,10 @@ function App() {
     <AuthProvider>
       <ProtectedRoute>
         <div className='flex h-screen bg-gray-50'>
-          <Navigation currentView={currentView} onViewChange={setCurrentView} />
+          <Navigation
+            currentView={currentView}
+            onViewChange={handleViewChange}
+          />
           <main className='flex-1 overflow-auto'>{renderCurrentView()}</main>
         </div>
       </ProtectedRoute>
