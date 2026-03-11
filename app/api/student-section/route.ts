@@ -392,7 +392,8 @@ export async function GET(request: NextRequest) {
         first_name: true,
         middle_name: true,
         family_name: true,
-        academic_status: true
+        academic_status: true,
+        email_address: true
       }
     });
 
@@ -428,6 +429,7 @@ export async function GET(request: NextRequest) {
         name: enrollment 
           ? `${enrollment.first_name || ''} ${enrollment.middle_name || ''} ${enrollment.family_name || ''}`.trim()
           : assignment.student_number,
+        email: enrollment?.email_address ?? null,
         subjectCount: subjectCounts.get(assignment.id) || 0
       };
     });

@@ -237,6 +237,11 @@ const AssessmentManagement: React.FC = () => {
     setSelectedDiscount(null);
     setDiscount(0);
     setEnrollmentData(null);
+    // Reset assessment-saved flags so the form is unlocked for the new student
+    setIsAssessmentSaved(false);
+    setIsSavingAssessment(false);
+    setShowSummary(false);
+    setIsSummaryModalOpen(false);
 
     setIsFetchingStudent(true);
     setStudentFetchError("");
@@ -748,6 +753,8 @@ const AssessmentManagement: React.FC = () => {
   // Cache for discounts per semester
   const discountCacheRef = useRef<Map<string, { data: Discount[]; timestamp: number }>>(new Map());
   const DISCOUNT_CACHE_DURATION = 5 * 60 * 1000; // 5 minutes
+  // Tracks the last params sent to the API to prevent duplicate fetches
+  const lastFetchParamsRef = useRef<string>("");
 
   // Fetch discounts when modal opens with caching
   const fetchDiscounts = async (semester: string) => {
@@ -955,6 +962,11 @@ const AssessmentManagement: React.FC = () => {
     const semester = filterSemester || (currentTerm?.semester === "First" ? "1" : "2");
     
     if (!academicYear || !semester) return;
+
+    // Skip if the effective params haven't changed (prevents double-fetch on mount)
+    const fetchKey = `${academicYear}|${semester}|${searchQuery}|${filterProgram}|${filterYearLevel}|${filterAssessmentStatus}`;
+    if (fetchKey === lastFetchParamsRef.current) return;
+    lastFetchParamsRef.current = fetchKey;
     
     setLoadingStudents(true);
     try {
@@ -969,22 +981,11 @@ const AssessmentManagement: React.FC = () => {
       if (filterYearLevel) params.append("yearLevel", filterYearLevel);
       if (filterAssessmentStatus) params.append("assessmentStatus", filterAssessmentStatus);
       
-      console.log("Fetching students with params:", {
-        academicYear,
-        semester,
-        searchQuery,
-        filterProgram,
-        filterYearLevel,
-        filterAssessmentStatus,
-      });
-      
       const url = `/api/auth/assessment/all-summaries?${params.toString()}`;
-      console.log("Fetch URL:", url);
       
       const response = await fetch(url);
       if (response.ok) {
         const result = await response.json();
-        console.log("Received students:", result);
         // Transform API response fields to match AssessmentStudentList interface
         const rawData: any[] = result.data || [];
         const transformedStudents = rawData.map((item: any) => ({
@@ -1014,39 +1015,46 @@ const AssessmentManagement: React.FC = () => {
     }
   };
 
-  // Fetch students when filters change
+  // Fetch students when filters change.
+  // Also sets filter defaults from currentTerm on first load.
+  // Merged into one effect to avoid a double-fetch when currentTerm first arrives.
   useEffect(() => {
-    if (viewMode === 'list' && (currentTerm || (filterAcademicYear && filterSemester))) {
-      console.log("Triggering fetchStudents due to filter change");
-      
-      // Debounce search query to avoid too many API calls
-      const debounceTimer = setTimeout(() => {
-        fetchStudents();
-      }, 300); // 300ms delay
-      
-      return () => clearTimeout(debounceTimer);
-    }
-  }, [viewMode, currentTerm, searchQuery, filterProgram, filterYearLevel, filterAssessmentStatus, filterAcademicYear, filterSemester]); // eslint-disable-line react-hooks/exhaustive-deps
+    if (viewMode !== 'list') return;
 
-  // Set default academic year and semester when currentTerm loads
-  useEffect(() => {
-    if (currentTerm && !filterAcademicYear && !filterSemester) {
-      setFilterAcademicYear(currentTerm.academicYear);
-      setFilterSemester(currentTerm.semester === "First" ? "1" : "2");
+    // Set default academic year / semester from currentTerm if not yet chosen
+    if (currentTerm) {
+      if (!filterAcademicYear) setFilterAcademicYear(currentTerm.academicYear);
+      if (!filterSemester) setFilterSemester(currentTerm.semester === "First" ? "1" : "2");
     }
-  }, [currentTerm]); // eslint-disable-line react-hooks/exhaustive-deps
+
+    const canFetch = currentTerm || (filterAcademicYear && filterSemester);
+    if (!canFetch) return;
+
+    const debounceTimer = setTimeout(() => {
+      fetchStudents();
+    }, 300);
+
+    return () => clearTimeout(debounceTimer);
+  }, [viewMode, currentTerm, searchQuery, filterProgram, filterYearLevel, filterAssessmentStatus, filterAcademicYear, filterSemester]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Handle student selection from list
   const handleSelectStudentFromList = (studentNum: string) => {
+    // Reset saved/locked state so the form is fresh for each student
+    setIsAssessmentSaved(false);
+    setIsSavingAssessment(false);
+    setShowSummary(false);
+    setIsSummaryModalOpen(false);
     setStudentNumber(studentNum);
     setViewMode('form');
   };
 
   // Handle view assessment (read-only mode)
   const handleViewAssessment = (studentNum: string) => {
-    // TODO: Implement view-only assessment modal or navigate to view page
-    console.log("View assessment for student:", studentNum);
-    // For now, just open the form in view mode
+    // Reset saved/locked state so the form is fresh for each student
+    setIsAssessmentSaved(false);
+    setIsSavingAssessment(false);
+    setShowSummary(false);
+    setIsSummaryModalOpen(false);
     setStudentNumber(studentNum);
     setViewMode('form');
   };
@@ -1262,6 +1270,8 @@ const AssessmentManagement: React.FC = () => {
         setShowSummary(true);
         // Mark assessment as saved to disable editing
         setIsAssessmentSaved(true);
+        // Force the student list to re-fetch next time it's shown
+        lastFetchParamsRef.current = "";
         // Reload payment schedules after saving
         if (paymentMode === 'installment') {
           await loadExistingAssessment();

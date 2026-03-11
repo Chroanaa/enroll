@@ -24,6 +24,7 @@ interface AssignedStudent {
   name: string;
   assignmentType: string;
   subjectCount?: number;
+  email?: string | null;
 }
 
 interface SectionStudentListPDFViewerProps {
@@ -53,18 +54,15 @@ export default function SectionStudentListPDFViewer({
 
   const handlePrint = () => {
     const rows = students.length === 0
-      ? `<tr><td colspan="4" style="text-align:center;padding:32px 12px;color:#9ca3af;font-style:italic;">No students assigned to this section.</td></tr>`
+      ? `<tr><td colspan="5" style="text-align:center;padding:32px 12px;color:#9ca3af;font-style:italic;">No students assigned to this section.</td></tr>`
       : students.map((s, idx) => `
           <tr style="background:${idx % 2 === 0 ? '#ffffff' : '#faf9f7'};border-bottom:1px solid #e5e7eb;">
             <td style="padding:8px 10px;color:#9ca3af;font-size:11px;width:36px;">${idx + 1}</td>
             <td style="padding:8px 10px;font-weight:700;color:#4a2c14;font-size:11px;">${s.studentNumber}</td>
             <td style="padding:8px 10px;color:#374151;font-size:11px;">${s.name}</td>
-            <td style="padding:8px 10px;text-align:center;">
-              <span style="display:inline-block;padding:2px 10px;border-radius:999px;font-size:10px;font-weight:700;
-                background:${s.assignmentType === 'irregular' ? '#f3e8ff' : '#dbeafe'};
-                color:${s.assignmentType === 'irregular' ? '#7e22ce' : '#1d4ed8'};">
-                ${s.assignmentType === 'irregular' ? 'Irregular' : 'Regular'}
-              </span>
+            <td style="padding:8px 10px;color:#374151;font-size:11px;">${s.email ?? ''}</td>
+            <td style="padding:8px 10px;font-size:11px;color:${s.assignmentType === 'irregular' ? '#7e22ce' : '#1d4ed8'};font-weight:600;">
+              ${s.assignmentType === 'irregular' ? 'Irregular' : 'Regular'}
             </td>
           </tr>`).join('');
 
@@ -133,8 +131,8 @@ export default function SectionStudentListPDFViewer({
   <div class="summary">
     <span class="total">Total: <span>${students.length}</span></span>
     <span class="sep">|</span>
-    <span class="pill pill-blue">Regular: ${regular.length}</span>
-    <span class="pill pill-purple">Irregular: ${irregular.length}</span>
+    <span style="font-size:11px;font-weight:600;color:#1d4ed8;">Regular: ${regular.length}</span>
+    <span style="font-size:11px;font-weight:600;color:#7e22ce;">Irregular: ${irregular.length}</span>
   </div>
 
   <table>
@@ -143,6 +141,7 @@ export default function SectionStudentListPDFViewer({
         <th style="width:36px;">#</th>
         <th>Student No.</th>
         <th>Full Name</th>
+        <th>Email</th>
         <th class="center">Type</th>
       </tr>
     </thead>
@@ -257,10 +256,10 @@ export default function SectionStudentListPDFViewer({
             </span>
           </div>
           <span className="text-gray-300">|</span>
-          <span className="text-xs font-medium px-2 py-0.5 rounded-full bg-blue-50 text-blue-700">
+          <span className="text-xs font-semibold text-blue-700">
             Regular: {regular.length}
           </span>
-          <span className="text-xs font-medium px-2 py-0.5 rounded-full bg-purple-50 text-purple-700">
+          <span className="text-xs font-semibold text-purple-700">
             Irregular: {irregular.length}
           </span>
         </div>
@@ -273,13 +272,14 @@ export default function SectionStudentListPDFViewer({
                 <th className="px-3 py-2 text-left font-bold w-10" style={{ color: colors.primary }}>#</th>
                 <th className="px-3 py-2 text-left font-bold" style={{ color: colors.primary }}>Student No.</th>
                 <th className="px-3 py-2 text-left font-bold" style={{ color: colors.primary }}>Full Name</th>
+                <th className="px-3 py-2 text-left font-bold" style={{ color: colors.primary }}>Email</th>
                 <th className="px-3 py-2 text-center font-bold" style={{ color: colors.primary }}>Type</th>
               </tr>
             </thead>
             <tbody>
               {students.length === 0 ? (
                 <tr>
-                  <td colSpan={4} className="text-center py-8 text-gray-400 italic">
+                  <td colSpan={5} className="text-center py-8 text-gray-400 italic">
                     No students assigned to this section.
                   </td>
                 </tr>
@@ -297,12 +297,13 @@ export default function SectionStudentListPDFViewer({
                       {student.studentNumber}
                     </td>
                     <td className="px-3 py-2 font-medium text-gray-700">{student.name}</td>
+                    <td className="px-3 py-2 text-gray-500 text-xs">{student.email ?? ''}</td>
                     <td className="px-3 py-2 text-center">
                       <span
-                        className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold ${
+                        className={`text-xs font-semibold ${
                           student.assignmentType === 'irregular'
-                            ? 'bg-purple-100 text-purple-700'
-                            : 'bg-blue-100 text-blue-700'
+                            ? 'text-purple-700'
+                            : 'text-blue-700'
                         }`}
                       >
                         {student.assignmentType === 'irregular' ? 'Irregular' : 'Regular'}
