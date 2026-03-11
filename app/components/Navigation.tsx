@@ -26,6 +26,7 @@ import {
   Package,
   Percent,
   Receipt,
+  UserCog,
 } from "lucide-react";
 import Image from "next/image";
 import { useSession, signOut } from "next-auth/react";
@@ -249,6 +250,12 @@ const Navigation: React.FC<NavigationProps> = ({
             allowedRoles: [ROLES.ADMIN, ROLES.REGISTRAR],
           },
           {
+            id: "account-management",
+            label: "Account Management",
+            icon: UserCog,
+            allowedRoles: [ROLES.ADMIN],
+          },
+          {
             id: "settings",
             label: "Settings",
             icon: Settings,
@@ -468,9 +475,7 @@ const Navigation: React.FC<NavigationProps> = ({
                           }}
                         >
                           <Icon className='w-5 h-5' />
-                          <span className='flex-1 text-left'>
-                            {item.label}
-                          </span>
+                          <span className='flex-1 text-left'>{item.label}</span>
                           {(isFileMaintenance || isCurriculum) &&
                             item.hasSubmenu && (
                               <span className='chevron-toggle cursor-pointer flex items-center justify-center'>
@@ -499,11 +504,22 @@ const Navigation: React.FC<NavigationProps> = ({
                                     onClick={(e) => {
                                       e.preventDefault();
                                       e.stopPropagation();
-                                      console.log("Submenu item clicked:", subItem.id);
-                                      console.log("onViewChange type:", typeof onViewChange);
-                                      console.log("Calling onViewChange with:", subItem.id);
+                                      console.log(
+                                        "Submenu item clicked:",
+                                        subItem.id,
+                                      );
+                                      console.log(
+                                        "onViewChange type:",
+                                        typeof onViewChange,
+                                      );
+                                      console.log(
+                                        "Calling onViewChange with:",
+                                        subItem.id,
+                                      );
                                       onViewChange(subItem.id);
-                                      console.log("onViewChange called successfully");
+                                      console.log(
+                                        "onViewChange called successfully",
+                                      );
                                     }}
                                     className='w-full flex items-center justify-start gap-3 px-3 py-2 rounded-lg text-sm font-medium transition-all duration-200'
                                     style={
@@ -535,9 +551,7 @@ const Navigation: React.FC<NavigationProps> = ({
                                     }}
                                   >
                                     <SubIcon className='w-4 h-4' />
-                                    <span>
-                                      {subItem.label}
-                                    </span>
+                                    <span>{subItem.label}</span>
                                   </button>
                                 </li>
                               );
@@ -589,9 +603,7 @@ const Navigation: React.FC<NavigationProps> = ({
                                   }}
                                 >
                                   <SubIcon className='w-4 h-4' />
-                                  <span>
-                                    {subItem.label}
-                                  </span>
+                                  <span>{subItem.label}</span>
                                 </button>
                               </li>
                             );

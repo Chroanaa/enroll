@@ -4,8 +4,9 @@ import { prisma } from "../../lib/prisma";
 /**
  * GET /api/enrollment-forecast
  *
- * Returns enrollment counts grouped by program code and academic year.
- * Used by the forecasting model (create_model.py) to train linear regression.
+ * Returns enrollment counts grouped by program code and year (from admission_date).
+ * Uses the admission_date year instead of academic_year since academic_year
+ * gets overwritten during resident re-enrollment.
  *
  * Response format:
  * [
@@ -15,15 +16,15 @@ import { prisma } from "../../lib/prisma";
  */
 export async function GET(request: NextRequest) {
   try {
-    // Query enrollment counts grouped by program and academic year
+    // Query enrollment counts using admission_date for the year
     const enrollments = await prisma.enrollment.findMany({
       where: {
         course_program: { not: null },
-        academic_year: { not: null },
+        admission_date: { not: null },
       },
       select: {
         course_program: true,
-        academic_year: true,
+        admission_date: true,
       },
     });
 
@@ -33,17 +34,16 @@ export async function GET(request: NextRequest) {
     });
     const programMap = new Map(programs.map((p) => [p.id.toString(), p.code]));
 
-    // Group and count: { "BSIT|2024-2025": count }
+    // Group and count: { "BSIT|2024": count }
     const counts: Record<string, number> = {};
     for (const e of enrollments) {
       const programCode =
         programMap.get(e.course_program!) || e.course_program!;
-      // Extract the start year from academic_year (e.g., "2024-2025" -> 2024)
-      const yearStr = e.academic_year!;
-      const startYear = parseInt(yearStr.split("-")[0]);
-      if (isNaN(startYear)) continue;
+      // Extract the year from admission_date
+      const year = new Date(e.admission_date!).getFullYear();
+      if (isNaN(year)) continue;
 
-      const key = `${programCode}|${startYear}`;
+      const key = `${programCode}|${year}`;
       counts[key] = (counts[key] || 0) + 1;
     }
 

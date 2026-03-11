@@ -19,9 +19,11 @@ import {
   CheckCircle,
   AlertTriangle,
   ShieldAlert,
+  Printer,
 } from "lucide-react";
 import { colors } from "../../colors";
 import { useSession } from "next-auth/react";
+import { printStudentPaymentPDF } from "./printStudentPayment";
 
 interface SubjectDetail {
   id: number;
@@ -2255,7 +2257,17 @@ export const FinancialDetailModal: React.FC<FinancialDetailModalProps> = ({
         </div>
 
         {/* Footer */}
-        <div className='px-6 py-3 border-t border-gray-200 bg-gray-50 flex justify-end'>
+        <div className='px-6 py-3 border-t border-gray-200 bg-gray-50 flex justify-end gap-3'>
+          {detail && (
+            <button
+              onClick={() => printStudentPaymentPDF(detail)}
+              className='px-5 py-2 rounded-lg font-medium text-sm hover:opacity-90 transition-colors flex items-center gap-2 border'
+              style={{ borderColor: colors.secondary, color: colors.secondary }}
+            >
+              <Printer className='w-4 h-4' />
+              Print to PDF
+            </button>
+          )}
           <button
             onClick={onClose}
             className='px-5 py-2 rounded-lg text-white font-medium text-sm hover:opacity-90 transition-colors'
