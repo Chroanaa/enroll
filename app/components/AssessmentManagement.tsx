@@ -114,6 +114,8 @@ const AssessmentManagement: React.FC = () => {
     remarks: string | null;
   } | null>(null);
 
+
+
   // Payment Mode
   const [paymentMode, setPaymentMode] = useState<'cash' | 'installment'>('cash');
   
@@ -177,7 +179,7 @@ const AssessmentManagement: React.FC = () => {
     } else {
       setActiveTab('subjects');
     }
-    
+      
     // Auto-populate student number and trigger fetch if URL parameter exists
     if (urlStudentNumber && urlStudentNumber.trim()) {
       setStudentNumber(urlStudentNumber.trim());

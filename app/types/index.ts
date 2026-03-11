@@ -67,6 +67,7 @@ export interface Section {
   section_name: string;
   advisor: string;
   student_count: number;
+  max_capacity?: number;
   status: string;
   year_level?: number;
   semester?: string;

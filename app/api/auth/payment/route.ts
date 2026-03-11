@@ -32,6 +32,7 @@ export async function POST(request: NextRequest) {
         payment_schedules: {
           orderBy: { due_date: "asc" },
         },
+        payments: true,
       },
     });
 
@@ -58,6 +59,15 @@ export async function POST(request: NextRequest) {
           reference_no: referenceNo || null,
         },
       });
+
+      // For the first non-schedule payment, store the actual collected amount
+      // as the assessment down payment so assessment and payment history stay aligned.
+      if (!scheduleLabel && assessment.payments.length === 0) {
+        await tx.student_assessment.update({
+          where: { id: parseInt(assessmentId) },
+          data: { down_payment: parseFloat(amountPaid) },
+        });
+      }
 
       // For installment payments, update payment_schedule if label is provided
       if (assessment.payment_mode === 'installment' && scheduleLabel) {

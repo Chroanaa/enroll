@@ -237,7 +237,10 @@ export async function POST(request: NextRequest) {
             fixed_amount_total: fixedAmountTotal ? parseFloat(fixedAmountTotal) : 0,
             base_total: parseFloat(baseTotal),
             payment_mode: paymentMode,
-            down_payment: null, // Down payment handled by Payment Module
+            down_payment:
+              paymentMode === 'installment' && downPayment !== undefined && downPayment !== null
+                ? parseFloat(downPayment)
+                : null,
             insurance_amount: paymentMode === 'installment' && insuranceAmount !== undefined ? parseFloat(insuranceAmount) : null,
             total_due_cash: paymentMode === 'cash' ? parseFloat(totalDueCash || totalDue) : null,
             total_due_installment: paymentMode === 'installment' ? parseFloat(totalDueInstallment || totalDue) : null,
@@ -263,7 +266,10 @@ export async function POST(request: NextRequest) {
             fixed_amount_total: fixedAmountTotal ? parseFloat(fixedAmountTotal) : 0,
             base_total: parseFloat(baseTotal),
             payment_mode: paymentMode,
-            down_payment: null, // Down payment handled by Payment Module
+            down_payment:
+              paymentMode === 'installment' && downPayment !== undefined && downPayment !== null
+                ? parseFloat(downPayment)
+                : null,
             insurance_amount: paymentMode === 'installment' && insuranceAmount !== undefined ? parseFloat(insuranceAmount) : null,
             total_due_cash: paymentMode === 'cash' ? parseFloat(totalDueCash || totalDue) : null,
             total_due_installment: paymentMode === 'installment' ? parseFloat(totalDueInstallment || totalDue) : null,

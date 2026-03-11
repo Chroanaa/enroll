@@ -4,7 +4,7 @@ import React, { useState, useEffect } from 'react';
 import { SectionResponse } from '../../types/sectionTypes';
 import { getSections } from '../../utils/sectionApi';
 import { colors } from '../../colors';
-import { Users, GraduationCap, Calendar, UserPlus, CheckCircle, Lock, Unlock } from 'lucide-react';
+import { Users, GraduationCap, Calendar, UserPlus, CheckCircle, Lock, Unlock, Pencil, Check, X as XIcon } from 'lucide-react';
 import Pagination from '../common/Pagination';
 
 interface SectionListProps {
@@ -37,6 +37,11 @@ export function SectionList({
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage, setItemsPerPage] = useState(10);
 
+  // Inline capacity editing
+  const [editingCapacityId, setEditingCapacityId] = useState<number | null>(null);
+  const [capacityInput, setCapacityInput] = useState('');
+  const [savingCapacityId, setSavingCapacityId] = useState<number | null>(null);
+
   useEffect(() => {
     loadSections();
   }, []);
@@ -61,6 +66,29 @@ export function SectionList({
       setError(err instanceof Error ? err.message : 'Failed to load sections');
     } finally {
       setLoading(false);
+    }
+  };
+
+  const saveCapacity = async (sectionId: number) => {
+    const val = parseInt(capacityInput);
+    if (isNaN(val) || val < 1) return;
+    setSavingCapacityId(sectionId);
+    try {
+      const res = await fetch(`/api/sections/${sectionId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ maxCapacity: val }),
+      });
+      if (res.ok) {
+        setSections(prev =>
+          prev.map(s => s.id === sectionId ? { ...s, maxCapacity: val } : s)
+        );
+        setEditingCapacityId(null);
+      }
+    } catch {
+      // ignore
+    } finally {
+      setSavingCapacityId(null);
     }
   };
 
@@ -272,12 +300,55 @@ export function SectionList({
                           <span className="text-xs font-medium text-gray-700">{section.advisor}</span>
                         </td>
                         <td className="px-3 py-2 whitespace-nowrap">
-                          <div className="flex items-center gap-1.5">
-                            <Users className="w-3 h-3 text-gray-400" />
-                            <span className="text-xs font-medium text-gray-700">
-                              {section.studentCount} / {section.maxCapacity}
-                            </span>
-                          </div>
+                          {editingCapacityId === section.id ? (
+                            <div className="flex items-center gap-1">
+                              <input
+                                type="number"
+                                min="1"
+                                autoFocus
+                                value={capacityInput}
+                                onChange={e => setCapacityInput(e.target.value)}
+                                onKeyDown={e => {
+                                  if (e.key === 'Enter') saveCapacity(section.id);
+                                  if (e.key === 'Escape') setEditingCapacityId(null);
+                                }}
+                                className="w-16 px-1.5 py-0.5 text-xs border rounded focus:outline-none focus:ring-1"
+                                style={{ borderColor: colors.secondary, color: colors.primary }}
+                              />
+                              <button
+                                onClick={() => saveCapacity(section.id)}
+                                disabled={savingCapacityId === section.id}
+                                className="p-0.5 rounded hover:bg-green-100"
+                                title="Save"
+                              >
+                                <Check className="w-3.5 h-3.5 text-green-600" />
+                              </button>
+                              <button
+                                onClick={() => setEditingCapacityId(null)}
+                                className="p-0.5 rounded hover:bg-red-100"
+                                title="Cancel"
+                              >
+                                <XIcon className="w-3.5 h-3.5 text-red-500" />
+                              </button>
+                            </div>
+                          ) : (
+                            <div className="flex items-center gap-1.5 group/cap">
+                              <Users className="w-3 h-3 text-gray-400" />
+                              <span className={`text-xs font-medium ${section.maxCapacity === 0 ? 'text-amber-600' : 'text-gray-700'}`}>
+                                {section.studentCount} / {section.maxCapacity === 0 ? 'Not set' : section.maxCapacity}
+                              </span>
+                              <button
+                                onClick={() => {
+                                  setEditingCapacityId(section.id);
+                                  setCapacityInput(section.maxCapacity > 0 ? section.maxCapacity.toString() : '');
+                                }}
+                                className="opacity-0 group-hover/cap:opacity-100 p-0.5 rounded hover:bg-gray-100 transition-opacity"
+                                title="Edit capacity"
+                              >
+                                <Pencil className="w-3 h-3 text-gray-400" />
+                              </button>
+                            </div>
+                          )}
                         </td>
                         <td className="px-3 py-2 whitespace-nowrap">
                           <span

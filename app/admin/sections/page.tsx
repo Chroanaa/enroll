@@ -11,6 +11,7 @@ import { Lock, Unlock, CheckCircle, BookOpen } from 'lucide-react';
 import SearchFilters from '../../components/common/SearchFilters';
 import ConfirmationModal from '../../components/common/ConfirmationModal';
 import SuccessModal from '../../components/common/SuccessModal';
+import ErrorModal from '../../components/common/ErrorModal';
 
 export default function SectionsPage() {
   const router = useRouter();
@@ -43,6 +44,18 @@ export default function SectionsPage() {
   }>({
     isOpen: false,
     message: ''
+  });
+
+  // Error modal state
+  const [errorModal, setErrorModal] = useState<{
+    isOpen: boolean;
+    title: string;
+    message: string;
+    details?: string;
+  }>({
+    isOpen: false,
+    title: '',
+    message: '',
   });
 
 
@@ -122,7 +135,18 @@ export default function SectionsPage() {
       }
       setRefreshKey((prev) => prev + 1);
     } catch (error) {
-      console.error(`Failed to ${confirmModal.type} section:`, error);
+      const msg = error instanceof Error ? error.message : `Failed to ${confirmModal.type} section`;
+      const isScheduleError = msg.toLowerCase().includes('schedule');
+      setErrorModal({
+        isOpen: true,
+        title: isScheduleError ? 'Cannot Activate Section' : 'Action Failed',
+        message: isScheduleError
+          ? 'This section has no class schedules yet.'
+          : msg,
+        details: isScheduleError
+          ? 'Please build the class schedule for this section before activating it. Go to the Schedule button to add subjects and faculty assignments.'
+          : undefined,
+      });
     } finally {
       setIsLoading(false);
       setConfirmModal({ isOpen: false, type: null, section: null });
@@ -261,6 +285,15 @@ export default function SectionsPage() {
           message={successModal.message}
           autoClose={true}
           autoCloseDelay={3000}
+        />
+
+        {/* Error / Warning Modal */}
+        <ErrorModal
+          isOpen={errorModal.isOpen}
+          onClose={() => setErrorModal({ isOpen: false, title: '', message: '' })}
+          title={errorModal.title}
+          message={errorModal.message}
+          details={errorModal.details}
         />
     </div>
   );

@@ -59,6 +59,7 @@ const SectionForm: React.FC<SectionFormProps> = ({
       program_id: 1,
       advisor: "",
       student_count: 0,
+      max_capacity: undefined,
       status: "draft",
       year_level: undefined,
       semester: undefined,
@@ -169,7 +170,7 @@ const SectionForm: React.FC<SectionFormProps> = ({
     return (
       formData.section_name !== initialFormData.current.section_name ||
       formData.program_id !== initialFormData.current.program_id ||
-      formData.student_count !== initialFormData.current.student_count ||
+      formData.max_capacity !== initialFormData.current.max_capacity ||
       formData.status !== initialFormData.current.status ||
       formData.year_level !== initialFormData.current.year_level ||
       formData.semester !== initialFormData.current.semester ||
@@ -203,6 +204,7 @@ const SectionForm: React.FC<SectionFormProps> = ({
         program_id: formData.program_id!,
         advisor: '', // Empty advisor field
         student_count: formData.student_count || 0,
+        max_capacity: formData.max_capacity || undefined,
         status: (formData.status as "draft" | "active" | "closed" | "inactive") || "draft",
         year_level: formData.year_level,
         semester: formData.semester,
@@ -374,16 +376,17 @@ const SectionForm: React.FC<SectionFormProps> = ({
                   style={{ color: colors.primary }}
                 >
                   <Users className='w-4 h-4 text-gray-400' />
-                  Student Count
+                  Max Capacity <span className='text-red-500'>*</span>
                 </label>
                 <input
                   type='number'
-                  min='0'
-                  value={formData.student_count || 0}
+                  min='1'
+                  placeholder='Maximum number of students'
+                  value={formData.max_capacity || ''}
                   onChange={(e) =>
                     setFormData({
                       ...formData,
-                      student_count: parseInt(e.target.value) || 0,
+                      max_capacity: parseInt(e.target.value) || undefined,
                     })
                   }
                   className='w-full rounded-xl px-4 py-2.5 transition-all border-gray-200 focus:ring-2 focus:ring-offset-0'
@@ -400,6 +403,7 @@ const SectionForm: React.FC<SectionFormProps> = ({
                     e.currentTarget.style.borderColor = "#E5E7EB";
                     e.currentTarget.style.boxShadow = "none";
                   }}
+                  required
                 />
               </div>
 

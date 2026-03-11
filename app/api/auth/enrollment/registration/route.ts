@@ -165,6 +165,19 @@ export async function GET(request: NextRequest) {
       amount: Number(p.amount) || 0,
     }));
 
+    const baseTotal = Number(assessment.base_total) || 0;
+    const downPayment = Number(assessment.down_payment) || 0;
+    const netInstallment = Math.max(0, baseTotal - downPayment);
+    const installmentCharge = assessment.insurance_amount != null
+      ? Number(assessment.insurance_amount)
+      : Math.round(netInstallment * 0.05 * 100) / 100;
+    const totalInstallment = paymentSchedule.length > 0
+      ? paymentSchedule.reduce((sum, p) => sum + p.amount, 0)
+      : Math.max(
+          0,
+          (Number(assessment.total_due_installment) || 0) - downPayment
+        );
+
     // Calculate tuition fee per unit — prefer the curriculum's stored rate
     const totalUnits = enrolledSubjects.reduce((sum: number, s: any) => sum + (Number(s.units_total) || 0), 0);
     const calculatedTuitionPerUnit = totalUnits > 0 ? Number(assessment.gross_tuition) / totalUnits : 0;
@@ -216,14 +229,14 @@ export async function GET(request: NextRequest) {
         miscFeeItems: miscFeeItems,
         fixedAmountTotal: fixedAmountTotal,
         fixedFeeItems: fixedFeeItems,
-        totalFees: Number(assessment.total_due_cash) || Number(assessment.total_due) || 0,
+        totalFees: baseTotal,
       },
       installmentBasis: {
-        totalFees: Number(assessment.total_due) || 0,
-        downPayment: Number(assessment.down_payment) || 0,
-        net: Number(assessment.total_due) - Number(assessment.down_payment) || 0,
-        fivePercent: (Number(assessment.total_due) - Number(assessment.down_payment)) * 0.05 || 0,
-        totalInstallment: Number(assessment.total_due_installment) || 0,
+        totalFees: baseTotal,
+        downPayment: downPayment,
+        net: netInstallment,
+        fivePercent: installmentCharge,
+        totalInstallment: totalInstallment,
       },
       paymentSchedule,
     };

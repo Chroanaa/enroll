@@ -109,7 +109,7 @@ export async function POST(request: NextRequest) {
 
       // For ALL payment modes: if down_payment is not yet set AND this is NOT a schedule
       // term payment (no scheduleLabel), then this payment is the downpayment — save it.
-      if (assessment.down_payment === null && !scheduleLabel) {
+      if (!scheduleLabel && assessment.payments.length === 0) {
         await tx.student_assessment.update({
           where: { id: parseInt(assessmentId) },
           data: { down_payment: totalPaymentAmount },
