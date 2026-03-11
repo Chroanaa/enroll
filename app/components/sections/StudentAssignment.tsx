@@ -443,6 +443,7 @@ export function StudentAssignment({
                     <th className="px-3 py-2 text-left text-[10px] font-bold uppercase tracking-wider text-gray-600">Subjects</th>
                     <th className="px-3 py-2 text-left text-[10px] font-bold uppercase tracking-wider text-gray-600">Program</th>
                     <th className="px-3 py-2 text-left text-[10px] font-bold uppercase tracking-wider text-gray-600">Status</th>
+                    <th className="px-3 py-2 text-left text-[10px] font-bold uppercase tracking-wider text-gray-600">Action</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-100">
@@ -477,7 +478,6 @@ export function StudentAssignment({
                         <tr
                           key={student.studentId}
                           className={`group transition-colors ${
-                            alreadyAssigned ? 'opacity-60 bg-gray-50' :
                             !student.hasEnrolledSubjects ? 'bg-red-50/40' :
                             'hover:bg-gray-50/50'
                           }`}
@@ -497,12 +497,12 @@ export function StudentAssignment({
                             />
                           </td>
                           <td className="px-3 py-2 whitespace-nowrap">
-                            <span className="text-xs font-medium" style={{ color: alreadyAssigned ? '#9CA3AF' : colors.primary }}>
+                            <span className="text-xs font-medium" style={{ color: colors.primary }}>
                               {student.studentNumber}
                             </span>
                           </td>
                           <td className="px-3 py-2 whitespace-nowrap">
-                            <span className={`text-xs font-medium ${alreadyAssigned ? 'text-gray-400' : 'text-gray-700'}`}>
+                            <span className="text-xs font-medium text-gray-700">
                               {student.firstName} {student.middleName} {student.lastName}
                             </span>
                           </td>
@@ -550,31 +550,31 @@ export function StudentAssignment({
                             </span>
                           </td>
                           <td className="px-3 py-2 whitespace-nowrap">
-                            <div className="flex items-center gap-1.5">
-                              {alreadyAssigned ? (
-                                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium bg-gray-100 text-gray-500">
-                                  Assigned{student.assignedSectionName ? ` (${student.assignedSectionName})` : ''}
-                                </span>
-                              ) : !student.hasEnrolledSubjects ? (
-                                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium bg-red-100 text-red-600">
-                                  Cannot assign
-                                </span>
-                              ) : (
-                                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium bg-green-50 text-green-700">
-                                  Available
-                                </span>
-                              )}
-                              {alreadyAssigned && (
-                                <button
-                                  onClick={() => handleViewStudent(student.studentNumber)}
-                                  title="View registration"
-                                  className="inline-flex items-center justify-center w-6 h-6 rounded-full hover:bg-blue-100 transition-colors"
-                                  style={{ color: '#3B82F6' }}
-                                >
-                                  <Eye className="w-3.5 h-3.5" />
-                                </button>
-                              )}
-                            </div>
+                            {alreadyAssigned ? (
+                              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium bg-gray-100 text-gray-500">
+                                Assigned{student.assignedSectionName ? ` (${student.assignedSectionName})` : ''}
+                              </span>
+                            ) : !student.hasEnrolledSubjects ? (
+                              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium bg-red-100 text-red-600">
+                                Cannot assign
+                              </span>
+                            ) : (
+                              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium bg-green-50 text-green-700">
+                                Available
+                              </span>
+                            )}
+                          </td>
+                          <td className="px-3 py-2 whitespace-nowrap">
+                            {alreadyAssigned && (
+                              <button
+                                onClick={() => handleViewStudent(student.studentNumber)}
+                                title="View registration"
+                                className="inline-flex items-center gap-1 px-2.5 py-1 rounded text-[10px] font-semibold border transition-colors hover:opacity-80"
+                                style={{ color: colors.primary, borderColor: colors.primary, backgroundColor: `${colors.primary}10` }}
+                              >
+                                View
+                              </button>
+                            )}
                           </td>
                         </tr>
                       );
