@@ -171,6 +171,8 @@ const AssessmentManagement: React.FC = () => {
   const isUnmountedRef = useRef(false);
 
   useEffect(() => {
+    isUnmountedRef.current = false;
+
     return () => {
       isUnmountedRef.current = true;
       feesAbortRef.current?.abort();
@@ -1443,7 +1445,7 @@ const AssessmentManagement: React.FC = () => {
     setPaymentMode(newMode);
   };
 
-  if (loading || termLoading) {
+  if (loading) {
     return (
       <div
         className='flex items-center justify-center min-h-screen'
