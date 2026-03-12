@@ -4,63 +4,130 @@ import { prisma } from "../../lib/prisma";
 /**
  * GET /api/enrollment-forecast
  *
- * Returns enrollment counts grouped by program code and academic year.
- * Used by the forecasting model (create_model.py) to train linear regression.
+ * Returns enrollment counts, room inventory, and section history for
+ * the Python forecast server to use when generating predictions.
  *
  * Response format:
- * [
- *   { "course": "BSIT", "year": 2024, "total_students": 120 },
- *   ...
- * ]
+ * {
+ *   enrollment:       [{ course, year, total_students }],
+ *   rooms:            [{ room_id, room_number, capacity, room_type, status }],
+ *   section_history:  [{ program, year, student_count, section_count, avg_section_capacity }]
+ * }
  */
 export async function GET(request: NextRequest) {
   try {
-    // Query enrollment counts grouped by program and academic year
+    // ── Enrollment counts ─────────────────────────────────────────────────
     const enrollments = await prisma.enrollment.findMany({
       where: {
         course_program: { not: null },
-        academic_year: { not: null },
+        admission_date: { not: null },
       },
       select: {
         course_program: true,
+        admission_date: true,
+      },
+    });
+
+    const programs = await prisma.program.findMany({
+      select: { id: true, code: true },
+    });
+    const programCodeMap = new Map(
+      programs.map((p) => [p.id.toString(), p.code]),
+    );
+
+    const enrollmentCounts: Record<string, number> = {};
+    for (const e of enrollments) {
+      const programCode =
+        programCodeMap.get(e.course_program!) || e.course_program!;
+      const year = new Date(e.admission_date!).getFullYear();
+      if (isNaN(year)) continue;
+      const key = `${programCode}|${year}`;
+      enrollmentCounts[key] = (enrollmentCounts[key] || 0) + 1;
+    }
+
+    const enrollment = Object.entries(enrollmentCounts)
+      .map(([key, total_students]) => {
+        const [course, yearStr] = key.split("|");
+        return { course, year: parseInt(yearStr), total_students };
+      })
+      .sort((a, b) => a.course.localeCompare(b.course) || a.year - b.year);
+
+    // ── Rooms ─────────────────────────────────────────────────────────────
+    const rawRooms = await prisma.room.findMany({
+      select: {
+        id: true,
+        room_number: true,
+        capacity: true,
+        room_type: true,
+        status: true,
+      },
+    });
+
+    const rooms = rawRooms.map((r) => ({
+      room_id: r.id,
+      room_number: r.room_number,
+      capacity: r.capacity ?? 0,
+      room_type: r.room_type ?? "lecture",
+      status: r.status ?? "available",
+    }));
+
+    // ── Section history grouped by (program_code, start_year) ────────────
+    const rawSections = await prisma.sections.findMany({
+      select: {
+        program_id: true,
+        student_count: true,
+        max_capacity: true,
         academic_year: true,
       },
     });
 
-    // Get all programs for code lookup
-    const programs = await prisma.program.findMany({
-      select: { id: true, code: true },
-    });
-    const programMap = new Map(programs.map((p) => [p.id.toString(), p.code]));
+    type SectionBucket = {
+      program: string;
+      year: number;
+      section_count: number;
+      total_students: number;
+      capacities: number[];
+    };
+    const sectionMap: Record<string, SectionBucket> = {};
 
-    // Group and count: { "BSIT|2024-2025": count }
-    const counts: Record<string, number> = {};
-    for (const e of enrollments) {
+    for (const s of rawSections) {
+      if (!s.academic_year || !s.program_id) continue;
       const programCode =
-        programMap.get(e.course_program!) || e.course_program!;
-      // Extract the start year from academic_year (e.g., "2024-2025" -> 2024)
-      const yearStr = e.academic_year!;
-      const startYear = parseInt(yearStr.split("-")[0]);
-      if (isNaN(startYear)) continue;
+        programCodeMap.get(s.program_id.toString()) || String(s.program_id);
+      const year = parseInt(s.academic_year.split("-")[0]);
+      if (isNaN(year)) continue;
 
-      const key = `${programCode}|${startYear}`;
-      counts[key] = (counts[key] || 0) + 1;
+      const key = `${programCode}|${year}`;
+      if (!sectionMap[key]) {
+        sectionMap[key] = {
+          program: programCode,
+          year,
+          section_count: 0,
+          total_students: 0,
+          capacities: [],
+        };
+      }
+      sectionMap[key].section_count++;
+      sectionMap[key].total_students += s.student_count ?? 0;
+      if (s.max_capacity) sectionMap[key].capacities.push(s.max_capacity);
     }
 
-    // Convert to array
-    const data = Object.entries(counts).map(([key, total_students]) => {
-      const [course, yearStr] = key.split("|");
-      return {
-        course,
-        year: parseInt(yearStr),
-        total_students,
-      };
-    });
+    const section_history = Object.values(sectionMap)
+      .map((s) => ({
+        program: s.program,
+        year: s.year,
+        student_count: s.total_students,
+        section_count: s.section_count,
+        avg_section_capacity:
+          s.capacities.length > 0
+            ? Math.round(
+                s.capacities.reduce((a, b) => a + b, 0) / s.capacities.length,
+              )
+            : 40,
+      }))
+      .sort((a, b) => a.program.localeCompare(b.program) || a.year - b.year);
 
-    // Sort by course then year
-    data.sort((a, b) => a.course.localeCompare(b.course) || a.year - b.year);
-
-    return NextResponse.json(data);
+    return NextResponse.json({ enrollment, rooms, section_history });
   } catch (error) {
     console.error("Error fetching enrollment forecast data:", error);
     return NextResponse.json(

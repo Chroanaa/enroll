@@ -3,31 +3,31 @@ import React, { useState, useEffect, useMemo } from "react";
 import {
   TrendingUp,
   TrendingDown,
-  Calendar,
   Target,
   BarChart3,
-  Users,
-  GraduationCap,
   AlertTriangle,
   RefreshCw,
-  BookOpen,
+  Users,
+  Building2,
+  PlusCircle,
+  CheckCircle2,
+  Layers,
 } from "lucide-react";
 import {
-  BarChart,
-  Bar,
+  LineChart,
+  Line,
   XAxis,
   YAxis,
   CartesianGrid,
   Tooltip,
-  Legend,
   ResponsiveContainer,
-  LineChart,
-  Line,
-  PieChart,
-  Pie,
+  BarChart,
+  Bar,
   Cell,
 } from "recharts";
 import { colors } from "../colors";
+
+/* ───────────────────── Types ───────────────────── */
 
 interface ProgramData {
   program: string;
@@ -36,32 +36,51 @@ interface ProgramData {
   year?: number;
 }
 
-interface PredictionData {
-  program: string;
-  predicted_students: number;
-  trend: "increasing" | "decreasing" | "stable";
-  growth_rate: number;
+interface ForecastItem {
+  course: string;
+  predicted_year: number;
+  predicted_count: number;
 }
 
-interface ForecastAPIResponse {
-  predictions?: Array<{
-    program: string;
-    predicted_students: number;
-    trend?: string;
-    growth_rate?: number;
-  }>;
-  [key: string]: any;
+interface CapacityItem {
+  program: string;
+  predicted_year?: number | null;
+  predicted_students: number;
+  current_sections: number;
+  current_capacity: number;
+  avg_section_capacity: number;
+  recommended_sections: number;
+  additional_sections_needed: number;
+  add_section: boolean;
+  new_total_capacity: number;
+  utilization_rate: number;
+  status: string;
+}
+
+interface RoomSummary {
+  total_rooms: number;
+  available_rooms: number;
+  total_available_capacity: number;
+}
+
+interface ForecastResult {
+  success: boolean;
+  programs: string[];
+  historical: Record<string, { year: number; total_students: number }[]>;
+  forecast: ForecastItem[];
+  capacity: CapacityItem[];
+  totalPrograms: number;
+  room_summary?: RoomSummary;
 }
 
 interface StudentData {
   programData: ProgramData[];
-  summary: {
-    totalStudents: number;
-    totalPrograms: number;
-  };
+  summary: { totalStudents: number; totalPrograms: number };
   studentsByTerm: { term: string; total_students: number }[];
   studentsByDepartment: { department_name: string; total_students: number }[];
 }
+
+/* ───────────────────── Constants ───────────────────── */
 
 const CHART_COLORS = [
   "#955A27",
@@ -74,14 +93,17 @@ const CHART_COLORS = [
   "#EF4444",
 ];
 
+/* ───────────────────── Component ───────────────────── */
+
 const StudentForecastDashboard: React.FC = () => {
   const [studentData, setStudentData] = useState<StudentData | null>(null);
-  const [predictions, setPredictions] = useState<PredictionData[]>([]);
-  const [loading, setLoading] = useState(false);
+  const [forecastResult, setForecastResult] = useState<ForecastResult | null>(
+    null,
+  );
+  const [loading, setLoading] = useState(true);
   const [forecastLoading, setForecastLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // Fetch student data on mount
   useEffect(() => {
     fetchStudentData();
   }, []);
@@ -91,13 +113,10 @@ const StudentForecastDashboard: React.FC = () => {
     setError(null);
     try {
       const response = await fetch("/api/auth/student/forecast");
-      if (!response.ok) {
-        throw new Error("Failed to fetch student data");
-      }
+      if (!response.ok) throw new Error("Failed to fetch student data");
       const data = await response.json();
       setStudentData(data);
 
-      // Generate predictions using FORECAST_API_URL
       if (data.programData && data.programData.length > 0) {
         await fetchForecastPredictions(data.programData);
       }
@@ -108,11 +127,9 @@ const StudentForecastDashboard: React.FC = () => {
     }
   };
 
-  // Fetch predictions from FORECAST_API_URL
   const fetchForecastPredictions = async (programData: ProgramData[]) => {
     setForecastLoading(true);
     try {
-      // Transform data for the forecast API
       const forecastData = programData.map((item) => ({
         program: item.program,
         total_students: item.total_students,
@@ -132,269 +149,127 @@ const StudentForecastDashboard: React.FC = () => {
         throw new Error(errorData.error || "Failed to fetch forecast");
       }
 
-      const result = await response.json();
-
-      // Process the forecast result
-      if (result.forecast) {
-        const processedPredictions = processForecastResponse(
-          result.forecast,
-          programData,
-        );
-        setPredictions(processedPredictions);
-      }
+      const result: ForecastResult = await response.json();
+      setForecastResult(result);
     } catch (err: any) {
       console.error("Forecast API error:", err.message);
-      // Set empty predictions on error
-      setPredictions([]);
+      setForecastResult(null);
     } finally {
       setForecastLoading(false);
     }
   };
 
-  // Process the forecast API response
-  const processForecastResponse = (
-    forecastResponse: ForecastAPIResponse,
-    programData: ProgramData[],
-  ): PredictionData[] => {
-    // If the API returns predictions directly
-    if (
-      forecastResponse.predictions &&
-      Array.isArray(forecastResponse.predictions)
-    ) {
-      return forecastResponse.predictions.map((pred) => ({
-        program: pred.program,
-        predicted_students: pred.predicted_students || 0,
-        trend:
-          (pred.trend as "increasing" | "decreasing" | "stable") || "stable",
-        growth_rate: pred.growth_rate || 0,
-      }));
-    }
+  /* ── Derived data ── */
 
-    // If the API returns data in a different format, try to extract predictions
-    // This handles various possible response formats
-    const predictions: PredictionData[] = [];
-
-    // Group historical data by program to get the latest values
-    const programGroups: Record<string, { year: number; students: number }[]> =
-      {};
-    programData.forEach((item) => {
-      const program = item.program;
-      const year = item.academic_year
-        ? parseInt(item.academic_year.split("-")[0])
-        : item.year || new Date().getFullYear();
-
-      if (!programGroups[program]) {
-        programGroups[program] = [];
-      }
-      programGroups[program].push({ year, students: item.total_students });
-    });
-
-    // Check if forecast response has program-specific predictions
-    Object.keys(programGroups).forEach((program) => {
-      const programPrediction = forecastResponse[program];
-      const historicalData = programGroups[program].sort(
-        (a, b) => a.year - b.year,
-      );
-      const lastStudents =
-        historicalData[historicalData.length - 1]?.students || 0;
-
-      if (programPrediction && typeof programPrediction === "object") {
-        const predicted =
-          programPrediction.predicted_students ||
-          programPrediction.prediction ||
-          programPrediction.forecast ||
-          lastStudents;
-
-        const growthRate =
-          lastStudents > 0
-            ? ((predicted - lastStudents) / lastStudents) * 100
-            : 0;
-
-        let trend: "increasing" | "decreasing" | "stable" = "stable";
-        if (growthRate > 5) trend = "increasing";
-        else if (growthRate < -5) trend = "decreasing";
-
-        predictions.push({
-          program,
-          predicted_students: Math.round(predicted),
-          trend: programPrediction.trend || trend,
-          growth_rate: programPrediction.growth_rate || growthRate,
-        });
-      } else {
-        // Use the raw value if it's a number
-        const predicted =
-          typeof programPrediction === "number"
-            ? programPrediction
-            : lastStudents;
-        const growthRate =
-          lastStudents > 0
-            ? ((predicted - lastStudents) / lastStudents) * 100
-            : 0;
-
-        let trend: "increasing" | "decreasing" | "stable" = "stable";
-        if (growthRate > 5) trend = "increasing";
-        else if (growthRate < -5) trend = "decreasing";
-
-        predictions.push({
-          program,
-          predicted_students: Math.round(predicted),
-          trend,
-          growth_rate: growthRate,
-        });
-      }
-    });
-
-    return predictions.sort(
-      (a, b) => b.predicted_students - a.predicted_students,
-    );
-  };
-
-  // Prepare chart data for enrollment by program (pandas-style)
-  const enrollmentChartData = useMemo(() => {
-    if (!studentData?.programData) return [];
-
-    const grouped: Record<string, Record<string, number>> = {};
-    const years = new Set<string>();
-
-    studentData.programData.forEach((item) => {
-      if (!grouped[item.program]) {
-        grouped[item.program] = {};
-      }
-      const year = item.academic_year || String(item.year);
-      grouped[item.program][year] = item.total_students;
-      years.add(year);
-    });
-
-    const sortedYears = Array.from(years).sort();
-    return sortedYears.map((year) => {
-      const entry: Record<string, any> = { year };
-      Object.keys(grouped).forEach((program) => {
-        entry[program] = grouped[program][year] || 0;
-      });
-      return entry;
-    });
-  }, [studentData]);
-
-  // Combined historical + predicted line chart data
-  const forecastLineChartData = useMemo(() => {
-    if (!studentData?.programData) return [];
-
-    const grouped: Record<string, Record<string, number>> = {};
-    const years = new Set<string>();
-
-    studentData.programData.forEach((item) => {
-      const program = item.program;
-      if (!grouped[program]) grouped[program] = {};
-      const year = item.academic_year || String(item.year);
-      grouped[program][year] = item.total_students;
-      years.add(year);
-    });
-
-    // Add the predicted year
-    if (predictions.length > 0) {
-      const sortedYears = Array.from(years).sort();
-      const lastYear = sortedYears[sortedYears.length - 1];
-      let nextYear: string;
-      if (lastYear.includes("-")) {
-        const startYr = parseInt(lastYear.split("-")[0]);
-        nextYear = `${startYr + 1}-${startYr + 2}`;
-      } else {
-        nextYear = String(parseInt(lastYear) + 1);
-      }
-      years.add(nextYear);
-
-      predictions.forEach((pred) => {
-        if (!grouped[pred.program]) grouped[pred.program] = {};
-        grouped[pred.program][nextYear] = pred.predicted_students;
-      });
-    }
-
-    const sortedYears = Array.from(years).sort();
-    return sortedYears.map((year) => {
-      const entry: Record<string, any> = { year };
-      Object.keys(grouped).forEach((program) => {
-        entry[program] = grouped[program][year] ?? null;
-      });
-      return entry;
-    });
-  }, [studentData, predictions]);
-
-  // Prepare pandas-style table data (Year | Program | Students)
-  const pandasTableData = useMemo(() => {
-    if (!studentData?.programData) return [];
-
-    return studentData.programData
-      .map((item) => ({
-        year: item.academic_year || String(item.year) || "N/A",
-        program: item.program,
-        students: item.total_students,
-      }))
-      .sort((a, b) => {
-        if (a.year !== b.year) return a.year.localeCompare(b.year);
-        return a.program.localeCompare(b.program);
-      });
-  }, [studentData]);
-
-  // Get unique programs for chart
   const uniquePrograms = useMemo(() => {
     if (!studentData?.programData) return [];
     return [...new Set(studentData.programData.map((p) => p.program))];
   }, [studentData]);
 
-  const StatCard: React.FC<{
-    title: string;
-    value: string | number;
-    subtitle?: string;
-    icon: React.ReactNode;
-    trend?: number;
-    color: string;
-  }> = ({ title, value, subtitle, icon, trend, color }) => (
-    <div
-      className='bg-white rounded-xl shadow-sm border p-6 hover:shadow-md transition-all duration-200'
-      style={{ borderColor: colors.neutralBorder }}
-    >
-      <div className='flex items-center justify-between mb-4'>
-        <div
-          className={`p-3 rounded-lg`}
-          style={{ backgroundColor: color + "20" }}
-        >
-          {icon}
-        </div>
-        {trend !== undefined && (
-          <div
-            className={`flex items-center ${
-              trend >= 0 ? "text-emerald-600" : "text-red-600"
-            }`}
-          >
-            {trend >= 0 ? (
-              <TrendingUp className='w-4 h-4 mr-1' />
-            ) : (
-              <TrendingDown className='w-4 h-4 mr-1' />
-            )}
-            <span className='text-sm font-medium'>
-              {Math.abs(trend).toFixed(1)}%
-            </span>
-          </div>
-        )}
-      </div>
-      <div>
-        <p
-          className='text-sm font-medium mb-1'
-          style={{ color: colors.neutral }}
-        >
-          {title}
-        </p>
-        <p className='text-2xl font-bold' style={{ color: colors.primary }}>
-          {value}
-        </p>
-        {subtitle && (
-          <p className='text-sm mt-1' style={{ color: colors.neutral }}>
-            {subtitle}
-          </p>
-        )}
-      </div>
-    </div>
-  );
+  // Build forecast line chart data (historical + predicted per program)
+  const forecastLineChartData = useMemo(() => {
+    if (!studentData?.programData) return [];
+
+    const grouped: Record<string, Record<string, number>> = {};
+    const historicalYears = new Set<string>();
+
+    studentData.programData.forEach((item) => {
+      if (!grouped[item.program]) grouped[item.program] = {};
+      const year = item.academic_year || String(item.year);
+      grouped[item.program][year] = item.total_students;
+      historicalYears.add(year);
+    });
+
+    const sortedYears = Array.from(historicalYears).sort();
+    const lastYear = sortedYears[sortedYears.length - 1];
+
+    // Determine next year from forecast or capacity
+    let nextYear = "";
+    if (forecastResult?.forecast?.length && lastYear) {
+      const predictedYr = forecastResult.forecast[0].predicted_year;
+      nextYear = String(predictedYr);
+    } else if (forecastResult?.capacity?.length && lastYear) {
+      const predictedYr = forecastResult.capacity[0].predicted_year;
+      if (predictedYr) nextYear = String(predictedYr);
+    }
+
+    const predMap: Record<string, number> = {};
+    forecastResult?.forecast?.forEach((f) => {
+      predMap[f.course] = f.predicted_count;
+    });
+    // Fall back to capacity if forecast is empty
+    if (Object.keys(predMap).length === 0 && forecastResult?.capacity?.length) {
+      forecastResult.capacity.forEach((c) => {
+        predMap[c.program] = c.predicted_students;
+      });
+    }
+
+    const allYears = [...sortedYears, ...(nextYear ? [nextYear] : [])];
+
+    return allYears.map((year) => {
+      const entry: Record<string, any> = { year };
+      Object.keys(grouped).forEach((program) => {
+        if (year === nextYear) {
+          entry[program] = null;
+          entry[`${program}_forecast`] = predMap[program] ?? null;
+        } else if (year === lastYear && nextYear) {
+          entry[program] = grouped[program][year] ?? null;
+          entry[`${program}_forecast`] = grouped[program][year] ?? null;
+        } else {
+          entry[program] = grouped[program][year] ?? null;
+          entry[`${program}_forecast`] = null;
+        }
+      });
+      return entry;
+    });
+  }, [studentData, forecastResult]);
+
+  const predictedYear = useMemo(() => {
+    if (forecastResult?.forecast?.length) {
+      return String(forecastResult.forecast[0].predicted_year);
+    }
+    // Fall back to capacity predicted_year
+    if (forecastResult?.capacity?.length) {
+      const yr = forecastResult.capacity[0].predicted_year;
+      if (yr) return String(yr);
+    }
+    return "";
+  }, [forecastResult]);
+
+  // Total predicted students
+  const totalPredicted = useMemo(() => {
+    if (forecastResult?.forecast?.length) {
+      return forecastResult.forecast.reduce((s, f) => s + f.predicted_count, 0);
+    }
+    // Fall back to capacity predicted_students
+    if (forecastResult?.capacity?.length) {
+      return forecastResult.capacity.reduce(
+        (s, c) => s + c.predicted_students,
+        0,
+      );
+    }
+    return 0;
+  }, [forecastResult]);
+
+  // Total current students (latest year)
+  const totalCurrent = useMemo(() => {
+    if (!forecastResult?.historical) return 0;
+    return Object.values(forecastResult.historical).reduce((sum, arr) => {
+      const latest = arr[arr.length - 1];
+      return sum + (latest?.total_students ?? 0);
+    }, 0);
+  }, [forecastResult]);
+
+  const totalSectionsNeeded = useMemo(() => {
+    return (
+      forecastResult?.capacity?.reduce(
+        (s, c) => s + c.additional_sections_needed,
+        0,
+      ) ?? 0
+    );
+  }, [forecastResult]);
+
+  /* ── Render ── */
 
   return (
     <div
@@ -402,31 +277,31 @@ const StudentForecastDashboard: React.FC = () => {
       style={{ backgroundColor: colors.paper }}
     >
       <div className='max-w-7xl mx-auto'>
-        {/* Header */}
+        {/* ─── Header ─── */}
         <div className='mb-8'>
-          <div className='flex items-center justify-between'>
+          <div className='flex items-center justify-between flex-wrap gap-4'>
             <div>
               <h1
-                className='text-3xl font-bold mb-2'
+                className='text-3xl font-bold mb-1'
                 style={{ color: colors.primary }}
               >
-                Student Enrollment Forecast
+                Enrollment Forecast
               </h1>
-              <p style={{ color: colors.neutral }}>
-                Analyze enrollment trends and forecast future student numbers by
-                program
+              <p className='text-sm' style={{ color: colors.neutral }}>
+                Historical enrollment trends, AI-predicted student counts &amp;
+                section capacity recommendations
               </p>
             </div>
             <button
               onClick={fetchStudentData}
-              disabled={loading}
-              className='flex items-center gap-2 px-4 py-2 rounded-lg text-white font-medium transition-colors'
+              disabled={loading || forecastLoading}
+              className='flex items-center gap-2 px-4 py-2 rounded-lg text-white font-medium transition-all hover:opacity-90 disabled:opacity-60'
               style={{ backgroundColor: colors.secondary }}
             >
               <RefreshCw
-                className={`w-4 h-4 ${loading ? "animate-spin" : ""}`}
+                className={`w-4 h-4 ${loading || forecastLoading ? "animate-spin" : ""}`}
               />
-              Refresh Data
+              Refresh
             </button>
           </div>
         </div>
@@ -440,429 +315,692 @@ const StudentForecastDashboard: React.FC = () => {
               color: "#DC2626",
             }}
           >
-            <AlertTriangle className='w-5 h-5' />
+            <AlertTriangle className='w-5 h-5 flex-shrink-0' />
             <span>{error}</span>
           </div>
         )}
 
-        {/* Summary Stats */}
-        <div className='grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8'>
-          <StatCard
-            title='Total Enrolled Students'
-            value={studentData?.summary?.totalStudents?.toLocaleString() || 0}
-            icon={
-              <Users className='w-5 h-5' style={{ color: colors.secondary }} />
-            }
-            color={colors.secondary}
-          />
-          <StatCard
-            title='Programs Offered'
-            value={studentData?.summary?.totalPrograms || 0}
-            icon={
-              <BookOpen className='w-5 h-5' style={{ color: colors.success }} />
-            }
-            color={colors.success}
-          />
-          <StatCard
-            title='Terms'
-            value={studentData?.studentsByTerm?.length || 0}
-            icon={
-              <Calendar className='w-5 h-5' style={{ color: colors.info }} />
-            }
-            color={colors.info}
-          />
-          <StatCard
-            title='Departments'
-            value={studentData?.studentsByDepartment?.length || 0}
-            icon={
-              <GraduationCap
-                className='w-5 h-5'
-                style={{ color: colors.warning }}
-              />
-            }
-            color={colors.warning}
-          />
-        </div>
-
-        {/* Charts Grid */}
-        <div className='grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8'>
-          {/* Enrollment Trend Line Chart (Pandas-style) */}
-          <div
-            className='bg-white rounded-xl shadow-sm border p-6 lg:col-span-2'
-            style={{ borderColor: colors.neutralBorder }}
-          >
-            <h2
-              className='text-xl font-bold mb-6'
+        {loading && !studentData ? (
+          <div className='flex flex-col items-center justify-center py-32'>
+            <RefreshCw
+              className='w-10 h-10 animate-spin mb-4'
+              style={{ color: colors.secondary }}
+            />
+            <p
+              className='text-lg font-medium mb-1'
               style={{ color: colors.primary }}
             >
-              Enrollment Trend by Program and Year
-            </h2>
-            <ResponsiveContainer width='100%' height={350}>
-              <LineChart data={enrollmentChartData}>
-                <CartesianGrid
-                  strokeDasharray='3 3'
-                  stroke={colors.neutralBorder}
-                />
-                <XAxis
-                  dataKey='year'
-                  tick={{ fill: colors.neutral }}
-                  label={{
-                    value: "Academic Year",
-                    position: "bottom",
-                    fill: colors.neutral,
-                  }}
-                />
-                <YAxis
-                  tick={{ fill: colors.neutral }}
-                  label={{
-                    value: "Number of Students",
-                    angle: -90,
-                    position: "insideLeft",
-                    fill: colors.neutral,
-                  }}
-                />
-                <Tooltip
-                  contentStyle={{
-                    backgroundColor: "white",
-                    border: `1px solid ${colors.neutralBorder}`,
-                    borderRadius: "8px",
-                  }}
-                />
-                <Legend />
-                {uniquePrograms.map((program, index) => (
-                  <Line
-                    key={program}
-                    type='monotone'
-                    dataKey={program}
-                    stroke={CHART_COLORS[index % CHART_COLORS.length]}
-                    strokeWidth={2}
-                    dot={{
-                      r: 5,
-                      fill: CHART_COLORS[index % CHART_COLORS.length],
-                    }}
-                    name={program}
-                  />
-                ))}
-              </LineChart>
-            </ResponsiveContainer>
+              Loading Forecast Data
+            </p>
+            <p className='text-sm' style={{ color: colors.neutral }}>
+              Fetching enrollment data and generating predictions…
+            </p>
           </div>
-
-          {/* Bar Chart - Students by Program & Year */}
-          <div
-            className='bg-white rounded-xl shadow-sm border p-6'
-            style={{ borderColor: colors.neutralBorder }}
-          >
-            <h2
-              className='text-xl font-bold mb-6'
-              style={{ color: colors.primary }}
-            >
-              Students by Program & Academic Year
-            </h2>
-            <ResponsiveContainer width='100%' height={300}>
-              <BarChart data={enrollmentChartData}>
-                <CartesianGrid
-                  strokeDasharray='3 3'
-                  stroke={colors.neutralBorder}
+        ) : (
+          <>
+            {/* ─── Summary Cards ─── */}
+            {forecastResult && (
+              <div className='grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-8'>
+                {/* Total Programs */}
+                <SummaryCard
+                  icon={<Layers className='w-5 h-5' />}
+                  label='Total Programs'
+                  value={forecastResult.totalPrograms}
+                  color={colors.info}
                 />
-                <XAxis dataKey='year' tick={{ fill: colors.neutral }} />
-                <YAxis tick={{ fill: colors.neutral }} />
-                <Tooltip
-                  contentStyle={{
-                    backgroundColor: "white",
-                    border: `1px solid ${colors.neutralBorder}`,
-                    borderRadius: "8px",
-                  }}
+                {/* Current Students */}
+                <SummaryCard
+                  icon={<Users className='w-5 h-5' />}
+                  label='Current Students'
+                  value={totalCurrent}
+                  color={colors.secondary}
                 />
-                <Legend />
-                {uniquePrograms.map((program, index) => (
-                  <Bar
-                    key={program}
-                    dataKey={program}
-                    fill={CHART_COLORS[index % CHART_COLORS.length]}
-                    radius={[4, 4, 0, 0]}
-                  />
-                ))}
-              </BarChart>
-            </ResponsiveContainer>
-          </div>
-
-          {/* Students by Term */}
-          <div
-            className='bg-white rounded-xl shadow-sm border p-6'
-            style={{ borderColor: colors.neutralBorder }}
-          >
-            <h2
-              className='text-xl font-bold mb-6'
-              style={{ color: colors.primary }}
-            >
-              Students by Term
-            </h2>
-            <ResponsiveContainer width='100%' height={300}>
-              <PieChart>
-                <Pie
-                  data={studentData?.studentsByTerm || []}
-                  cx='50%'
-                  cy='50%'
-                  labelLine={false}
-                  outerRadius={100}
-                  fill='#8884d8'
-                  dataKey='total_students'
-                  nameKey='term'
-                  label={({ name, percent }: any) =>
-                    `${name || "N/A"} (${((percent || 0) * 100).toFixed(0)}%)`
+                {/* Predicted Students */}
+                <SummaryCard
+                  icon={<Target className='w-5 h-5' />}
+                  label={`Predicted ${predictedYear}`}
+                  value={totalPredicted}
+                  color={colors.success}
+                  badge={
+                    totalCurrent > 0
+                      ? `${totalPredicted >= totalCurrent ? "+" : ""}${(((totalPredicted - totalCurrent) / totalCurrent) * 100).toFixed(1)}%`
+                      : undefined
                   }
-                >
-                  {studentData?.studentsByTerm?.map((entry, index) => (
-                    <Cell
-                      key={`cell-${index}`}
-                      fill={CHART_COLORS[index % CHART_COLORS.length]}
-                    />
-                  ))}
-                </Pie>
-                <Tooltip
-                  formatter={(value: any) => [value, "Students"]}
-                  contentStyle={{
-                    backgroundColor: "white",
-                    border: `1px solid ${colors.neutralBorder}`,
-                    borderRadius: "8px",
-                  }}
+                  badgePositive={totalPredicted >= totalCurrent}
                 />
-              </PieChart>
-            </ResponsiveContainer>
-          </div>
-        </div>
+                {/* Rooms */}
+                <SummaryCard
+                  icon={<Building2 className='w-5 h-5' />}
+                  label='Available Rooms'
+                  value={`${forecastResult.room_summary?.available_rooms ?? "—"} / ${forecastResult.room_summary?.total_rooms ?? "—"}`}
+                  color={colors.warning}
+                  sub={`${forecastResult.room_summary?.total_available_capacity ?? 0} seat capacity`}
+                />
+              </div>
+            )}
 
-        {/* Pandas-style Data Table */}
-        <div
-          className='bg-white rounded-xl shadow-sm border p-6 mb-8'
-          style={{ borderColor: colors.neutralBorder }}
-        >
-          <h2
-            className='text-xl font-bold mb-6'
-            style={{ color: colors.primary }}
-          >
-            Enrollment Data (Year | Program | Students)
-          </h2>
-          <div className='overflow-x-auto max-h-96'>
-            <table className='w-full border-collapse'>
-              <thead className='sticky top-0 bg-white'>
-                <tr
-                  style={{ borderBottom: `2px solid ${colors.neutralBorder}` }}
-                >
-                  <th
-                    className='text-left py-3 px-4 font-semibold'
-                    style={{
-                      color: colors.primary,
-                      backgroundColor: colors.neutralLight,
-                    }}
-                  >
-                    #
-                  </th>
-                  <th
-                    className='text-left py-3 px-4 font-semibold'
-                    style={{
-                      color: colors.primary,
-                      backgroundColor: colors.neutralLight,
-                    }}
-                  >
-                    Year
-                  </th>
-                  <th
-                    className='text-left py-3 px-4 font-semibold'
-                    style={{
-                      color: colors.primary,
-                      backgroundColor: colors.neutralLight,
-                    }}
-                  >
-                    Program
-                  </th>
-                  <th
-                    className='text-right py-3 px-4 font-semibold'
-                    style={{
-                      color: colors.primary,
-                      backgroundColor: colors.neutralLight,
-                    }}
-                  >
-                    Students
-                  </th>
-                </tr>
-              </thead>
-              <tbody>
-                {pandasTableData.map((row, index) => (
-                  <tr
-                    key={`${row.year}-${row.program}`}
-                    style={{
-                      borderBottom: `1px solid ${colors.neutralBorder}`,
-                      backgroundColor:
-                        index % 2 === 0 ? "white" : colors.neutralLight,
-                    }}
-                  >
-                    <td
-                      className='py-2 px-4 text-sm'
-                      style={{ color: colors.neutral }}
-                    >
-                      {index}
-                    </td>
-                    <td
-                      className='py-2 px-4 font-medium'
+            {/* ─── Per-Program Mini Charts ─── */}
+            <div className='mb-8'>
+              <div className='flex items-center justify-between mb-4 flex-wrap gap-2'>
+                <div className='flex items-center gap-3'>
+                  <BarChart3
+                    className='w-5 h-5'
+                    style={{ color: colors.secondary }}
+                  />
+                  <div>
+                    <h2
+                      className='text-xl font-bold'
                       style={{ color: colors.primary }}
                     >
-                      {row.year}
-                    </td>
-                    <td className='py-2 px-4' style={{ color: colors.primary }}>
-                      {row.program}
-                    </td>
-                    <td
-                      className='py-2 px-4 text-right font-semibold'
-                      style={{ color: colors.secondary }}
-                    >
-                      {row.students.toLocaleString()}
-                    </td>
-                  </tr>
-                ))}
-                {pandasTableData.length === 0 && (
-                  <tr>
-                    <td
-                      colSpan={4}
-                      className='py-8 text-center'
+                      Students Per Program
+                    </h2>
+                    <p
+                      className='text-xs mt-0.5'
                       style={{ color: colors.neutral }}
                     >
-                      No enrollment data available
-                    </td>
-                  </tr>
-                )}
-              </tbody>
-            </table>
-          </div>
-        </div>
-
-        {/* Predicted Students Per Program — combined matplotlib-style line chart */}
-        <div
-          className='bg-white rounded-xl shadow-sm border p-6 mb-8'
-          style={{ borderColor: colors.neutralBorder }}
-        >
-          <div className='flex items-center gap-3 mb-6'>
-            <Target className='w-6 h-6' style={{ color: colors.secondary }} />
-            <h2 className='text-xl font-bold' style={{ color: colors.primary }}>
-              Predicted Students Per Program (All Years)
-            </h2>
-            {forecastLoading && (
-              <RefreshCw
-                className='w-4 h-4 animate-spin'
-                style={{ color: colors.neutral }}
-              />
-            )}
-          </div>
-
-          {forecastLineChartData.length > 0 ? (
-            <div>
-              {/* Single combined line chart with all programs */}
-              <div
-                className='rounded-lg p-4 mb-6'
-                style={{
-                  backgroundColor: "#FFFFFF",
-                  border: `1px solid ${colors.neutralBorder}`,
-                }}
-              >
-                <ResponsiveContainer width='100%' height={420}>
-                  <LineChart
-                    data={forecastLineChartData}
-                    margin={{ top: 10, right: 30, left: 10, bottom: 30 }}
+                      Solid line = historical · Dashed line = predicted
+                      {predictedYear && (
+                        <strong style={{ color: colors.secondary }}>
+                          {" "}
+                          ({predictedYear})
+                        </strong>
+                      )}
+                    </p>
+                  </div>
+                </div>
+                {forecastLoading ? (
+                  <span
+                    className='flex items-center gap-1.5 text-xs px-2.5 py-1 rounded-full font-medium'
+                    style={{
+                      backgroundColor: colors.secondary + "18",
+                      color: colors.secondary,
+                    }}
                   >
-                    <CartesianGrid
-                      strokeDasharray='3 3'
-                      stroke='#E5E7EB'
-                      strokeOpacity={0.7}
-                    />
-                    <XAxis
-                      dataKey='year'
-                      tick={{ fill: "#555", fontSize: 12 }}
-                      tickLine={{ stroke: "#ccc" }}
-                      axisLine={{ stroke: "#ccc" }}
-                      angle={-30}
-                      textAnchor='end'
-                      height={60}
-                      label={{
-                        value: "academic_year",
-                        position: "insideBottom",
-                        offset: -5,
-                        fill: "#666",
-                        fontSize: 13,
-                        fontStyle: "italic",
-                      }}
-                    />
-                    <YAxis
-                      tick={{ fill: "#555", fontSize: 12 }}
-                      tickLine={{ stroke: "#ccc" }}
-                      axisLine={{ stroke: "#ccc" }}
-                      allowDecimals={false}
-                    />
-                    <Tooltip
-                      contentStyle={{
-                        backgroundColor: "white",
-                        border: "1px solid #ddd",
-                        borderRadius: "4px",
-                        fontSize: 13,
-                        boxShadow: "0 2px 8px rgba(0,0,0,0.08)",
-                      }}
-                      formatter={(value: any, name: string) => [
-                        value != null ? Number(value).toLocaleString() : "—",
-                        name,
-                      ]}
-                      labelFormatter={(label) => `Year: ${label}`}
-                    />
-                    <Legend
-                      verticalAlign='top'
-                      align='right'
-                      iconType='plainline'
-                      wrapperStyle={{
-                        fontSize: 13,
-                        paddingBottom: 10,
-                        border: "1px solid #E5E7EB",
-                        borderRadius: 4,
-                        padding: "8px 12px",
-                        backgroundColor: "#FAFAFA",
-                      }}
-                    />
-                    {uniquePrograms.map((program, index) => (
-                      <Line
-                        key={program}
-                        type='monotone'
-                        dataKey={program}
-                        stroke={CHART_COLORS[index % CHART_COLORS.length]}
-                        strokeWidth={2}
-                        dot={{
-                          r: 3,
-                          fill: CHART_COLORS[index % CHART_COLORS.length],
-                          strokeWidth: 0,
-                        }}
-                        activeDot={{ r: 5, strokeWidth: 2, stroke: "#fff" }}
-                        connectNulls
-                        name={program}
-                      />
-                    ))}
-                  </LineChart>
-                </ResponsiveContainer>
-                {predictions.length > 0 && (
-                  <p
-                    className='text-xs text-right mt-2 mr-4'
-                    style={{ color: "#888" }}
+                    <RefreshCw className='w-3 h-3 animate-spin' />
+                    Calculating forecast…
+                  </span>
+                ) : forecastResult ? (
+                  <span
+                    className='flex items-center gap-1.5 text-xs px-2.5 py-1 rounded-full font-medium'
+                    style={{ backgroundColor: "#D1FAE5", color: "#065F46" }}
                   >
-                    * Last data point (
-                    {
-                      forecastLineChartData[forecastLineChartData.length - 1]
-                        ?.year
-                    }
-                    ) represents predicted values
-                  </p>
-                )}
+                    <Target className='w-3 h-3' />
+                    Forecast ready
+                  </span>
+                ) : null}
               </div>
 
-              {/* Pandas-style DataFrame Table */}
-              <div
-                className='overflow-x-auto'
-                style={{ fontFamily: "'Courier New', Consolas, monospace" }}
+              {uniquePrograms.length > 0 ? (
+                <div className='grid grid-cols-1 sm:grid-cols-2 gap-4'>
+                  {uniquePrograms.map((program, index) => {
+                    const color = CHART_COLORS[index % CHART_COLORS.length];
+                    const fcItem = forecastResult?.forecast?.find(
+                      (f) => f.course === program,
+                    );
+                    const capItem = forecastResult?.capacity?.find(
+                      (c) => c.program === program,
+                    );
+                    // Use forecast item or derive from capacity
+                    const predictedCount =
+                      fcItem?.predicted_count ??
+                      capItem?.predicted_students ??
+                      null;
+
+                    const programChartData = forecastLineChartData.map(
+                      (entry) => ({
+                        year: entry.year,
+                        students: entry[program] as number | null,
+                        forecast: entry[`${program}_forecast`] as number | null,
+                      }),
+                    );
+
+                    const historicalPoints = programChartData.filter(
+                      (d) => d.students !== null && d.year !== predictedYear,
+                    );
+                    const lastPoint =
+                      historicalPoints[historicalPoints.length - 1];
+                    const growthRate =
+                      lastPoint && predictedCount !== null
+                        ? ((predictedCount - (lastPoint.students ?? 0)) /
+                            (lastPoint.students || 1)) *
+                          100
+                        : 0;
+
+                    return (
+                      <div
+                        key={program}
+                        className='bg-white rounded-xl shadow-sm border p-5 transition-shadow hover:shadow-md'
+                        style={{ borderColor: colors.neutralBorder }}
+                      >
+                        {/* Card header */}
+                        <div className='flex items-start justify-between mb-4'>
+                          <div className='flex items-center gap-2 flex-1 min-w-0'>
+                            <span
+                              className='w-3 h-3 rounded-full flex-shrink-0 mt-0.5'
+                              style={{ backgroundColor: color }}
+                            />
+                            <span
+                              className='font-semibold text-sm leading-tight'
+                              style={{ color: colors.primary }}
+                            >
+                              {program}
+                            </span>
+                          </div>
+                          {predictedCount !== null && (
+                            <span
+                              className={`flex-shrink-0 ml-2 text-xs font-semibold px-1.5 py-0.5 rounded ${
+                                growthRate > 0
+                                  ? "bg-emerald-100 text-emerald-700"
+                                  : growthRate < 0
+                                    ? "bg-red-100 text-red-700"
+                                    : "bg-gray-100 text-gray-600"
+                              }`}
+                            >
+                              {growthRate > 0
+                                ? "↑"
+                                : growthRate < 0
+                                  ? "↓"
+                                  : "→"}{" "}
+                              {growthRate >= 0 ? "+" : ""}
+                              {growthRate.toFixed(1)}%
+                            </span>
+                          )}
+                        </div>
+
+                        {/* Key numbers */}
+                        <div className='flex items-end justify-between mb-4'>
+                          <div>
+                            <p
+                              className='text-xs mb-0.5'
+                              style={{ color: colors.neutral }}
+                            >
+                              {lastPoint?.year ?? "Last known"}
+                            </p>
+                            <p
+                              className='text-2xl font-bold tabular-nums'
+                              style={{ color: colors.primary }}
+                            >
+                              {lastPoint?.students != null
+                                ? lastPoint.students.toLocaleString()
+                                : "—"}
+                            </p>
+                          </div>
+                          {predictedCount !== null && (
+                            <div className='text-right'>
+                              <p
+                                className='text-xs mb-0.5'
+                                style={{ color: colors.secondary }}
+                              >
+                                {predictedYear} (predicted)
+                              </p>
+                              <p
+                                className='text-2xl font-bold tabular-nums'
+                                style={{ color: color }}
+                              >
+                                {predictedCount.toLocaleString()}
+                              </p>
+                            </div>
+                          )}
+                        </div>
+
+                        {/* Mini line chart */}
+                        <ResponsiveContainer width='100%' height={120}>
+                          <LineChart
+                            data={programChartData}
+                            margin={{ top: 8, right: 8, left: -28, bottom: 0 }}
+                          >
+                            <CartesianGrid
+                              strokeDasharray='3 3'
+                              stroke='#F3F4F6'
+                              vertical={false}
+                            />
+                            <XAxis
+                              dataKey='year'
+                              tick={{ fontSize: 10, fill: "#999" }}
+                              tickLine={false}
+                              axisLine={false}
+                            />
+                            <YAxis
+                              tick={{ fontSize: 10, fill: "#999" }}
+                              tickLine={false}
+                              axisLine={false}
+                              allowDecimals={false}
+                              width={40}
+                            />
+                            <Tooltip
+                              contentStyle={{
+                                background: "white",
+                                border: "1px solid #eee",
+                                borderRadius: 6,
+                                fontSize: 12,
+                                boxShadow: "0 2px 8px rgba(0,0,0,0.08)",
+                              }}
+                              formatter={(value: any, key: string) => [
+                                value != null
+                                  ? Number(value).toLocaleString()
+                                  : "—",
+                                key === "forecast"
+                                  ? `${program} (predicted)`
+                                  : program,
+                              ]}
+                              labelFormatter={(l) => `Year: ${l}`}
+                            />
+                            <Line
+                              type='monotone'
+                              dataKey='students'
+                              stroke={color}
+                              strokeWidth={2.5}
+                              dot={{ r: 3.5, fill: color, strokeWidth: 0 }}
+                              activeDot={{
+                                r: 5,
+                                stroke: "#fff",
+                                strokeWidth: 2,
+                                fill: color,
+                              }}
+                              connectNulls={false}
+                              name={program}
+                            />
+                            <Line
+                              type='monotone'
+                              dataKey='forecast'
+                              stroke={color}
+                              strokeWidth={2.5}
+                              strokeDasharray='6 4'
+                              dot={(dotProps: any) => {
+                                const { cx, cy, payload, key } = dotProps;
+                                if (
+                                  payload.year === predictedYear &&
+                                  payload.forecast != null
+                                ) {
+                                  return (
+                                    <circle
+                                      key={key}
+                                      cx={cx}
+                                      cy={cy}
+                                      r={5}
+                                      fill='white'
+                                      stroke={color}
+                                      strokeWidth={2.5}
+                                    />
+                                  );
+                                }
+                                return <g key={key} />;
+                              }}
+                              connectNulls={false}
+                              legendType='none'
+                              name='forecast'
+                            />
+                          </LineChart>
+                        </ResponsiveContainer>
+
+                        {/* Section recommendation pill */}
+                        {capItem && (
+                          <div
+                            className='mt-3 flex items-center gap-2 text-xs px-3 py-2 rounded-lg'
+                            style={{
+                              backgroundColor: capItem.add_section
+                                ? "#FEF3C7"
+                                : "#ECFDF5",
+                              color: capItem.add_section
+                                ? "#92400E"
+                                : "#065F46",
+                            }}
+                          >
+                            {capItem.add_section ? (
+                              <PlusCircle className='w-3.5 h-3.5 flex-shrink-0' />
+                            ) : (
+                              <CheckCircle2 className='w-3.5 h-3.5 flex-shrink-0' />
+                            )}
+                            <span className='font-medium'>
+                              {capItem.add_section
+                                ? `+${capItem.additional_sections_needed} section${capItem.additional_sections_needed > 1 ? "s" : ""} needed`
+                                : "Sections sufficient"}
+                            </span>
+                            <span className='ml-auto opacity-70'>
+                              {capItem.utilization_rate}% util.
+                            </span>
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              ) : (
+                <div
+                  className='bg-white rounded-xl shadow-sm border p-16 text-center'
+                  style={{
+                    borderColor: colors.neutralBorder,
+                    color: colors.neutral,
+                  }}
+                >
+                  No enrollment data available.
+                </div>
+              )}
+            </div>
+
+            {/* ─── Capacity & Section Recommendations ─── */}
+            {forecastResult?.capacity && forecastResult.capacity.length > 0 && (
+              <div className='mb-8'>
+                <div className='flex items-center gap-3 mb-4'>
+                  <Building2
+                    className='w-5 h-5'
+                    style={{ color: colors.secondary }}
+                  />
+                  <div>
+                    <h2
+                      className='text-xl font-bold'
+                      style={{ color: colors.primary }}
+                    >
+                      Section &amp; Capacity Recommendations
+                    </h2>
+                    <p
+                      className='text-xs mt-0.5'
+                      style={{ color: colors.neutral }}
+                    >
+                      Based on predicted enrollment for {predictedYear}
+                      {totalSectionsNeeded > 0 && (
+                        <span
+                          className='ml-2 inline-flex items-center gap-1 px-2 py-0.5 rounded-full font-semibold'
+                          style={{
+                            backgroundColor: "#FEF3C7",
+                            color: "#92400E",
+                          }}
+                        >
+                          <PlusCircle className='w-3 h-3' />
+                          {totalSectionsNeeded} new section
+                          {totalSectionsNeeded > 1 ? "s" : ""} needed overall
+                        </span>
+                      )}
+                    </p>
+                  </div>
+                </div>
+
+                {/* Capacity Table */}
+                <div
+                  className='bg-white rounded-xl shadow-sm border overflow-hidden'
+                  style={{ borderColor: colors.neutralBorder }}
+                >
+                  <div className='overflow-x-auto'>
+                    <table className='w-full border-collapse text-sm'>
+                      <thead>
+                        <tr style={{ backgroundColor: colors.neutralLight }}>
+                          <th
+                            className='text-left py-3 px-4 font-semibold text-xs uppercase tracking-wider'
+                            style={{ color: colors.primary }}
+                          >
+                            Program
+                          </th>
+                          <th
+                            className='text-center py-3 px-4 font-semibold text-xs uppercase tracking-wider'
+                            style={{ color: colors.neutral }}
+                          >
+                            Predicted Students
+                          </th>
+                          <th
+                            className='text-center py-3 px-4 font-semibold text-xs uppercase tracking-wider'
+                            style={{ color: colors.neutral }}
+                          >
+                            Current Sections
+                          </th>
+                          <th
+                            className='text-center py-3 px-4 font-semibold text-xs uppercase tracking-wider'
+                            style={{ color: colors.neutral }}
+                          >
+                            Current Capacity
+                          </th>
+                          <th
+                            className='text-center py-3 px-4 font-semibold text-xs uppercase tracking-wider'
+                            style={{ color: colors.neutral }}
+                          >
+                            Recommended Sections
+                          </th>
+                          <th
+                            className='text-center py-3 px-4 font-semibold text-xs uppercase tracking-wider'
+                            style={{ color: colors.neutral }}
+                          >
+                            Utilization
+                          </th>
+                          <th
+                            className='text-center py-3 px-4 font-semibold text-xs uppercase tracking-wider'
+                            style={{ color: colors.neutral }}
+                          >
+                            Action
+                          </th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {forecastResult.capacity.map((cap, idx) => (
+                          <tr
+                            key={cap.program}
+                            style={{
+                              borderBottom: `1px solid ${colors.neutralBorder}`,
+                              backgroundColor:
+                                idx % 2 === 0 ? "white" : colors.neutralLight,
+                            }}
+                          >
+                            <td className='py-3 px-4'>
+                              <div className='flex items-center gap-2'>
+                                <span
+                                  className='w-2.5 h-2.5 rounded-full flex-shrink-0'
+                                  style={{
+                                    backgroundColor:
+                                      CHART_COLORS[
+                                        uniquePrograms.indexOf(cap.program) %
+                                          CHART_COLORS.length
+                                      ] || colors.secondary,
+                                  }}
+                                />
+                                <span
+                                  className='font-medium'
+                                  style={{ color: colors.primary }}
+                                >
+                                  {cap.program}
+                                </span>
+                              </div>
+                            </td>
+                            <td
+                              className='py-3 px-4 text-center font-semibold tabular-nums'
+                              style={{ color: colors.primary }}
+                            >
+                              {cap.predicted_students.toLocaleString()}
+                            </td>
+                            <td
+                              className='py-3 px-4 text-center tabular-nums'
+                              style={{ color: colors.neutral }}
+                            >
+                              {cap.current_sections}
+                            </td>
+                            <td
+                              className='py-3 px-4 text-center tabular-nums'
+                              style={{ color: colors.neutral }}
+                            >
+                              {cap.current_capacity}
+                            </td>
+                            <td className='py-3 px-4 text-center'>
+                              <span
+                                className='inline-flex items-center gap-1 font-bold tabular-nums px-2 py-0.5 rounded-md'
+                                style={{
+                                  backgroundColor: cap.add_section
+                                    ? "#FEF3C7"
+                                    : "#ECFDF5",
+                                  color: cap.add_section
+                                    ? "#92400E"
+                                    : "#065F46",
+                                }}
+                              >
+                                {cap.recommended_sections}
+                                {cap.add_section && (
+                                  <span className='text-xs font-normal'>
+                                    (+{cap.additional_sections_needed})
+                                  </span>
+                                )}
+                              </span>
+                            </td>
+                            <td className='py-3 px-4 text-center'>
+                              <UtilizationBadge rate={cap.utilization_rate} />
+                            </td>
+                            <td className='py-3 px-4 text-center'>
+                              {cap.add_section ? (
+                                <span className='inline-flex items-center gap-1 text-xs font-semibold px-2.5 py-1 rounded-full bg-amber-100 text-amber-800'>
+                                  <PlusCircle className='w-3 h-3' />
+                                  Add {cap.additional_sections_needed} Section
+                                  {cap.additional_sections_needed > 1
+                                    ? "s"
+                                    : ""}
+                                </span>
+                              ) : (
+                                <span className='inline-flex items-center gap-1 text-xs font-semibold px-2.5 py-1 rounded-full bg-emerald-100 text-emerald-700'>
+                                  <CheckCircle2 className='w-3 h-3' />
+                                  Sufficient
+                                </span>
+                              )}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* ─── Utilization Bar Chart ─── */}
+            {forecastResult?.capacity && forecastResult.capacity.length > 0 && (
+              <div className='mb-8'>
+                <div
+                  className='bg-white rounded-xl shadow-sm border p-6'
+                  style={{ borderColor: colors.neutralBorder }}
+                >
+                  <h3
+                    className='text-lg font-bold mb-1'
+                    style={{ color: colors.primary }}
+                  >
+                    Projected Utilization Rate
+                  </h3>
+                  <p className='text-xs mb-4' style={{ color: colors.neutral }}>
+                    How full each program's sections will be in {predictedYear}{" "}
+                    after applying recommendations
+                  </p>
+                  <ResponsiveContainer width='100%' height={240}>
+                    <BarChart
+                      data={forecastResult.capacity.map((c) => ({
+                        name: shortenProgram(c.program),
+                        fullName: c.program,
+                        utilization: c.utilization_rate,
+                        addSection: c.add_section,
+                      }))}
+                      margin={{ top: 8, right: 16, left: -8, bottom: 4 }}
+                    >
+                      <CartesianGrid
+                        strokeDasharray='3 3'
+                        stroke='#F3F4F6'
+                        vertical={false}
+                      />
+                      <XAxis
+                        dataKey='name'
+                        tick={{ fontSize: 11, fill: colors.neutral }}
+                        tickLine={false}
+                        axisLine={false}
+                      />
+                      <YAxis
+                        domain={[0, 100]}
+                        tick={{ fontSize: 11, fill: colors.neutral }}
+                        tickLine={false}
+                        axisLine={false}
+                        tickFormatter={(v) => `${v}%`}
+                      />
+                      <Tooltip
+                        contentStyle={{
+                          background: "white",
+                          border: "1px solid #eee",
+                          borderRadius: 6,
+                          fontSize: 12,
+                          boxShadow: "0 2px 8px rgba(0,0,0,0.08)",
+                        }}
+                        formatter={(value: any) => [`${value}%`, "Utilization"]}
+                        labelFormatter={(_label: any, payload: any[]) =>
+                          payload?.[0]?.payload?.fullName ?? _label
+                        }
+                      />
+                      <Bar dataKey='utilization' radius={[6, 6, 0, 0]}>
+                        {forecastResult.capacity.map((cap, i) => (
+                          <Cell
+                            key={cap.program}
+                            fill={
+                              cap.utilization_rate >= 90
+                                ? colors.danger
+                                : cap.utilization_rate >= 75
+                                  ? colors.warning
+                                  : colors.success
+                            }
+                          />
+                        ))}
+                      </Bar>
+                    </BarChart>
+                  </ResponsiveContainer>
+                  <div
+                    className='flex items-center gap-6 mt-2 text-xs'
+                    style={{ color: colors.neutral }}
+                  >
+                    <span className='flex items-center gap-1.5'>
+                      <span
+                        className='w-2.5 h-2.5 rounded-sm'
+                        style={{ backgroundColor: colors.success }}
+                      />{" "}
+                      &lt; 75% (Comfortable)
+                    </span>
+                    <span className='flex items-center gap-1.5'>
+                      <span
+                        className='w-2.5 h-2.5 rounded-sm'
+                        style={{ backgroundColor: colors.warning }}
+                      />{" "}
+                      75–89% (Moderate)
+                    </span>
+                    <span className='flex items-center gap-1.5'>
+                      <span
+                        className='w-2.5 h-2.5 rounded-sm'
+                        style={{ backgroundColor: colors.danger }}
+                      />{" "}
+                      &ge; 90% (Near Full)
+                    </span>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* ─── Enrollment Forecast Table ─── */}
+            <div
+              className='bg-white rounded-xl shadow-sm border p-6'
+              style={{ borderColor: colors.neutralBorder }}
+            >
+              <div className='flex items-center gap-3 mb-1'>
+                <Target
+                  className='w-5 h-5'
+                  style={{ color: colors.secondary }}
+                />
+                <h2
+                  className='text-xl font-bold'
+                  style={{ color: colors.primary }}
+                >
+                  Enrollment Forecast by Program
+                </h2>
+                {forecastLoading && (
+                  <RefreshCw
+                    className='w-4 h-4 animate-spin'
+                    style={{ color: colors.neutral }}
+                  />
+                )}
+              </div>
+              <p
+                className='text-xs mb-6 ml-8'
+                style={{ color: colors.neutral }}
               >
+                Historical student counts per program across all years, with the
+                AI-predicted count for{" "}
+                {predictedYear || "the next academic year"}.
+              </p>
+
+              <div className='overflow-x-auto'>
                 <table className='w-full border-collapse text-sm'>
                   <thead>
                     <tr
@@ -871,183 +1009,274 @@ const StudentForecastDashboard: React.FC = () => {
                       }}
                     >
                       <th
-                        className='text-left py-2 px-3'
-                        style={{
-                          color: colors.neutral,
-                          backgroundColor: colors.neutralLight,
-                          fontWeight: 600,
-                        }}
-                      >
-                        &nbsp;
-                      </th>
-                      <th
-                        className='text-left py-2 px-3'
+                        className='text-left py-3 px-4 font-semibold text-xs uppercase tracking-wider sticky left-0 z-10'
                         style={{
                           color: colors.primary,
                           backgroundColor: colors.neutralLight,
-                          fontWeight: 700,
+                          minWidth: 200,
                         }}
                       >
-                        program
+                        Program
                       </th>
+                      {forecastResult?.historical &&
+                        Object.values(forecastResult.historical)[0]?.map(
+                          (h) => (
+                            <th
+                              key={h.year}
+                              className='text-right py-3 px-4 font-semibold text-xs uppercase tracking-wider'
+                              style={{
+                                color: colors.neutral,
+                                backgroundColor: colors.neutralLight,
+                                minWidth: 90,
+                              }}
+                            >
+                              {h.year}
+                            </th>
+                          ),
+                        )}
                       <th
-                        className='text-right py-2 px-3'
+                        className='text-right py-3 px-4 font-semibold text-xs uppercase tracking-wider'
                         style={{
-                          color: colors.primary,
-                          backgroundColor: colors.neutralLight,
-                          fontWeight: 700,
+                          color: colors.secondary,
+                          backgroundColor: colors.secondary + "12",
+                          minWidth: 150,
+                          borderLeft: `2px dashed ${colors.secondary}50`,
                         }}
                       >
-                        predicted_students
-                      </th>
-                      <th
-                        className='text-center py-2 px-3'
-                        style={{
-                          color: colors.primary,
-                          backgroundColor: colors.neutralLight,
-                          fontWeight: 700,
-                        }}
-                      >
-                        trend
-                      </th>
-                      <th
-                        className='text-right py-2 px-3'
-                        style={{
-                          color: colors.primary,
-                          backgroundColor: colors.neutralLight,
-                          fontWeight: 700,
-                        }}
-                      >
-                        growth_rate
+                        {predictedYear
+                          ? `${predictedYear} (Predicted)`
+                          : "Predicted"}
                       </th>
                     </tr>
                   </thead>
                   <tbody>
-                    {predictions.map((prediction, index) => (
-                      <tr
-                        key={prediction.program}
-                        style={{
-                          borderBottom: `1px solid ${colors.neutralBorder}`,
-                          backgroundColor:
-                            index % 2 === 0 ? "white" : colors.neutralLight,
-                        }}
-                      >
-                        <td
-                          className='py-2 px-3 font-bold'
-                          style={{ color: colors.neutral }}
-                        >
-                          {index}
-                        </td>
-                        <td
-                          className='py-2 px-3'
-                          style={{ color: colors.primary }}
-                        >
-                          {prediction.program}
-                        </td>
-                        <td
-                          className='py-2 px-3 text-right font-semibold'
-                          style={{ color: colors.secondary }}
-                        >
-                          {prediction.predicted_students.toLocaleString()}
-                        </td>
-                        <td className='py-2 px-3 text-center'>
-                          <span
-                            className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium ${
-                              prediction.trend === "increasing"
-                                ? "bg-emerald-100 text-emerald-700"
-                                : prediction.trend === "decreasing"
-                                  ? "bg-red-100 text-red-700"
-                                  : "bg-gray-100 text-gray-700"
-                            }`}
-                          >
-                            {prediction.trend === "increasing" ? (
-                              <TrendingUp className='w-3 h-3' />
-                            ) : prediction.trend === "decreasing" ? (
-                              <TrendingDown className='w-3 h-3' />
-                            ) : null}
-                            {prediction.trend}
-                          </span>
-                        </td>
-                        <td
-                          className='py-2 px-3 text-right'
+                    {forecastResult?.programs?.map((program, index) => {
+                      const historicalArr =
+                        forecastResult.historical?.[program] ?? [];
+                      const fcItem = forecastResult.forecast?.find(
+                        (f) => f.course === program,
+                      );
+                      const capItem = forecastResult.capacity?.find(
+                        (c) => c.program === program,
+                      );
+                      const predictedCount =
+                        fcItem?.predicted_count ??
+                        capItem?.predicted_students ??
+                        null;
+                      const lastCount =
+                        historicalArr[historicalArr.length - 1]
+                          ?.total_students ?? 0;
+                      const growthRate =
+                        lastCount > 0 && predictedCount !== null
+                          ? ((predictedCount - lastCount) / lastCount) * 100
+                          : 0;
+                      const color = CHART_COLORS[index % CHART_COLORS.length];
+
+                      return (
+                        <tr
+                          key={program}
                           style={{
-                            color:
-                              prediction.growth_rate >= 0
-                                ? "#10B981"
-                                : "#EF4444",
+                            borderBottom: `1px solid ${colors.neutralBorder}`,
+                            backgroundColor:
+                              index % 2 === 0 ? "white" : colors.neutralLight,
                           }}
                         >
-                          {prediction.growth_rate >= 0 ? "+" : ""}
-                          {prediction.growth_rate.toFixed(1)}%
+                          <td
+                            className='py-3 px-4 sticky left-0 z-10'
+                            style={{
+                              backgroundColor:
+                                index % 2 === 0 ? "white" : colors.neutralLight,
+                            }}
+                          >
+                            <div className='flex items-center gap-2'>
+                              <span
+                                className='w-2.5 h-2.5 rounded-full flex-shrink-0'
+                                style={{ backgroundColor: color }}
+                              />
+                              <span
+                                className='font-medium'
+                                style={{ color: colors.primary }}
+                              >
+                                {program}
+                              </span>
+                            </div>
+                          </td>
+                          {historicalArr.map((h) => (
+                            <td
+                              key={h.year}
+                              className='py-3 px-4 text-right tabular-nums'
+                              style={{ color: colors.primary }}
+                            >
+                              {h.total_students.toLocaleString()}
+                            </td>
+                          ))}
+                          <td
+                            className='py-3 px-4 text-right'
+                            style={{
+                              backgroundColor: colors.secondary + "07",
+                              borderLeft: `2px dashed ${colors.secondary}50`,
+                            }}
+                          >
+                            {predictedCount !== null ? (
+                              <div className='flex items-center justify-end gap-2'>
+                                {growthRate > 0 ? (
+                                  <TrendingUp className='w-3.5 h-3.5 text-emerald-500' />
+                                ) : growthRate < 0 ? (
+                                  <TrendingDown className='w-3.5 h-3.5 text-red-500' />
+                                ) : null}
+                                <span
+                                  className='inline-block font-bold px-2.5 py-0.5 rounded-lg tabular-nums'
+                                  style={{
+                                    color: colors.secondary,
+                                    backgroundColor: colors.secondary + "18",
+                                  }}
+                                >
+                                  {predictedCount.toLocaleString()}
+                                </span>
+                                <span
+                                  className='text-xs font-semibold'
+                                  style={{
+                                    color:
+                                      growthRate > 0
+                                        ? "#10B981"
+                                        : growthRate < 0
+                                          ? "#EF4444"
+                                          : colors.neutral,
+                                  }}
+                                >
+                                  {growthRate >= 0 ? "+" : ""}
+                                  {growthRate.toFixed(1)}%
+                                </span>
+                              </div>
+                            ) : (
+                              <span style={{ color: colors.neutral }}>—</span>
+                            )}
+                          </td>
+                        </tr>
+                      );
+                    }) ?? (
+                      <tr>
+                        <td
+                          colSpan={99}
+                          className='py-12 text-center'
+                          style={{ color: colors.neutral }}
+                        >
+                          No prediction data available.
                         </td>
                       </tr>
-                    ))}
+                    )}
                   </tbody>
                 </table>
-                <p className='mt-1 text-xs' style={{ color: colors.neutral }}>
-                  [{predictions.length} rows x 4 columns]
-                </p>
               </div>
-            </div>
-          ) : (
-            !forecastLoading && (
-              <div
-                className='py-8 text-center'
-                style={{ color: colors.neutral }}
-              >
-                No prediction data available. Ensure FORECAST_API_URL is
-                configured.
-              </div>
-            )
-          )}
-        </div>
 
-        {/* Students by Department */}
-        <div
-          className='bg-white rounded-xl shadow-sm border p-6'
-          style={{ borderColor: colors.neutralBorder }}
-        >
-          <h2
-            className='text-xl font-bold mb-6'
-            style={{ color: colors.primary }}
-          >
-            Students by Department
-          </h2>
-          <ResponsiveContainer width='100%' height={300}>
-            <BarChart
-              data={studentData?.studentsByDepartment || []}
-              layout='vertical'
-            >
-              <CartesianGrid
-                strokeDasharray='3 3'
-                stroke={colors.neutralBorder}
-              />
-              <XAxis type='number' tick={{ fill: colors.neutral }} />
-              <YAxis
-                dataKey='department_name'
-                type='category'
-                tick={{ fill: colors.neutral, fontSize: 12 }}
-                width={120}
-              />
-              <Tooltip
-                formatter={(value: any) => [value, "Students"]}
-                contentStyle={{
-                  backgroundColor: "white",
-                  border: `1px solid ${colors.neutralBorder}`,
-                  borderRadius: "8px",
-                }}
-              />
-              <Bar
-                dataKey='total_students'
-                fill={colors.secondary}
-                radius={[0, 4, 4, 0]}
-              />
-            </BarChart>
-          </ResponsiveContainer>
-        </div>
+              {forecastResult && predictedYear && (
+                <p className='mt-3 text-xs' style={{ color: colors.neutral }}>
+                  {forecastResult.totalPrograms} program
+                  {forecastResult.totalPrograms !== 1 ? "s" : ""} · Predicted
+                  year:{" "}
+                  <strong style={{ color: colors.secondary }}>
+                    {predictedYear}
+                  </strong>{" "}
+                  · Growth rate vs. previous year
+                </p>
+              )}
+            </div>
+          </>
+        )}
       </div>
     </div>
   );
 };
+
+/* ───────────────────── Sub-components ───────────────────── */
+
+function SummaryCard({
+  icon,
+  label,
+  value,
+  color,
+  badge,
+  badgePositive,
+  sub,
+}: {
+  icon: React.ReactNode;
+  label: string;
+  value: string | number;
+  color: string;
+  badge?: string;
+  badgePositive?: boolean;
+  sub?: string;
+}) {
+  return (
+    <div
+      className='bg-white rounded-xl shadow-sm border p-5 flex items-start gap-4 transition-shadow hover:shadow-md'
+      style={{ borderColor: colors.neutralBorder }}
+    >
+      <div
+        className='w-10 h-10 rounded-lg flex items-center justify-center flex-shrink-0'
+        style={{ backgroundColor: color + "18", color }}
+      >
+        {icon}
+      </div>
+      <div className='min-w-0'>
+        <p
+          className='text-xs font-medium mb-1'
+          style={{ color: colors.neutral }}
+        >
+          {label}
+        </p>
+        <div className='flex items-baseline gap-2 flex-wrap'>
+          <p
+            className='text-2xl font-bold tabular-nums leading-none'
+            style={{ color: colors.primary }}
+          >
+            {typeof value === "number" ? value.toLocaleString() : value}
+          </p>
+          {badge && (
+            <span
+              className='text-xs font-semibold px-1.5 py-0.5 rounded'
+              style={{
+                backgroundColor: badgePositive ? "#D1FAE5" : "#FEE2E2",
+                color: badgePositive ? "#065F46" : "#991B1B",
+              }}
+            >
+              {badge}
+            </span>
+          )}
+        </div>
+        {sub && (
+          <p className='text-xs mt-1' style={{ color: colors.neutral }}>
+            {sub}
+          </p>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function UtilizationBadge({ rate }: { rate: number }) {
+  const bg = rate >= 90 ? "#FEE2E2" : rate >= 75 ? "#FEF3C7" : "#D1FAE5";
+  const fg = rate >= 90 ? "#991B1B" : rate >= 75 ? "#92400E" : "#065F46";
+  return (
+    <span
+      className='inline-block text-xs font-bold px-2 py-0.5 rounded-full tabular-nums'
+      style={{ backgroundColor: bg, color: fg }}
+    >
+      {rate}%
+    </span>
+  );
+}
+
+function shortenProgram(name: string): string {
+  const words = name.split(" ");
+  if (words.length <= 3) return name;
+  // Try to extract abbreviation like "BSIT" from "Bachelor of Science in Information Technology"
+  const skip = new Set(["of", "in", "and", "the", "for"]);
+  const abbr = words
+    .filter((w) => !skip.has(w.toLowerCase()))
+    .map((w) => w[0]?.toUpperCase() ?? "")
+    .join("");
+  return abbr.length >= 2 ? abbr : words.slice(-2).join(" ");
+}
 
 export default StudentForecastDashboard;
