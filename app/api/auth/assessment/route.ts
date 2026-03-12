@@ -176,12 +176,15 @@ export async function POST(request: NextRequest) {
           { status: 400 }
         );
       }
-      // Validate installment amounts sum
+      // Validate installment amounts sum to the scheduled installment portion only.
+      // Down payment is collected separately and should not be included in the 3-term schedule.
       const scheduleSum = paymentSchedule.reduce(
         (sum: number, s: any) => sum + parseFloat(s.amount || 0),
         0
       );
-      const expectedTotal = totalDueInstallment || totalDue;
+      const expectedTotal = totalDueInstallment !== undefined && totalDueInstallment !== null
+        ? parseFloat(totalDueInstallment) - parseFloat(downPayment || 0)
+        : parseFloat(totalDue) - parseFloat(downPayment || 0);
       if (Math.abs(scheduleSum - expectedTotal) > 0.01) {
         return NextResponse.json(
           { error: `Installment amounts must sum to ${expectedTotal}. Current sum: ${scheduleSum}` },
@@ -234,7 +237,10 @@ export async function POST(request: NextRequest) {
             fixed_amount_total: fixedAmountTotal ? parseFloat(fixedAmountTotal) : 0,
             base_total: parseFloat(baseTotal),
             payment_mode: paymentMode,
-            down_payment: null, // Down payment handled by Payment Module
+            down_payment:
+              paymentMode === 'installment' && downPayment !== undefined && downPayment !== null
+                ? parseFloat(downPayment)
+                : null,
             insurance_amount: paymentMode === 'installment' && insuranceAmount !== undefined ? parseFloat(insuranceAmount) : null,
             total_due_cash: paymentMode === 'cash' ? parseFloat(totalDueCash || totalDue) : null,
             total_due_installment: paymentMode === 'installment' ? parseFloat(totalDueInstallment || totalDue) : null,
@@ -260,7 +266,10 @@ export async function POST(request: NextRequest) {
             fixed_amount_total: fixedAmountTotal ? parseFloat(fixedAmountTotal) : 0,
             base_total: parseFloat(baseTotal),
             payment_mode: paymentMode,
-            down_payment: null, // Down payment handled by Payment Module
+            down_payment:
+              paymentMode === 'installment' && downPayment !== undefined && downPayment !== null
+                ? parseFloat(downPayment)
+                : null,
             insurance_amount: paymentMode === 'installment' && insuranceAmount !== undefined ? parseFloat(insuranceAmount) : null,
             total_due_cash: paymentMode === 'cash' ? parseFloat(totalDueCash || totalDue) : null,
             total_due_installment: paymentMode === 'installment' ? parseFloat(totalDueInstallment || totalDue) : null,

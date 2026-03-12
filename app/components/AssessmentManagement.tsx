@@ -1,7 +1,7 @@
 "use client";
 import React, { useState, useEffect, useMemo, useCallback, useRef } from "react";
 import { useSearchParams } from "next/navigation";
-import { Calculator, CheckCircle2, List, UserPlus } from "lucide-react";
+import { CheckCircle2, GraduationCap, List, UserPlus } from "lucide-react";
 import { colors } from "../colors";
 import { defaultFormStyles } from "../utils/formStyles";
 import { useAcademicTerm } from "../hooks/useAcademicTerm";
@@ -114,12 +114,19 @@ const AssessmentManagement: React.FC = () => {
     remarks: string | null;
   } | null>(null);
 
+
+
   // Payment Mode
   const [paymentMode, setPaymentMode] = useState<'cash' | 'installment'>('cash');
   
-  // Installment Basis (Assessment only calculates total, payment module handles down payment)
+  // Installment Basis
   const [insuranceCharge, setInsuranceCharge] = useState(0);
   const [totalInstallment, setTotalInstallment] = useState(0);
+  const [netBalance, setNetBalance] = useState(0); // baseTotal - downPayment
+
+  // Settings-driven values
+  const [downPayment, setDownPayment] = useState(3000);
+  const [installmentChargePercentage, setInstallmentChargePercentage] = useState(5);
   
   // Base Total (before payment mode)
   const [baseTotal, setBaseTotal] = useState(0);
@@ -155,9 +162,31 @@ const AssessmentManagement: React.FC = () => {
     message: "",
     details: "",
   });
+  const feesAbortRef = useRef<AbortController | null>(null);
+  const paymentSettingsAbortRef = useRef<AbortController | null>(null);
+  const studentsAbortRef = useRef<AbortController | null>(null);
+  const studentLookupAbortRef = useRef<AbortController | null>(null);
+  const assessmentAbortRef = useRef<AbortController | null>(null);
+  const subjectsAbortRef = useRef<AbortController | null>(null);
+  const isUnmountedRef = useRef(false);
+
+  useEffect(() => {
+    isUnmountedRef.current = false;
+
+    return () => {
+      isUnmountedRef.current = true;
+      feesAbortRef.current?.abort();
+      paymentSettingsAbortRef.current?.abort();
+      studentsAbortRef.current?.abort();
+      studentLookupAbortRef.current?.abort();
+      assessmentAbortRef.current?.abort();
+      subjectsAbortRef.current?.abort();
+    };
+  }, []);
 
   useEffect(() => {
     fetchFees();
+    fetchPaymentSettings();
   }, []);
 
   // Initialize from URL parameters
@@ -171,7 +200,7 @@ const AssessmentManagement: React.FC = () => {
     } else {
       setActiveTab('subjects');
     }
-    
+      
     // Auto-populate student number and trigger fetch if URL parameter exists
     if (urlStudentNumber && urlStudentNumber.trim()) {
       setStudentNumber(urlStudentNumber.trim());
@@ -237,12 +266,23 @@ const AssessmentManagement: React.FC = () => {
     setSelectedDiscount(null);
     setDiscount(0);
     setEnrollmentData(null);
+    // Reset assessment-saved flags so the form is unlocked for the new student
+    setIsAssessmentSaved(false);
+    setIsSavingAssessment(false);
+    setShowSummary(false);
+    setIsSummaryModalOpen(false);
 
     setIsFetchingStudent(true);
     setStudentFetchError("");
 
     try {
-      const response = await fetch(`/api/students/${studentNum.trim()}`);
+      studentLookupAbortRef.current?.abort();
+      const abortController = new AbortController();
+      studentLookupAbortRef.current = abortController;
+
+      const response = await fetch(`/api/students/${studentNum.trim()}`, {
+        signal: abortController.signal,
+      });
       if (response.ok) {
         const data = await response.json();
         
@@ -303,7 +343,9 @@ const AssessmentManagement: React.FC = () => {
 
         // Check if student is resident/returnee using comprehensive check
         try {
-          const statusResponse = await fetch(`/api/auth/students/check-status?studentNumber=${studentNum.trim()}`);
+          const statusResponse = await fetch(`/api/auth/students/check-status?studentNumber=${studentNum.trim()}`, {
+            signal: abortController.signal,
+          });
           if (statusResponse.ok) {
             const statusData = await statusResponse.json();
             if (statusData.success && statusData.data) {
@@ -316,7 +358,8 @@ const AssessmentManagement: React.FC = () => {
               });
             }
           }
-        } catch (err) {
+        } catch (err: any) {
+          if (err?.name === "AbortError") return;
           console.error("Error checking student status:", err);
           // If check fails, assume new student
           setIsResidentReturnee(false);
@@ -337,7 +380,8 @@ const AssessmentManagement: React.FC = () => {
         setIsResidentReturnee(false);
         setShowSummary(false);
       }
-    } catch (error) {
+    } catch (error: any) {
+      if (error?.name === "AbortError") return;
       console.error("Error fetching student:", error);
       setStudentFetchError("Failed to fetch student information");
       setStudentName("");
@@ -352,7 +396,9 @@ const AssessmentManagement: React.FC = () => {
       setIsResidentReturnee(false);
       setShowSummary(false);
     } finally {
-      setIsFetchingStudent(false);
+      if (!isUnmountedRef.current) {
+        setIsFetchingStudent(false);
+      }
     }
   };
 
@@ -361,8 +407,13 @@ const AssessmentManagement: React.FC = () => {
     if (!studentNumber || !currentTerm) return;
 
     try {
+      assessmentAbortRef.current?.abort();
+      const abortController = new AbortController();
+      assessmentAbortRef.current = abortController;
+
       const response = await fetch(
-        `/api/auth/assessment?studentNumber=${encodeURIComponent(studentNumber)}&academicYear=${encodeURIComponent(currentTerm.academicYear)}&semester=${currentTerm.semester}`
+        `/api/auth/assessment?studentNumber=${encodeURIComponent(studentNumber)}&academicYear=${encodeURIComponent(currentTerm.academicYear)}&semester=${currentTerm.semester}`,
+        { signal: abortController.signal }
       );
 
       if (response.ok) {
@@ -400,7 +451,8 @@ const AssessmentManagement: React.FC = () => {
           setPaymentSchedules([]);
         }
       }
-    } catch (error) {
+    } catch (error: any) {
+      if (error?.name === "AbortError") return;
       console.error("Error loading existing assessment:", error);
     }
   };
@@ -415,8 +467,9 @@ const AssessmentManagement: React.FC = () => {
     setSubjectsError("");
 
     try {
-      // Use AbortController to cancel requests if component unmounts or new request starts
+      subjectsAbortRef.current?.abort();
       const abortController = new AbortController();
+      subjectsAbortRef.current = abortController;
       const signal = abortController.signal;
 
       // ALWAYS check enrolled_subjects first if studentNumber exists
@@ -438,6 +491,20 @@ const AssessmentManagement: React.FC = () => {
             setTotalUnits(regularUnits);
             setFixedAmountTotal(fixedAmountSum);
             setIsLoadingSubjects(false);
+            // Fetch curriculum tuition fee per unit for this student (non-blocking)
+            (() => {
+              let tuitionUrl = `/api/auth/curriculum/subjects?programId=${programIdValue}&semester=${semesterNum}`;
+              if (majorId) tuitionUrl += `&majorId=${majorId}`;
+              if (yearLevel) tuitionUrl += `&yearLevel=${yearLevel}`;
+              fetch(tuitionUrl)
+                .then(r => r.json())
+                .then(cd => {
+                  if (cd.success && cd.data?.curriculum?.tuition_fee_per_unit != null) {
+                    setTuitionPerUnit(String(cd.data.curriculum.tuition_fee_per_unit));
+                  }
+                })
+                .catch(() => {/* keep default */});
+            })();
             // Load existing assessment after subjects are loaded (non-blocking)
             loadExistingAssessment().catch(err => console.error("Error loading assessment:", err));
             return; // Exit early - we have enrolled subjects
@@ -471,6 +538,10 @@ const AssessmentManagement: React.FC = () => {
           const { regularUnits, fixedAmountSum } = calculateUnitsAndFixedAmounts(curriculumData.data.courses);
           setTotalUnits(regularUnits);
           setFixedAmountTotal(fixedAmountSum);
+          // Use curriculum's tuition fee per unit instead of hardcoded default
+          if (curriculumData.data.curriculum?.tuition_fee_per_unit != null) {
+            setTuitionPerUnit(String(curriculumData.data.curriculum.tuition_fee_per_unit));
+          }
 
           // Auto-save curriculum subjects to enrolled_subjects ONLY for resident/returnee
           // This allows them to start with curriculum and modify later (non-blocking)
@@ -525,7 +596,9 @@ const AssessmentManagement: React.FC = () => {
       setTotalUnits(0);
       setFixedAmountTotal(0);
     } finally {
-      setIsLoadingSubjects(false);
+      if (!subjectsAbortRef.current?.signal.aborted && !isUnmountedRef.current) {
+        setIsLoadingSubjects(false);
+      }
     }
   };
 
@@ -748,6 +821,8 @@ const AssessmentManagement: React.FC = () => {
   // Cache for discounts per semester
   const discountCacheRef = useRef<Map<string, { data: Discount[]; timestamp: number }>>(new Map());
   const DISCOUNT_CACHE_DURATION = 5 * 60 * 1000; // 5 minutes
+  // Tracks the last params sent to the API to prevent duplicate fetches
+  const lastFetchParamsRef = useRef<string>("");
 
   // Fetch discounts when modal opens with caching
   const fetchDiscounts = async (semester: string) => {
@@ -882,7 +957,8 @@ const AssessmentManagement: React.FC = () => {
       discountPercentage: selectedDiscount ? Number(selectedDiscount.percentage) : 0,
       dynamicFees,
       paymentMode,
-      // Note: downPayment is handled by Payment Module, not Assessment
+      downPayment,
+      installmentChargePercentage,
     });
 
     // Update all calculated values
@@ -896,10 +972,12 @@ const AssessmentManagement: React.FC = () => {
     if (paymentMode === 'cash') {
       setTotalDueCash(results.totalDueCash);
       setInsuranceCharge(0);
+      setNetBalance(0);
       setTotalInstallment(0);
     } else {
       setTotalDueCash(0);
       setInsuranceCharge(results.insuranceAmount || 0);
+      setNetBalance(results.netBalance || 0);
       setTotalInstallment(results.totalInstallment || 0);
       
       // Auto-distribute installments if total changes
@@ -929,22 +1007,57 @@ const AssessmentManagement: React.FC = () => {
     dynamicFees,
     paymentMode,
     fixedAmountTotal,
+    downPayment,
+    installmentChargePercentage,
   ]);
 
   // Optimized fee fetching with caching - using summarized fees endpoint
   const fetchFees = async () => {
     try {
+      feesAbortRef.current?.abort();
+      const abortController = new AbortController();
+      feesAbortRef.current = abortController;
+
       const response = await fetch("/api/auth/fees/summarized", {
         cache: 'no-store',
+        signal: abortController.signal,
       });
       if (response.ok) {
         const data = await response.json();
         setFees(data || []);
       }
-    } catch (error) {
+    } catch (error: any) {
+      if (error?.name === "AbortError") return;
       console.error("Error fetching fees:", error);
     } finally {
-      setLoading(false);
+      if (!isUnmountedRef.current) {
+        setLoading(false);
+      }
+    }
+  };
+
+  // Fetch payment settings (min downpayment + installment charge %) from settings API
+  const fetchPaymentSettings = async () => {
+    try {
+      paymentSettingsAbortRef.current?.abort();
+      const abortController = new AbortController();
+      paymentSettingsAbortRef.current = abortController;
+
+      const [dpRes, icRes] = await Promise.all([
+        fetch("/api/auth/settings?key=min_downpayment", { signal: abortController.signal }),
+        fetch("/api/auth/settings?key=installment_charge_percentage", { signal: abortController.signal }),
+      ]);
+      if (dpRes.ok) {
+        const dpData = await dpRes.json();
+        if (dpData.data?.value) setDownPayment(parseFloat(dpData.data.value));
+      }
+      if (icRes.ok) {
+        const icData = await icRes.json();
+        if (icData.data?.value) setInstallmentChargePercentage(parseFloat(icData.data.value));
+      }
+    } catch (error: any) {
+      if (error?.name === "AbortError") return;
+      console.error("Error fetching payment settings:", error);
     }
   };
 
@@ -955,12 +1068,22 @@ const AssessmentManagement: React.FC = () => {
     const semester = filterSemester || (currentTerm?.semester === "First" ? "1" : "2");
     
     if (!academicYear || !semester) return;
+
+    // Skip if the effective params haven't changed (prevents double-fetch on mount)
+    const fetchKey = `${academicYear}|${semester}|${searchQuery}|${filterProgram}|${filterYearLevel}|${filterAssessmentStatus}`;
+    if (fetchKey === lastFetchParamsRef.current) return;
+    lastFetchParamsRef.current = fetchKey;
     
+    studentsAbortRef.current?.abort();
+    const abortController = new AbortController();
+    studentsAbortRef.current = abortController;
+
     setLoadingStudents(true);
     try {
       const params = new URLSearchParams({
         academicYear,
         semester,
+        includeNotAssessed: "true",
       });
       
       if (searchQuery) params.append("search", searchQuery);
@@ -968,22 +1091,11 @@ const AssessmentManagement: React.FC = () => {
       if (filterYearLevel) params.append("yearLevel", filterYearLevel);
       if (filterAssessmentStatus) params.append("assessmentStatus", filterAssessmentStatus);
       
-      console.log("Fetching students with params:", {
-        academicYear,
-        semester,
-        searchQuery,
-        filterProgram,
-        filterYearLevel,
-        filterAssessmentStatus,
-      });
-      
       const url = `/api/auth/assessment/all-summaries?${params.toString()}`;
-      console.log("Fetch URL:", url);
       
-      const response = await fetch(url);
+      const response = await fetch(url, { signal: abortController.signal });
       if (response.ok) {
         const result = await response.json();
-        console.log("Received students:", result);
         // Transform API response fields to match AssessmentStudentList interface
         const rawData: any[] = result.data || [];
         const transformedStudents = rawData.map((item: any) => ({
@@ -1006,46 +1118,57 @@ const AssessmentManagement: React.FC = () => {
         const error = await response.json();
         console.error("Error response:", error);
       }
-    } catch (error) {
+    } catch (error: any) {
+      if (error?.name === "AbortError") return;
       console.error("Error fetching students:", error);
     } finally {
-      setLoadingStudents(false);
+      if (!abortController.signal.aborted && !isUnmountedRef.current) {
+        setLoadingStudents(false);
+      }
     }
   };
 
-  // Fetch students when filters change
+  // Fetch students when filters change.
+  // Also sets filter defaults from currentTerm on first load.
+  // Merged into one effect to avoid a double-fetch when currentTerm first arrives.
   useEffect(() => {
-    if (viewMode === 'list' && (currentTerm || (filterAcademicYear && filterSemester))) {
-      console.log("Triggering fetchStudents due to filter change");
-      
-      // Debounce search query to avoid too many API calls
-      const debounceTimer = setTimeout(() => {
-        fetchStudents();
-      }, 300); // 300ms delay
-      
-      return () => clearTimeout(debounceTimer);
-    }
-  }, [viewMode, currentTerm, searchQuery, filterProgram, filterYearLevel, filterAssessmentStatus, filterAcademicYear, filterSemester]); // eslint-disable-line react-hooks/exhaustive-deps
+    if (viewMode !== 'list') return;
 
-  // Set default academic year and semester when currentTerm loads
-  useEffect(() => {
-    if (currentTerm && !filterAcademicYear && !filterSemester) {
-      setFilterAcademicYear(currentTerm.academicYear);
-      setFilterSemester(currentTerm.semester === "First" ? "1" : "2");
+    // Set default academic year / semester from currentTerm if not yet chosen
+    if (currentTerm) {
+      if (!filterAcademicYear) setFilterAcademicYear(currentTerm.academicYear);
+      if (!filterSemester) setFilterSemester(currentTerm.semester === "First" ? "1" : "2");
     }
-  }, [currentTerm]); // eslint-disable-line react-hooks/exhaustive-deps
+
+    const canFetch = currentTerm || (filterAcademicYear && filterSemester);
+    if (!canFetch) return;
+
+    const debounceDelay = searchQuery.trim() ? 300 : 0;
+    const debounceTimer = setTimeout(() => {
+      fetchStudents();
+    }, debounceDelay);
+
+    return () => clearTimeout(debounceTimer);
+  }, [viewMode, currentTerm, searchQuery, filterProgram, filterYearLevel, filterAssessmentStatus, filterAcademicYear, filterSemester]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Handle student selection from list
   const handleSelectStudentFromList = (studentNum: string) => {
+    // Reset saved/locked state so the form is fresh for each student
+    setIsAssessmentSaved(false);
+    setIsSavingAssessment(false);
+    setShowSummary(false);
+    setIsSummaryModalOpen(false);
     setStudentNumber(studentNum);
     setViewMode('form');
   };
 
   // Handle view assessment (read-only mode)
   const handleViewAssessment = (studentNum: string) => {
-    // TODO: Implement view-only assessment modal or navigate to view page
-    console.log("View assessment for student:", studentNum);
-    // For now, just open the form in view mode
+    // Reset saved/locked state so the form is fresh for each student
+    setIsAssessmentSaved(false);
+    setIsSavingAssessment(false);
+    setShowSummary(false);
+    setIsSummaryModalOpen(false);
     setStudentNumber(studentNum);
     setViewMode('form');
   };
@@ -1134,7 +1257,8 @@ const AssessmentManagement: React.FC = () => {
       return false;
     }
     if (paymentMode === 'installment') {
-      // Validate installment schedule
+      // Validate installment schedule sums to totalInstallment (netBalance + insurance charge)
+      // Down payment is collected separately and is not part of the schedule
       const validation = validateInstallmentSchedule(
         prelimAmount,
         midtermAmount,
@@ -1173,7 +1297,7 @@ const AssessmentManagement: React.FC = () => {
         });
         return false;
       }
-      // Note: Down payment validation is handled by Payment Module
+      // Down payment is separate — not validated against the schedule
     }
 
     try {
@@ -1240,11 +1364,11 @@ const AssessmentManagement: React.FC = () => {
           fixedAmountTotal: fixedAmountTotal,
           baseTotal: baseTotal,
           paymentMode: paymentMode,
-          downPayment: null, // Down payment handled by Payment Module
+          downPayment: paymentMode === 'installment' ? downPayment : null,
           insuranceAmount: paymentMode === 'installment' ? insuranceCharge : null,
           totalDueCash: paymentMode === 'cash' ? totalDueCash : null,
-          totalDueInstallment: paymentMode === 'installment' ? totalInstallment : null,
-          totalDue: paymentMode === 'cash' ? totalDueCash : totalInstallment,
+          totalDueInstallment: paymentMode === 'installment' ? (downPayment + totalInstallment) : null,
+          totalDue: paymentMode === 'cash' ? totalDueCash : (downPayment + totalInstallment),
           fees: feeSnapshots,
           paymentSchedule: paymentSchedule,
           mode: 'finalize', // Always finalize when saving from modal
@@ -1261,6 +1385,8 @@ const AssessmentManagement: React.FC = () => {
         setShowSummary(true);
         // Mark assessment as saved to disable editing
         setIsAssessmentSaved(true);
+        // Force the student list to re-fetch next time it's shown
+        lastFetchParamsRef.current = "";
         // Reload payment schedules after saving
         if (paymentMode === 'installment') {
           await loadExistingAssessment();
@@ -1321,9 +1447,27 @@ const AssessmentManagement: React.FC = () => {
 
   if (loading) {
     return (
-      <div className="p-4 sm:p-6 min-h-screen" style={{ background: colors.paper }}>
-        <div className="max-w-7xl mx-auto">
-          <div className="text-center py-12">Loading...</div>
+      <div
+        className='flex items-center justify-center min-h-screen'
+        style={{ background: colors.paper }}
+      >
+        <div className='flex flex-col items-center gap-4'>
+          <div className='relative'>
+            <div
+              className='w-16 h-16 border-4 rounded-full animate-spin'
+              style={{
+                borderColor: colors.neutralBorder,
+                borderTopColor: colors.primary,
+              }}
+            ></div>
+            <GraduationCap
+              className='absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 w-6 h-6'
+              style={{ color: colors.primary }}
+            />
+          </div>
+          <p className='font-medium' style={{ color: colors.neutral }}>
+            Loading Assessment...
+          </p>
         </div>
       </div>
     );
@@ -1336,19 +1480,7 @@ const AssessmentManagement: React.FC = () => {
       <style>{defaultFormStyles}</style>
       <div className="max-w-7xl mx-auto w-full">
         <div className="mb-10 animate-in fade-in slide-in-from-top-8 duration-700">
-          <div className="flex items-center gap-4 mb-4">
-            <div
-              className="p-3 rounded-2xl shadow-sm transform transition-transform hover:scale-105 duration-300"
-              style={{
-                backgroundColor: "white",
-                border: `1px solid ${colors.accent}20`
-              }}
-            >
-              <Calculator
-                className="w-6 h-6"
-                style={{ color: colors.secondary }}
-              />
-            </div>
+          <div className="flex flex-col gap-4 mb-4 lg:flex-row lg:items-start lg:justify-between">
             <div>
               <h1 className="text-3xl font-bold mb-2 tracking-tight" style={{ color: colors.primary }}>
                 Assessment Management
@@ -1357,6 +1489,26 @@ const AssessmentManagement: React.FC = () => {
                 Record and handle student tuition details based on enrolled courses, unit costs, and applicable miscellaneous fees
               </p>
             </div>
+
+            {currentTerm && (
+              <div
+                className="w-full lg:w-auto rounded-2xl border shadow-sm px-4 py-3 min-w-[240px]"
+                style={{
+                  backgroundColor: "white",
+                  borderColor: `${colors.primary}15`,
+                }}
+              >
+                <div className="text-[11px] font-semibold uppercase tracking-[0.18em]" style={{ color: colors.tertiary }}>
+                  Current Academic Period
+                </div>
+                <div className="mt-1 text-lg font-bold leading-tight" style={{ color: colors.primary }}>
+                  {currentTerm.semester === "First" ? "1st Semester" : "2nd Semester"}
+                </div>
+                <div className="text-sm font-semibold" style={{ color: colors.secondary }}>
+                  A.Y. {currentTerm.academicYear}
+                </div>
+              </div>
+            )}
           </div>
 
           {/* View Mode Toggle */}
@@ -1647,6 +1799,10 @@ const AssessmentManagement: React.FC = () => {
                   baseTotal={baseTotal}
                   paymentMode={paymentMode}
                   onPaymentModeChange={handlePaymentModeChange}
+                  downPayment={downPayment}
+                  setDownPayment={setDownPayment}
+                  netBalance={netBalance}
+                  installmentChargePercentage={installmentChargePercentage}
                   insuranceCharge={insuranceCharge}
                   totalInstallment={totalInstallment}
                   totalDueCash={totalDueCash}

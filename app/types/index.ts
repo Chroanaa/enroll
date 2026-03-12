@@ -67,6 +67,7 @@ export interface Section {
   section_name: string;
   advisor: string;
   student_count: number;
+  max_capacity?: number;
   status: string;
   year_level?: number;
   semester?: string;
@@ -235,6 +236,7 @@ export interface Curriculum {
   total_units: number;
   courses: CurriculumCourse[];
   status: "active" | "inactive";
+  tuition_fee_per_unit?: number;
 }
 export interface Building {
   id: number;

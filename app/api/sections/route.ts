@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '../../lib/prisma';
+import { Prisma } from '@prisma/client';
 import { termValidator } from '../../..//app/utils/sectionService';
 import {
   CreateSectionRequest,
@@ -181,31 +182,58 @@ export async function GET(request: NextRequest) {
       ]
     });
 
-    // Fetch program details separately for each section
-    const response = await Promise.all(
-      sections.map(async (section: any) => {
-        const program = await prisma.program.findUnique({
-          where: { id: section.program_id },
-          select: { code: true, name: true }
-        });
+    // Get real student counts from student_section (grouped by section_id)
+    // This is accurate regardless of the cached sections.student_count value
+    const sectionIds = sections.map((s: any) => s.id);
+    const studentCountRows = sectionIds.length > 0
+      ? await prisma.$queryRaw<{ section_id: number; cnt: bigint }[]>`
+          SELECT section_id, COUNT(*) AS cnt
+          FROM student_section
+          WHERE section_id IN (${Prisma.join(sectionIds)})
+          GROUP BY section_id
+        `
+      : [];
 
-        return {
-          id: section.id,
-          programId: section.program_id,
-          programCode: program?.code,
-          programName: program?.name,
-          yearLevel: section.year_level ?? 0,
-          academicYear: section.academic_year ?? '',
-          semester: section.semester ?? '',
-          sectionName: section.section_name,
-          advisor: section.advisor,
-          maxCapacity: section.max_capacity ?? 0,
-          studentCount: section.student_count ?? 0,
-          status: section.status as 'draft' | 'active' | 'locked' | 'closed',
-          createdAt: section.created_at?.toISOString() ?? ''
-        } as SectionResponse;
-      })
+    const studentCountMap = new Map<number, number>(
+      studentCountRows.map(row => [row.section_id, Number(row.cnt)])
     );
+
+    // Fetch unique program IDs once to avoid N+1
+    const uniqueProgramIds = [...new Set(sections.map((s: any) => s.program_id))];
+    const programs = await prisma.program.findMany({
+      where: { id: { in: uniqueProgramIds as number[] } },
+      select: { id: true, code: true, name: true }
+    });
+    const programMap = new Map(programs.map((p: any) => [p.id, p]));
+
+    const response = sections.map((section: any) => {
+      const program = programMap.get(section.program_id);
+      const realCount = studentCountMap.get(section.id) ?? 0;
+
+      // Keep cached student_count in sync silently (fire-and-forget)
+      if (realCount !== (section.student_count ?? 0)) {
+        prisma.sections.update({
+          where: { id: section.id },
+          data: { student_count: realCount }
+        }).catch(() => {});
+      }
+
+      return {
+        id: section.id,
+        programId: section.program_id,
+        programCode: program?.code,
+        programName: program?.name,
+        yearLevel: section.year_level ?? 0,
+        academicYear: section.academic_year ?? '',
+        semester: section.semester ?? '',
+        sectionName: section.section_name,
+        advisor: section.advisor,
+        maxCapacity: section.max_capacity ?? 0,
+        studentCount: realCount,
+        status: section.status as 'draft' | 'active' | 'locked' | 'closed',
+        createdAt: section.created_at?.toISOString() ?? ''
+      } as SectionResponse;
+    });
 
     return NextResponse.json({ success: true, data: response });
   } catch (error) {

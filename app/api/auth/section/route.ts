@@ -30,6 +30,17 @@ export async function POST(request: NextRequest) {
     if (sectionData.student_count === undefined) {
       sectionData.student_count = 0;
     }
+    // Validate max_capacity if provided
+    if (sectionData.max_capacity !== undefined) {
+      const cap = parseInt(sectionData.max_capacity);
+      if (isNaN(cap) || cap < 1) {
+        return NextResponse.json(
+          { error: "max_capacity must be a positive integer" },
+          { status: 400 }
+        );
+      }
+      sectionData.max_capacity = cap;
+    }
     if (!sectionData.status) {
       sectionData.status = "active";
     }
@@ -117,6 +128,17 @@ export async function PATCH(nextRequest: NextRequest) {
         );
       }
       updateData.semester = normalizedSemester;
+    }
+
+    if (updateData.max_capacity !== undefined) {
+      const cap = parseInt(updateData.max_capacity);
+      if (isNaN(cap) || cap < 1) {
+        return NextResponse.json(
+          { error: "max_capacity must be a positive integer" },
+          { status: 400 }
+        );
+      }
+      updateData.max_capacity = cap;
     }
 
     if (updateData.academic_year !== undefined && updateData.academic_year !== null) {

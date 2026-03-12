@@ -11,6 +11,7 @@ import { colors } from '../../colors';
 import { Users, Search, X, UserPlus, CheckCircle2, AlertTriangle, Eye, ChevronDown, FileText } from 'lucide-react';
 import { formatProgramDisplay } from '../../utils/programUtils';
 import ConfirmationModal from '../common/ConfirmationModal';
+import SuccessModal from '../common/SuccessModal';
 import RegistrationPDFViewer from '../enrollment/RegistrationPDFViewer';
 import SectionStudentListPDFViewer from './SectionStudentListPDFViewer';
 
@@ -42,6 +43,11 @@ export function StudentAssignment({
     open: false,
     names: []
   });
+  const [assignConfirmOpen, setAssignConfirmOpen] = useState(false);
+  const [assignSuccess, setAssignSuccess] = useState<{ open: boolean; message: string }>({
+    open: false,
+    message: ''
+  });
 
   // Registration PDF viewer for assigned students
   const [pdfViewer, setPdfViewer] = useState<{ open: boolean; data: any | null; loading: boolean }>({
@@ -59,7 +65,7 @@ export function StudentAssignment({
     searchTerm: ''
   });
 
-  type StatusFilter = 'ready' | 'no_payment' | 'assigned' | 'no_subjects' | 'all';
+  type StatusFilter = 'ready' | 'no_payment' | 'current_section' | 'assigned' | 'no_subjects' | 'all';
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('ready');
 
   useEffect(() => {
@@ -69,6 +75,8 @@ export function StudentAssignment({
       setOverrideCapacity(false);
       setShowAssigned(false);
       setStatusFilter('ready');
+      setAssignConfirmOpen(false);
+      setAssignSuccess({ open: false, message: '' });
     }
   }, [isOpen, section]);
 
@@ -155,7 +163,7 @@ export function StudentAssignment({
     }
   };
 
-  const handleAssignStudents = async () => {
+  const executeAssignStudents = async (skipPaymentWarning = false) => {
     if (selectedStudents.size === 0) {
       setError('Select at least one student');
       return;
@@ -165,7 +173,7 @@ export function StudentAssignment({
     const noPaymentStudents = students.filter(
       s => selectedStudents.has(s.studentNumber) && !s.hasAssessment
     );
-    if (noPaymentStudents.length > 0 && !noPaymentWarning.open) {
+    if (noPaymentStudents.length > 0 && !skipPaymentWarning) {
       setNoPaymentWarning({
         open: true,
         names: noPaymentStudents.map(s => `${s.firstName} ${s.lastName} (${s.studentNumber})`)
@@ -192,9 +200,16 @@ export function StudentAssignment({
         const failedReasons = Array.isArray(response.failed)
           ? response.failed.map((f: any) => `${f.studentNumber}: ${f.reason}`).join(', ')
           : '';
-        setError(`Assigned: ${assignedCount}, Failed: ${failedCount}${failedReasons ? ` — ${failedReasons}` : ''}`);
+        setError(`Assigned: ${assignedCount}, Failed: ${failedCount}${failedReasons ? ` - ${failedReasons}` : ''}`);
       } else {
         setError(null);
+      }
+
+      if (assignedCount > 0) {
+        setAssignSuccess({
+          open: true,
+          message: `${assignedCount} student${assignedCount !== 1 ? 's were' : ' was'} assigned to ${section!.sectionName}. Enrollment status was updated to Enrolled.`
+        });
       }
 
       setSelectedStudents(new Set());
@@ -210,9 +225,19 @@ export function StudentAssignment({
     }
   };
 
+  const handleAssignStudents = () => {
+    if (selectedStudents.size === 0) {
+      setError('Select at least one student');
+      return;
+    }
+
+    setAssignConfirmOpen(true);
+  };
+
   const categoryCounts = {
     ready:       students.filter(s => !s.isAssigned && s.hasEnrolledSubjects && s.hasAssessment && s.hasPaid).length,
     no_payment:  students.filter(s => !s.isAssigned && s.hasAssessment && !s.hasPaid).length,
+    current_section: students.filter(s => !!s.isAssigned && s.assignedSectionName === section?.sectionName).length,
     assigned:    students.filter(s => s.isAssigned).length,
     no_subjects: students.filter(s => !s.isAssigned && !s.hasEnrolledSubjects).length,
     all:         students.length,
@@ -224,6 +249,8 @@ export function StudentAssignment({
       matchesStatus = !student.isAssigned && !!student.hasEnrolledSubjects && !!student.hasAssessment && !!student.hasPaid;
     } else if (statusFilter === 'no_payment') {
       matchesStatus = !student.isAssigned && !!student.hasAssessment && !student.hasPaid;
+    } else if (statusFilter === 'current_section') {
+      matchesStatus = !!student.isAssigned && student.assignedSectionName === section?.sectionName;
     } else if (statusFilter === 'assigned') {
       matchesStatus = !!student.isAssigned;
     } else if (statusFilter === 'no_subjects') {
@@ -251,10 +278,14 @@ export function StudentAssignment({
   if (!section || !isOpen) return null;
 
   const assigned = assignedStudents.length;
+  const usedCapacity = assignedStudents.length;
   const regularCount = assignedStudents.filter(s => s.assignmentType === 'regular').length;
   const irregularCount = assignedStudents.filter(s => s.assignmentType === 'irregular').length;
-  const isFull = section.maxCapacity > 0 && section.studentCount >= section.maxCapacity;
+  const isFull = section.maxCapacity > 0 && usedCapacity >= section.maxCapacity;
   const canAssignMore = !isFull || overrideCapacity;
+  const selectedStudentDetails = students
+    .filter((student) => selectedStudents.has(student.studentNumber))
+    .map((student) => `${student.firstName} ${student.lastName} (${student.studentNumber})`);
 
   return (
     <>
@@ -304,7 +335,7 @@ export function StudentAssignment({
                 Assign Students - {section.sectionName}
               </h2>
               <p className="text-xs text-gray-500">
-                Capacity: {section.studentCount} / {section.maxCapacity === 0 ? '∞' : section.maxCapacity}
+                Capacity: {usedCapacity} / {section.maxCapacity === 0 ? '∞' : section.maxCapacity}
                 {isFull && !overrideCapacity && <span className="text-red-600 font-medium"> (FULL)</span>}
                 {isFull && overrideCapacity && <span className="text-yellow-600 font-medium"> (OVERRIDE ON)</span>}
               </p>
@@ -372,12 +403,14 @@ export function StudentAssignment({
                   borderColor:
                     statusFilter === 'ready' ? `${colors.success}60` :
                     statusFilter === 'no_payment' ? '#F59E0B60' :
+                    statusFilter === 'current_section' ? `${colors.secondary}60` :
                     statusFilter === 'assigned' ? '#6B728060' :
                     statusFilter === 'no_subjects' ? `${colors.danger}60` :
                     '#E5E7EB',
                   boxShadow:
                     statusFilter === 'ready' ? `0 0 0 2px ${colors.success}20` :
                     statusFilter === 'no_payment' ? '0 0 0 2px #F59E0B20' :
+                    statusFilter === 'current_section' ? `0 0 0 2px ${colors.secondary}20` :
                     statusFilter === 'assigned' ? '0 0 0 2px #6B728020' :
                     statusFilter === 'no_subjects' ? `0 0 0 2px ${colors.danger}20` :
                     'none',
@@ -387,6 +420,7 @@ export function StudentAssignment({
                 <option value="no_payment">⚠ No Payment, Has Assessment ({categoryCounts.no_payment})</option>
                 <option value="assigned">↗ Already Assigned ({categoryCounts.assigned})</option>
                 <option value="no_subjects">✕ No Enrolled Subjects ({categoryCounts.no_subjects})</option>
+                <option value="current_section">Current Section ({categoryCounts.current_section})</option>
                 <option value="all">All Students ({categoryCounts.all})</option>
               </select>
               <ChevronDown className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-400" />
@@ -439,10 +473,11 @@ export function StudentAssignment({
                     </th>
                     <th className="px-3 py-2 text-left text-[10px] font-bold uppercase tracking-wider text-gray-600">Student Number</th>
                     <th className="px-3 py-2 text-left text-[10px] font-bold uppercase tracking-wider text-gray-600">Name</th>
-                    <th className="px-3 py-2 text-left text-[10px] font-bold uppercase tracking-wider text-gray-600">Payment</th>
+                    <th className="px-3 py-2 text-left text-[10px] font-bold uppercase tracking-wider text-gray-600">Balance</th>
                     <th className="px-3 py-2 text-left text-[10px] font-bold uppercase tracking-wider text-gray-600">Subjects</th>
                     <th className="px-3 py-2 text-left text-[10px] font-bold uppercase tracking-wider text-gray-600">Program</th>
                     <th className="px-3 py-2 text-left text-[10px] font-bold uppercase tracking-wider text-gray-600">Status</th>
+                    <th className="px-3 py-2 text-left text-[10px] font-bold uppercase tracking-wider text-gray-600">Action</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-100">
@@ -477,7 +512,6 @@ export function StudentAssignment({
                         <tr
                           key={student.studentId}
                           className={`group transition-colors ${
-                            alreadyAssigned ? 'opacity-60 bg-gray-50' :
                             !student.hasEnrolledSubjects ? 'bg-red-50/40' :
                             'hover:bg-gray-50/50'
                           }`}
@@ -497,12 +531,12 @@ export function StudentAssignment({
                             />
                           </td>
                           <td className="px-3 py-2 whitespace-nowrap">
-                            <span className="text-xs font-medium" style={{ color: alreadyAssigned ? '#9CA3AF' : colors.primary }}>
+                            <span className="text-xs font-medium" style={{ color: colors.primary }}>
                               {student.studentNumber}
                             </span>
                           </td>
                           <td className="px-3 py-2 whitespace-nowrap">
-                            <span className={`text-xs font-medium ${alreadyAssigned ? 'text-gray-400' : 'text-gray-700'}`}>
+                            <span className="text-xs font-medium text-gray-700">
                               {student.firstName} {student.middleName} {student.lastName}
                             </span>
                           </td>
@@ -517,10 +551,10 @@ export function StudentAssignment({
                                 }`}>
                                   {student.paymentMode === 'cash' ? 'Cash' : 'Installment'}
                                 </span>
-                                <span className="text-[10px] text-gray-500 font-medium">
+                                <span className="text-[10px] text-gray-700 font-medium">
                                   ₱{(student.paymentMode === 'cash'
-                                    ? (student.totalDueCash ?? student.totalDue)
-                                    : (student.totalDueInstallment ?? student.totalDue)
+                                    ? (student.remainingBalance ?? student.totalDueCash ?? student.totalDue)
+                                    : (student.remainingBalance ?? student.totalDueInstallment ?? student.totalDue)
                                   )?.toLocaleString()}
                                 </span>
                               </div>
@@ -550,31 +584,31 @@ export function StudentAssignment({
                             </span>
                           </td>
                           <td className="px-3 py-2 whitespace-nowrap">
-                            <div className="flex items-center gap-1.5">
-                              {alreadyAssigned ? (
-                                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium bg-gray-100 text-gray-500">
-                                  Assigned{student.assignedSectionName ? ` (${student.assignedSectionName})` : ''}
-                                </span>
-                              ) : !student.hasEnrolledSubjects ? (
-                                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium bg-red-100 text-red-600">
-                                  Cannot assign
-                                </span>
-                              ) : (
-                                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium bg-green-50 text-green-700">
-                                  Available
-                                </span>
-                              )}
-                              {alreadyAssigned && (
-                                <button
-                                  onClick={() => handleViewStudent(student.studentNumber)}
-                                  title="View registration"
-                                  className="inline-flex items-center justify-center w-6 h-6 rounded-full hover:bg-blue-100 transition-colors"
-                                  style={{ color: '#3B82F6' }}
-                                >
-                                  <Eye className="w-3.5 h-3.5" />
-                                </button>
-                              )}
-                            </div>
+                            {alreadyAssigned ? (
+                              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium bg-gray-100 text-gray-500">
+                                Assigned{student.assignedSectionName ? ` (${student.assignedSectionName})` : ''}
+                              </span>
+                            ) : !student.hasEnrolledSubjects ? (
+                              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium bg-red-100 text-red-600">
+                                Cannot assign
+                              </span>
+                            ) : (
+                              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium bg-green-50 text-green-700">
+                                Available
+                              </span>
+                            )}
+                          </td>
+                          <td className="px-3 py-2 whitespace-nowrap">
+                            {alreadyAssigned && (
+                              <button
+                                onClick={() => handleViewStudent(student.studentNumber)}
+                                title="View registration"
+                                className="inline-flex items-center gap-1 px-2.5 py-1 rounded text-[10px] font-semibold border transition-colors hover:opacity-80"
+                                style={{ color: colors.primary, borderColor: colors.primary, backgroundColor: `${colors.primary}10` }}
+                              >
+                                View
+                              </button>
+                            )}
                           </td>
                         </tr>
                       );
@@ -599,7 +633,7 @@ export function StudentAssignment({
                 <span>
                   Selected: <strong>{selectedStudents.size}</strong> |
                   Assigned: <strong>{assigned}</strong> |
-                  Available: <strong>{section.maxCapacity === 0 ? '∞' : Math.max(0, section.maxCapacity - section.studentCount)}</strong>
+                  Available: <strong>{section.maxCapacity === 0 ? '∞' : Math.max(0, section.maxCapacity - usedCapacity)}</strong>
                 </span>
               </div>
               {assigned > 0 && (
@@ -671,12 +705,36 @@ export function StudentAssignment({
         <ConfirmationModal
           isOpen={noPaymentWarning.open}
           onClose={() => setNoPaymentWarning({ open: false, names: [] })}
-          onConfirm={() => handleAssignStudents()}
+          onConfirm={() => executeAssignStudents(true)}
           variant="warning"
           title="Students Without Payment"
-          message={`The following student${noPaymentWarning.names.length > 1 ? 's have' : ' has'} no assessment/payment on record. You can still assign them, but please verify their payment status.\n\n${noPaymentWarning.names.map(n => `• ${n}`).join('\n')}`}
+          message={`The following student${noPaymentWarning.names.length > 1 ? 's have' : ' has'} no assessment/payment on record. You can still assign them, but please verify their payment status.\n\n${noPaymentWarning.names.map(n => `- ${n}`).join('\n')}`}
           confirmText="Assign Anyway"
           cancelText="Cancel"
+        />
+
+        <ConfirmationModal
+          isOpen={assignConfirmOpen}
+          onClose={() => setAssignConfirmOpen(false)}
+          onConfirm={() => {
+            setAssignConfirmOpen(false);
+            executeAssignStudents();
+          }}
+          variant="success"
+          title="Confirm Student Assignment"
+          message={`Assign ${selectedStudents.size} student${selectedStudents.size !== 1 ? 's' : ''} to ${section.sectionName}?\n\nSelected students:\n\n${selectedStudentDetails.map((student) => `- ${student}`).join('\n')}\n\nThis will assign them to this section and update their enrollment status to Enrolled.`}
+          confirmText={`Assign ${selectedStudents.size} Student${selectedStudents.size !== 1 ? 's' : ''}`}
+          cancelText="Cancel"
+          isLoading={loading}
+        />
+
+        <SuccessModal
+          isOpen={assignSuccess.open}
+          onClose={() => setAssignSuccess({ open: false, message: '' })}
+          title="Students Assigned"
+          message={assignSuccess.message}
+          autoClose={true}
+          autoCloseDelay={3000}
         />
 
         {/* Registration PDF viewer overlay */}
@@ -759,3 +817,4 @@ export function StudentAssignment({
     </>
   );
 }
+

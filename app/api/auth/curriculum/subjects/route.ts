@@ -309,6 +309,7 @@ export async function GET(request: NextRequest) {
           program_name: curriculum.program_name,
           program_code: curriculum.program_code,
           effective_year: curriculum.effective_year,
+          tuition_fee_per_unit: (curriculum as any).tuition_fee_per_unit != null ? Number((curriculum as any).tuition_fee_per_unit) : undefined,
         },
         courses: coursesWithSubjects,
       },

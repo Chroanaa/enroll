@@ -1,26 +1,43 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { startTransition, useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { SectionResponse } from '../../types/sectionTypes';
 import { SectionList } from '../../components/sections/SectionList';
 import { StudentAssignment } from '../../components/sections/StudentAssignment';
 import { activateSection, lockSection, unlockSection } from '../../utils/sectionApi';
 import { colors } from '../../colors';
-import { Lock, Unlock, CheckCircle, BookOpen } from 'lucide-react';
+import { Lock, Unlock, CheckCircle, BookOpen, Printer, Loader2 } from 'lucide-react';
 import SearchFilters from '../../components/common/SearchFilters';
 import ConfirmationModal from '../../components/common/ConfirmationModal';
 import SuccessModal from '../../components/common/SuccessModal';
+import ErrorModal from '../../components/common/ErrorModal';
+import AllSectionSchedulesPDF, { SectionForPDF } from './components/AllSectionSchedulesPDF';
+import { useAcademicTermContext } from '../../contexts/AcademicTermContext';
+import { getPrintAllSectionScheduleFilter } from '../../utils/academicTermUtils';
+import { primeScheduleResources } from '../../utils/scheduleResourceCache';
 
 export default function SectionsPage() {
   const router = useRouter();
+  const { currentTerm } = useAcademicTermContext();
+  const printAllFilter = getPrintAllSectionScheduleFilter(currentTerm);
   const [selectedSection, setSelectedSection] = useState<SectionResponse | null>(
     null
   );
   const [refreshKey, setRefreshKey] = useState(0);
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState<'all' | 'draft' | 'active' | 'locked' | 'closed'>('all');
+  const [academicYearFilter, setAcademicYearFilter] = useState(printAllFilter.academicYear);
+  const [semesterFilter, setSemesterFilter] = useState<'first' | 'second' | 'summer'>(printAllFilter.semester);
   const [isLoading, setIsLoading] = useState(false);
+  const [loadingManualEnrollment, setLoadingManualEnrollment] = useState(false);
+
+  // Bulk schedule PDF state
+  const [showBulkPDF, setShowBulkPDF] = useState(false);
+  const [printPopup, setPrintPopup] = useState<Window | null>(null);
+  const [pdfSections, setPdfSections] = useState<SectionForPDF[]>([]);
+  const [filteredSectionsForPrint, setFilteredSectionsForPrint] = useState<SectionResponse[]>([]);
+  const [loadingPdf, setLoadingPdf] = useState(false);
 
   // Modal states
   const [isStudentAssignmentOpen, setIsStudentAssignmentOpen] = useState(false);
@@ -45,9 +62,69 @@ export default function SectionsPage() {
     message: ''
   });
 
+  // Error modal state
+  const [errorModal, setErrorModal] = useState<{
+    isOpen: boolean;
+    title: string;
+    message: string;
+    details?: string;
+  }>({
+    isOpen: false,
+    title: '',
+    message: '',
+  });
+
+  useEffect(() => {
+    setAcademicYearFilter(printAllFilter.academicYear);
+    setSemesterFilter(printAllFilter.semester);
+  }, [printAllFilter.academicYear, printAllFilter.semester]);
+
+  useEffect(() => {
+    router.prefetch('/admin/irregular-enrollment');
+  }, [router]);
 
 
 
+
+
+  const handlePrintAll = async () => {
+    // Open popup synchronously inside the click handler — browsers block window.open in async
+    const popup = window.open('', '_blank', 'width=1100,height=820,scrollbars=yes');
+    if (!popup) {
+      alert('Popup was blocked. Please allow popups for this site and try again.');
+      return;
+    }
+    setPrintPopup(popup);
+    setLoadingPdf(true);
+
+    try {
+      const sections: SectionForPDF[] = filteredSectionsForPrint.map((s) => ({
+        id: s.id,
+        programId: s.programId,
+        sectionName: s.sectionName,
+        programCode: s.programCode ?? '',
+        programName: s.programName ?? '',
+        yearLevel: s.yearLevel,
+        academicYear: s.academicYear,
+        semester: s.semester,
+      }));
+
+      if (sections.length === 0) {
+        popup.close();
+        setPrintPopup(null);
+        return;
+      }
+
+      setPdfSections(sections);
+      setShowBulkPDF(true);
+    } catch (err) {
+      console.error('Failed to fetch sections for PDF:', err);
+      popup.close();
+      setPrintPopup(null);
+    } finally {
+      setLoadingPdf(false);
+    }
+  };
 
   const handleCreateSchedule = (section: SectionResponse) => {
     // Navigate to dedicated schedule page
@@ -57,6 +134,24 @@ export default function SectionsPage() {
   const handleViewSchedule = (section: SectionResponse) => {
     // Navigate to schedule page for viewing/editing faculty
     router.push(`/admin/sections/schedule/${section.id}`);
+  };
+
+  const handlePrefetchSchedule = (section: SectionResponse) => {
+    const href = `/admin/sections/schedule/${section.id}`;
+    router.prefetch(href);
+    primeScheduleResources();
+  };
+
+  const handleManualEnrollment = () => {
+    setLoadingManualEnrollment(true);
+    router.prefetch('/admin/irregular-enrollment');
+    startTransition(() => {
+      router.push('/admin/irregular-enrollment');
+    });
+  };
+
+  const handlePrefetchManualEnrollment = () => {
+    router.prefetch('/admin/irregular-enrollment');
   };
 
   const handleAssignStudents = (section: SectionResponse) => {
@@ -122,7 +217,18 @@ export default function SectionsPage() {
       }
       setRefreshKey((prev) => prev + 1);
     } catch (error) {
-      console.error(`Failed to ${confirmModal.type} section:`, error);
+      const msg = error instanceof Error ? error.message : `Failed to ${confirmModal.type} section`;
+      const isScheduleError = msg.toLowerCase().includes('schedule');
+      setErrorModal({
+        isOpen: true,
+        title: isScheduleError ? 'Cannot Activate Section' : 'Action Failed',
+        message: isScheduleError
+          ? 'This section has no class schedules yet.'
+          : msg,
+        details: isScheduleError
+          ? 'Please build the class schedule for this section before activating it. Go to the Schedule button to add subjects and faculty assignments.'
+          : undefined,
+      });
     } finally {
       setIsLoading(false);
       setConfirmModal({ isOpen: false, type: null, section: null });
@@ -180,16 +286,40 @@ export default function SectionsPage() {
               Create, schedule, and manage academic sections
             </p>
           </div>
-          <button
-            onClick={() => router.push('/admin/irregular-enrollment')}
-            className="flex items-center gap-2 px-6 py-3 text-white rounded-lg font-medium text-sm transition-colors hover:shadow-md"
-            style={{ backgroundColor: colors.secondary }}
-            onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = colors.primary)}
-            onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = colors.secondary)}
-          >
-            <BookOpen className="w-4 h-4" />
-            Manual Enrollment
-          </button>
+          <div className="flex items-center gap-3">
+            <button
+              onClick={handlePrintAll}
+              disabled={loadingPdf || filteredSectionsForPrint.length === 0}
+              className="flex items-center gap-2 px-5 py-3 rounded-lg font-medium text-sm transition-colors hover:shadow-md disabled:opacity-50 disabled:cursor-not-allowed"
+              style={{ backgroundColor: colors.primary, color: 'white' }}
+              onMouseEnter={(e) => { if (!loadingPdf) e.currentTarget.style.backgroundColor = colors.secondary; }}
+              onMouseLeave={(e) => { if (!loadingPdf) e.currentTarget.style.backgroundColor = colors.primary; }}
+            >
+              <Printer className="w-4 h-4" />
+              {loadingPdf ? 'Loading…' : 'Print All Schedules'}
+            </button>
+            <button
+              onClick={handleManualEnrollment}
+              onFocus={handlePrefetchManualEnrollment}
+              disabled={loadingManualEnrollment}
+              className="flex items-center gap-2 px-6 py-3 text-white rounded-lg font-medium text-sm transition-colors hover:shadow-md disabled:opacity-70 disabled:cursor-wait"
+              style={{ backgroundColor: colors.secondary }}
+              onMouseEnter={(e) => {
+                handlePrefetchManualEnrollment();
+                if (!loadingManualEnrollment) e.currentTarget.style.backgroundColor = colors.primary;
+              }}
+              onMouseLeave={(e) => {
+                if (!loadingManualEnrollment) e.currentTarget.style.backgroundColor = colors.secondary;
+              }}
+            >
+              {loadingManualEnrollment ? (
+                <Loader2 className="w-4 h-4 animate-spin" />
+              ) : (
+                <BookOpen className="w-4 h-4" />
+              )}
+              {loadingManualEnrollment ? 'Opening...' : 'Manual Enrollment'}
+            </button>
+          </div>
         </div>
 
         {/* Search and Filters */}
@@ -198,6 +328,24 @@ export default function SectionsPage() {
           onSearchChange={setSearchTerm}
           searchPlaceholder="Search sections..."
           filters={[
+            {
+              value: academicYearFilter,
+              onChange: (value) => setAcademicYearFilter(String(value)),
+              options: [
+                { value: printAllFilter.academicYear, label: printAllFilter.academicYear },
+              ],
+              placeholder: 'Academic Year',
+            },
+            {
+              value: semesterFilter,
+              onChange: (value) => setSemesterFilter(value as 'first' | 'second' | 'summer'),
+              options: [
+                { value: 'second', label: 'Second Semester' },
+                { value: 'first', label: 'First Semester' },
+                { value: 'summer', label: 'Summer' },
+              ],
+              placeholder: 'Semester',
+            },
             {
               value: statusFilter,
               onChange: (value) =>
@@ -219,6 +367,10 @@ export default function SectionsPage() {
           <SectionList
             searchTerm={searchTerm}
             statusFilter={statusFilter}
+            academicYearFilter={academicYearFilter}
+            semesterFilter={semesterFilter}
+            onFilteredSectionsChange={setFilteredSectionsForPrint}
+            onPrefetchSchedule={handlePrefetchSchedule}
             onCreateSchedule={handleCreateSchedule}
             onViewSchedule={handleViewSchedule}
             onAssignStudents={handleAssignStudents}
@@ -262,6 +414,24 @@ export default function SectionsPage() {
           autoClose={true}
           autoCloseDelay={3000}
         />
+
+        {/* Error / Warning Modal */}
+        <ErrorModal
+          isOpen={errorModal.isOpen}
+          onClose={() => setErrorModal({ isOpen: false, title: '', message: '' })}
+          title={errorModal.title}
+          message={errorModal.message}
+          details={errorModal.details}
+        />
+
+        {/* Bulk section schedules PDF — mounts, writes to popup, then unmounts */}
+        {showBulkPDF && printPopup && (
+          <AllSectionSchedulesPDF
+            sections={pdfSections}
+            popupWindow={printPopup}
+            onClose={() => { setShowBulkPDF(false); setPrintPopup(null); setPdfSections([]); }}
+          />
+        )}
     </div>
   );
 }

@@ -4,12 +4,16 @@ import React, { useState, useEffect } from 'react';
 import { SectionResponse } from '../../types/sectionTypes';
 import { getSections } from '../../utils/sectionApi';
 import { colors } from '../../colors';
-import { Users, GraduationCap, Calendar, UserPlus, CheckCircle, Lock, Unlock } from 'lucide-react';
+import { Users, GraduationCap, Calendar, UserPlus, CheckCircle, Lock, Unlock, Pencil, Check, X as XIcon } from 'lucide-react';
 import Pagination from '../common/Pagination';
 
 interface SectionListProps {
   searchTerm?: string;
   statusFilter?: string;
+  academicYearFilter?: string;
+  semesterFilter?: string;
+  onFilteredSectionsChange?: (sections: SectionResponse[]) => void;
+  onPrefetchSchedule?: (section: SectionResponse) => void;
   onCreateSchedule?: (section: SectionResponse) => void;
   onViewSchedule?: (section: SectionResponse) => void;
   onAssignStudents?: (section: SectionResponse) => void;
@@ -21,6 +25,10 @@ interface SectionListProps {
 export function SectionList({
   searchTerm = '',
   statusFilter = 'all',
+  academicYearFilter = '',
+  semesterFilter = '',
+  onFilteredSectionsChange,
+  onPrefetchSchedule,
   onCreateSchedule,
   onViewSchedule,
   onAssignStudents,
@@ -37,30 +45,65 @@ export function SectionList({
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage, setItemsPerPage] = useState(10);
 
+  // Inline capacity editing
+  const [editingCapacityId, setEditingCapacityId] = useState<number | null>(null);
+  const [capacityInput, setCapacityInput] = useState('');
+  const [savingCapacityId, setSavingCapacityId] = useState<number | null>(null);
+
   useEffect(() => {
     loadSections();
-  }, []);
+  }, [academicYearFilter, semesterFilter]);
 
   // Filter sections when search term or status filter changes
   useEffect(() => {
     filterSections();
   }, [sections, searchTerm, statusFilter]);
 
+  useEffect(() => {
+    onFilteredSectionsChange?.(filteredSections);
+  }, [filteredSections, onFilteredSectionsChange]);
+
   // Reset to page 1 when filters change
   useEffect(() => {
     setCurrentPage(1);
-  }, [searchTerm, statusFilter]);
+  }, [searchTerm, statusFilter, academicYearFilter, semesterFilter]);
 
   const loadSections = async () => {
     try {
       setLoading(true);
       setError(null);
-      const data = await getSections();
+      const data = await getSections({
+        academicYear: academicYearFilter || undefined,
+        semester: semesterFilter || undefined,
+      });
       setSections(data);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to load sections');
     } finally {
       setLoading(false);
+    }
+  };
+
+  const saveCapacity = async (sectionId: number) => {
+    const val = parseInt(capacityInput);
+    if (isNaN(val) || val < 1) return;
+    setSavingCapacityId(sectionId);
+    try {
+      const res = await fetch(`/api/sections/${sectionId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ maxCapacity: val }),
+      });
+      if (res.ok) {
+        setSections(prev =>
+          prev.map(s => s.id === sectionId ? { ...s, maxCapacity: val } : s)
+        );
+        setEditingCapacityId(null);
+      }
+    } catch {
+      // ignore
+    } finally {
+      setSavingCapacityId(null);
     }
   };
 
@@ -272,12 +315,55 @@ export function SectionList({
                           <span className="text-xs font-medium text-gray-700">{section.advisor}</span>
                         </td>
                         <td className="px-3 py-2 whitespace-nowrap">
-                          <div className="flex items-center gap-1.5">
-                            <Users className="w-3 h-3 text-gray-400" />
-                            <span className="text-xs font-medium text-gray-700">
-                              {section.studentCount} / {section.maxCapacity}
-                            </span>
-                          </div>
+                          {editingCapacityId === section.id ? (
+                            <div className="flex items-center gap-1">
+                              <input
+                                type="number"
+                                min="1"
+                                autoFocus
+                                value={capacityInput}
+                                onChange={e => setCapacityInput(e.target.value)}
+                                onKeyDown={e => {
+                                  if (e.key === 'Enter') saveCapacity(section.id);
+                                  if (e.key === 'Escape') setEditingCapacityId(null);
+                                }}
+                                className="w-16 px-1.5 py-0.5 text-xs border rounded focus:outline-none focus:ring-1"
+                                style={{ borderColor: colors.secondary, color: colors.primary }}
+                              />
+                              <button
+                                onClick={() => saveCapacity(section.id)}
+                                disabled={savingCapacityId === section.id}
+                                className="p-0.5 rounded hover:bg-green-100"
+                                title="Save"
+                              >
+                                <Check className="w-3.5 h-3.5 text-green-600" />
+                              </button>
+                              <button
+                                onClick={() => setEditingCapacityId(null)}
+                                className="p-0.5 rounded hover:bg-red-100"
+                                title="Cancel"
+                              >
+                                <XIcon className="w-3.5 h-3.5 text-red-500" />
+                              </button>
+                            </div>
+                          ) : (
+                            <div className="flex items-center gap-1.5 group/cap">
+                              <Users className="w-3 h-3 text-gray-400" />
+                              <span className={`text-xs font-medium ${section.maxCapacity === 0 ? 'text-amber-600' : 'text-gray-700'}`}>
+                                {section.studentCount} / {section.maxCapacity === 0 ? 'Not set' : section.maxCapacity}
+                              </span>
+                              <button
+                                onClick={() => {
+                                  setEditingCapacityId(section.id);
+                                  setCapacityInput(section.maxCapacity > 0 ? section.maxCapacity.toString() : '');
+                                }}
+                                className="opacity-0 group-hover/cap:opacity-100 p-0.5 rounded hover:bg-gray-100 transition-opacity"
+                                title="Edit capacity"
+                              >
+                                <Pencil className="w-3 h-3 text-gray-400" />
+                              </button>
+                            </div>
+                          )}
                         </td>
                         <td className="px-3 py-2 whitespace-nowrap">
                           <span
@@ -301,6 +387,8 @@ export function SectionList({
                               <>
                                 <button
                                   onClick={() => onCreateSchedule?.(section)}
+                                  onMouseEnter={() => onPrefetchSchedule?.(section)}
+                                  onFocus={() => onPrefetchSchedule?.(section)}
                                   className="group relative inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg font-medium text-xs transition-all duration-200 hover:shadow-md"
                                   style={{
                                     backgroundColor: '#F3E8FF',
@@ -329,6 +417,8 @@ export function SectionList({
                               <>
                                 <button
                                   onClick={() => onViewSchedule?.(section)}
+                                  onMouseEnter={() => onPrefetchSchedule?.(section)}
+                                  onFocus={() => onPrefetchSchedule?.(section)}
                                   className="group relative inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg font-medium text-xs transition-all duration-200 hover:shadow-md"
                                   style={{
                                     backgroundColor: '#F3E8FF',

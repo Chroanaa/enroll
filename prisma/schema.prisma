@@ -285,14 +285,15 @@ model billing {
 
 /// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
 model curriculum {
-  id                Int                 @id @default(autoincrement())
-  program_name      String              @db.VarChar(255)
-  program_code      String              @db.VarChar(100)
-  major             String?             @db.VarChar(255)
-  effective_year    String              @db.VarChar(20)
-  total_units       Int
-  status            String              @db.VarChar(10)
-  curriculum_course curriculum_course[]
+  id                   Int                 @id @default(autoincrement())
+  program_name         String              @db.VarChar(255)
+  program_code         String              @db.VarChar(100)
+  major                String?             @db.VarChar(255)
+  effective_year       String              @db.VarChar(20)
+  total_units          Int
+  status               String              @db.VarChar(10)
+  tuition_fee_per_unit Decimal?            @default(570.00) @db.Decimal(10, 2)
+  curriculum_course    curriculum_course[]
 }
 
 /// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.

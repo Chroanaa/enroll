@@ -386,15 +386,20 @@ export const FinancialDetailModal: React.FC<FinancialDetailModalProps> = ({
   const [customDownpaymentAmount, setCustomDownpaymentAmount] =
     useState<number>(3000);
 
+  const defaultDownpaymentAmount = useMemo(() => {
+    if (detail?.down_payment != null) return detail.down_payment;
+    return minDownpayment;
+  }, [detail?.down_payment, minDownpayment]);
+
   const openDownpayment = () => {
     if (!detail) return;
     setIsPayingDownpayment(true);
-    setCustomDownpaymentAmount(minDownpayment);
+    setCustomDownpaymentAmount(defaultDownpaymentAmount);
     setDownpaymentLines([
       {
         id: 1,
         payment_type: "cash",
-        amount: String(minDownpayment),
+        amount: String(defaultDownpaymentAmount),
         reference_no: "",
       },
     ]);
@@ -522,7 +527,7 @@ export const FinancialDetailModal: React.FC<FinancialDetailModalProps> = ({
         ? detail.down_payment
         : isPayingDownpayment
           ? customDownpaymentAmount
-          : minDownpayment;
+          : defaultDownpaymentAmount;
     const balance = Math.max(0, totalMatriculation - downpayment);
     const installmentCharge =
       Math.round(balance * (installmentChargePercent / 100) * 100) / 100;
@@ -541,7 +546,7 @@ export const FinancialDetailModal: React.FC<FinancialDetailModalProps> = ({
     };
   }, [
     detail,
-    minDownpayment,
+    defaultDownpaymentAmount,
     installmentChargePercent,
     customDownpaymentAmount,
     isPayingDownpayment,
@@ -828,7 +833,7 @@ export const FinancialDetailModal: React.FC<FinancialDetailModalProps> = ({
                           style={{ backgroundColor: colors.secondary }}
                         >
                           <DollarSign className='w-4 h-4' />
-                          Pay Downpayment (Min. {formatAmount(minDownpayment)})
+                          Pay Downpayment ({formatAmount(defaultDownpaymentAmount)})
                         </button>
                       ) : detail.payment_mode?.toLowerCase() !==
                         "installment" ? (
@@ -1458,8 +1463,8 @@ export const FinancialDetailModal: React.FC<FinancialDetailModalProps> = ({
                       </div>
                       <div className='px-4 py-2 space-y-1 text-sm'>
                         <div className='flex justify-between'>
-                          <span className='text-gray-600'>Gross Tuition</span>
-                          <span className='font-medium'>
+                          <span className='text-gray-800'>Gross Tuition</span>
+                          <span className='font-medium text-gray-900'>
                             {formatAmount(detail.tuition.gross_tuition)}
                           </span>
                         </div>
@@ -1510,10 +1515,10 @@ export const FinancialDetailModal: React.FC<FinancialDetailModalProps> = ({
                               ) : (
                                 <ChevronRight className='w-4 h-4 text-gray-400' />
                               )}
-                              <span className='text-sm font-medium text-gray-700 capitalize'>
+                              <span className='text-sm font-medium text-gray-900 capitalize'>
                                 {category} Fees
                               </span>
-                              <span className='text-xs bg-gray-200 text-gray-600 px-1.5 py-0.5 rounded-full'>
+                              <span className='text-xs bg-gray-200 text-gray-800 px-1.5 py-0.5 rounded-full'>
                                 {feeItems.length}
                               </span>
                             </div>
@@ -1525,7 +1530,7 @@ export const FinancialDetailModal: React.FC<FinancialDetailModalProps> = ({
                             <div className='px-4 py-2 space-y-1 text-sm border-t border-gray-100'>
                               {feeItems.map((fee, idx) => (
                                 <div key={idx} className='flex justify-between'>
-                                  <span className='text-gray-600'>
+                                  <span className='text-gray-800'>
                                     {fee.fee_name}
                                   </span>
                                   <span className='text-gray-900'>
@@ -1543,24 +1548,24 @@ export const FinancialDetailModal: React.FC<FinancialDetailModalProps> = ({
                     <div className='border border-gray-200 rounded-lg overflow-hidden'>
                       <div className='px-4 py-3 space-y-1.5 text-sm'>
                         <div className='flex justify-between'>
-                          <span className='text-gray-600'>Total Fees</span>
-                          <span className='font-medium'>
+                          <span className='text-gray-800'>Total Fees</span>
+                          <span className='font-medium text-gray-900'>
                             {formatAmount(detail.total_fees)}
                           </span>
                         </div>
                         {detail.fixed_amount_total > 0 && (
                           <div className='flex justify-between'>
-                            <span className='text-gray-600'>
+                            <span className='text-gray-800'>
                               Fixed Amount Total
                             </span>
-                            <span className='font-medium'>
+                            <span className='font-medium text-gray-900'>
                               {formatAmount(detail.fixed_amount_total)}
                             </span>
                           </div>
                         )}
                         <div className='flex justify-between border-t border-gray-100 pt-1.5'>
-                          <span className='text-gray-600'>Base Total</span>
-                          <span className='font-semibold'>
+                          <span className='text-gray-900'>Base Total</span>
+                          <span className='font-semibold text-gray-900'>
                             {formatAmount(detail.base_total)}
                           </span>
                         </div>
@@ -1785,17 +1790,17 @@ export const FinancialDetailModal: React.FC<FinancialDetailModalProps> = ({
                                 </div>
                                 <div className='px-4 py-3 space-y-1.5 text-sm'>
                                   <div className='flex justify-between'>
-                                    <span className='text-gray-600'>
+                                    <span className='text-gray-800'>
                                       Total Matriculation
                                     </span>
-                                    <span className='font-medium'>
+                                    <span className='font-medium text-gray-900'>
                                       {formatAmount(
                                         installmentBreakdown.totalMatriculation,
                                       )}
                                     </span>
                                   </div>
                                   <div className='flex justify-between'>
-                                    <span className='text-gray-600'>
+                                    <span className='text-gray-800'>
                                       Downpayment{" "}
                                       {detail.down_payment != null
                                         ? "(Paid)"
@@ -1808,21 +1813,21 @@ export const FinancialDetailModal: React.FC<FinancialDetailModalProps> = ({
                                     </span>
                                   </div>
                                   <div className='flex justify-between border-t border-gray-100 pt-1.5'>
-                                    <span className='text-gray-600'>
+                                    <span className='text-gray-800'>
                                       Balance
                                     </span>
-                                    <span className='font-semibold'>
+                                    <span className='font-semibold text-gray-900'>
                                       {formatAmount(
                                         installmentBreakdown.balance,
                                       )}
                                     </span>
                                   </div>
                                   <div className='flex justify-between'>
-                                    <span className='text-gray-600'>
+                                    <span className='text-gray-800'>
                                       Installment Charge (
                                       {installmentChargePercent}%)
                                     </span>
-                                    <span className='font-medium'>
+                                    <span className='font-medium text-gray-900'>
                                       {formatAmount(
                                         installmentBreakdown.installmentCharge,
                                       )}
@@ -1939,7 +1944,7 @@ export const FinancialDetailModal: React.FC<FinancialDetailModalProps> = ({
                                         <td className='px-4 py-2.5 text-sm font-medium text-gray-900'>
                                           {sched.label}
                                         </td>
-                                        <td className='px-4 py-2.5 text-sm text-gray-600'>
+                                        <td className='px-4 py-2.5 text-sm text-gray-800'>
                                           {new Date(
                                             sched.due_date,
                                           ).toLocaleDateString("en-US", {
@@ -1948,7 +1953,7 @@ export const FinancialDetailModal: React.FC<FinancialDetailModalProps> = ({
                                             day: "numeric",
                                           })}
                                         </td>
-                                        <td className='px-4 py-2.5 text-sm text-right font-medium'>
+                                        <td className='px-4 py-2.5 text-sm text-right font-medium text-gray-900'>
                                           {formatAmount(computedAmount)}
                                         </td>
                                         <td className='px-4 py-2.5 text-center'>
@@ -1999,7 +2004,7 @@ export const FinancialDetailModal: React.FC<FinancialDetailModalProps> = ({
                                     >
                                       Total
                                     </td>
-                                    <td className='px-4 py-2.5 text-sm text-right'>
+                                    <td className='px-4 py-2.5 text-sm text-right text-gray-900'>
                                       {formatAmount(
                                         installmentBreakdown?.netBalance ??
                                           detail.payment_schedule.reduce(
@@ -2008,7 +2013,7 @@ export const FinancialDetailModal: React.FC<FinancialDetailModalProps> = ({
                                           ),
                                       )}
                                     </td>
-                                    <td className='px-4 py-2.5 text-center text-xs text-gray-500'>
+                                    <td className='px-4 py-2.5 text-center text-xs text-gray-700'>
                                       {
                                         detail.payment_schedule.filter(
                                           (s) => s.is_paid,

@@ -2,11 +2,12 @@
 
 import React, { useState, useEffect } from 'react';
 import { colors } from '@/app/colors';
-import { ArrowLeft, Calendar, List, Loader2 } from 'lucide-react';
+import { ArrowLeft, Calendar, List, Loader2, FileText } from 'lucide-react';
 import { useRouter, useParams } from 'next/navigation';
 import Navigation from '@/app/components/Navigation';
 import FacultySubjectsTable from '@/app/admin/faculty-subject-management/components/FacultySubjectsTable';
 import FacultyCalendarView from '@/app/admin/faculty-subject-management/components/FacultyCalendarView';
+import FacultyTeachingLoad from '@/app/admin/faculty-subject-management/components/FacultyTeachingLoad';
 
 interface Faculty {
   id: number;
@@ -14,6 +15,8 @@ interface Faculty {
   last_name: string;
   middle_name: string | null;
   departmentName: string;
+  position?: string;
+  specialization?: string;
 }
 
 export default function FacultySubjectManagementDetailPage() {
@@ -24,6 +27,7 @@ export default function FacultySubjectManagementDetailPage() {
   const [faculty, setFaculty] = useState<Faculty | null>(null);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<'list' | 'calendar'>('list');
+  const [showTeachingLoad, setShowTeachingLoad] = useState(false);
   const [academicYear, setAcademicYear] = useState('');
   const [semester, setSemester] = useState('');
   const [workload, setWorkload] = useState(0);
@@ -218,8 +222,9 @@ export default function FacultySubjectManagementDetailPage() {
         </div>
       </div>
 
-      {/* Tabs */}
-      <div className="flex gap-2 border-b" style={{ borderColor: colors.neutralBorder }}>
+      {/* Tabs + Teaching Load button */}
+      <div className="flex items-end justify-between border-b" style={{ borderColor: colors.neutralBorder }}>
+        <div className="flex gap-2">
         <button
           onClick={() => setActiveTab('list')}
           className={`flex items-center gap-2 px-6 py-3 text-sm font-medium transition-all relative ${
@@ -272,6 +277,18 @@ export default function FacultySubjectManagementDetailPage() {
           <Calendar className="w-4 h-4" />
           Calendar View
         </button>
+        </div>
+        {/* Teaching Load PDF button */}
+        <button
+          onClick={() => setShowTeachingLoad(true)}
+          className="flex items-center gap-2 px-5 py-2.5 mb-1 rounded-lg text-sm font-medium text-white transition-all hover:shadow-md"
+          style={{ backgroundColor: colors.secondary }}
+          onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = colors.primary)}
+          onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = colors.secondary)}
+        >
+          <FileText className="w-4 h-4" />
+          View Teaching Load
+        </button>
       </div>
 
       {/* Content */}
@@ -293,6 +310,17 @@ export default function FacultySubjectManagementDetailPage() {
       )}
     </div>
       </div>
+
+      {/* Teaching Load Modal */}
+      {showTeachingLoad && (
+        <FacultyTeachingLoad
+          facultyId={facultyId}
+          academicYear={academicYear}
+          semester={semester}
+          faculty={faculty}
+          onClose={() => setShowTeachingLoad(false)}
+        />
+      )}
     </div>
   );
 }

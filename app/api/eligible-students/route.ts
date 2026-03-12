@@ -328,6 +328,22 @@ export async function GET(request: NextRequest) {
           totalDueInstallment: assessmentMap.has(enrollment.student_number!)
             ? Number(assessmentMap.get(enrollment.student_number!)!.total_due_installment)
             : null,
+          remainingBalance: assessmentMap.has(enrollment.student_number!)
+            ? Math.max(
+                0,
+                (
+                  assessmentMap.get(enrollment.student_number!)!.payment_mode?.toLowerCase() === 'cash'
+                    ? Number(
+                        assessmentMap.get(enrollment.student_number!)!.total_due_cash ??
+                        assessmentMap.get(enrollment.student_number!)!.total_due
+                      )
+                    : Number(
+                        assessmentMap.get(enrollment.student_number!)!.total_due_installment ??
+                        assessmentMap.get(enrollment.student_number!)!.total_due
+                      )
+                ) - (totalPaidMap.get(enrollment.student_number!) ?? 0)
+              )
+            : null,
           hasAssessment: assessmentMap.has(enrollment.student_number!),
           totalPaid: totalPaidMap.get(enrollment.student_number!) ?? 0,
           hasPaid: (totalPaidMap.get(enrollment.student_number!) ?? 0) > 0,

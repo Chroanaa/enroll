@@ -165,10 +165,45 @@ export async function GET(request: NextRequest) {
       amount: Number(p.amount) || 0,
     }));
 
-    // Calculate tuition fee per unit
-    const totalUnits = enrolledSubjects.reduce((sum: number, s: any) => sum + (Number(s.units_total) || 0), 0);
-    const tuitionFeePerUnit = totalUnits > 0 ? Number(assessment.gross_tuition) / totalUnits : 0;
+    const baseTotal = Number(assessment.base_total) || 0;
+    const downPayment = Number(assessment.down_payment) || 0;
+    const netInstallment = Math.max(0, baseTotal - downPayment);
+    const installmentCharge = assessment.insurance_amount != null
+      ? Number(assessment.insurance_amount)
+      : Math.round(netInstallment * 0.05 * 100) / 100;
+    const totalInstallment = paymentSchedule.length > 0
+      ? paymentSchedule.reduce((sum, p) => sum + p.amount, 0)
+      : Math.max(
+          0,
+          (Number(assessment.total_due_installment) || 0) - downPayment
+        );
 
+    // Calculate tuition fee per unit — prefer the curriculum's stored rate
+    const totalUnits = enrolledSubjects.reduce((sum: number, s: any) => sum + (Number(s.units_total) || 0), 0);
+    const calculatedTuitionPerUnit = totalUnits > 0 ? Number(assessment.gross_tuition) / totalUnits : 0;
+
+    // Fetch tuition_fee_per_unit from curriculum via enrolled_subjects → curriculum_course → curriculum
+    let tuitionFeePerUnit = calculatedTuitionPerUnit;
+    try {
+      const curriculumRateRows = await prisma.$queryRaw<{ rate: number }[]>`
+        SELECT CAST(c.tuition_fee_per_unit AS FLOAT) AS rate
+        FROM enrolled_subjects es
+        JOIN curriculum_course cc ON cc.id = es.curriculum_course_id
+        JOIN curriculum c ON c.id = cc.curriculum_id
+        WHERE es.student_number = ${studentNumber}
+          AND es.academic_year  = ${academicYear}
+          AND es.semester       = ${semester}
+        LIMIT 1
+      `;
+      if (curriculumRateRows.length > 0 && curriculumRateRows[0].rate != null) {
+        tuitionFeePerUnit = Number(curriculumRateRows[0].rate);
+      }
+    } catch {
+      // Column may not exist yet in DB — fall back to calculated value
+    }
+
+
+    
     // Build response data
     const registrationData = {
       studentName: `${enrollment.family_name || ''}, ${enrollment.first_name || ''} ${enrollment.middle_name || ''}`.trim(),
@@ -194,14 +229,14 @@ export async function GET(request: NextRequest) {
         miscFeeItems: miscFeeItems,
         fixedAmountTotal: fixedAmountTotal,
         fixedFeeItems: fixedFeeItems,
-        totalFees: Number(assessment.total_due_cash) || Number(assessment.total_due) || 0,
+        totalFees: baseTotal,
       },
       installmentBasis: {
-        totalFees: Number(assessment.total_due) || 0,
-        downPayment: Number(assessment.down_payment) || 0,
-        net: Number(assessment.total_due) - Number(assessment.down_payment) || 0,
-        fivePercent: (Number(assessment.total_due) - Number(assessment.down_payment)) * 0.05 || 0,
-        totalInstallment: Number(assessment.total_due_installment) || 0,
+        totalFees: baseTotal,
+        downPayment: downPayment,
+        net: netInstallment,
+        fivePercent: installmentCharge,
+        totalInstallment: totalInstallment,
       },
       paymentSchedule,
     };
@@ -216,5 +251,7 @@ export async function GET(request: NextRequest) {
       { error: "Internal server error" },
       { status: 500 }
     );
+
+  
   }
 }

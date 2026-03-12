@@ -107,6 +107,11 @@ export async function GET(request: NextRequest) {
       enrollments.map((e) => [e.student_number, e])
     );
 
+    // Filter out assessments whose enrollment has been deleted
+    const assessmentsWithEnrollment = assessments.filter((a) =>
+      enrollmentMap.has(a.student_number)
+    );
+
     // Get unique program IDs to fetch program names
     const programIds = [
       ...new Set(
@@ -126,8 +131,8 @@ export async function GET(request: NextRequest) {
 
     const programMap = new Map(programs.map((p) => [p.id, p]));
 
-    // Build response data
-    const summaries = assessments.map((assessment) => {
+    // Build response data (only for students with existing enrollment records)
+    const summaries = assessmentsWithEnrollment.map((assessment) => {
       const enrollment = enrollmentMap.get(assessment.student_number);
       
       // Calculate student name

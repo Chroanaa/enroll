@@ -563,69 +563,21 @@ const AdmissionInformation: React.FC<EnrollmentPageProps> = ({
                   className='w-4 h-4'
                   style={{ color: colors.secondary }}
                 />
-                Academic Year <span className='text-red-500'>*</span>
+                Academic Year
               </label>
               <div className='relative'>
-                <select
+                <input
+                  type='text'
                   name='academic_year'
                   data-field='academic_year'
                   value={formData.academic_year}
-                  onChange={(e) =>
-                    handleInputChange("academic_year", e.target.value)
-                  }
-                  className={`${inputClasses} appearance-none cursor-pointer ${fieldErrors.academic_year ? "border-red-500" : ""}`}
+                  readOnly
+                  className={`${inputClasses} cursor-default select-none`}
                   style={{
-                    borderColor: fieldErrors.academic_year
-                      ? "#ef4444"
-                      : colors.tertiary + "30",
+                    borderColor: colors.tertiary + "30",
                     color: colors.primary,
                   }}
-                  onFocus={(e) => {
-                    e.currentTarget.style.borderColor =
-                      fieldErrors.academic_year ? "#ef4444" : colors.secondary;
-                    e.currentTarget.style.boxShadow = `0 0 0 4px ${fieldErrors.academic_year ? "#ef444410" : colors.secondary + "10"}`;
-                  }}
-                  onBlur={(e) => {
-                    e.currentTarget.style.borderColor =
-                      fieldErrors.academic_year
-                        ? "#ef4444"
-                        : colors.tertiary + "30";
-                    e.currentTarget.style.boxShadow = "none";
-                  }}
-                >
-                  <option value=''>Select Academic Year</option>
-                  {Array.from({ length: 10 }, (_, i) => {
-                    // Use stored academic year as base, or current year if not available
-                    const baseYear = storedSettings?.academicYear 
-                      ? parseInt(storedSettings.academicYear.split('-')[0])
-                      : getAcademicYear(new Date()).startYear;
-                    const startYear = baseYear - 2 + i; // Show 2 years before and 7 years after
-                    const endYear = startYear + 1;
-                    const yearValue = `${startYear}-${endYear}`;
-                    return (
-                      <option key={yearValue} value={yearValue}>
-                        {yearValue}
-                      </option>
-                    );
-                  })}
-                </select>
-                <div className='absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none opacity-50'>
-                  <svg
-                    width='12'
-                    height='12'
-                    viewBox='0 0 12 12'
-                    fill='none'
-                    xmlns='http://www.w3.org/2000/svg'
-                  >
-                    <path
-                      d='M2.5 4.5L6 8L9.5 4.5'
-                      stroke='currentColor'
-                      strokeWidth='1.5'
-                      strokeLinecap='round'
-                      strokeLinejoin='round'
-                    />
-                  </svg>
-                </div>
+                />
               </div>
               {fieldErrors.academic_year && (
                 <p className='text-red-500 text-xs mt-1 ml-1'>

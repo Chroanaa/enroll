@@ -196,6 +196,11 @@ const CurriculumTable: React.FC<CurriculumTableProps> = ({
             >
               Effective {curriculum.effective_year}
             </p>
+            {curriculum.tuition_fee_per_unit != null && (
+              <p className='text-xs mt-0.5 print:text-[10px]' style={{ color: colors.secondary }}>
+                Tuition: ₱{Number(curriculum.tuition_fee_per_unit).toFixed(2)}/unit
+              </p>
+            )}
           </div>
           
           {/* Close and Download buttons - Hidden in Print */}

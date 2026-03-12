@@ -14,7 +14,8 @@ export interface CalculationInputs {
   discountPercentage?: number;
   dynamicFees: Record<number, number>; // feeId -> amount
   paymentMode: 'cash' | 'installment';
-  // Note: downPayment is handled by Payment Module, not Assessment Module
+  downPayment?: number;               // from settings: min_downpayment
+  installmentChargePercentage?: number; // from settings: installment_charge_percentage (default 5)
 }
 
 export interface CalculationResults {
@@ -34,9 +35,11 @@ export interface CalculationResults {
   
   // Phase 4: Payment Mode
   totalDueCash: number;
-  insuranceAmount?: number; // 5% insurance on base total for installment
-  totalInstallment?: number; // baseTotal + insuranceAmount
-  // Note: remainingBalance and downPayment are handled by Payment Module
+  downPayment?: number;          // from settings
+  netBalance?: number;           // baseTotal - downPayment
+  insuranceAmount?: number;      // chargePercentage% of netBalance for installment
+  totalInstallment?: number;     // netBalance + insuranceAmount (per-installment portion)
+  totalDueInstallment?: number;  // downPayment + totalInstallment (grand total)
 }
 
 /**
@@ -134,23 +137,31 @@ export function calculateCashBasis(baseTotal: number): number {
 }
 
 /**
- * Calculate installment basis
- * Assessment only calculates total installment (base total + 5% insurance)
- * Down payment and remaining balance are handled by Payment Module
+ * Calculate installment basis using downPayment and charge percentage from settings
  */
 export function calculateInstallmentBasis(
-  baseTotal: number
+  baseTotal: number,
+  downPayment: number = 0,
+  chargePercentage: number = 5
 ): {
+  downPayment: number;
+  netBalance: number;
   insuranceAmount: number;
-  totalInstallment: number;
+  totalInstallment: number;  // netBalance + insurance (the installment portion paid in schedule)
+  totalDueInstallment: number; // downPayment + totalInstallment (grand total)
 } {
-  // Insurance is 5% of base total (not on remaining balance)
-  const insuranceAmount = roundToTwoDecimals(baseTotal * 0.05);
-  const totalInstallment = roundToTwoDecimals(baseTotal + insuranceAmount);
-  
+  const safeDown = Math.min(downPayment, baseTotal); // can't exceed base total
+  const netBalance = roundToTwoDecimals(baseTotal - safeDown);
+  const insuranceAmount = roundToTwoDecimals(netBalance * (chargePercentage / 100));
+  const totalInstallment = roundToTwoDecimals(netBalance + insuranceAmount);
+  const totalDueInstallment = roundToTwoDecimals(safeDown + totalInstallment);
+
   return {
+    downPayment: safeDown,
+    netBalance,
     insuranceAmount,
     totalInstallment,
+    totalDueInstallment,
   };
 }
 
@@ -177,15 +188,24 @@ export function calculateAssessment(inputs: CalculationInputs): CalculationResul
   let insuranceAmount: number | undefined;
   let totalInstallment: number | undefined;
   
+  let downPaymentResult: number | undefined;
+  let netBalance: number | undefined;
+  let totalDueInstallment: number | undefined;
+
   if (inputs.paymentMode === 'cash') {
     totalDueCash = calculateCashBasis(baseTotal);
   } else if (inputs.paymentMode === 'installment') {
-    // Assessment only calculates total installment (base + insurance)
-    // Down payment and remaining balance are handled by Payment Module
-    const installmentCalc = calculateInstallmentBasis(baseTotal);
+    const installmentCalc = calculateInstallmentBasis(
+      baseTotal,
+      inputs.downPayment ?? 0,
+      inputs.installmentChargePercentage ?? 5
+    );
+    downPaymentResult = installmentCalc.downPayment;
+    netBalance = installmentCalc.netBalance;
     insuranceAmount = installmentCalc.insuranceAmount;
     totalInstallment = installmentCalc.totalInstallment;
-    totalDueCash = 0; // Not applicable for installment
+    totalDueInstallment = installmentCalc.totalDueInstallment;
+    totalDueCash = 0;
   }
   
   return {
@@ -198,8 +218,11 @@ export function calculateAssessment(inputs: CalculationInputs): CalculationResul
     labFeeTotal,
     baseTotal,
     totalDueCash,
+    downPayment: downPaymentResult,
+    netBalance,
     insuranceAmount,
     totalInstallment,
+    totalDueInstallment,
   };
 }
 

@@ -278,6 +278,36 @@ const BasicInfoForm: React.FC<BasicInfoFormProps> = ({
           <option value='inactive'>Inactive</option>
         </select>
       </div>
+
+      {/* Tuition Fee Per Unit */}
+      <div>
+        <label
+          className='flex items-center gap-2 text-sm font-semibold mb-2'
+          style={{ color: colors.primary }}
+        >
+          <Hash className='w-4 h-4 text-gray-400' />
+          Tuition Fee Per Unit (₱)
+        </label>
+        <input
+          type='number'
+          min='0'
+          step='0.01'
+          value={formData.tuition_fee_per_unit ?? 570}
+          onChange={(e) => {
+            const fee = parseFloat(e.target.value) || 0;
+            onFormDataChange({ ...formData, tuition_fee_per_unit: fee });
+          }}
+          className='w-full rounded-xl px-4 py-2.5 transition-all border-gray-200 focus:ring-2 focus:ring-offset-0'
+          style={{
+            border: "1px solid #E5E7EB",
+            outline: "none",
+            color: "#6B5B4F",
+          }}
+          onFocus={handleFocus}
+          onBlur={handleBlur}
+          placeholder='e.g. 570.00'
+        />
+      </div>
     </div>
   );
 };

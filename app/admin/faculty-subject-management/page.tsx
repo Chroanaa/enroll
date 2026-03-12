@@ -2,8 +2,9 @@
 
 import React, { useState, useEffect } from 'react';
 import { colors } from '../../colors';
-import { Users2, Search, Loader2 } from 'lucide-react';
+import { Search, Loader2, Printer } from 'lucide-react';
 import { useRouter } from 'next/navigation';
+import AllFacultyTeachingLoadPDF from './components/AllFacultyTeachingLoadPDF';
 
 interface Faculty {
   id: number;
@@ -25,10 +26,40 @@ export default function FacultySubjectManagementPage() {
   const [faculties, setFaculties] = useState<Faculty[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
+  const [academicYear, setAcademicYear] = useState('');
+  const [semester, setSemester] = useState('');
+  const [showBulkPDF, setShowBulkPDF] = useState(false);
+  const [printPopup, setPrintPopup] = useState<Window | null>(null);
+
+  const handlePrintAll = () => {
+    // MUST open popup synchronously inside the click handler — browsers block window.open inside useEffect/async
+    const popup = window.open('', '_blank', 'width=1100,height=820,scrollbars=yes');
+    if (!popup) {
+      alert('Popup was blocked. Please allow popups for this site and try again.');
+      return;
+    }
+    setPrintPopup(popup);
+    setShowBulkPDF(true);
+  };
 
   useEffect(() => {
     fetchFaculties();
+    fetchAcademicTerm();
   }, []);
+
+  const fetchAcademicTerm = async () => {
+    try {
+      const res = await fetch('/api/auth/academic-term');
+      if (!res.ok) return;
+      const json = await res.json();
+      if (json?.data?.currentTerm) {
+        setAcademicYear(json.data.currentTerm.academicYear ?? '');
+        setSemester(json.data.currentTerm.semesterCode ?? '');
+      }
+    } catch {
+      // ignore — print button will just be disabled
+    }
+  };
 
   const fetchFaculties = async () => {
     try {
@@ -73,7 +104,29 @@ export default function FacultySubjectManagementPage() {
             Manage subjects taught by faculty members
           </p>
         </div>
+        <button
+          onClick={handlePrintAll}
+          disabled={loading || filteredFaculties.length === 0}
+          className="flex items-center gap-2 px-5 py-2.5 rounded-lg text-sm font-semibold text-white transition-all hover:shadow-md disabled:opacity-50 disabled:cursor-not-allowed"
+          style={{ backgroundColor: colors.primary }}
+          onMouseEnter={(e) => { if (!e.currentTarget.disabled) e.currentTarget.style.backgroundColor = colors.secondary; }}
+          onMouseLeave={(e) => { if (!e.currentTarget.disabled) e.currentTarget.style.backgroundColor = colors.primary; }}
+        >
+          <Printer className="w-4 h-4" />
+          Print All Teaching Loads
+        </button>
       </div>
+
+      {/* Bulk PDF generator — mounts, opens popup, then unmounts */}
+      {showBulkPDF && printPopup && (
+        <AllFacultyTeachingLoadPDF
+          faculties={filteredFaculties}
+          academicYear={academicYear}
+          semester={semester}
+          popupWindow={printPopup}
+          onClose={() => { setShowBulkPDF(false); setPrintPopup(null); }}
+        />
+      )}
 
       {/* Search */}
       <div className="relative">
