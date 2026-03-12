@@ -262,10 +262,28 @@ export default function AllSectionSchedulesPDF({
 
     async function fetchAllAndRender() {
       try {
-        // Fetch schedules + curriculum for every section in parallel
+        const curriculumCache = new Map<string, Promise<any[]>>();
+
+        // Fetch schedules for the already-filtered sections, and reuse curriculum requests.
         const results = await Promise.all(
           sections.map(async (sec) => {
             const semNum = normSem(sec.semester);
+            const curriculumKey = `${sec.programId}-${sec.yearLevel}-${semNum}`;
+            let curriculumPromise = curriculumCache.get(curriculumKey);
+
+            if (!curriculumPromise) {
+              curriculumPromise = fetch(
+                '/api/section-curriculum?programId=' + sec.programId +
+                '&yearLevel=' + sec.yearLevel +
+                '&semester=' + semNum
+              )
+                .then((r) => r.ok ? r.json() : { data: [] })
+                .then((j) => Array.isArray(j.data) ? j.data : [])
+                .catch(() => [] as any[]);
+
+              curriculumCache.set(curriculumKey, curriculumPromise);
+            }
+
             const [schedules, curriculum] = await Promise.all([
               fetch(
                 '/api/class-schedule?sectionId=' + sec.id +
@@ -275,15 +293,7 @@ export default function AllSectionSchedulesPDF({
                 .then((r) => r.ok ? r.json() : { data: [] })
                 .then((j) => Array.isArray(j.data) ? j.data : [])
                 .catch(() => [] as any[]),
-
-              fetch(
-                '/api/section-curriculum?programId=' + sec.programId +
-                '&yearLevel=' + sec.yearLevel +
-                '&semester=' + semNum
-              )
-                .then((r) => r.ok ? r.json() : { data: [] })
-                .then((j) => Array.isArray(j.data) ? j.data : [])
-                .catch(() => [] as any[]),
+              curriculumPromise,
             ]);
             return { sec, schedules, curriculum };
           })

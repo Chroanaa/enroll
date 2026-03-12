@@ -11,6 +11,7 @@ import { colors } from '../../colors';
 import { Users, Search, X, UserPlus, CheckCircle2, AlertTriangle, Eye, ChevronDown, FileText } from 'lucide-react';
 import { formatProgramDisplay } from '../../utils/programUtils';
 import ConfirmationModal from '../common/ConfirmationModal';
+import SuccessModal from '../common/SuccessModal';
 import RegistrationPDFViewer from '../enrollment/RegistrationPDFViewer';
 import SectionStudentListPDFViewer from './SectionStudentListPDFViewer';
 
@@ -42,6 +43,11 @@ export function StudentAssignment({
     open: false,
     names: []
   });
+  const [assignConfirmOpen, setAssignConfirmOpen] = useState(false);
+  const [assignSuccess, setAssignSuccess] = useState<{ open: boolean; message: string }>({
+    open: false,
+    message: ''
+  });
 
   // Registration PDF viewer for assigned students
   const [pdfViewer, setPdfViewer] = useState<{ open: boolean; data: any | null; loading: boolean }>({
@@ -69,6 +75,8 @@ export function StudentAssignment({
       setOverrideCapacity(false);
       setShowAssigned(false);
       setStatusFilter('ready');
+      setAssignConfirmOpen(false);
+      setAssignSuccess({ open: false, message: '' });
     }
   }, [isOpen, section]);
 
@@ -155,7 +163,7 @@ export function StudentAssignment({
     }
   };
 
-  const handleAssignStudents = async () => {
+  const executeAssignStudents = async (skipPaymentWarning = false) => {
     if (selectedStudents.size === 0) {
       setError('Select at least one student');
       return;
@@ -165,7 +173,7 @@ export function StudentAssignment({
     const noPaymentStudents = students.filter(
       s => selectedStudents.has(s.studentNumber) && !s.hasAssessment
     );
-    if (noPaymentStudents.length > 0 && !noPaymentWarning.open) {
+    if (noPaymentStudents.length > 0 && !skipPaymentWarning) {
       setNoPaymentWarning({
         open: true,
         names: noPaymentStudents.map(s => `${s.firstName} ${s.lastName} (${s.studentNumber})`)
@@ -192,9 +200,16 @@ export function StudentAssignment({
         const failedReasons = Array.isArray(response.failed)
           ? response.failed.map((f: any) => `${f.studentNumber}: ${f.reason}`).join(', ')
           : '';
-        setError(`Assigned: ${assignedCount}, Failed: ${failedCount}${failedReasons ? ` — ${failedReasons}` : ''}`);
+        setError(`Assigned: ${assignedCount}, Failed: ${failedCount}${failedReasons ? ` - ${failedReasons}` : ''}`);
       } else {
         setError(null);
+      }
+
+      if (assignedCount > 0) {
+        setAssignSuccess({
+          open: true,
+          message: `${assignedCount} student${assignedCount !== 1 ? 's were' : ' was'} assigned to ${section!.sectionName}. Enrollment status was updated to Enrolled.`
+        });
       }
 
       setSelectedStudents(new Set());
@@ -208,6 +223,15 @@ export function StudentAssignment({
     } finally {
       setLoading(false);
     }
+  };
+
+  const handleAssignStudents = () => {
+    if (selectedStudents.size === 0) {
+      setError('Select at least one student');
+      return;
+    }
+
+    setAssignConfirmOpen(true);
   };
 
   const categoryCounts = {
@@ -226,7 +250,7 @@ export function StudentAssignment({
     } else if (statusFilter === 'no_payment') {
       matchesStatus = !student.isAssigned && !!student.hasAssessment && !student.hasPaid;
     } else if (statusFilter === 'current_section') {
-      matchesStatus = !!student.isAssigned && student.assignedSectionName === section.sectionName;
+      matchesStatus = !!student.isAssigned && student.assignedSectionName === section?.sectionName;
     } else if (statusFilter === 'assigned') {
       matchesStatus = !!student.isAssigned;
     } else if (statusFilter === 'no_subjects') {
@@ -259,6 +283,9 @@ export function StudentAssignment({
   const irregularCount = assignedStudents.filter(s => s.assignmentType === 'irregular').length;
   const isFull = section.maxCapacity > 0 && usedCapacity >= section.maxCapacity;
   const canAssignMore = !isFull || overrideCapacity;
+  const selectedStudentDetails = students
+    .filter((student) => selectedStudents.has(student.studentNumber))
+    .map((student) => `${student.firstName} ${student.lastName} (${student.studentNumber})`);
 
   return (
     <>
@@ -678,12 +705,36 @@ export function StudentAssignment({
         <ConfirmationModal
           isOpen={noPaymentWarning.open}
           onClose={() => setNoPaymentWarning({ open: false, names: [] })}
-          onConfirm={() => handleAssignStudents()}
+          onConfirm={() => executeAssignStudents(true)}
           variant="warning"
           title="Students Without Payment"
-          message={`The following student${noPaymentWarning.names.length > 1 ? 's have' : ' has'} no assessment/payment on record. You can still assign them, but please verify their payment status.\n\n${noPaymentWarning.names.map(n => `• ${n}`).join('\n')}`}
+          message={`The following student${noPaymentWarning.names.length > 1 ? 's have' : ' has'} no assessment/payment on record. You can still assign them, but please verify their payment status.\n\n${noPaymentWarning.names.map(n => `- ${n}`).join('\n')}`}
           confirmText="Assign Anyway"
           cancelText="Cancel"
+        />
+
+        <ConfirmationModal
+          isOpen={assignConfirmOpen}
+          onClose={() => setAssignConfirmOpen(false)}
+          onConfirm={() => {
+            setAssignConfirmOpen(false);
+            executeAssignStudents();
+          }}
+          variant="success"
+          title="Confirm Student Assignment"
+          message={`Assign ${selectedStudents.size} student${selectedStudents.size !== 1 ? 's' : ''} to ${section.sectionName}?\n\nSelected students:\n\n${selectedStudentDetails.map((student) => `- ${student}`).join('\n')}\n\nThis will assign them to this section and update their enrollment status to Enrolled.`}
+          confirmText={`Assign ${selectedStudents.size} Student${selectedStudents.size !== 1 ? 's' : ''}`}
+          cancelText="Cancel"
+          isLoading={loading}
+        />
+
+        <SuccessModal
+          isOpen={assignSuccess.open}
+          onClose={() => setAssignSuccess({ open: false, message: '' })}
+          title="Students Assigned"
+          message={assignSuccess.message}
+          autoClose={true}
+          autoCloseDelay={3000}
         />
 
         {/* Registration PDF viewer overlay */}
@@ -766,3 +817,4 @@ export function StudentAssignment({
     </>
   );
 }
+

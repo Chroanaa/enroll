@@ -9,6 +9,18 @@ function convertSemesterToInt(semester: string | number): number {
   return parseInt(semester) || 1;
 }
 
+function enrollmentTermValues(semesterInt: number): string[] {
+  if (semesterInt === 1) {
+    return ["First Semester", "1st Semester", "first", "1"];
+  }
+
+  if (semesterInt === 2) {
+    return ["Second Semester", "2nd Semester", "second", "2"];
+  }
+
+  return ["Summer", "summer", "3"];
+}
+
 export async function GET(request: NextRequest) {
   try {
     const searchParams = request.nextUrl.searchParams;
@@ -32,6 +44,9 @@ export async function GET(request: NextRequest) {
     const hasEnrollmentFilters = !!(programIdFilter || yearLevelFilter || search);
 
     const enrollmentWhere: any = {};
+    enrollmentWhere.academic_year = academicYear;
+    enrollmentWhere.term = { in: enrollmentTermValues(semesterInt) };
+
     if (programIdFilter) {
       const parts = programIdFilter.split("-");
       enrollmentWhere.course_program = parts[0];

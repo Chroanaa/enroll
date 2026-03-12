@@ -186,6 +186,22 @@ export function getAcademicTerm(date: Date): AcademicTerm {
 }
 
 /**
+ * Filter used by the bulk section schedule print flow.
+ * Keeps the active academic year, while always targeting second semester.
+ */
+export function getPrintAllSectionScheduleFilter(
+  term?: Pick<AcademicTerm, "academicYear"> | null,
+): {
+  academicYear: string;
+  semester: "second";
+} {
+  return {
+    academicYear: term?.academicYear ?? getAcademicTerm(new Date()).academicYear,
+    semester: "second",
+  };
+}
+
+/**
  * Format academic term for display
  */
 export function formatAcademicTerm(term: AcademicTerm): string {

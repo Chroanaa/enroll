@@ -174,12 +174,12 @@ export default function SectionStudentListPDFViewer({
 
   return (
     <div
-      className="fixed inset-0 flex items-center justify-center p-4 z-[200] overflow-y-auto"
+      className="fixed inset-0 flex items-start justify-center p-4 pt-8 md:pt-12 z-[200] overflow-y-auto"
       style={{ backgroundColor: 'rgba(0,0,0,0.75)' }}
       onClick={onClose}
     >
       <div
-        className="rounded-2xl shadow-2xl w-full max-w-3xl my-8"
+        className="rounded-2xl shadow-2xl w-full max-w-3xl my-4 max-h-[calc(100vh-2rem)] md:max-h-[calc(100vh-3rem)] overflow-hidden"
         onClick={e => e.stopPropagation()}
         style={{ backgroundColor: '#FFFFFF' }}
       >
@@ -265,7 +265,7 @@ export default function SectionStudentListPDFViewer({
         </div>
 
         {/* ── Student Table ── */}
-        <div className="px-6 py-4">
+        <div className="px-6 py-4 overflow-y-auto max-h-[calc(100vh-22rem)] md:max-h-[calc(100vh-20rem)]">
           <table className="w-full border-collapse text-xs">
             <thead>
               <tr style={{ backgroundColor: `${colors.primary}08`, borderBottom: `2px solid ${colors.primary}` }}>

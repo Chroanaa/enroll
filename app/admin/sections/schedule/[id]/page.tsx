@@ -10,6 +10,7 @@ import {
   getSectionById,
   updateClassSchedule
 } from '../../../../utils/sectionApi';
+import { getScheduleResources } from '../../../../utils/scheduleResourceCache';
 import { SectionResponse } from '../../../../types/sectionTypes';
 import ConfirmationModal from '../../../../components/common/ConfirmationModal';
 import SuccessModal from '../../../../components/common/SuccessModal';
@@ -351,6 +352,8 @@ export default function BuildSchedulePage() {
   const loadScheduleData = async () => {
     try {
       setError(null);
+      setLoadingResources(true);
+      const resourcesPromise = getScheduleResources();
 
       // Step 1: Load section details first (critical)
       setLoadingSection(true);
@@ -393,23 +396,11 @@ export default function BuildSchedulePage() {
       setLoadingCurriculum(false);
       setLoadingSchedules(false);
 
-      // Step 3: Load faculty and rooms in parallel (independent, can load in background)
-      setLoadingResources(true);
-      const [facultyResponse, roomsResponse] = await Promise.all([
-        fetch('/api/auth/faculty'),
-        fetch('/api/auth/room')
-      ]);
+      // Step 3: Resolve cached resources. This starts at the top of the load so it overlaps other requests.
+      const resources = await resourcesPromise;
+      setFaculty(resources.faculty);
+      setRooms(resources.rooms);
 
-      if (facultyResponse.ok) {
-        const facultyData = await facultyResponse.json();
-        setFaculty(Array.isArray(facultyData) ? facultyData.filter((f: any) => f.status === 'active' || f.status === 1) : []);
-      }
-
-      if (roomsResponse.ok) {
-        const roomsData = await roomsResponse.json();
-        setRooms(Array.isArray(roomsData) ? roomsData.filter((r: any) => r.status === 'available' || r.status === 'active') : []);
-      }
-      
       setLoadingResources(false);
     } catch (err) {
       console.error('Failed to load schedule data:', err);

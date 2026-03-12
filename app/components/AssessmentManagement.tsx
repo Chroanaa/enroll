@@ -1,7 +1,7 @@
 "use client";
 import React, { useState, useEffect, useMemo, useCallback, useRef } from "react";
 import { useSearchParams } from "next/navigation";
-import { Calculator, CheckCircle2, List, UserPlus } from "lucide-react";
+import { CheckCircle2, GraduationCap, List, UserPlus } from "lucide-react";
 import { colors } from "../colors";
 import { defaultFormStyles } from "../utils/formStyles";
 import { useAcademicTerm } from "../hooks/useAcademicTerm";
@@ -162,6 +162,25 @@ const AssessmentManagement: React.FC = () => {
     message: "",
     details: "",
   });
+  const feesAbortRef = useRef<AbortController | null>(null);
+  const paymentSettingsAbortRef = useRef<AbortController | null>(null);
+  const studentsAbortRef = useRef<AbortController | null>(null);
+  const studentLookupAbortRef = useRef<AbortController | null>(null);
+  const assessmentAbortRef = useRef<AbortController | null>(null);
+  const subjectsAbortRef = useRef<AbortController | null>(null);
+  const isUnmountedRef = useRef(false);
+
+  useEffect(() => {
+    return () => {
+      isUnmountedRef.current = true;
+      feesAbortRef.current?.abort();
+      paymentSettingsAbortRef.current?.abort();
+      studentsAbortRef.current?.abort();
+      studentLookupAbortRef.current?.abort();
+      assessmentAbortRef.current?.abort();
+      subjectsAbortRef.current?.abort();
+    };
+  }, []);
 
   useEffect(() => {
     fetchFees();
@@ -255,7 +274,13 @@ const AssessmentManagement: React.FC = () => {
     setStudentFetchError("");
 
     try {
-      const response = await fetch(`/api/students/${studentNum.trim()}`);
+      studentLookupAbortRef.current?.abort();
+      const abortController = new AbortController();
+      studentLookupAbortRef.current = abortController;
+
+      const response = await fetch(`/api/students/${studentNum.trim()}`, {
+        signal: abortController.signal,
+      });
       if (response.ok) {
         const data = await response.json();
         
@@ -316,7 +341,9 @@ const AssessmentManagement: React.FC = () => {
 
         // Check if student is resident/returnee using comprehensive check
         try {
-          const statusResponse = await fetch(`/api/auth/students/check-status?studentNumber=${studentNum.trim()}`);
+          const statusResponse = await fetch(`/api/auth/students/check-status?studentNumber=${studentNum.trim()}`, {
+            signal: abortController.signal,
+          });
           if (statusResponse.ok) {
             const statusData = await statusResponse.json();
             if (statusData.success && statusData.data) {
@@ -329,7 +356,8 @@ const AssessmentManagement: React.FC = () => {
               });
             }
           }
-        } catch (err) {
+        } catch (err: any) {
+          if (err?.name === "AbortError") return;
           console.error("Error checking student status:", err);
           // If check fails, assume new student
           setIsResidentReturnee(false);
@@ -350,7 +378,8 @@ const AssessmentManagement: React.FC = () => {
         setIsResidentReturnee(false);
         setShowSummary(false);
       }
-    } catch (error) {
+    } catch (error: any) {
+      if (error?.name === "AbortError") return;
       console.error("Error fetching student:", error);
       setStudentFetchError("Failed to fetch student information");
       setStudentName("");
@@ -365,7 +394,9 @@ const AssessmentManagement: React.FC = () => {
       setIsResidentReturnee(false);
       setShowSummary(false);
     } finally {
-      setIsFetchingStudent(false);
+      if (!isUnmountedRef.current) {
+        setIsFetchingStudent(false);
+      }
     }
   };
 
@@ -374,8 +405,13 @@ const AssessmentManagement: React.FC = () => {
     if (!studentNumber || !currentTerm) return;
 
     try {
+      assessmentAbortRef.current?.abort();
+      const abortController = new AbortController();
+      assessmentAbortRef.current = abortController;
+
       const response = await fetch(
-        `/api/auth/assessment?studentNumber=${encodeURIComponent(studentNumber)}&academicYear=${encodeURIComponent(currentTerm.academicYear)}&semester=${currentTerm.semester}`
+        `/api/auth/assessment?studentNumber=${encodeURIComponent(studentNumber)}&academicYear=${encodeURIComponent(currentTerm.academicYear)}&semester=${currentTerm.semester}`,
+        { signal: abortController.signal }
       );
 
       if (response.ok) {
@@ -413,7 +449,8 @@ const AssessmentManagement: React.FC = () => {
           setPaymentSchedules([]);
         }
       }
-    } catch (error) {
+    } catch (error: any) {
+      if (error?.name === "AbortError") return;
       console.error("Error loading existing assessment:", error);
     }
   };
@@ -428,8 +465,9 @@ const AssessmentManagement: React.FC = () => {
     setSubjectsError("");
 
     try {
-      // Use AbortController to cancel requests if component unmounts or new request starts
+      subjectsAbortRef.current?.abort();
       const abortController = new AbortController();
+      subjectsAbortRef.current = abortController;
       const signal = abortController.signal;
 
       // ALWAYS check enrolled_subjects first if studentNumber exists
@@ -556,7 +594,9 @@ const AssessmentManagement: React.FC = () => {
       setTotalUnits(0);
       setFixedAmountTotal(0);
     } finally {
-      setIsLoadingSubjects(false);
+      if (!subjectsAbortRef.current?.signal.aborted && !isUnmountedRef.current) {
+        setIsLoadingSubjects(false);
+      }
     }
   };
 
@@ -972,26 +1012,38 @@ const AssessmentManagement: React.FC = () => {
   // Optimized fee fetching with caching - using summarized fees endpoint
   const fetchFees = async () => {
     try {
+      feesAbortRef.current?.abort();
+      const abortController = new AbortController();
+      feesAbortRef.current = abortController;
+
       const response = await fetch("/api/auth/fees/summarized", {
         cache: 'no-store',
+        signal: abortController.signal,
       });
       if (response.ok) {
         const data = await response.json();
         setFees(data || []);
       }
-    } catch (error) {
+    } catch (error: any) {
+      if (error?.name === "AbortError") return;
       console.error("Error fetching fees:", error);
     } finally {
-      setLoading(false);
+      if (!isUnmountedRef.current) {
+        setLoading(false);
+      }
     }
   };
 
   // Fetch payment settings (min downpayment + installment charge %) from settings API
   const fetchPaymentSettings = async () => {
     try {
+      paymentSettingsAbortRef.current?.abort();
+      const abortController = new AbortController();
+      paymentSettingsAbortRef.current = abortController;
+
       const [dpRes, icRes] = await Promise.all([
-        fetch("/api/auth/settings?key=min_downpayment"),
-        fetch("/api/auth/settings?key=installment_charge_percentage"),
+        fetch("/api/auth/settings?key=min_downpayment", { signal: abortController.signal }),
+        fetch("/api/auth/settings?key=installment_charge_percentage", { signal: abortController.signal }),
       ]);
       if (dpRes.ok) {
         const dpData = await dpRes.json();
@@ -1001,7 +1053,8 @@ const AssessmentManagement: React.FC = () => {
         const icData = await icRes.json();
         if (icData.data?.value) setInstallmentChargePercentage(parseFloat(icData.data.value));
       }
-    } catch (error) {
+    } catch (error: any) {
+      if (error?.name === "AbortError") return;
       console.error("Error fetching payment settings:", error);
     }
   };
@@ -1019,6 +1072,10 @@ const AssessmentManagement: React.FC = () => {
     if (fetchKey === lastFetchParamsRef.current) return;
     lastFetchParamsRef.current = fetchKey;
     
+    studentsAbortRef.current?.abort();
+    const abortController = new AbortController();
+    studentsAbortRef.current = abortController;
+
     setLoadingStudents(true);
     try {
       const params = new URLSearchParams({
@@ -1034,7 +1091,7 @@ const AssessmentManagement: React.FC = () => {
       
       const url = `/api/auth/assessment/all-summaries?${params.toString()}`;
       
-      const response = await fetch(url);
+      const response = await fetch(url, { signal: abortController.signal });
       if (response.ok) {
         const result = await response.json();
         // Transform API response fields to match AssessmentStudentList interface
@@ -1059,10 +1116,13 @@ const AssessmentManagement: React.FC = () => {
         const error = await response.json();
         console.error("Error response:", error);
       }
-    } catch (error) {
+    } catch (error: any) {
+      if (error?.name === "AbortError") return;
       console.error("Error fetching students:", error);
     } finally {
-      setLoadingStudents(false);
+      if (!abortController.signal.aborted && !isUnmountedRef.current) {
+        setLoadingStudents(false);
+      }
     }
   };
 
@@ -1081,9 +1141,10 @@ const AssessmentManagement: React.FC = () => {
     const canFetch = currentTerm || (filterAcademicYear && filterSemester);
     if (!canFetch) return;
 
+    const debounceDelay = searchQuery.trim() ? 300 : 0;
     const debounceTimer = setTimeout(() => {
       fetchStudents();
-    }, 300);
+    }, debounceDelay);
 
     return () => clearTimeout(debounceTimer);
   }, [viewMode, currentTerm, searchQuery, filterProgram, filterYearLevel, filterAssessmentStatus, filterAcademicYear, filterSemester]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -1382,11 +1443,29 @@ const AssessmentManagement: React.FC = () => {
     setPaymentMode(newMode);
   };
 
-  if (loading) {
+  if (loading || termLoading) {
     return (
-      <div className="p-4 sm:p-6 min-h-screen" style={{ background: colors.paper }}>
-        <div className="max-w-7xl mx-auto">
-          <div className="text-center py-12">Loading...</div>
+      <div
+        className='flex items-center justify-center min-h-screen'
+        style={{ background: colors.paper }}
+      >
+        <div className='flex flex-col items-center gap-4'>
+          <div className='relative'>
+            <div
+              className='w-16 h-16 border-4 rounded-full animate-spin'
+              style={{
+                borderColor: colors.neutralBorder,
+                borderTopColor: colors.primary,
+              }}
+            ></div>
+            <GraduationCap
+              className='absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 w-6 h-6'
+              style={{ color: colors.primary }}
+            />
+          </div>
+          <p className='font-medium' style={{ color: colors.neutral }}>
+            Loading Assessment...
+          </p>
         </div>
       </div>
     );
@@ -1399,19 +1478,7 @@ const AssessmentManagement: React.FC = () => {
       <style>{defaultFormStyles}</style>
       <div className="max-w-7xl mx-auto w-full">
         <div className="mb-10 animate-in fade-in slide-in-from-top-8 duration-700">
-          <div className="flex items-center gap-4 mb-4">
-            <div
-              className="p-3 rounded-2xl shadow-sm transform transition-transform hover:scale-105 duration-300"
-              style={{
-                backgroundColor: "white",
-                border: `1px solid ${colors.accent}20`
-              }}
-            >
-              <Calculator
-                className="w-6 h-6"
-                style={{ color: colors.secondary }}
-              />
-            </div>
+          <div className="flex flex-col gap-4 mb-4 lg:flex-row lg:items-start lg:justify-between">
             <div>
               <h1 className="text-3xl font-bold mb-2 tracking-tight" style={{ color: colors.primary }}>
                 Assessment Management
@@ -1420,6 +1487,26 @@ const AssessmentManagement: React.FC = () => {
                 Record and handle student tuition details based on enrolled courses, unit costs, and applicable miscellaneous fees
               </p>
             </div>
+
+            {currentTerm && (
+              <div
+                className="w-full lg:w-auto rounded-2xl border shadow-sm px-4 py-3 min-w-[240px]"
+                style={{
+                  backgroundColor: "white",
+                  borderColor: `${colors.primary}15`,
+                }}
+              >
+                <div className="text-[11px] font-semibold uppercase tracking-[0.18em]" style={{ color: colors.tertiary }}>
+                  Current Academic Period
+                </div>
+                <div className="mt-1 text-lg font-bold leading-tight" style={{ color: colors.primary }}>
+                  {currentTerm.semester === "First" ? "1st Semester" : "2nd Semester"}
+                </div>
+                <div className="text-sm font-semibold" style={{ color: colors.secondary }}>
+                  A.Y. {currentTerm.academicYear}
+                </div>
+              </div>
+            )}
           </div>
 
           {/* View Mode Toggle */}

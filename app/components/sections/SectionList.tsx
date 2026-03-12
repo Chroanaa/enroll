@@ -10,6 +10,10 @@ import Pagination from '../common/Pagination';
 interface SectionListProps {
   searchTerm?: string;
   statusFilter?: string;
+  academicYearFilter?: string;
+  semesterFilter?: string;
+  onFilteredSectionsChange?: (sections: SectionResponse[]) => void;
+  onPrefetchSchedule?: (section: SectionResponse) => void;
   onCreateSchedule?: (section: SectionResponse) => void;
   onViewSchedule?: (section: SectionResponse) => void;
   onAssignStudents?: (section: SectionResponse) => void;
@@ -21,6 +25,10 @@ interface SectionListProps {
 export function SectionList({
   searchTerm = '',
   statusFilter = 'all',
+  academicYearFilter = '',
+  semesterFilter = '',
+  onFilteredSectionsChange,
+  onPrefetchSchedule,
   onCreateSchedule,
   onViewSchedule,
   onAssignStudents,
@@ -44,23 +52,30 @@ export function SectionList({
 
   useEffect(() => {
     loadSections();
-  }, []);
+  }, [academicYearFilter, semesterFilter]);
 
   // Filter sections when search term or status filter changes
   useEffect(() => {
     filterSections();
   }, [sections, searchTerm, statusFilter]);
 
+  useEffect(() => {
+    onFilteredSectionsChange?.(filteredSections);
+  }, [filteredSections, onFilteredSectionsChange]);
+
   // Reset to page 1 when filters change
   useEffect(() => {
     setCurrentPage(1);
-  }, [searchTerm, statusFilter]);
+  }, [searchTerm, statusFilter, academicYearFilter, semesterFilter]);
 
   const loadSections = async () => {
     try {
       setLoading(true);
       setError(null);
-      const data = await getSections();
+      const data = await getSections({
+        academicYear: academicYearFilter || undefined,
+        semester: semesterFilter || undefined,
+      });
       setSections(data);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to load sections');
@@ -372,6 +387,8 @@ export function SectionList({
                               <>
                                 <button
                                   onClick={() => onCreateSchedule?.(section)}
+                                  onMouseEnter={() => onPrefetchSchedule?.(section)}
+                                  onFocus={() => onPrefetchSchedule?.(section)}
                                   className="group relative inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg font-medium text-xs transition-all duration-200 hover:shadow-md"
                                   style={{
                                     backgroundColor: '#F3E8FF',
@@ -400,6 +417,8 @@ export function SectionList({
                               <>
                                 <button
                                   onClick={() => onViewSchedule?.(section)}
+                                  onMouseEnter={() => onPrefetchSchedule?.(section)}
+                                  onFocus={() => onPrefetchSchedule?.(section)}
                                   className="group relative inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg font-medium text-xs transition-all duration-200 hover:shadow-md"
                                   style={{
                                     backgroundColor: '#F3E8FF',

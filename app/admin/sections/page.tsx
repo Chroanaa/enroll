@@ -1,33 +1,42 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { startTransition, useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { SectionResponse } from '../../types/sectionTypes';
 import { SectionList } from '../../components/sections/SectionList';
 import { StudentAssignment } from '../../components/sections/StudentAssignment';
 import { activateSection, lockSection, unlockSection } from '../../utils/sectionApi';
 import { colors } from '../../colors';
-import { Lock, Unlock, CheckCircle, BookOpen, Printer } from 'lucide-react';
+import { Lock, Unlock, CheckCircle, BookOpen, Printer, Loader2 } from 'lucide-react';
 import SearchFilters from '../../components/common/SearchFilters';
 import ConfirmationModal from '../../components/common/ConfirmationModal';
 import SuccessModal from '../../components/common/SuccessModal';
 import ErrorModal from '../../components/common/ErrorModal';
 import AllSectionSchedulesPDF, { SectionForPDF } from './components/AllSectionSchedulesPDF';
+import { useAcademicTermContext } from '../../contexts/AcademicTermContext';
+import { getPrintAllSectionScheduleFilter } from '../../utils/academicTermUtils';
+import { primeScheduleResources } from '../../utils/scheduleResourceCache';
 
 export default function SectionsPage() {
   const router = useRouter();
+  const { currentTerm } = useAcademicTermContext();
+  const printAllFilter = getPrintAllSectionScheduleFilter(currentTerm);
   const [selectedSection, setSelectedSection] = useState<SectionResponse | null>(
     null
   );
   const [refreshKey, setRefreshKey] = useState(0);
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState<'all' | 'draft' | 'active' | 'locked' | 'closed'>('all');
+  const [academicYearFilter, setAcademicYearFilter] = useState(printAllFilter.academicYear);
+  const [semesterFilter, setSemesterFilter] = useState<'first' | 'second' | 'summer'>(printAllFilter.semester);
   const [isLoading, setIsLoading] = useState(false);
+  const [loadingManualEnrollment, setLoadingManualEnrollment] = useState(false);
 
   // Bulk schedule PDF state
   const [showBulkPDF, setShowBulkPDF] = useState(false);
   const [printPopup, setPrintPopup] = useState<Window | null>(null);
   const [pdfSections, setPdfSections] = useState<SectionForPDF[]>([]);
+  const [filteredSectionsForPrint, setFilteredSectionsForPrint] = useState<SectionResponse[]>([]);
   const [loadingPdf, setLoadingPdf] = useState(false);
 
   // Modal states
@@ -65,6 +74,15 @@ export default function SectionsPage() {
     message: '',
   });
 
+  useEffect(() => {
+    setAcademicYearFilter(printAllFilter.academicYear);
+    setSemesterFilter(printAllFilter.semester);
+  }, [printAllFilter.academicYear, printAllFilter.semester]);
+
+  useEffect(() => {
+    router.prefetch('/admin/irregular-enrollment');
+  }, [router]);
+
 
 
 
@@ -80,10 +98,7 @@ export default function SectionsPage() {
     setLoadingPdf(true);
 
     try {
-      // Fetch all active sections
-      const res = await fetch('/api/sections');
-      const json = await res.json();
-      const sections: SectionForPDF[] = (json.data ?? []).map((s: any) => ({
+      const sections: SectionForPDF[] = filteredSectionsForPrint.map((s) => ({
         id: s.id,
         programId: s.programId,
         sectionName: s.sectionName,
@@ -93,6 +108,13 @@ export default function SectionsPage() {
         academicYear: s.academicYear,
         semester: s.semester,
       }));
+
+      if (sections.length === 0) {
+        popup.close();
+        setPrintPopup(null);
+        return;
+      }
+
       setPdfSections(sections);
       setShowBulkPDF(true);
     } catch (err) {
@@ -112,6 +134,24 @@ export default function SectionsPage() {
   const handleViewSchedule = (section: SectionResponse) => {
     // Navigate to schedule page for viewing/editing faculty
     router.push(`/admin/sections/schedule/${section.id}`);
+  };
+
+  const handlePrefetchSchedule = (section: SectionResponse) => {
+    const href = `/admin/sections/schedule/${section.id}`;
+    router.prefetch(href);
+    primeScheduleResources();
+  };
+
+  const handleManualEnrollment = () => {
+    setLoadingManualEnrollment(true);
+    router.prefetch('/admin/irregular-enrollment');
+    startTransition(() => {
+      router.push('/admin/irregular-enrollment');
+    });
+  };
+
+  const handlePrefetchManualEnrollment = () => {
+    router.prefetch('/admin/irregular-enrollment');
   };
 
   const handleAssignStudents = (section: SectionResponse) => {
@@ -249,7 +289,7 @@ export default function SectionsPage() {
           <div className="flex items-center gap-3">
             <button
               onClick={handlePrintAll}
-              disabled={loadingPdf}
+              disabled={loadingPdf || filteredSectionsForPrint.length === 0}
               className="flex items-center gap-2 px-5 py-3 rounded-lg font-medium text-sm transition-colors hover:shadow-md disabled:opacity-50 disabled:cursor-not-allowed"
               style={{ backgroundColor: colors.primary, color: 'white' }}
               onMouseEnter={(e) => { if (!loadingPdf) e.currentTarget.style.backgroundColor = colors.secondary; }}
@@ -259,14 +299,25 @@ export default function SectionsPage() {
               {loadingPdf ? 'Loading…' : 'Print All Schedules'}
             </button>
             <button
-              onClick={() => router.push('/admin/irregular-enrollment')}
-              className="flex items-center gap-2 px-6 py-3 text-white rounded-lg font-medium text-sm transition-colors hover:shadow-md"
+              onClick={handleManualEnrollment}
+              onFocus={handlePrefetchManualEnrollment}
+              disabled={loadingManualEnrollment}
+              className="flex items-center gap-2 px-6 py-3 text-white rounded-lg font-medium text-sm transition-colors hover:shadow-md disabled:opacity-70 disabled:cursor-wait"
               style={{ backgroundColor: colors.secondary }}
-              onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = colors.primary)}
-              onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = colors.secondary)}
+              onMouseEnter={(e) => {
+                handlePrefetchManualEnrollment();
+                if (!loadingManualEnrollment) e.currentTarget.style.backgroundColor = colors.primary;
+              }}
+              onMouseLeave={(e) => {
+                if (!loadingManualEnrollment) e.currentTarget.style.backgroundColor = colors.secondary;
+              }}
             >
-              <BookOpen className="w-4 h-4" />
-              Manual Enrollment
+              {loadingManualEnrollment ? (
+                <Loader2 className="w-4 h-4 animate-spin" />
+              ) : (
+                <BookOpen className="w-4 h-4" />
+              )}
+              {loadingManualEnrollment ? 'Opening...' : 'Manual Enrollment'}
             </button>
           </div>
         </div>
@@ -277,6 +328,24 @@ export default function SectionsPage() {
           onSearchChange={setSearchTerm}
           searchPlaceholder="Search sections..."
           filters={[
+            {
+              value: academicYearFilter,
+              onChange: (value) => setAcademicYearFilter(String(value)),
+              options: [
+                { value: printAllFilter.academicYear, label: printAllFilter.academicYear },
+              ],
+              placeholder: 'Academic Year',
+            },
+            {
+              value: semesterFilter,
+              onChange: (value) => setSemesterFilter(value as 'first' | 'second' | 'summer'),
+              options: [
+                { value: 'second', label: 'Second Semester' },
+                { value: 'first', label: 'First Semester' },
+                { value: 'summer', label: 'Summer' },
+              ],
+              placeholder: 'Semester',
+            },
             {
               value: statusFilter,
               onChange: (value) =>
@@ -298,6 +367,10 @@ export default function SectionsPage() {
           <SectionList
             searchTerm={searchTerm}
             statusFilter={statusFilter}
+            academicYearFilter={academicYearFilter}
+            semesterFilter={semesterFilter}
+            onFilteredSectionsChange={setFilteredSectionsForPrint}
+            onPrefetchSchedule={handlePrefetchSchedule}
             onCreateSchedule={handleCreateSchedule}
             onViewSchedule={handleViewSchedule}
             onAssignStudents={handleAssignStudents}
