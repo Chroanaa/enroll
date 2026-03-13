@@ -331,7 +331,7 @@ function inferBackupSource(fileName: string): BackupSource {
 function createBackupFileName(source: BackupSource) {
   const now = new Date();
   const timestamp = `${now.getFullYear()}${String(now.getMonth() + 1).padStart(2, "0")}${String(now.getDate()).padStart(2, "0")}-${String(now.getHours()).padStart(2, "0")}${String(now.getMinutes()).padStart(2, "0")}${String(now.getSeconds()).padStart(2, "0")}`;
-  return `backup-${source}-${timestamp}.dump`;
+  return `backup-${source}-${timestamp}.sql`;
 }
 
 async function runCommand(
@@ -481,7 +481,7 @@ export async function createDatabaseBackup(source: BackupSource = "manual") {
   );
 
   await runCommand(pgDumpExecutable, [
-    "--format=custom",
+    "--format=plain",
     "--no-owner",
     "--no-privileges",
     `--file=${filePath}`,
