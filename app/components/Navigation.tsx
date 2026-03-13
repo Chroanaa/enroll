@@ -12,6 +12,7 @@ import {
   FileBarChart,
   CalendarClock,
   CreditCard,
+  Database,
   GraduationCap,
   Settings,
   ChevronDown,
@@ -253,6 +254,12 @@ const Navigation: React.FC<NavigationProps> = ({
             id: "account-management",
             label: "Account Management",
             icon: UserCog,
+            allowedRoles: [ROLES.ADMIN],
+          },
+          {
+            id: "backups",
+            label: "Backups",
+            icon: Database,
             allowedRoles: [ROLES.ADMIN],
           },
           {
