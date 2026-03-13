@@ -12,8 +12,16 @@ model users {
   id       Int    @id @default(autoincrement())
   username String @db.VarChar(255)
   password String @db.VarChar(255)
+  firstname String @db.VarChar(255)
+  lastname String @db.VarChar(255)
+  middlename String? @db.VarChar(255)
   role     Int
   roles    roles  @relation(fields: [role], references: [id], onDelete: SetNull, onUpdate: SetNull, map: "role_fk")
+}
+
+model position {
+  id       Int    @id @default(autoincrement())
+  name String @db.VarChar(255) 
 }
 
 model payment {
