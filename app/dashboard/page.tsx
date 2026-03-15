@@ -2,6 +2,7 @@
 import React, { useState, useEffect, Suspense } from "react";
 import { useSearchParams } from "next/navigation";
 import Navigation from "../components/Navigation";
+import HomePage from "../components/HomePage";
 import Dashboard from "../components/Dashboard";
 import StudentManagement from "../components/StudentManagement";
 import CourseManagement from "../components/CourseManagement";
@@ -14,6 +15,8 @@ import AssessmentManagement from "../components/AssessmentManagement";
 import ReportManagement from "../components/ReportManagement";
 import SchedulingManagement from "../components/SchedulingManagement";
 import PaymentBillingManagement from "../components/PaymentBillingManagement";
+import StudentPaymentCheckoutPage from "../components/paymentBilling/StudentPaymentCheckoutPage";
+import StudentFinancialDetailPage from "../components/paymentBilling/StudentFinancialDetailPage";
 import CurriculumManagement from "../components/curriculum";
 import FileMaintenanceManagement from "../components/FileMaintenanceManagement";
 import Settings from "../components/Settings";
@@ -39,7 +42,7 @@ import FacultySubjectManagement from "../admin/faculty-subject-management/page";
 
 function DashboardContent() {
   const searchParams = useSearchParams();
-  const [currentView, setCurrentView] = useState("dashboard");
+  const [currentView, setCurrentView] = useState("home");
 
   console.log("DashboardContent render - currentView:", currentView);
 
@@ -59,6 +62,8 @@ function DashboardContent() {
   const renderCurrentView = () => {
     console.log("renderCurrentView - currentView:", currentView);
     switch (currentView) {
+      case "home":
+        return <HomePage />;
       case "dashboard":
         return <Dashboard />;
       case "students":
@@ -81,6 +86,10 @@ function DashboardContent() {
         return <SchedulingManagement />;
       case "payment-billing":
         return <PaymentBillingManagement />;
+      case "student-payment-checkout":
+        return <StudentPaymentCheckoutPage />;
+      case "student-financial-detail":
+        return <StudentFinancialDetailPage />;
       case "section-management":
         return <SectionManagement />;
       case "faculty-subject-management":
@@ -120,7 +129,7 @@ function DashboardContent() {
       case "settings":
         return <Settings />;
       default:
-        return <Dashboard />;
+        return <HomePage />;
     }
   };
 

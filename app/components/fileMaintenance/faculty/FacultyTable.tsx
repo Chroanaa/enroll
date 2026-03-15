@@ -46,6 +46,12 @@ const FacultyTable: React.FC<FacultyTableProps> = ({
                 Position
               </th>
               <th className='px-6 py-4 text-left text-xs font-bold uppercase tracking-wider text-gray-600'>
+                Employment
+              </th>
+              <th className='px-6 py-4 text-left text-xs font-bold uppercase tracking-wider text-gray-600'>
+                Mother Unit / Degree
+              </th>
+              <th className='px-6 py-4 text-left text-xs font-bold uppercase tracking-wider text-gray-600'>
                 Status
               </th>
               <th className='px-6 py-4 text-right text-xs font-bold uppercase tracking-wider text-gray-600'>
@@ -57,20 +63,22 @@ const FacultyTable: React.FC<FacultyTableProps> = ({
             {isLoading ? (
               <TableSkeleton
                 rows={5}
-                columns={7}
+                columns={9}
                 columnConfigs={[
                   { type: "text", width: "w-24" }, // Employee ID
                   { type: "avatar-text" }, // Faculty
                   { type: "text", width: "w-32" }, // Contact
                   { type: "icon-text" }, // Department
                   { type: "badge" }, // Position
+                  { type: "badge" }, // Employment
+                  { type: "text", width: "w-40" }, // Mother Unit / Degree
                   { type: "badge" }, // Status
                   { type: "actions" }, // Actions
                 ]}
               />
             ) : faculty.length === 0 ? (
               <tr>
-                <td colSpan={7} className='px-6 py-12 text-center text-gray-500'>
+                <td colSpan={9} className='px-6 py-12 text-center text-gray-500'>
                   <div className='flex flex-col items-center justify-center gap-3'>
                     <div
                       className='p-3 rounded-full'
@@ -166,6 +174,19 @@ const FacultyTable: React.FC<FacultyTableProps> = ({
                         {fac.position.charAt(0).toUpperCase() +
                           fac.position.slice(1)}
                       </span>
+                    </td>
+                    <td className='px-6 py-4 whitespace-nowrap'>
+                      <span className='inline-flex px-2.5 py-0.5 rounded-full text-xs font-medium border bg-slate-100 text-slate-700 border-slate-200'>
+                        {fac.employment_status || "N/A"}
+                      </span>
+                    </td>
+                    <td className='px-6 py-4'>
+                      <div className='text-sm text-gray-600 space-y-1'>
+                        <div>{fac.mother_unit || "N/A"}</div>
+                        <div className='text-xs text-gray-500'>
+                          {fac.degree || "No degree"}
+                        </div>
+                      </div>
                     </td>
                     <td className='px-6 py-4 whitespace-nowrap'>
                       <span

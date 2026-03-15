@@ -1,6 +1,7 @@
 "use client";
 import React, { useState } from "react";
 import Navigation from "./components/Navigation";
+import HomePage from "./components/HomePage";
 import Dashboard from "./components/Dashboard";
 import StudentManagement from "./components/StudentManagement";
 import CourseManagement from "./components/CourseManagement";
@@ -13,6 +14,7 @@ import ReportManagement from "./components/ReportManagement";
 import SchedulingManagement from "./components/SchedulingManagement";
 import PaymentBillingManagement from "./components/PaymentBillingManagement";
 import CurriculumManagement from "./components/curriculum";
+import ResidentPortalContent from "./resident/ResidentPortalContent";
 import SectionManagementPage from "./admin/sections/page";
 import FacultySubjectManagementPage from "./admin/faculty-subject-management/page";
 import {
@@ -47,6 +49,7 @@ const ROLES = {
 };
 
 const VIEW_ROLES: Record<string, number[]> = {
+  home: [ROLES.ADMIN, ROLES.CASHIER, ROLES.FACULTY, ROLES.REGISTRAR],
   dashboard: [ROLES.ADMIN, ROLES.CASHIER, ROLES.FACULTY, ROLES.REGISTRAR],
   students: [ROLES.ADMIN, ROLES.REGISTRAR, ROLES.FACULTY],
   courses: [ROLES.ADMIN, ROLES.REGISTRAR, ROLES.FACULTY],
@@ -81,7 +84,7 @@ const VIEW_ROLES: Record<string, number[]> = {
 };
 
 function App() {
-  const [currentView, setCurrentView] = useState("dashboard");
+  const [currentView, setCurrentView] = useState("home");
   const { data: session, status } = useSession();
   const router = useRouter();
 
@@ -107,6 +110,8 @@ function App() {
     }
 
     switch (currentView) {
+      case "home":
+        return <HomePage />;
       case "dashboard":
         return <Dashboard />;
       case "students":
@@ -117,6 +122,8 @@ function App() {
         return <EnrollmentManagement />;
       case "enrollment-form":
         return <EnrollmentForm />;
+      case "resident-enrollment":
+        return <ResidentPortalContent />;
       case "forecast":
         return <ForecastingAnalytics />;
       case "forecast-billing":
@@ -168,7 +175,7 @@ function App() {
       case "settings":
         return <Settings />;
       default:
-        return <Dashboard />;
+        return <HomePage />;
     }
   };
   if (status === "loading") {

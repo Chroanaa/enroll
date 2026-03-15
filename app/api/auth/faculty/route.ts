@@ -8,7 +8,7 @@ export async function POST(request: NextRequest) {
     const { id, ...facultyData } = data;
     
     const newFaculty = await prisma.faculty.create({
-      data: facultyData,
+      data: facultyData as any,
     });
     return NextResponse.json(newFaculty);
   } catch (error) {
@@ -101,7 +101,10 @@ export async function PATCH(nextRequest: NextRequest) {
       "email",
       "phone",
       "department_id",
+      "employment_status",
+      "mother_unit",
       "position",
+      "degree",
       "specialization",
       "status"
     ];
@@ -115,7 +118,7 @@ export async function PATCH(nextRequest: NextRequest) {
     
     const updatedFaculty = await prisma.faculty.update({
       where: { id: Number(id) },
-      data: cleanData,
+      data: cleanData as any,
     });
     
     return NextResponse.json(updatedFaculty);
