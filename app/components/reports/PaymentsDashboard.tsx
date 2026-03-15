@@ -8,6 +8,8 @@ import {
   CircleDollarSign,
   RefreshCw,
   Download,
+  Package,
+  Boxes,
 } from "lucide-react";
 import { colors } from "../../colors";
 import Pagination from "../common/Pagination";
@@ -48,6 +50,9 @@ type DashboardResponse = {
     total_assessments: number;
     total_payments: number;
     total_collected: number;
+    daily_income: number;
+    daily_income_assessment: number;
+    daily_income_pos: number;
     total_due: number;
     total_outstanding: number;
     fully_paid_students: number;
@@ -64,6 +69,36 @@ type DashboardResponse = {
     unpaid: StudentPaymentRow[];
     fully_paid: StudentPaymentRow[];
   };
+  product_analytics: {
+    most_bought: {
+      daily: MostBoughtProduct | null;
+      monthly: MostBoughtProduct | null;
+      yearly: MostBoughtProduct | null;
+    };
+    stocks: {
+      total_products: number;
+      out_of_stock: number;
+      low_stock: number;
+      in_stock: number;
+      items: ProductStockRow[];
+    };
+  };
+};
+
+type MostBoughtProduct = {
+  product_id: number;
+  product_name: string;
+  total_quantity: number;
+  total_sales: number;
+  current_stock: number;
+};
+
+type ProductStockRow = {
+  product_id: number;
+  product_name: string;
+  stock: number;
+  price: number;
+  stock_status: "out_of_stock" | "low_stock" | "in_stock";
 };
 
 const MONTH_NAMES = [
@@ -381,6 +416,7 @@ const PaymentsDashboard: React.FC = () => {
         </div>
 
         <div class="grid">
+          <div class="card"><div class="label">Daily Income</div><div class="value">${formatAmount(dashboardData.summaries.daily_income)}</div></div>
           <div class="card"><div class="label">Total Collected</div><div class="value">${formatAmount(dashboardData.summaries.total_collected)}</div></div>
           <div class="card"><div class="label">Unpaid Balance</div><div class="value">${formatAmount(dashboardData.summaries.total_outstanding)}</div></div>
           <div class="card"><div class="label">Unpaid Students</div><div class="value">${dashboardData.summaries.unpaid_students} (Installment: ${dashboardData.summaries.unpaid_installment_students} | Full Pay: ${dashboardData.summaries.unpaid_fullpay_students})</div></div>
@@ -561,6 +597,24 @@ const PaymentsDashboard: React.FC = () => {
       <div className='grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4'>
         <div className='bg-white rounded-2xl border border-gray-100 p-4'>
           <div className='flex items-center gap-3'>
+            <div className='p-2 rounded-lg bg-indigo-100 text-indigo-700'>
+              <Wallet className='w-5 h-5' />
+            </div>
+            <div>
+              <p className='text-xs text-gray-500 uppercase'>Daily Income</p>
+              <p className='text-lg font-bold text-gray-900'>
+                {formatAmount(dashboardData.summaries.daily_income)}
+              </p>
+              <p className='text-xs text-gray-500'>
+                Assessments:{" "}
+                {formatAmount(dashboardData.summaries.daily_income_assessment)}{" "}
+                | POS: {formatAmount(dashboardData.summaries.daily_income_pos)}
+              </p>
+            </div>
+          </div>
+        </div>
+        <div className='bg-white rounded-2xl border border-gray-100 p-4'>
+          <div className='flex items-center gap-3'>
             <div className='p-2 rounded-lg bg-green-100 text-green-700'>
               <Wallet className='w-5 h-5' />
             </div>
@@ -620,6 +674,206 @@ const PaymentsDashboard: React.FC = () => {
               </p>
             </div>
           </div>
+        </div>
+      </div>
+
+      <div className='grid grid-cols-1 lg:grid-cols-3 gap-6'>
+        <div className='bg-white rounded-2xl border border-gray-100 p-4'>
+          <h3 className='text-sm font-semibold text-gray-700 mb-3 flex items-center gap-2'>
+            <Package className='w-4 h-4' />
+            Most Bought Product (Daily)
+          </h3>
+          {dashboardData.product_analytics.most_bought.daily ? (
+            <div className='space-y-1'>
+              <p className='text-sm font-semibold text-gray-900'>
+                {dashboardData.product_analytics.most_bought.daily.product_name}
+              </p>
+              <p className='text-xs text-gray-500'>
+                Qty Sold:{" "}
+                {
+                  dashboardData.product_analytics.most_bought.daily
+                    .total_quantity
+                }
+              </p>
+              <p className='text-xs text-gray-500'>
+                Sales:{" "}
+                {formatAmount(
+                  dashboardData.product_analytics.most_bought.daily.total_sales,
+                )}
+              </p>
+              <p className='text-xs text-gray-500'>
+                Current Stock:{" "}
+                {
+                  dashboardData.product_analytics.most_bought.daily
+                    .current_stock
+                }
+              </p>
+            </div>
+          ) : (
+            <p className='text-sm text-gray-500'>No daily product sales yet.</p>
+          )}
+        </div>
+
+        <div className='bg-white rounded-2xl border border-gray-100 p-4'>
+          <h3 className='text-sm font-semibold text-gray-700 mb-3 flex items-center gap-2'>
+            <Package className='w-4 h-4' />
+            Most Bought Product (Monthly)
+          </h3>
+          {dashboardData.product_analytics.most_bought.monthly ? (
+            <div className='space-y-1'>
+              <p className='text-sm font-semibold text-gray-900'>
+                {
+                  dashboardData.product_analytics.most_bought.monthly
+                    .product_name
+                }
+              </p>
+              <p className='text-xs text-gray-500'>
+                Qty Sold:{" "}
+                {
+                  dashboardData.product_analytics.most_bought.monthly
+                    .total_quantity
+                }
+              </p>
+              <p className='text-xs text-gray-500'>
+                Sales:{" "}
+                {formatAmount(
+                  dashboardData.product_analytics.most_bought.monthly
+                    .total_sales,
+                )}
+              </p>
+              <p className='text-xs text-gray-500'>
+                Current Stock:{" "}
+                {
+                  dashboardData.product_analytics.most_bought.monthly
+                    .current_stock
+                }
+              </p>
+            </div>
+          ) : (
+            <p className='text-sm text-gray-500'>
+              No monthly product sales yet.
+            </p>
+          )}
+        </div>
+
+        <div className='bg-white rounded-2xl border border-gray-100 p-4'>
+          <h3 className='text-sm font-semibold text-gray-700 mb-3 flex items-center gap-2'>
+            <Package className='w-4 h-4' />
+            Most Bought Product (Yearly)
+          </h3>
+          {dashboardData.product_analytics.most_bought.yearly ? (
+            <div className='space-y-1'>
+              <p className='text-sm font-semibold text-gray-900'>
+                {
+                  dashboardData.product_analytics.most_bought.yearly
+                    .product_name
+                }
+              </p>
+              <p className='text-xs text-gray-500'>
+                Qty Sold:{" "}
+                {
+                  dashboardData.product_analytics.most_bought.yearly
+                    .total_quantity
+                }
+              </p>
+              <p className='text-xs text-gray-500'>
+                Sales:{" "}
+                {formatAmount(
+                  dashboardData.product_analytics.most_bought.yearly
+                    .total_sales,
+                )}
+              </p>
+              <p className='text-xs text-gray-500'>
+                Current Stock:{" "}
+                {
+                  dashboardData.product_analytics.most_bought.yearly
+                    .current_stock
+                }
+              </p>
+            </div>
+          ) : (
+            <p className='text-sm text-gray-500'>
+              No yearly product sales yet.
+            </p>
+          )}
+        </div>
+      </div>
+
+      <div className='bg-white rounded-2xl border border-gray-100 overflow-hidden'>
+        <div className='px-4 py-3 border-b border-gray-100 flex items-center justify-between gap-3'>
+          <h3 className='text-sm font-semibold text-gray-700 flex items-center gap-2'>
+            <Boxes className='w-4 h-4' />
+            Product Stocks
+          </h3>
+          <p className='text-xs text-gray-500'>
+            Total: {dashboardData.product_analytics.stocks.total_products} |
+            Out: {dashboardData.product_analytics.stocks.out_of_stock} | Low:{" "}
+            {dashboardData.product_analytics.stocks.low_stock} | In stock:{" "}
+            {dashboardData.product_analytics.stocks.in_stock}
+          </p>
+        </div>
+        <div className='overflow-auto max-h-[360px]'>
+          <table className='w-full'>
+            <thead className='bg-gray-50'>
+              <tr>
+                <th className='px-3 py-2 text-left text-xs text-gray-500 uppercase'>
+                  Product
+                </th>
+                <th className='px-3 py-2 text-right text-xs text-gray-500 uppercase'>
+                  Price
+                </th>
+                <th className='px-3 py-2 text-right text-xs text-gray-500 uppercase'>
+                  Stock
+                </th>
+                <th className='px-3 py-2 text-center text-xs text-gray-500 uppercase'>
+                  Status
+                </th>
+              </tr>
+            </thead>
+            <tbody className='divide-y divide-gray-100'>
+              {dashboardData.product_analytics.stocks.items.length === 0 ? (
+                <tr>
+                  <td
+                    colSpan={4}
+                    className='px-3 py-6 text-center text-sm text-gray-500'
+                  >
+                    No products found.
+                  </td>
+                </tr>
+              ) : (
+                dashboardData.product_analytics.stocks.items.map((item) => (
+                  <tr key={item.product_id}>
+                    <td className='px-3 py-2 text-sm font-medium text-gray-800'>
+                      {item.product_name}
+                    </td>
+                    <td className='px-3 py-2 text-sm text-right text-gray-700'>
+                      {formatAmount(item.price)}
+                    </td>
+                    <td className='px-3 py-2 text-sm text-right font-semibold text-gray-800'>
+                      {item.stock}
+                    </td>
+                    <td className='px-3 py-2 text-center'>
+                      <span
+                        className={`inline-flex px-2 py-0.5 rounded-full text-xs font-medium ${
+                          item.stock_status === "out_of_stock"
+                            ? "bg-red-100 text-red-700"
+                            : item.stock_status === "low_stock"
+                              ? "bg-yellow-100 text-yellow-700"
+                              : "bg-green-100 text-green-700"
+                        }`}
+                      >
+                        {item.stock_status === "out_of_stock"
+                          ? "Out of Stock"
+                          : item.stock_status === "low_stock"
+                            ? "Low Stock"
+                            : "In Stock"}
+                      </span>
+                    </td>
+                  </tr>
+                ))
+              )}
+            </tbody>
+          </table>
         </div>
       </div>
 
@@ -796,7 +1050,7 @@ const PaymentsDashboard: React.FC = () => {
                     Student
                   </th>
                   <th className='px-3 py-2 text-left text-xs text-gray-500 uppercase'>
-                    Units
+                    Program
                   </th>
                   <th className='px-3 py-2 text-right text-xs text-gray-500 uppercase'>
                     Total Paid
