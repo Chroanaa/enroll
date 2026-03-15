@@ -285,33 +285,45 @@ export async function POST(request: NextRequest) {
 export async function GET() {
   try {
     const enrollments = await prisma.enrollment.findMany();
-    
-    // Enrich enrollments with program names if course_program is a number
-    const enrichedEnrollments = await Promise.all(
-      enrollments.map(async (enrollment) => {
-        // If course_program is a number (program ID), fetch the program name
-        const programId = parseInt(enrollment.course_program || '');
-        if (!isNaN(programId)) {
-          try {
-            const program = await prisma.program.findUnique({
-              where: { id: programId },
-              select: { name: true, code: true },
-            });
-            return {
-              ...enrollment,
-              course_program: program?.code || enrollment.course_program,
-              program_name: program?.name,
-              program_code: program?.code,
-            };
-          } catch (error) {
-            console.error('Error fetching program:', error);
-            return enrollment;
-          }
-        }
-        return enrollment;
-      })
-    );
-    
+
+    const [programs, majors] = await Promise.all([
+      prisma.program.findMany({
+        select: {
+          id: true,
+          code: true,
+          name: true,
+        },
+      }),
+      prisma.major.findMany({
+        select: {
+          id: true,
+          name: true,
+          program_id: true,
+        },
+      }),
+    ]);
+
+    const programsById = new Map(programs.map((program) => [program.id, program]));
+    const majorsById = new Map(majors.map((major) => [major.id, major]));
+
+    const enrichedEnrollments = enrollments.map((enrollment) => {
+      const programId = parseInt(enrollment.course_program || "", 10);
+      const program = Number.isNaN(programId) ? null : programsById.get(programId) || null;
+      const major =
+        enrollment.major_id !== null && enrollment.major_id !== undefined
+          ? majorsById.get(enrollment.major_id) || null
+          : null;
+
+      return {
+        ...enrollment,
+        course_program: program?.code || enrollment.course_program,
+        program_id: program?.id ?? null,
+        program_name: program?.name ?? null,
+        program_code: program?.code ?? null,
+        major_name: major?.name ?? null,
+      };
+    });
+
     return NextResponse.json({ data: enrichedEnrollments }, { status: 200 });
   } catch (error) {
     console.error("Fetch enrollments error:", error);

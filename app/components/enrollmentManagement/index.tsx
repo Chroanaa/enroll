@@ -1,6 +1,12 @@
 "use client";
 import React, { useState, useMemo, useEffect, useRef } from "react";
-import { Plus, Upload, X, FileSpreadsheet, AlertCircle } from "lucide-react";
+import {
+  Upload,
+  X,
+  FileSpreadsheet,
+  AlertCircle,
+  Printer,
+} from "lucide-react";
 import { colors } from "../../colors";
 import { getEnrollments } from "@/app/utils/getEnrollments";
 import { cacheManager, CACHE_KEYS } from "@/app/utils/cache";
@@ -8,13 +14,13 @@ import ConfirmationModal from "../common/ConfirmationModal";
 import SuccessModal from "../common/SuccessModal";
 import ErrorModal from "../common/ErrorModal";
 import { Enrollment, DeleteConfirmationState } from "../../types";
-import { filterEnrollments } from "./utils";
+import { ENROLLMENT_STATUS_OPTIONS, filterEnrollments } from "./utils";
 import StatsCards from "./StatsCards";
 import SearchFilters from "../common/SearchFilters";
 import EnrollmentTable from "./EnrollmentTable";
 import Pagination from "../common/Pagination";
-import EnrollmentForm from "./EnrollmentForm";
 import EditEnrollmentModal from "./EditEnrollmentModal";
+import EnrollmentReportViewer from "./EnrollmentReportViewer";
 
 // --- Internal Import Modal Component ---
 interface ImportModalProps {
@@ -224,9 +230,9 @@ const EnrollmentManagement: React.FC = () => {
   const [courseFilter, setCourseFilter] = useState<string>("all");
 
   // Modal States
-  const [isAddingEnrollment, setIsAddingEnrollment] = useState(false);
   const [isImportModalOpen, setIsImportModalOpen] = useState(false);
   const [isImporting, setIsImporting] = useState(false);
+  const [isReportViewerOpen, setIsReportViewerOpen] = useState(false);
 
   const [editingEnrollment, setEditingEnrollment] = useState<Enrollment | null>(
     null
@@ -337,92 +343,6 @@ const EnrollmentManagement: React.FC = () => {
     }
   };
 
-  const handleSaveEnrollment = async (enrollmentData: Enrollment) => {
-    try {
-      if (editingEnrollment) {
-        setLoading(true); // Show loading during update
-        const response = await fetch("/api/auth/enroll", {
-          method: "PUT",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify(enrollmentData),
-        });
-
-        if (!response.ok) {
-          const errorData = await response.json();
-          throw new Error(errorData.error || "Failed to update enrollment");
-        }
-
-        // Get the updated enrollment from response
-        const updatedEnrollment = await response.json();
-        
-        // Re-fetch to get all enriched data (program codes, etc.)
-        await fetchEnrollments();
-        
-        // Find the updated enrollment in the fresh data to pass to modal
-        const freshEnrollments = await getEnrollments();
-        const refreshedEnrollment = Array.isArray(freshEnrollments) 
-          ? freshEnrollments.find((e: any) => e.id === updatedEnrollment.id)
-          : null;
-        
-        // Update the editing enrollment with fresh data so modal refreshes
-        if (refreshedEnrollment) {
-          setEditingEnrollment(refreshedEnrollment as Enrollment);
-        }
-
-        const studentName = `${updatedEnrollment.first_name || ""} ${
-          updatedEnrollment.family_name || ""
-        }`.trim();
-        setSuccessModal({
-          isOpen: true,
-          message: `Enrollment for "${
-            studentName || "student"
-          }" has been updated successfully.`,
-        });
-        setLoading(false);
-      } else {
-        const response = await fetch("/api/auth/enroll", {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify(enrollmentData),
-        });
-
-        if (!response.ok) {
-          const errorData = await response.json();
-          throw new Error(errorData.error || "Failed to create enrollment");
-        }
-
-        const newEnrollment = await response.json();
-        setEnrollments((prev) => [
-          ...prev,
-          { ...enrollmentData, id: newEnrollment.id || enrollmentData.id },
-        ]);
-        setIsAddingEnrollment(false);
-
-        const studentName = `${enrollmentData.first_name || ""} ${
-          enrollmentData.family_name || ""
-        }`.trim();
-        setSuccessModal({
-          isOpen: true,
-          message: `Enrollment for "${
-            studentName || "student"
-          }" has been created successfully.`,
-        });
-      }
-    } catch (error: any) {
-      setLoading(false); // Reset loading on error
-      setErrorModal({
-        isOpen: true,
-        message:
-          error.message || "An error occurred while saving the enrollment.",
-        details: "Please check your input and try again.",
-      });
-    }
-  };
-
   const handleDeleteEnrollment = (enrollmentId: string) => {
     const enrollment = enrollments.find((e) => e.id === enrollmentId);
     if (enrollment) {
@@ -516,12 +436,12 @@ const EnrollmentManagement: React.FC = () => {
           </div>
           <div className='flex gap-3'>
             <button
-              onClick={() => setIsAddingEnrollment(true)}
+              onClick={() => setIsReportViewerOpen(true)}
               className='flex items-center gap-2 px-5 py-3 text-white rounded-xl transition-all shadow-lg shadow-blue-900/20 hover:shadow-xl hover:scale-105 active:scale-95'
-              style={{ backgroundColor: colors.secondary }}
+              style={{ backgroundColor: colors.primary }}
             >
-              <Plus className='w-5 h-5' />
-              <span className='font-medium'>Add Enrollment</span>
+              <Printer className='w-5 h-5' />
+              <span className='font-medium'>Generate Report</span>
             </button>
             <button
               onClick={() => setIsImportModalOpen(true)}
@@ -549,13 +469,7 @@ const EnrollmentManagement: React.FC = () => {
                 setStatusFilter(
                   value === "all" ? "all" : (value as 1 | 2 | 3 | 4)
                 ),
-              options: [
-                { value: "all", label: "All Status" },
-                { value: 1, label: "Enrolled" },
-                { value: 2, label: "Reserved" },
-                { value: 4, label: "Pending" },
-                { value: 3, label: "Dropped" },
-              ],
+              options: [...ENROLLMENT_STATUS_OPTIONS],
               placeholder: "All Status",
             },
           ]}
@@ -580,16 +494,6 @@ const EnrollmentManagement: React.FC = () => {
           />
         </div>
 
-        {/* Add/Edit Enrollment Form */}
-        {isAddingEnrollment && (
-          <EnrollmentForm
-            onSave={handleSaveEnrollment}
-            onCancel={() => {
-              setIsAddingEnrollment(false);
-            }}
-          />
-        )}
-
         {/* Edit Enrollment Modal */}
         {editingEnrollment && (
           <EditEnrollmentModal
@@ -599,6 +503,13 @@ const EnrollmentManagement: React.FC = () => {
               setSuccessModal({ isOpen: true, message: "Enrollment updated successfully." });
             }}
             onCancel={() => setEditingEnrollment(null)}
+          />
+        )}
+
+        {isReportViewerOpen && (
+          <EnrollmentReportViewer
+            enrollments={enrollments}
+            onClose={() => setIsReportViewerOpen(false)}
           />
         )}
 
