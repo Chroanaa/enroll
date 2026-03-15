@@ -2,6 +2,7 @@
 
 import React, { useMemo, useState } from "react";
 import { Filter, Printer, X } from "lucide-react";
+import Image from "next/image";
 import { colors } from "../../colors";
 import { useAcademicTermContext } from "../../contexts/AcademicTermContext";
 import { useProgramsWithMajors } from "../../hooks/useProgramsWithMajors";
@@ -244,6 +245,24 @@ export default function EnrollmentReportViewer({
               overflow-wrap: anywhere !important;
             }
 
+            .print-school-header {
+              margin-bottom: 12px !important;
+            }
+
+            .print-school-logo {
+              width: 52px !important;
+              height: 52px !important;
+            }
+
+            .print-school-name {
+              font-size: 18px !important;
+              line-height: 1.1 !important;
+            }
+
+            .print-school-subtitle {
+              font-size: 10px !important;
+            }
+
             .print-col-no { width: 4%; }
             .print-col-student-number { width: 10%; }
             .print-col-name { width: 18%; }
@@ -366,6 +385,34 @@ export default function EnrollmentReportViewer({
               className='mx-auto w-full max-w-5xl border border-gray-300 bg-white p-6 md:p-10'
               id='enrollment-report-print-area'
             >
+              <div className='print-school-header mb-8'>
+                <div className='flex items-center justify-center gap-4'>
+                  <div className='print-school-logo relative h-16 w-16 shrink-0'>
+                    <Image
+                      src='/logo.png'
+                      alt='School Logo'
+                      fill
+                      className='object-contain'
+                      priority
+                    />
+                  </div>
+                  <div className='text-center'>
+                    <h1
+                      className='print-school-name text-2xl font-black uppercase tracking-wide'
+                      style={{ color: colors.primary }}
+                    >
+                      Colegio de Sta. Teresa de Avila
+                    </h1>
+                    <p
+                      className='print-school-subtitle text-sm font-semibold uppercase tracking-[0.2em]'
+                      style={{ color: colors.secondary }}
+                    >
+                      Enrollment System Dashboard
+                    </p>
+                  </div>
+                </div>
+              </div>
+
               <div className='text-center space-y-1'>
                 <h1
                   className='print-title text-3xl font-bold'
