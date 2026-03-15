@@ -13,6 +13,7 @@ import ForecastingAnalytics from "../components/ForecastingAnalytics";
 import StudentForecastDashboard from "../components/StudentForecastDashboard";
 import AssessmentManagement from "../components/AssessmentManagement";
 import ReportManagement from "../components/ReportManagement";
+import PaymentsDashboard from "../components/reports/PaymentsDashboard";
 import SchedulingManagement from "../components/SchedulingManagement";
 import PaymentBillingManagement from "../components/PaymentBillingManagement";
 import StudentPaymentCheckoutPage from "../components/paymentBilling/StudentPaymentCheckoutPage";
@@ -82,6 +83,8 @@ function DashboardContent() {
         return <AssessmentManagement />;
       case "reports":
         return <ReportManagement />;
+      case "reports-payments-dashboard":
+        return <PaymentsDashboard />;
       case "scheduling":
         return <SchedulingManagement />;
       case "payment-billing":

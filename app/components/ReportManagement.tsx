@@ -63,14 +63,14 @@ const ReportManagement: React.FC = () => {
 
   const filteredReports = useMemo(() => {
     if (!searchTerm) return reports;
-    
+
     const search = searchTerm.toLowerCase();
     return reports.filter(
       (report) =>
         report.action?.toLowerCase().includes(search) ||
         report.username?.toLowerCase().includes(search) ||
         report.user_id?.toString().includes(search) ||
-        report.id?.toString().includes(search)
+        report.id?.toString().includes(search),
     );
   }, [reports, searchTerm]);
 
@@ -114,7 +114,7 @@ const ReportManagement: React.FC = () => {
         }
 
         setReports((prev) =>
-          prev.filter((r) => r.id !== deleteConfirmation.reportId)
+          prev.filter((r) => r.id !== deleteConfirmation.reportId),
         );
         setDeleteConfirmation({
           isOpen: false,
