@@ -15,6 +15,14 @@ type DashboardStudentRow = {
   payment_status: "Unpaid" | "Partial" | "Fully Paid";
 };
 
+type ProductAggregate = {
+  product_id: number;
+  product_name: string;
+  total_quantity: number;
+  total_sales: number;
+  current_stock: number;
+};
+
 const toNumber = (value: unknown): number => {
   const parsed = Number(value ?? 0);
   return Number.isFinite(parsed) ? parsed : 0;
@@ -50,6 +58,15 @@ export async function GET(request: NextRequest) {
     const selectedYear = selectedYearParam
       ? parseInt(selectedYearParam, 10)
       : currentYear;
+    const now = new Date();
+    const currentMonth = now.getMonth() + 1;
+    const todayDateOnly = new Date(
+      now.getFullYear(),
+      now.getMonth(),
+      now.getDate(),
+    );
+    const tomorrowDateOnly = new Date(todayDateOnly);
+    tomorrowDateOnly.setDate(tomorrowDateOnly.getDate() + 1);
 
     const assessmentWhere: {
       academic_year?: string;
@@ -86,6 +103,61 @@ export async function GET(request: NextRequest) {
         },
       },
       orderBy: [{ academic_year: "desc" }, { semester: "desc" }],
+    });
+
+    const products = await prisma.products.findMany({
+      select: {
+        id: true,
+        name: true,
+        quantity: true,
+        price: true,
+      },
+      orderBy: {
+        id: "asc",
+      },
+    });
+
+    const orderHeaders = await prisma.order_header.findMany({
+      where: {
+        isvoided: 0,
+      },
+      select: {
+        id: true,
+        order_date: true,
+        order_amount: true,
+        billing_id: true,
+      },
+    });
+
+    const orderHeaderIds = orderHeaders.map((header) => header.id);
+
+    const orderDetails =
+      orderHeaderIds.length > 0
+        ? await prisma.order_details.findMany({
+            where: {
+              order_header_id: {
+                in: orderHeaderIds,
+              },
+            },
+            select: {
+              order_header_id: true,
+              product_id: true,
+              quantity: true,
+              total: true,
+            },
+          })
+        : [];
+
+    const assessmentPaymentsToday = await prisma.student_payment.aggregate({
+      _sum: {
+        amount_paid: true,
+      },
+      where: {
+        payment_date: {
+          gte: todayDateOnly,
+          lt: tomorrowDateOnly,
+        },
+      },
     });
 
     const studentNumbers = Array.from(
@@ -144,6 +216,10 @@ export async function GET(request: NextRequest) {
     let totalDue = 0;
     let totalOutstanding = 0;
     let totalPaymentsCount = 0;
+
+    const dailyAssessmentIncome = toNumber(
+      assessmentPaymentsToday._sum.amount_paid,
+    );
 
     const dashboardRows: DashboardStudentRow[] = [];
 
@@ -215,6 +291,184 @@ export async function GET(request: NextRequest) {
       }
     }
 
+    const orderHeaderById = new Map(
+      orderHeaders.map((header) => [header.id, header]),
+    );
+    const productById = new Map(
+      products.map((product) => [
+        product.id,
+        {
+          name: product.name || `Product #${product.id}`,
+          quantity: product.quantity ?? 0,
+        },
+      ]),
+    );
+
+    const yearlyProductMap = new Map<number, ProductAggregate>();
+    const monthlyProductMap = new Map<number, ProductAggregate>();
+    const dailyProductMap = new Map<number, ProductAggregate>();
+
+    let dailyPosIncome = 0;
+
+    for (const header of orderHeaders) {
+      const orderDate = new Date(header.order_date);
+      const isToday =
+        orderDate.getFullYear() === now.getFullYear() &&
+        orderDate.getMonth() === now.getMonth() &&
+        orderDate.getDate() === now.getDate();
+
+      if (isToday) {
+        dailyPosIncome += toNumber(header.order_amount);
+      }
+    }
+
+    const upsertAggregate = (
+      map: Map<number, ProductAggregate>,
+      productId: number,
+      productName: string,
+      currentStock: number,
+      quantity: number,
+      sales: number,
+    ) => {
+      const existing = map.get(productId);
+      if (existing) {
+        existing.total_quantity += quantity;
+        existing.total_sales += sales;
+        return;
+      }
+
+      map.set(productId, {
+        product_id: productId,
+        product_name: productName,
+        total_quantity: quantity,
+        total_sales: sales,
+        current_stock: currentStock,
+      });
+    };
+
+    for (const detail of orderDetails) {
+      const headerId = detail.order_header_id;
+      if (!headerId) continue;
+
+      const header = orderHeaderById.get(headerId);
+      if (!header) continue;
+
+      // Enrollment orders are linked to billing_id and use placeholder line items.
+      // Product analytics should only count real product sales.
+      if (header.billing_id) continue;
+
+      const orderDate = new Date(header.order_date);
+      const orderYear = orderDate.getFullYear();
+      const orderMonth = orderDate.getMonth() + 1;
+      const isToday =
+        orderDate.getFullYear() === now.getFullYear() &&
+        orderDate.getMonth() === now.getMonth() &&
+        orderDate.getDate() === now.getDate();
+
+      const productInfo = productById.get(detail.product_id);
+      if (!productInfo) continue;
+
+      const productName = productInfo?.name || `Product #${detail.product_id}`;
+      const currentStock = productInfo?.quantity ?? 0;
+      const quantity = toNumber(detail.quantity);
+      const sales = toNumber(detail.total);
+
+      if (orderYear === selectedYear) {
+        upsertAggregate(
+          yearlyProductMap,
+          detail.product_id,
+          productName,
+          currentStock,
+          quantity,
+          sales,
+        );
+      }
+
+      if (orderYear === selectedYear && orderMonth === currentMonth) {
+        upsertAggregate(
+          monthlyProductMap,
+          detail.product_id,
+          productName,
+          currentStock,
+          quantity,
+          sales,
+        );
+      }
+
+      if (isToday) {
+        upsertAggregate(
+          dailyProductMap,
+          detail.product_id,
+          productName,
+          currentStock,
+          quantity,
+          sales,
+        );
+      }
+    }
+
+    const pickMostBought = (map: Map<number, ProductAggregate>) => {
+      const values = Array.from(map.values());
+      if (values.length === 0) return null;
+
+      values.sort((a, b) => {
+        if (b.total_quantity !== a.total_quantity) {
+          return b.total_quantity - a.total_quantity;
+        }
+        return b.total_sales - a.total_sales;
+      });
+
+      const best = values[0];
+      return {
+        ...best,
+        total_sales: Math.round(best.total_sales * 100) / 100,
+      };
+    };
+
+    const stockItems = products
+      .map((product) => {
+        const stock = product.quantity ?? 0;
+        let stock_status: "out_of_stock" | "low_stock" | "in_stock" =
+          "in_stock";
+
+        if (stock <= 0) {
+          stock_status = "out_of_stock";
+        } else if (stock <= 10) {
+          stock_status = "low_stock";
+        }
+
+        return {
+          product_id: product.id,
+          product_name: product.name || `Product #${product.id}`,
+          stock,
+          price: toNumber(product.price),
+          stock_status,
+        };
+      })
+      .sort((a, b) => {
+        if (a.stock_status !== b.stock_status) {
+          const rank = {
+            out_of_stock: 0,
+            low_stock: 1,
+            in_stock: 2,
+          };
+          return rank[a.stock_status] - rank[b.stock_status];
+        }
+        return a.stock - b.stock;
+      });
+
+    const outOfStockCount = stockItems.filter(
+      (item) => item.stock_status === "out_of_stock",
+    ).length;
+    const lowStockCount = stockItems.filter(
+      (item) => item.stock_status === "low_stock",
+    ).length;
+    const inStockCount = stockItems.filter(
+      (item) => item.stock_status === "in_stock",
+    ).length;
+
+    const dailyIncome = dailyAssessmentIncome + dailyPosIncome;
+
     const unpaidStudents = dashboardRows
       .filter((row) => row.remaining_balance > 0.01)
       .sort((a, b) => b.remaining_balance - a.remaining_balance);
@@ -269,6 +523,10 @@ export async function GET(request: NextRequest) {
           total_assessments: dashboardRows.length,
           total_payments: totalPaymentsCount,
           total_collected: Math.round(totalCollected * 100) / 100,
+          daily_income: Math.round(dailyIncome * 100) / 100,
+          daily_income_assessment:
+            Math.round(dailyAssessmentIncome * 100) / 100,
+          daily_income_pos: Math.round(dailyPosIncome * 100) / 100,
           total_due: Math.round(totalDue * 100) / 100,
           total_outstanding: Math.round(totalOutstanding * 100) / 100,
           fully_paid_students: fullyPaidStudents.length,
@@ -284,6 +542,20 @@ export async function GET(request: NextRequest) {
         students: {
           unpaid: unpaidStudents,
           fully_paid: fullyPaidStudents,
+        },
+        product_analytics: {
+          most_bought: {
+            daily: pickMostBought(dailyProductMap),
+            monthly: pickMostBought(monthlyProductMap),
+            yearly: pickMostBought(yearlyProductMap),
+          },
+          stocks: {
+            total_products: stockItems.length,
+            out_of_stock: outOfStockCount,
+            low_stock: lowStockCount,
+            in_stock: inStockCount,
+            items: stockItems,
+          },
         },
       },
       { status: 200 },
