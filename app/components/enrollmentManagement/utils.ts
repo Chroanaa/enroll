@@ -1,6 +1,28 @@
 import { StatusColor } from "../../types";
 import { getCountOfEnrolleesStatus } from "@/app/utils/getCountStatusEnrollees";
 
+export const ENROLLMENT_STATUS_OPTIONS = [
+  { value: "all", label: "All Status" },
+  { value: 1, label: "Enrolled" },
+  { value: 2, label: "Reserved" },
+  { value: 4, label: "Pending" },
+  { value: 3, label: "Dropped" },
+] as const;
+
+export const normalizeEnrollmentStatus = (
+  status: number | null | undefined,
+): 1 | 2 | 3 | 4 => {
+  if (status === null || status === undefined) {
+    return 4;
+  }
+
+  if (status === 1 || status === 2 || status === 3 || status === 4) {
+    return status;
+  }
+
+  return 4;
+};
+
 export const getStatusColor = (status: number | null | undefined): StatusColor => {
   // Treat null/undefined as pending (4)
   if (status === null || status === undefined) {
@@ -80,7 +102,8 @@ export const filterEnrollments = (
       studentName.includes(searchTerm.toLowerCase()) ||
       courseName.includes(searchTerm.toLowerCase());
     const matchesStatus =
-      statusFilter === "all" || enrollment.status === statusFilter;
+      statusFilter === "all" ||
+      normalizeEnrollmentStatus(enrollment.status) === statusFilter;
     const matchesCourse =
       courseFilter === "all" || enrollment.course_program === courseFilter;
     return matchesSearch && matchesStatus && matchesCourse;

@@ -15,8 +15,8 @@ import { colors } from "../colors";
 
 const modules = [
   {
-    title: "Enrollment",
-    description: "Manage student admissions",
+    title: "Student Information",
+    description: "Manage student records",
     icon: Users,
     view: "enrollment-form",
   },

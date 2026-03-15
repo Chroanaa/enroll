@@ -65,6 +65,12 @@ const Navigation: React.FC<NavigationProps> = ({
   const fileMaintenanceSubItems = useMemo(
     () => [
       {
+        id: "enrollment-form",
+        label: "Student Information",
+        icon: Users,
+        allowedRoles: [ROLES.ADMIN, ROLES.REGISTRAR, ROLES.FACULTY],
+      },
+      {
         id: "students",
         label: "Students",
         icon: Users,
@@ -167,9 +173,9 @@ const Navigation: React.FC<NavigationProps> = ({
   const transactionSubItems = useMemo(
     () => [
       {
-        id: "enrollment-form",
-        label: "Enrollment Form",
-        icon: FileText,
+        id: "enrollments",
+        label: "Enrollment",
+        icon: UserPlus,
         allowedRoles: [ROLES.ADMIN, ROLES.REGISTRAR],
       },
       {
@@ -214,12 +220,6 @@ const Navigation: React.FC<NavigationProps> = ({
         allowedRoles: [ROLES.ADMIN, ROLES.REGISTRAR],
       },
       {
-        id: "enrollments",
-        label: "Enrollment",
-        icon: UserPlus,
-        allowedRoles: [ROLES.ADMIN, ROLES.REGISTRAR],
-      },
-      {
         id: "section-management",
         label: "Section Management",
         icon: FolderTree,
@@ -244,6 +244,7 @@ const Navigation: React.FC<NavigationProps> = ({
   const navGroups = useMemo(
     () => [
       {
+        id: "primary",
         category: "",
         items: [
           {
@@ -274,6 +275,7 @@ const Navigation: React.FC<NavigationProps> = ({
         ],
       },
       {
+        id: "secondary",
         category: "",
         items: [
           {
@@ -370,6 +372,22 @@ const Navigation: React.FC<NavigationProps> = ({
     reportSubItems,
     userRole,
   ]);
+
+  const dedupedNavGroups = useMemo(() => {
+    const seenItemIds = new Set<string>();
+
+    return filteredNavGroups
+      .map((group) => {
+        const uniqueItems = group.items.filter((item) => {
+          if (seenItemIds.has(item.id)) return false;
+          seenItemIds.add(item.id);
+          return true;
+        });
+
+        return { ...group, items: uniqueItems };
+      })
+      .filter((group) => group.items.length > 0);
+  }, [filteredNavGroups]);
 
   // Filter sub-items for rendering
   const visibleSubItems = fileMaintenanceSubItems.filter((item) =>
@@ -475,8 +493,8 @@ const Navigation: React.FC<NavigationProps> = ({
         }}
       >
         <ul className='space-y-4'>
-          {filteredNavGroups.map((group) => (
-            <li key={group.category}>
+          {dedupedNavGroups.map((group) => (
+            <li key={group.id}>
               {group.category && (
                 <div className='mb-2 px-3'>
                   <h3
