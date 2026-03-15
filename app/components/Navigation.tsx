@@ -233,7 +233,7 @@ const Navigation: React.FC<NavigationProps> = ({
       },
       {
         id: "reports",
-        label: "Reports Logs",
+        label: "Audit Trail",
         icon: FileBarChart,
         allowedRoles: [ROLES.ADMIN, ROLES.REGISTRAR],
       },
@@ -262,11 +262,7 @@ const Navigation: React.FC<NavigationProps> = ({
             label: "Transaction",
             icon: CreditCard,
             hasSubmenu: true,
-            allowedRoles: [
-              ROLES.ADMIN,
-              ROLES.REGISTRAR,
-              ROLES.CASHIER,
-            ],
+            allowedRoles: [ROLES.ADMIN, ROLES.REGISTRAR, ROLES.CASHIER],
           },
           {
             id: "curriculum",
@@ -303,25 +299,6 @@ const Navigation: React.FC<NavigationProps> = ({
               ROLES.CASHIER,
               ROLES.FACULTY,
             ],
-          },
-          {
-            id: "reports",
-            label: "Reports",
-            icon: FileBarChart,
-            allowedRoles: [ROLES.ADMIN, ROLES.REGISTRAR],
-          },
-
-          {
-            id: "forecast-billing",
-            label: "Student Forecast",
-            icon: TrendingUp,
-            allowedRoles: [ROLES.ADMIN, ROLES.REGISTRAR],
-          },
-          {
-            id: "account-management",
-            label: "Account Management",
-            icon: UserCog,
-            allowedRoles: [ROLES.ADMIN],
           },
           {
             id: "backups",
@@ -739,56 +716,58 @@ const Navigation: React.FC<NavigationProps> = ({
                       )}
 
                       {/* Transaction Submenu */}
-                      {isTransaction && item.hasSubmenu && isTransactionOpen && (
-                        <ul className='ml-0 md:ml-4 mt-1 space-y-1'>
-                          {visibleTransactionSubItems.map((subItem) => {
-                            const SubIcon = subItem.icon;
-                            const isSubActive = currentView === subItem.id;
-                            return (
-                              <li key={subItem.id}>
-                                <button
-                                  onClick={(e) => {
-                                    e.preventDefault();
-                                    e.stopPropagation();
-                                    onViewChange(subItem.id);
-                                  }}
-                                  className='w-full flex items-center justify-start gap-3 px-3 py-2 rounded-lg text-sm font-medium transition-all duration-200'
-                                  style={
-                                    isSubActive
-                                      ? {
-                                          backgroundColor: `${colors.secondary}40`,
-                                          color: colors.paper,
-                                          border: `1px solid ${colors.secondary}`,
-                                        }
-                                      : {
-                                          color: colors.paper,
-                                          backgroundColor: "transparent",
-                                          border: "1px solid transparent",
-                                          opacity: 0.7,
-                                        }
-                                  }
-                                  onMouseEnter={(e) => {
-                                    if (!isSubActive) {
-                                      e.currentTarget.style.backgroundColor = `${colors.paper}20`;
-                                      e.currentTarget.style.opacity = "1";
+                      {isTransaction &&
+                        item.hasSubmenu &&
+                        isTransactionOpen && (
+                          <ul className='ml-0 md:ml-4 mt-1 space-y-1'>
+                            {visibleTransactionSubItems.map((subItem) => {
+                              const SubIcon = subItem.icon;
+                              const isSubActive = currentView === subItem.id;
+                              return (
+                                <li key={subItem.id}>
+                                  <button
+                                    onClick={(e) => {
+                                      e.preventDefault();
+                                      e.stopPropagation();
+                                      onViewChange(subItem.id);
+                                    }}
+                                    className='w-full flex items-center justify-start gap-3 px-3 py-2 rounded-lg text-sm font-medium transition-all duration-200'
+                                    style={
+                                      isSubActive
+                                        ? {
+                                            backgroundColor: `${colors.secondary}40`,
+                                            color: colors.paper,
+                                            border: `1px solid ${colors.secondary}`,
+                                          }
+                                        : {
+                                            color: colors.paper,
+                                            backgroundColor: "transparent",
+                                            border: "1px solid transparent",
+                                            opacity: 0.7,
+                                          }
                                     }
-                                  }}
-                                  onMouseLeave={(e) => {
-                                    if (!isSubActive) {
-                                      e.currentTarget.style.backgroundColor =
-                                        "transparent";
-                                      e.currentTarget.style.opacity = "0.7";
-                                    }
-                                  }}
-                                >
-                                  <SubIcon className='w-4 h-4' />
-                                  <span>{subItem.label}</span>
-                                </button>
-                              </li>
-                            );
-                          })}
-                        </ul>
-                      )}
+                                    onMouseEnter={(e) => {
+                                      if (!isSubActive) {
+                                        e.currentTarget.style.backgroundColor = `${colors.paper}20`;
+                                        e.currentTarget.style.opacity = "1";
+                                      }
+                                    }}
+                                    onMouseLeave={(e) => {
+                                      if (!isSubActive) {
+                                        e.currentTarget.style.backgroundColor =
+                                          "transparent";
+                                        e.currentTarget.style.opacity = "0.7";
+                                      }
+                                    }}
+                                  >
+                                    <SubIcon className='w-4 h-4' />
+                                    <span>{subItem.label}</span>
+                                  </button>
+                                </li>
+                              );
+                            })}
+                          </ul>
+                        )}
 
                       {/* Report Submenu */}
                       {isReport && item.hasSubmenu && isReportOpen && (

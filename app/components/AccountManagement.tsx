@@ -26,7 +26,6 @@ interface UserAccount {
   first_name?: string | null;
   middle_name?: string | null;
   last_name?: string | null;
-  position?: string | null;
 }
 
 interface RoleOption {
@@ -49,7 +48,6 @@ export default function AccountManagement() {
   const [firstName, setFirstName] = useState("");
   const [middleName, setMiddleName] = useState("");
   const [lastName, setLastName] = useState("");
-  const [position, setPosition] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [successMsg, setSuccessMsg] = useState<string | null>(null);
@@ -62,7 +60,6 @@ export default function AccountManagement() {
   const [editFirstName, setEditFirstName] = useState("");
   const [editMiddleName, setEditMiddleName] = useState("");
   const [editLastName, setEditLastName] = useState("");
-  const [editPosition, setEditPosition] = useState("");
 
   // Reset password state
   const [resetPasswordUser, setResetPasswordUser] =
@@ -101,7 +98,6 @@ export default function AccountManagement() {
     setFirstName("");
     setMiddleName("");
     setLastName("");
-    setPosition("");
     setShowPassword(false);
     setErrorMsg(null);
   };
@@ -131,7 +127,14 @@ export default function AccountManagement() {
       const res = await fetch("/api/auth/accounts", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ username, password, role: selectedRole, first_name: firstName, middle_name: middleName, last_name: lastName, position }),
+        body: JSON.stringify({
+          username,
+          password,
+          role: selectedRole,
+          first_name: firstName,
+          middle_name: middleName,
+          last_name: lastName,
+        }),
       });
 
       const data = await res.json();
@@ -179,7 +182,6 @@ export default function AccountManagement() {
     setEditFirstName(user.first_name || "");
     setEditMiddleName(user.middle_name || "");
     setEditLastName(user.last_name || "");
-    setEditPosition(user.position || "");
     setErrorMsg(null);
   };
 
@@ -208,7 +210,6 @@ export default function AccountManagement() {
           first_name: editFirstName,
           middle_name: editMiddleName,
           last_name: editLastName,
-          position: editPosition,
         }),
       });
       const data = await res.json();
@@ -458,21 +459,6 @@ export default function AccountManagement() {
             <div className='grid grid-cols-1 md:grid-cols-2 gap-4'>
               <div>
                 <label className='block text-sm font-medium text-gray-700 mb-1'>
-                  Position
-                </label>
-                <input
-                  type='text'
-                  value={position}
-                  onChange={(e) => setPosition(e.target.value)}
-                  placeholder='e.g. Registrar Staff'
-                  className='w-full px-3 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm'
-                />
-              </div>
-            </div>
-
-            <div className='grid grid-cols-1 md:grid-cols-2 gap-4'>
-              <div>
-                <label className='block text-sm font-medium text-gray-700 mb-1'>
                   Password
                 </label>
                 <div className='relative'>
@@ -586,9 +572,6 @@ export default function AccountManagement() {
                     Full Name
                   </th>
                   <th className='px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider'>
-                    Position
-                  </th>
-                  <th className='px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider'>
                     Role
                   </th>
                   <th className='px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider'>
@@ -609,10 +592,11 @@ export default function AccountManagement() {
                       {user.username}
                     </td>
                     <td className='px-6 py-3.5 text-sm text-gray-700'>
-                      {[user.first_name, user.middle_name, user.last_name].filter(Boolean).join(" ") || <span className='text-gray-400 italic'>—</span>}
-                    </td>
-                    <td className='px-6 py-3.5 text-sm text-gray-600'>
-                      {user.position || <span className='text-gray-400 italic'>—</span>}
+                      {[user.first_name, user.middle_name, user.last_name]
+                        .filter(Boolean)
+                        .join(" ") || (
+                        <span className='text-gray-400 italic'>—</span>
+                      )}
                     </td>
                     <td className='px-6 py-3.5'>
                       <span
@@ -734,18 +718,6 @@ export default function AccountManagement() {
                     className='w-full px-3 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm'
                   />
                 </div>
-              </div>
-              <div>
-                <label className='block text-sm font-medium text-gray-700 mb-1'>
-                  Position
-                </label>
-                <input
-                  type='text'
-                  value={editPosition}
-                  onChange={(e) => setEditPosition(e.target.value)}
-                  placeholder='e.g. Registrar Staff'
-                  className='w-full px-3 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm'
-                />
               </div>
               <div>
                 <label className='block text-sm font-medium text-gray-700 mb-1'>

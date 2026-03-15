@@ -12,7 +12,6 @@ import {
 } from "lucide-react";
 import { colors } from "../../colors";
 import { CartStudent } from "./StudentPaymentCheckoutModal";
-import { FinancialDetailModal } from "./FinancialDetailModal";
 
 export interface StudentSummary {
   assessment_id: number;
@@ -34,6 +33,7 @@ interface EnrollmentsTabContentProps {
   setAcademicYearSearch: (value: string) => void;
   semesterSearch: 1 | 2;
   setSemesterSearch: (value: 1 | 2) => void;
+  refreshSignal: number;
   formatAmount: (amount: number | null | undefined) => string;
   // Cart-related props
   cartStudents: CartStudent[];
@@ -42,6 +42,7 @@ interface EnrollmentsTabContentProps {
   onClearCart: () => void;
   onCheckout: () => void;
   onUpdateCartAmount: (assessmentId: number, amount: number) => void;
+  onViewDetail: (assessmentId: number) => void;
 }
 
 export const EnrollmentsTabContent: React.FC<EnrollmentsTabContentProps> = ({
@@ -49,6 +50,7 @@ export const EnrollmentsTabContent: React.FC<EnrollmentsTabContentProps> = ({
   setAcademicYearSearch,
   semesterSearch,
   setSemesterSearch,
+  refreshSignal,
   formatAmount: formatAmountProp,
   cartStudents,
   onAddToCart,
@@ -56,6 +58,7 @@ export const EnrollmentsTabContent: React.FC<EnrollmentsTabContentProps> = ({
   onClearCart,
   onCheckout,
   onUpdateCartAmount,
+  onViewDetail,
 }) => {
   const [allStudents, setAllStudents] = useState<StudentSummary[]>([]);
   const [isLoadingStudents, setIsLoadingStudents] = useState(false);
@@ -63,10 +66,6 @@ export const EnrollmentsTabContent: React.FC<EnrollmentsTabContentProps> = ({
   const [statusFilter, setStatusFilter] = useState<
     "all" | "Unpaid" | "Partial" | "Fully Paid"
   >("all");
-  const [detailAssessmentId, setDetailAssessmentId] = useState<number | null>(
-    null,
-  );
-  const [isDetailModalOpen, setIsDetailModalOpen] = useState(false);
 
   const fetchAllStudents = async () => {
     setIsLoadingStudents(true);
@@ -97,6 +96,13 @@ export const EnrollmentsTabContent: React.FC<EnrollmentsTabContentProps> = ({
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [academicYearSearch, semesterSearch]);
+
+  useEffect(() => {
+    if (academicYearSearch) {
+      fetchAllStudents();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [refreshSignal]);
 
   const filteredStudents = useMemo(() => {
     let result = allStudents;
@@ -318,8 +324,7 @@ export const EnrollmentsTabContent: React.FC<EnrollmentsTabContentProps> = ({
                           <button
                             onClick={(e) => {
                               e.stopPropagation();
-                              setDetailAssessmentId(student.assessment_id);
-                              setIsDetailModalOpen(true);
+                              onViewDetail(student.assessment_id);
                             }}
                             className='inline-flex items-center gap-1 px-2.5 py-1 rounded-md text-xs font-medium text-white hover:opacity-90 transition-colors'
                             style={{ backgroundColor: colors.secondary }}
@@ -452,17 +457,6 @@ export const EnrollmentsTabContent: React.FC<EnrollmentsTabContentProps> = ({
           </div>
         </div>
       )}
-      {/* Financial Detail Modal */}
-      <FinancialDetailModal
-        isOpen={isDetailModalOpen}
-        assessmentId={detailAssessmentId}
-        onClose={() => {
-          setIsDetailModalOpen(false);
-          setDetailAssessmentId(null);
-        }}
-        formatAmount={formatAmountProp}
-        onPaymentSuccess={fetchAllStudents}
-      />
     </div>
   );
 };

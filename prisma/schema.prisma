@@ -9,11 +9,14 @@ datasource db {
 }
 
 model users {
-  id       Int    @id @default(autoincrement())
-  username String @db.VarChar(255)
-  password String @db.VarChar(255)
-  role     Int
-  roles    roles  @relation(fields: [role], references: [id], onDelete: SetNull, onUpdate: SetNull, map: "role_fk")
+  id         Int     @id @default(autoincrement())
+  username   String  @db.VarChar(255)
+  password   String  @db.VarChar(255)
+  role       Int
+  firstname  String? @db.VarChar(255)
+  middlename String? @db.VarChar(255)
+  lastname   String? @db.VarChar(255)
+  roles      roles   @relation(fields: [role], references: [id], onDelete: SetNull, onUpdate: SetNull, map: "role_fk")
 }
 
 model payment {
@@ -171,6 +174,7 @@ model faculty {
   mother_unit       String? @db.VarChar(255)
   degree            String? @db.VarChar(255)
 <<<<<<< HEAD
+<<<<<<< HEAD
 =======
   id             Int     @id @default(autoincrement())
   employee_id    String  @db.VarChar(100)
@@ -185,6 +189,8 @@ model faculty {
   status         String  @db.VarChar(20)
   user_id        Int?
 >>>>>>> 339338928bde238e7b1b3bd2e4aded3dce73e99d
+=======
+>>>>>>> 3993c4e136cbb620b236a7cddc70be401925dac1
 }
 
 /// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
