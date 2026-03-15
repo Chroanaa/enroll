@@ -239,7 +239,7 @@ const Navigation: React.FC<NavigationProps> = ({
       },
       {
         id: "reports-payments-dashboard",
-        label: "Payments Dashboard",
+        label: "Financial Analytics",
         icon: DollarSign,
         allowedRoles: [ROLES.ADMIN, ROLES.REGISTRAR, ROLES.CASHIER],
       },
