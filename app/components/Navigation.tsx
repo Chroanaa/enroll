@@ -28,6 +28,7 @@ import {
   Percent,
   Receipt,
   UserCog,
+  House,
 } from "lucide-react";
 import Image from "next/image";
 import { useSession, signOut } from "next-auth/react";
@@ -57,10 +58,18 @@ const Navigation: React.FC<NavigationProps> = ({
 
   const [isFileMaintenanceOpen, setIsFileMaintenanceOpen] = useState(false);
   const [isCurriculumOpen, setIsCurriculumOpen] = useState(false);
+  const [isTransactionOpen, setIsTransactionOpen] = useState(false);
+  const [isReportOpen, setIsReportOpen] = useState(false);
   const prevViewRef = useRef<string>("");
 
   const fileMaintenanceSubItems = useMemo(
     () => [
+      {
+        id: "students",
+        label: "Students",
+        icon: Users,
+        allowedRoles: [ROLES.ADMIN, ROLES.REGISTRAR, ROLES.FACULTY],
+      },
       {
         id: "file-maintenance-building",
         label: "Building",
@@ -133,6 +142,12 @@ const Navigation: React.FC<NavigationProps> = ({
         icon: Receipt,
         allowedRoles: [ROLES.ADMIN, ROLES.CASHIER],
       },
+      {
+        id: "account-management",
+        label: "Account Management",
+        icon: UserCog,
+        allowedRoles: [ROLES.ADMIN],
+      },
     ],
     [],
   );
@@ -149,40 +164,109 @@ const Navigation: React.FC<NavigationProps> = ({
     [],
   );
 
+  const transactionSubItems = useMemo(
+    () => [
+      {
+        id: "enrollment-form",
+        label: "Enrollment Form",
+        icon: FileText,
+        allowedRoles: [ROLES.ADMIN, ROLES.REGISTRAR],
+      },
+      {
+        id: "assessment",
+        label: "Assessment",
+        icon: Calculator,
+        allowedRoles: [ROLES.ADMIN, ROLES.CASHIER],
+      },
+      {
+        id: "resident-enrollment",
+        label: "Resident",
+        icon: Users2,
+        allowedRoles: [ROLES.ADMIN, ROLES.REGISTRAR],
+      },
+      {
+        id: "payment-billing",
+        label: "Payment",
+        icon: CreditCard,
+        allowedRoles: [ROLES.ADMIN, ROLES.CASHIER],
+      },
+    ],
+    [],
+  );
+
+  const reportSubItems = useMemo(
+    () => [
+      {
+        id: "dashboard",
+        label: "Dashboard",
+        icon: BarChart3,
+        allowedRoles: [
+          ROLES.ADMIN,
+          ROLES.REGISTRAR,
+          ROLES.CASHIER,
+          ROLES.FACULTY,
+        ],
+      },
+      {
+        id: "forecast-billing",
+        label: "Forecasting",
+        icon: TrendingUp,
+        allowedRoles: [ROLES.ADMIN, ROLES.REGISTRAR],
+      },
+      {
+        id: "enrollments",
+        label: "Enrollment",
+        icon: UserPlus,
+        allowedRoles: [ROLES.ADMIN, ROLES.REGISTRAR],
+      },
+      {
+        id: "section-management",
+        label: "Section Management",
+        icon: FolderTree,
+        allowedRoles: [ROLES.ADMIN, ROLES.REGISTRAR],
+      },
+      {
+        id: "faculty-subject-management",
+        label: "Faculty Management",
+        icon: Users2,
+        allowedRoles: [ROLES.ADMIN, ROLES.REGISTRAR],
+      },
+      {
+        id: "reports",
+        label: "Reports Logs",
+        icon: FileBarChart,
+        allowedRoles: [ROLES.ADMIN, ROLES.REGISTRAR],
+      },
+    ],
+    [],
+  );
+
   const navGroups = useMemo(
     () => [
       {
-        category: "Academic",
+        category: "",
         items: [
           {
-            id: "students",
-            label: "Students",
-            icon: Users,
-            allowedRoles: [ROLES.ADMIN, ROLES.REGISTRAR, ROLES.FACULTY],
+            id: "home",
+            label: "Home",
+            icon: House,
+            allowedRoles: [
+              ROLES.ADMIN,
+              ROLES.REGISTRAR,
+              ROLES.CASHIER,
+              ROLES.FACULTY,
+            ],
           },
           {
-            id: "courses",
-            label: "Courses",
-            icon: BookOpen,
-            allowedRoles: [ROLES.ADMIN, ROLES.REGISTRAR, ROLES.FACULTY],
-          },
-          {
-            id: "enrollments",
-            label: "Enrollments",
-            icon: UserPlus,
-            allowedRoles: [ROLES.ADMIN, ROLES.REGISTRAR],
-          },
-          {
-            id: "enrollment-form",
-            label: "Enrollment Form",
-            icon: FileText,
-            allowedRoles: [ROLES.ADMIN, ROLES.REGISTRAR],
-          },
-          {
-            id: "resident-enrollment",
-            label: "Resident Enrollment",
-            icon: UserPlus,
-            allowedRoles: [ROLES.ADMIN, ROLES.REGISTRAR],
+            id: "transaction",
+            label: "Transaction",
+            icon: CreditCard,
+            hasSubmenu: true,
+            allowedRoles: [
+              ROLES.ADMIN,
+              ROLES.REGISTRAR,
+              ROLES.CASHIER,
+            ],
           },
           {
             id: "curriculum",
@@ -191,33 +275,16 @@ const Navigation: React.FC<NavigationProps> = ({
             hasSubmenu: true,
             allowedRoles: [ROLES.ADMIN, ROLES.REGISTRAR, ROLES.FACULTY],
           },
-          {
-            id: "scheduling",
-            label: "Scheduling",
-            icon: CalendarClock,
-            allowedRoles: [ROLES.ADMIN, ROLES.REGISTRAR, ROLES.FACULTY],
-          },
-          {
-            id: "section-management",
-            label: "Section Management",
-            icon: FolderTree,
-            allowedRoles: [ROLES.ADMIN, ROLES.REGISTRAR],
-          },
-          {
-            id: "faculty-subject-management",
-            label: "Faculty Subject Management",
-            icon: Users2,
-            allowedRoles: [ROLES.ADMIN, ROLES.REGISTRAR],
-          },
         ],
       },
       {
-        category: "System",
+        category: "",
         items: [
           {
-            id: "dashboard",
-            label: "Dashboard",
-            icon: BarChart3,
+            id: "report",
+            label: "Reports",
+            icon: FileBarChart,
+            hasSubmenu: true,
             allowedRoles: [
               ROLES.ADMIN,
               ROLES.REGISTRAR,
@@ -270,23 +337,6 @@ const Navigation: React.FC<NavigationProps> = ({
           },
         ],
       },
-      {
-        category: "Payment",
-        items: [
-          {
-            id: "assessment",
-            label: "Assessment",
-            icon: Calculator,
-            allowedRoles: [ROLES.ADMIN, ROLES.CASHIER],
-          },
-          {
-            id: "payment-billing",
-            label: "Payment & Billing",
-            icon: CreditCard,
-            allowedRoles: [ROLES.ADMIN, ROLES.CASHIER],
-          },
-        ],
-      },
     ],
     [],
   );
@@ -315,13 +365,34 @@ const Navigation: React.FC<NavigationProps> = ({
             return visibleSubItems.length > 0;
           }
 
+          if (item.id === "transaction") {
+            const visibleSubItems = transactionSubItems.filter((sub) =>
+              sub.allowedRoles.includes(userRole),
+            );
+            return visibleSubItems.length > 0;
+          }
+
+          if (item.id === "report") {
+            const visibleSubItems = reportSubItems.filter((sub) =>
+              sub.allowedRoles.includes(userRole),
+            );
+            return visibleSubItems.length > 0;
+          }
+
           return true;
         });
 
         return { ...group, items: visibleItems };
       })
       .filter((group) => group.items.length > 0);
-  }, [navGroups, fileMaintenanceSubItems, curriculumSubItems, userRole]);
+  }, [
+    navGroups,
+    fileMaintenanceSubItems,
+    curriculumSubItems,
+    transactionSubItems,
+    reportSubItems,
+    userRole,
+  ]);
 
   // Filter sub-items for rendering
   const visibleSubItems = fileMaintenanceSubItems.filter((item) =>
@@ -331,12 +402,28 @@ const Navigation: React.FC<NavigationProps> = ({
   const visibleCurriculumSubItems = curriculumSubItems.filter((item) =>
     item.allowedRoles.includes(userRole),
   );
+  const visibleTransactionSubItems = transactionSubItems.filter((item) =>
+    item.allowedRoles.includes(userRole),
+  );
+  const visibleReportSubItems = reportSubItems.filter((item) =>
+    item.allowedRoles.includes(userRole),
+  );
 
   const isFileMaintenanceActive = currentView.startsWith("file-maintenance");
   const isCurriculumActive = currentView.startsWith("curriculum");
+  const isTransactionActive = transactionSubItems.some(
+    (item) => item.id === currentView,
+  );
+  const isReportActive = reportSubItems.some((item) => item.id === currentView);
   const prevWasFileMaintenance =
     prevViewRef.current.startsWith("file-maintenance");
   const prevWasCurriculum = prevViewRef.current.startsWith("curriculum");
+  const prevWasTransaction = transactionSubItems.some(
+    (item) => item.id === prevViewRef.current,
+  );
+  const prevWasReport = reportSubItems.some(
+    (item) => item.id === prevViewRef.current,
+  );
 
   useEffect(() => {
     if (
@@ -349,6 +436,12 @@ const Navigation: React.FC<NavigationProps> = ({
     if (isCurriculumActive && !prevWasCurriculum && !isCurriculumOpen) {
       setIsCurriculumOpen(true);
     }
+    if (isTransactionActive && !prevWasTransaction && !isTransactionOpen) {
+      setIsTransactionOpen(true);
+    }
+    if (isReportActive && !prevWasReport && !isReportOpen) {
+      setIsReportOpen(true);
+    }
     prevViewRef.current = currentView;
   }, [
     currentView,
@@ -358,6 +451,12 @@ const Navigation: React.FC<NavigationProps> = ({
     isCurriculumActive,
     prevWasCurriculum,
     isCurriculumOpen,
+    isTransactionActive,
+    prevWasTransaction,
+    isTransactionOpen,
+    isReportActive,
+    prevWasReport,
+    isReportOpen,
   ]);
 
   return (
@@ -401,24 +500,32 @@ const Navigation: React.FC<NavigationProps> = ({
         <ul className='space-y-4'>
           {filteredNavGroups.map((group) => (
             <li key={group.category}>
-              <div className='mb-2 px-3'>
-                <h3
-                  className='text-xs font-semibold uppercase tracking-wider'
-                  style={{ color: colors.paper, opacity: 0.6 }}
-                >
-                  {group.category}
-                </h3>
-              </div>
+              {group.category && (
+                <div className='mb-2 px-3'>
+                  <h3
+                    className='text-xs font-semibold uppercase tracking-wider'
+                    style={{ color: colors.paper, opacity: 0.6 }}
+                  >
+                    {group.category}
+                  </h3>
+                </div>
+              )}
               <ul className='space-y-1'>
                 {group.items.map((item) => {
                   const Icon = item.icon;
                   const isFileMaintenance = item.id === "file-maintenance";
                   const isCurriculum = item.id === "curriculum";
+                  const isTransaction = item.id === "transaction";
+                  const isReport = item.id === "report";
                   const isActive = isFileMaintenance
                     ? isFileMaintenanceActive
                     : isCurriculum
                       ? isCurriculumActive
-                      : currentView === item.id;
+                      : isTransaction
+                        ? isTransactionActive
+                        : isReport
+                          ? isReportActive
+                          : currentView === item.id;
 
                   return (
                     <li key={item.id}>
@@ -438,6 +545,10 @@ const Navigation: React.FC<NavigationProps> = ({
                                 );
                               } else if (isCurriculum) {
                                 setIsCurriculumOpen(!isCurriculumOpen);
+                              } else if (isTransaction) {
+                                setIsTransactionOpen(!isTransactionOpen);
+                              } else if (isReport) {
+                                setIsReportOpen(!isReportOpen);
                               }
                             } else {
                               if (isFileMaintenance && item.hasSubmenu) {
@@ -447,6 +558,10 @@ const Navigation: React.FC<NavigationProps> = ({
                               } else if (isCurriculum && item.hasSubmenu) {
                                 // For Curriculum, clicking the main button navigates to curriculum view
                                 onViewChange(item.id);
+                              } else if (isTransaction && item.hasSubmenu) {
+                                setIsTransactionOpen(!isTransactionOpen);
+                              } else if (isReport && item.hasSubmenu) {
+                                setIsReportOpen(!isReportOpen);
                               } else {
                                 onViewChange(item.id);
                               }
@@ -483,11 +598,16 @@ const Navigation: React.FC<NavigationProps> = ({
                         >
                           <Icon className='w-5 h-5' />
                           <span className='flex-1 text-left'>{item.label}</span>
-                          {(isFileMaintenance || isCurriculum) &&
+                          {(isFileMaintenance ||
+                            isCurriculum ||
+                            isTransaction ||
+                            isReport) &&
                             item.hasSubmenu && (
                               <span className='chevron-toggle cursor-pointer flex items-center justify-center'>
                                 {(isFileMaintenance && isFileMaintenanceOpen) ||
-                                (isCurriculum && isCurriculumOpen) ? (
+                                (isCurriculum && isCurriculumOpen) ||
+                                (isTransaction && isTransactionOpen) ||
+                                (isReport && isReportOpen) ? (
                                   <ChevronDown className='w-4 h-4' />
                                 ) : (
                                   <ChevronRight className='w-4 h-4' />
@@ -570,6 +690,110 @@ const Navigation: React.FC<NavigationProps> = ({
                       {isCurriculum && item.hasSubmenu && isCurriculumOpen && (
                         <ul className='ml-0 md:ml-4 mt-1 space-y-1'>
                           {visibleCurriculumSubItems.map((subItem) => {
+                            const SubIcon = subItem.icon;
+                            const isSubActive = currentView === subItem.id;
+                            return (
+                              <li key={subItem.id}>
+                                <button
+                                  onClick={(e) => {
+                                    e.preventDefault();
+                                    e.stopPropagation();
+                                    onViewChange(subItem.id);
+                                  }}
+                                  className='w-full flex items-center justify-start gap-3 px-3 py-2 rounded-lg text-sm font-medium transition-all duration-200'
+                                  style={
+                                    isSubActive
+                                      ? {
+                                          backgroundColor: `${colors.secondary}40`,
+                                          color: colors.paper,
+                                          border: `1px solid ${colors.secondary}`,
+                                        }
+                                      : {
+                                          color: colors.paper,
+                                          backgroundColor: "transparent",
+                                          border: "1px solid transparent",
+                                          opacity: 0.7,
+                                        }
+                                  }
+                                  onMouseEnter={(e) => {
+                                    if (!isSubActive) {
+                                      e.currentTarget.style.backgroundColor = `${colors.paper}20`;
+                                      e.currentTarget.style.opacity = "1";
+                                    }
+                                  }}
+                                  onMouseLeave={(e) => {
+                                    if (!isSubActive) {
+                                      e.currentTarget.style.backgroundColor =
+                                        "transparent";
+                                      e.currentTarget.style.opacity = "0.7";
+                                    }
+                                  }}
+                                >
+                                  <SubIcon className='w-4 h-4' />
+                                  <span>{subItem.label}</span>
+                                </button>
+                              </li>
+                            );
+                          })}
+                        </ul>
+                      )}
+
+                      {/* Transaction Submenu */}
+                      {isTransaction && item.hasSubmenu && isTransactionOpen && (
+                        <ul className='ml-0 md:ml-4 mt-1 space-y-1'>
+                          {visibleTransactionSubItems.map((subItem) => {
+                            const SubIcon = subItem.icon;
+                            const isSubActive = currentView === subItem.id;
+                            return (
+                              <li key={subItem.id}>
+                                <button
+                                  onClick={(e) => {
+                                    e.preventDefault();
+                                    e.stopPropagation();
+                                    onViewChange(subItem.id);
+                                  }}
+                                  className='w-full flex items-center justify-start gap-3 px-3 py-2 rounded-lg text-sm font-medium transition-all duration-200'
+                                  style={
+                                    isSubActive
+                                      ? {
+                                          backgroundColor: `${colors.secondary}40`,
+                                          color: colors.paper,
+                                          border: `1px solid ${colors.secondary}`,
+                                        }
+                                      : {
+                                          color: colors.paper,
+                                          backgroundColor: "transparent",
+                                          border: "1px solid transparent",
+                                          opacity: 0.7,
+                                        }
+                                  }
+                                  onMouseEnter={(e) => {
+                                    if (!isSubActive) {
+                                      e.currentTarget.style.backgroundColor = `${colors.paper}20`;
+                                      e.currentTarget.style.opacity = "1";
+                                    }
+                                  }}
+                                  onMouseLeave={(e) => {
+                                    if (!isSubActive) {
+                                      e.currentTarget.style.backgroundColor =
+                                        "transparent";
+                                      e.currentTarget.style.opacity = "0.7";
+                                    }
+                                  }}
+                                >
+                                  <SubIcon className='w-4 h-4' />
+                                  <span>{subItem.label}</span>
+                                </button>
+                              </li>
+                            );
+                          })}
+                        </ul>
+                      )}
+
+                      {/* Report Submenu */}
+                      {isReport && item.hasSubmenu && isReportOpen && (
+                        <ul className='ml-0 md:ml-4 mt-1 space-y-1'>
+                          {visibleReportSubItems.map((subItem) => {
                             const SubIcon = subItem.icon;
                             const isSubActive = currentView === subItem.id;
                             return (

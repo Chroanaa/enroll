@@ -23,6 +23,10 @@ interface UserAccount {
   username: string;
   role: number;
   roles: { role: string | null };
+  first_name?: string | null;
+  middle_name?: string | null;
+  last_name?: string | null;
+  position?: string | null;
 }
 
 interface RoleOption {
@@ -42,6 +46,10 @@ export default function AccountManagement() {
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [selectedRole, setSelectedRole] = useState<number | "">("");
+  const [firstName, setFirstName] = useState("");
+  const [middleName, setMiddleName] = useState("");
+  const [lastName, setLastName] = useState("");
+  const [position, setPosition] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [successMsg, setSuccessMsg] = useState<string | null>(null);
@@ -51,6 +59,10 @@ export default function AccountManagement() {
   const [editingUser, setEditingUser] = useState<UserAccount | null>(null);
   const [editUsername, setEditUsername] = useState("");
   const [editRole, setEditRole] = useState<number | "">("");
+  const [editFirstName, setEditFirstName] = useState("");
+  const [editMiddleName, setEditMiddleName] = useState("");
+  const [editLastName, setEditLastName] = useState("");
+  const [editPosition, setEditPosition] = useState("");
 
   // Reset password state
   const [resetPasswordUser, setResetPasswordUser] =
@@ -86,6 +98,10 @@ export default function AccountManagement() {
     setPassword("");
     setConfirmPassword("");
     setSelectedRole("");
+    setFirstName("");
+    setMiddleName("");
+    setLastName("");
+    setPosition("");
     setShowPassword(false);
     setErrorMsg(null);
   };
@@ -115,7 +131,7 @@ export default function AccountManagement() {
       const res = await fetch("/api/auth/accounts", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ username, password, role: selectedRole }),
+        body: JSON.stringify({ username, password, role: selectedRole, first_name: firstName, middle_name: middleName, last_name: lastName, position }),
       });
 
       const data = await res.json();
@@ -160,6 +176,10 @@ export default function AccountManagement() {
     setEditingUser(user);
     setEditUsername(user.username);
     setEditRole(user.role);
+    setEditFirstName(user.first_name || "");
+    setEditMiddleName(user.middle_name || "");
+    setEditLastName(user.last_name || "");
+    setEditPosition(user.position || "");
     setErrorMsg(null);
   };
 
@@ -185,6 +205,10 @@ export default function AccountManagement() {
           id: editingUser.id,
           username: editUsername,
           role: editRole,
+          first_name: editFirstName,
+          middle_name: editMiddleName,
+          last_name: editLastName,
+          position: editPosition,
         }),
       });
       const data = await res.json();
@@ -392,6 +416,60 @@ export default function AccountManagement() {
               </div>
             </div>
 
+            <div className='grid grid-cols-1 md:grid-cols-3 gap-4'>
+              <div>
+                <label className='block text-sm font-medium text-gray-700 mb-1'>
+                  First Name
+                </label>
+                <input
+                  type='text'
+                  value={firstName}
+                  onChange={(e) => setFirstName(e.target.value)}
+                  placeholder='First name'
+                  className='w-full px-3 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm'
+                />
+              </div>
+              <div>
+                <label className='block text-sm font-medium text-gray-700 mb-1'>
+                  Middle Name
+                </label>
+                <input
+                  type='text'
+                  value={middleName}
+                  onChange={(e) => setMiddleName(e.target.value)}
+                  placeholder='Middle name'
+                  className='w-full px-3 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm'
+                />
+              </div>
+              <div>
+                <label className='block text-sm font-medium text-gray-700 mb-1'>
+                  Last Name
+                </label>
+                <input
+                  type='text'
+                  value={lastName}
+                  onChange={(e) => setLastName(e.target.value)}
+                  placeholder='Last name'
+                  className='w-full px-3 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm'
+                />
+              </div>
+            </div>
+
+            <div className='grid grid-cols-1 md:grid-cols-2 gap-4'>
+              <div>
+                <label className='block text-sm font-medium text-gray-700 mb-1'>
+                  Position
+                </label>
+                <input
+                  type='text'
+                  value={position}
+                  onChange={(e) => setPosition(e.target.value)}
+                  placeholder='e.g. Registrar Staff'
+                  className='w-full px-3 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm'
+                />
+              </div>
+            </div>
+
             <div className='grid grid-cols-1 md:grid-cols-2 gap-4'>
               <div>
                 <label className='block text-sm font-medium text-gray-700 mb-1'>
@@ -505,6 +583,12 @@ export default function AccountManagement() {
                     Username
                   </th>
                   <th className='px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider'>
+                    Full Name
+                  </th>
+                  <th className='px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider'>
+                    Position
+                  </th>
+                  <th className='px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider'>
                     Role
                   </th>
                   <th className='px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider'>
@@ -523,6 +607,12 @@ export default function AccountManagement() {
                     </td>
                     <td className='px-6 py-3.5 text-sm font-medium text-gray-900'>
                       {user.username}
+                    </td>
+                    <td className='px-6 py-3.5 text-sm text-gray-700'>
+                      {[user.first_name, user.middle_name, user.last_name].filter(Boolean).join(" ") || <span className='text-gray-400 italic'>—</span>}
+                    </td>
+                    <td className='px-6 py-3.5 text-sm text-gray-600'>
+                      {user.position || <span className='text-gray-400 italic'>—</span>}
                     </td>
                     <td className='px-6 py-3.5'>
                       <span
@@ -605,6 +695,56 @@ export default function AccountManagement() {
                   onChange={(e) => setEditUsername(e.target.value)}
                   className='w-full px-3 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm'
                   minLength={3}
+                />
+              </div>
+              <div className='grid grid-cols-3 gap-3'>
+                <div>
+                  <label className='block text-sm font-medium text-gray-700 mb-1'>
+                    First Name
+                  </label>
+                  <input
+                    type='text'
+                    value={editFirstName}
+                    onChange={(e) => setEditFirstName(e.target.value)}
+                    placeholder='First name'
+                    className='w-full px-3 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm'
+                  />
+                </div>
+                <div>
+                  <label className='block text-sm font-medium text-gray-700 mb-1'>
+                    Middle Name
+                  </label>
+                  <input
+                    type='text'
+                    value={editMiddleName}
+                    onChange={(e) => setEditMiddleName(e.target.value)}
+                    placeholder='Middle name'
+                    className='w-full px-3 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm'
+                  />
+                </div>
+                <div>
+                  <label className='block text-sm font-medium text-gray-700 mb-1'>
+                    Last Name
+                  </label>
+                  <input
+                    type='text'
+                    value={editLastName}
+                    onChange={(e) => setEditLastName(e.target.value)}
+                    placeholder='Last name'
+                    className='w-full px-3 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm'
+                  />
+                </div>
+              </div>
+              <div>
+                <label className='block text-sm font-medium text-gray-700 mb-1'>
+                  Position
+                </label>
+                <input
+                  type='text'
+                  value={editPosition}
+                  onChange={(e) => setEditPosition(e.target.value)}
+                  placeholder='e.g. Registrar Staff'
+                  className='w-full px-3 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm'
                 />
               </div>
               <div>

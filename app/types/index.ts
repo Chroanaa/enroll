@@ -166,12 +166,15 @@ export interface Faculty {
   phone?: string;
   department_id: number;
   departmentName?: string;
+  employment_status?: "partime" | "full time";
+  mother_unit?: string;
   position:
     | "professor"
     | "associate professor"
     | "assistant professor"
     | "instructor"
     | "lecturer";
+  degree?: string;
   specialization?: string;
   status: "active" | "inactive";
 }

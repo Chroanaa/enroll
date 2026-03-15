@@ -2,6 +2,7 @@
 import React, { useState, useEffect, Suspense } from "react";
 import { useSearchParams } from "next/navigation";
 import Navigation from "../components/Navigation";
+import HomePage from "../components/HomePage";
 import Dashboard from "../components/Dashboard";
 import StudentManagement from "../components/StudentManagement";
 import CourseManagement from "../components/CourseManagement";
@@ -39,7 +40,7 @@ import FacultySubjectManagement from "../admin/faculty-subject-management/page";
 
 function DashboardContent() {
   const searchParams = useSearchParams();
-  const [currentView, setCurrentView] = useState("dashboard");
+  const [currentView, setCurrentView] = useState("home");
 
   console.log("DashboardContent render - currentView:", currentView);
 
@@ -59,6 +60,8 @@ function DashboardContent() {
   const renderCurrentView = () => {
     console.log("renderCurrentView - currentView:", currentView);
     switch (currentView) {
+      case "home":
+        return <HomePage />;
       case "dashboard":
         return <Dashboard />;
       case "students":
@@ -120,7 +123,7 @@ function DashboardContent() {
       case "settings":
         return <Settings />;
       default:
-        return <Dashboard />;
+        return <HomePage />;
     }
   };
 

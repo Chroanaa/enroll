@@ -12,6 +12,9 @@ export const filterFaculty = (
       fac.last_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
       fac.employee_id?.toLowerCase().includes(searchTerm.toLowerCase()) ||
       fac.email?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      fac.degree?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      fac.mother_unit?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      fac.employment_status?.toLowerCase().includes(searchTerm.toLowerCase()) ||
       fac.departmentName?.toLowerCase().includes(searchTerm.toLowerCase());
     const matchesStatus = statusFilter === "all" || fac.status === statusFilter;
     const matchesPosition =
