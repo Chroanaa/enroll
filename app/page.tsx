@@ -13,6 +13,7 @@ import ReportManagement from "./components/ReportManagement";
 import SchedulingManagement from "./components/SchedulingManagement";
 import PaymentBillingManagement from "./components/PaymentBillingManagement";
 import CurriculumManagement from "./components/curriculum";
+import ResidentPortalContent from "./resident/ResidentPortalContent";
 import SectionManagementPage from "./admin/sections/page";
 import FacultySubjectManagementPage from "./admin/faculty-subject-management/page";
 import {
@@ -115,6 +116,8 @@ function App() {
         return <EnrollmentManagement />;
       case "enrollment-form":
         return <EnrollmentForm />;
+      case "resident-enrollment":
+        return <ResidentPortalContent />;
       case "forecast":
         return <ForecastingAnalytics />;
       case "forecast-billing":

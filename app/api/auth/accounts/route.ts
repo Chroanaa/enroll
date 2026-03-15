@@ -22,6 +22,10 @@ export async function GET() {
         id: true,
         username: true,
         role: true,
+        first_name: true,
+        middle_name: true,
+        last_name: true,
+        position: true,
         roles: { select: { role: true } },
       },
       orderBy: { id: "asc" },
@@ -55,7 +59,7 @@ export async function POST(request: NextRequest) {
   }
 
   try {
-    const { username, password, role } = await request.json();
+    const { username, password, role, first_name, middle_name, last_name, position } = await request.json();
 
     if (!username || !password || !role) {
       return NextResponse.json(
@@ -106,6 +110,10 @@ export async function POST(request: NextRequest) {
         username,
         password: hashedPassword,
         role: Number(role),
+        first_name: first_name || null,
+        middle_name: middle_name || null,
+        last_name: last_name || null,
+        position: position || null,
       },
       select: { id: true, username: true, role: true },
     });
@@ -135,7 +143,7 @@ export async function PUT(request: NextRequest) {
   }
 
   try {
-    const { id, username, password, role } = await request.json();
+    const { id, username, password, role, first_name, middle_name, last_name, position } = await request.json();
 
     if (!id) {
       return NextResponse.json(
@@ -193,6 +201,11 @@ export async function PUT(request: NextRequest) {
       }
       updateData.role = Number(role);
     }
+
+    if (first_name !== undefined) updateData.first_name = first_name || null;
+    if (middle_name !== undefined) updateData.middle_name = middle_name || null;
+    if (last_name !== undefined) updateData.last_name = last_name || null;
+    if (position !== undefined) updateData.position = position || null;
 
     if (Object.keys(updateData).length === 0) {
       return NextResponse.json(
