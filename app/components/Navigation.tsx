@@ -237,6 +237,12 @@ const Navigation: React.FC<NavigationProps> = ({
         icon: FileBarChart,
         allowedRoles: [ROLES.ADMIN, ROLES.REGISTRAR],
       },
+      {
+        id: "reports-payments-dashboard",
+        label: "Payments Dashboard",
+        icon: DollarSign,
+        allowedRoles: [ROLES.ADMIN, ROLES.REGISTRAR, ROLES.CASHIER],
+      },
     ],
     [],
   );
