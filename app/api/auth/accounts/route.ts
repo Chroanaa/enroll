@@ -17,19 +17,27 @@ export async function GET() {
   }
 
   try {
-    const users = await prisma.users.findMany({
+    const rawUsers = await prisma.users.findMany({
       select: {
         id: true,
         username: true,
         role: true,
-        first_name: true,
-        middle_name: true,
-        last_name: true,
-        position: true,
+        firstname: true,
+        middlename: true,
+        lastname: true,
         roles: { select: { role: true } },
       },
       orderBy: { id: "asc" },
     });
+
+    const users = rawUsers.map(
+      ({ firstname, middlename, lastname, ...rest }) => ({
+        ...rest,
+        first_name: firstname,
+        middle_name: middlename,
+        last_name: lastname,
+      }),
+    );
 
     const roles = await prisma.roles.findMany({
       where: { status: 1 },
@@ -59,7 +67,15 @@ export async function POST(request: NextRequest) {
   }
 
   try {
-    const { username, password, role, first_name, middle_name, last_name, position } = await request.json();
+    const {
+      username,
+      password,
+      role,
+      first_name,
+      middle_name,
+      last_name,
+      position,
+    } = await request.json();
 
     if (!username || !password || !role) {
       return NextResponse.json(
@@ -110,10 +126,9 @@ export async function POST(request: NextRequest) {
         username,
         password: hashedPassword,
         role: Number(role),
-        first_name: first_name || null,
-        middle_name: middle_name || null,
-        last_name: last_name || null,
-        position: position || null,
+        firstname: first_name || null,
+        middlename: middle_name || null,
+        lastname: last_name || null,
       },
       select: { id: true, username: true, role: true },
     });
@@ -143,7 +158,16 @@ export async function PUT(request: NextRequest) {
   }
 
   try {
-    const { id, username, password, role, first_name, middle_name, last_name, position } = await request.json();
+    const {
+      id,
+      username,
+      password,
+      role,
+      first_name,
+      middle_name,
+      last_name,
+      position,
+    } = await request.json();
 
     if (!id) {
       return NextResponse.json(
@@ -202,10 +226,9 @@ export async function PUT(request: NextRequest) {
       updateData.role = Number(role);
     }
 
-    if (first_name !== undefined) updateData.first_name = first_name || null;
-    if (middle_name !== undefined) updateData.middle_name = middle_name || null;
-    if (last_name !== undefined) updateData.last_name = last_name || null;
-    if (position !== undefined) updateData.position = position || null;
+    if (first_name !== undefined) updateData.firstname = first_name || null;
+    if (middle_name !== undefined) updateData.middlename = middle_name || null;
+    if (last_name !== undefined) updateData.lastname = last_name || null;
 
     if (Object.keys(updateData).length === 0) {
       return NextResponse.json(
