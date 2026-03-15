@@ -1,6 +1,7 @@
 "use client";
 import React, { useState } from "react";
 import Navigation from "./components/Navigation";
+import HomePage from "./components/HomePage";
 import Dashboard from "./components/Dashboard";
 import StudentManagement from "./components/StudentManagement";
 import CourseManagement from "./components/CourseManagement";
@@ -47,6 +48,7 @@ const ROLES = {
 };
 
 const VIEW_ROLES: Record<string, number[]> = {
+  home: [ROLES.ADMIN, ROLES.CASHIER, ROLES.FACULTY, ROLES.REGISTRAR],
   dashboard: [ROLES.ADMIN, ROLES.CASHIER, ROLES.FACULTY, ROLES.REGISTRAR],
   students: [ROLES.ADMIN, ROLES.REGISTRAR, ROLES.FACULTY],
   courses: [ROLES.ADMIN, ROLES.REGISTRAR, ROLES.FACULTY],
@@ -80,7 +82,7 @@ const VIEW_ROLES: Record<string, number[]> = {
 };
 
 function App() {
-  const [currentView, setCurrentView] = useState("dashboard");
+  const [currentView, setCurrentView] = useState("home");
   const { data: session, status } = useSession();
   const router = useRouter();
 
@@ -106,6 +108,8 @@ function App() {
     }
 
     switch (currentView) {
+      case "home":
+        return <HomePage />;
       case "dashboard":
         return <Dashboard />;
       case "students":
@@ -167,7 +171,7 @@ function App() {
       case "settings":
         return <Settings />;
       default:
-        return <Dashboard />;
+        return <HomePage />;
     }
   };
   if (status === "loading") {
