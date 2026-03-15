@@ -12,6 +12,7 @@ import {
   FileBarChart,
   CalendarClock,
   CreditCard,
+  Database,
   GraduationCap,
   Settings,
   ChevronDown,
@@ -302,6 +303,31 @@ const Navigation: React.FC<NavigationProps> = ({
               ROLES.CASHIER,
               ROLES.FACULTY,
             ],
+          },
+          {
+            id: "reports",
+            label: "Reports",
+            icon: FileBarChart,
+            allowedRoles: [ROLES.ADMIN, ROLES.REGISTRAR],
+          },
+
+          {
+            id: "forecast-billing",
+            label: "Student Forecast",
+            icon: TrendingUp,
+            allowedRoles: [ROLES.ADMIN, ROLES.REGISTRAR],
+          },
+          {
+            id: "account-management",
+            label: "Account Management",
+            icon: UserCog,
+            allowedRoles: [ROLES.ADMIN],
+          },
+          {
+            id: "backups",
+            label: "Backups",
+            icon: Database,
+            allowedRoles: [ROLES.ADMIN],
           },
           {
             id: "settings",

@@ -33,6 +33,7 @@ import {
 } from "./components/fileMaintenance";
 import MiscellaneousFees from "./components/MiscellaneousFees";
 import AccountManagement from "./components/AccountManagement";
+import BackupManagement from "./components/BackupManagement";
 import Settings from "./components/Settings";
 import ProtectedRoute from "./components/ProtectedRoute";
 import { AuthProvider } from "./contexts/AuthContext";
@@ -78,6 +79,7 @@ const VIEW_ROLES: Record<string, number[]> = {
   "file-maintenance-subject": [ROLES.ADMIN, ROLES.REGISTRAR, ROLES.FACULTY],
   "miscellaneous-fees": [ROLES.ADMIN, ROLES.CASHIER],
   "account-management": [ROLES.ADMIN],
+  backups: [ROLES.ADMIN],
   settings: [ROLES.ADMIN],
 };
 
@@ -168,6 +170,8 @@ function App() {
         return <MiscellaneousFees />;
       case "account-management":
         return <AccountManagement />;
+      case "backups":
+        return <BackupManagement />;
       case "settings":
         return <Settings />;
       default:
