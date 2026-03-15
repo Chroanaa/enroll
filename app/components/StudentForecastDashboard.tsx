@@ -288,7 +288,7 @@ const StudentForecastDashboard: React.FC = () => {
                 Enrollment Forecast
               </h1>
               <p className='text-sm' style={{ color: colors.neutral }}>
-                Historical enrollment trends, AI-predicted student counts &amp;
+                Historical enrollment trends, predicted student counts &amp;
                 section capacity recommendations
               </p>
             </div>
@@ -996,8 +996,7 @@ const StudentForecastDashboard: React.FC = () => {
                 style={{ color: colors.neutral }}
               >
                 Historical student counts per program across all years, with the
-                AI-predicted count for{" "}
-                {predictedYear || "the next academic year"}.
+                predicted count for {predictedYear || "the next academic year"}.
               </p>
 
               <div className='overflow-x-auto'>

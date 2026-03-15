@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from "react";
+import React, { useState, useEffect, useMemo, useRef } from "react";
 import {
   X,
   Loader2,
@@ -104,6 +104,8 @@ interface FinancialDetailModalProps {
   onClose: () => void;
   formatAmount: (amount: number | null | undefined) => string;
   onPaymentSuccess?: () => void;
+  onPaymentCompleted?: () => void;
+  mode?: "modal" | "page";
 }
 
 type DetailTab = "subjects" | "fees" | "payments" | "schedule";
@@ -114,6 +116,8 @@ export const FinancialDetailModal: React.FC<FinancialDetailModalProps> = ({
   onClose,
   formatAmount,
   onPaymentSuccess,
+  onPaymentCompleted,
+  mode = "modal",
 }) => {
   const { data: session } = useSession();
   const [detail, setDetail] = useState<AssessmentDetail | null>(null);
@@ -127,6 +131,8 @@ export const FinancialDetailModal: React.FC<FinancialDetailModalProps> = ({
   // Low downpayment confirmation modal state
   const [showLowDpConfirm, setShowLowDpConfirm] = useState(false);
   const [lowDpPendingPayment, setLowDpPendingPayment] = useState(false);
+  const [showPaymentConfirm, setShowPaymentConfirm] = useState(false);
+  const pendingPaymentActionRef = useRef<null | (() => Promise<void>)>(null);
 
   // Installment payment state
   const [payingSchedule, setPayingSchedule] = useState<ScheduleRecord | null>(
@@ -330,8 +336,27 @@ export const FinancialDetailModal: React.FC<FinancialDetailModalProps> = ({
     return true;
   }, [detail, fullPayTotalPayment, fullPayLines]);
 
+  const openPaymentConfirm = (action: () => Promise<void>) => {
+    pendingPaymentActionRef.current = action;
+    setShowPaymentConfirm(true);
+  };
+
+  const confirmPaymentAction = async () => {
+    setShowPaymentConfirm(false);
+    if (pendingPaymentActionRef.current) {
+      await pendingPaymentActionRef.current();
+      pendingPaymentActionRef.current = null;
+    }
+  };
+
   const handleFullPayPayment = async () => {
     if (!detail) return;
+    openPaymentConfirm(submitFullPayPayment);
+  };
+
+  const submitFullPayPayment = async () => {
+    if (!detail) return;
+
     setIsProcessingFullPay(true);
     try {
       const response = await fetch("/api/auth/payment/multi", {
@@ -360,6 +385,7 @@ export const FinancialDetailModal: React.FC<FinancialDetailModalProps> = ({
 
       if (assessmentId) await fetchDetail(assessmentId);
       onPaymentSuccess?.();
+      onPaymentCompleted?.();
       setTimeout(() => {
         resetFullPayPayment();
       }, 2000);
@@ -469,11 +495,23 @@ export const FinancialDetailModal: React.FC<FinancialDetailModalProps> = ({
   const confirmLowDownpayment = () => {
     setShowLowDpConfirm(false);
     setLowDpPendingPayment(true);
-    handleDownpaymentPayment();
+    handleDownpaymentPayment(true);
   };
 
-  const handleDownpaymentPayment = async () => {
+  const handleDownpaymentPayment = async (skipConfirm = false) => {
     if (!detail) return;
+
+    if (!skipConfirm) {
+      openPaymentConfirm(() => submitDownpaymentPayment());
+      return;
+    }
+
+    await submitDownpaymentPayment();
+  };
+
+  const submitDownpaymentPayment = async () => {
+    if (!detail) return;
+
     setIsProcessingDownpayment(true);
     try {
       const response = await fetch("/api/auth/payment/multi", {
@@ -502,6 +540,7 @@ export const FinancialDetailModal: React.FC<FinancialDetailModalProps> = ({
 
       if (assessmentId) await fetchDetail(assessmentId);
       onPaymentSuccess?.();
+      onPaymentCompleted?.();
       setTimeout(() => {
         resetDownpaymentPayment();
       }, 2000);
@@ -604,6 +643,12 @@ export const FinancialDetailModal: React.FC<FinancialDetailModalProps> = ({
 
   const handleInstallmentPayment = async () => {
     if (!payingSchedule || !detail) return;
+    openPaymentConfirm(submitInstallmentPayment);
+  };
+
+  const submitInstallmentPayment = async () => {
+    if (!payingSchedule || !detail) return;
+
     setIsProcessingInstallment(true);
     try {
       const response = await fetch("/api/auth/payment/multi", {
@@ -636,6 +681,7 @@ export const FinancialDetailModal: React.FC<FinancialDetailModalProps> = ({
       if (assessmentId) await fetchDetail(assessmentId);
       // Notify parent to refresh its list
       onPaymentSuccess?.();
+      onPaymentCompleted?.();
 
       // Reset payment form after a short delay
       setTimeout(() => {
@@ -661,7 +707,9 @@ export const FinancialDetailModal: React.FC<FinancialDetailModalProps> = ({
     }
   };
 
-  if (!isOpen) return null;
+  const isPageMode = mode === "page";
+
+  if (!isOpen && !isPageMode) return null;
 
   const statusBadge = (status: string) => {
     const styles: Record<string, string> = {
@@ -702,8 +750,20 @@ export const FinancialDetailModal: React.FC<FinancialDetailModalProps> = ({
   ];
 
   return (
-    <div className='fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4'>
-      <div className='bg-white rounded-xl shadow-2xl w-full max-w-4xl max-h-[90vh] flex flex-col overflow-hidden'>
+    <div
+      className={
+        isPageMode
+          ? "w-full"
+          : "fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"
+      }
+    >
+      <div
+        className={
+          isPageMode
+            ? "bg-white rounded-xl shadow-sm border border-gray-100 w-full max-w-7xl mx-auto min-h-[calc(100vh-3rem)] flex flex-col overflow-hidden"
+            : "bg-white rounded-xl shadow-2xl w-full max-w-4xl max-h-[90vh] flex flex-col overflow-hidden"
+        }
+      >
         {/* Header */}
         <div
           className='px-6 py-4 flex items-center justify-between border-b'
@@ -727,7 +787,11 @@ export const FinancialDetailModal: React.FC<FinancialDetailModalProps> = ({
         </div>
 
         {/* Content */}
-        <div className='flex-1 overflow-y-auto'>
+        <div
+          className={
+            isPageMode ? "flex-1 overflow-y-auto" : "flex-1 overflow-y-auto"
+          }
+        >
           {isLoading ? (
             <div className='flex items-center justify-center py-16'>
               <Loader2 className='w-8 h-8 animate-spin text-gray-400' />
@@ -833,7 +897,8 @@ export const FinancialDetailModal: React.FC<FinancialDetailModalProps> = ({
                           style={{ backgroundColor: colors.secondary }}
                         >
                           <DollarSign className='w-4 h-4' />
-                          Pay Downpayment ({formatAmount(defaultDownpaymentAmount)})
+                          Pay Downpayment (
+                          {formatAmount(defaultDownpaymentAmount)})
                         </button>
                       ) : detail.payment_mode?.toLowerCase() !==
                         "installment" ? (
@@ -2278,7 +2343,7 @@ export const FinancialDetailModal: React.FC<FinancialDetailModalProps> = ({
             className='px-5 py-2 rounded-lg text-white font-medium text-sm hover:opacity-90 transition-colors'
             style={{ backgroundColor: colors.primary }}
           >
-            Close
+            {isPageMode ? "Back" : "Close"}
           </button>
         </div>
       </div>
@@ -2362,6 +2427,52 @@ export const FinancialDetailModal: React.FC<FinancialDetailModalProps> = ({
               >
                 <ShieldAlert className='w-4 h-4' />
                 Authorize & Proceed
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Payment Confirmation Modal */}
+      {showPaymentConfirm && (
+        <div className='fixed inset-0 z-[70] flex items-center justify-center bg-black/60 p-4'>
+          <div className='bg-white rounded-xl shadow-2xl w-full max-w-md overflow-hidden'>
+            <div className='px-6 py-4 border-b border-gray-200'>
+              <h3
+                className='text-lg font-bold'
+                style={{ color: colors.primary }}
+              >
+                Confirm Payment
+              </h3>
+              <p className='text-sm text-gray-600 mt-1'>
+                Are you sure you want to process this payment?
+              </p>
+            </div>
+
+            <div className='px-6 py-5 space-y-2'>
+              <p className='text-sm text-gray-600'>
+                This will record the transaction and update the student's
+                financial assessment.
+              </p>
+            </div>
+
+            <div className='px-6 py-4 bg-gray-50 border-t border-gray-200 flex justify-end gap-3'>
+              <button
+                onClick={() => {
+                  setShowPaymentConfirm(false);
+                  pendingPaymentActionRef.current = null;
+                }}
+                className='px-5 py-2.5 rounded-lg text-sm font-medium text-gray-700 bg-white border border-gray-300 hover:bg-gray-50 transition-colors'
+              >
+                Cancel
+              </button>
+              <button
+                onClick={confirmPaymentAction}
+                className='px-5 py-2.5 rounded-lg text-sm font-medium text-white hover:opacity-90 transition-colors flex items-center gap-2'
+                style={{ backgroundColor: colors.secondary }}
+              >
+                <CheckCircle className='w-4 h-4' />
+                Confirm Payment
               </button>
             </div>
           </div>

@@ -1,5 +1,6 @@
 "use client";
 import React, { useState, useEffect, useMemo } from "react";
+import { useRouter } from "next/navigation";
 import { colors } from "../colors";
 import SuccessModal from "./common/SuccessModal";
 import ErrorModal from "./common/ErrorModal";
@@ -14,11 +15,7 @@ import {
 import { OrderDetailsModal } from "./paymentBilling/OrderDetailsModal";
 import { VoidTransactionModal } from "./paymentBilling/VoidTransactionModal";
 import { ProductCheckoutModal } from "./paymentBilling/ProductCheckoutModal";
-import {
-  StudentPaymentCheckoutModal,
-  CartStudent,
-  PaymentLine,
-} from "./paymentBilling/StudentPaymentCheckoutModal";
+import { CartStudent } from "./paymentBilling/StudentPaymentCheckoutModal";
 import {
   Product,
   Category,
@@ -38,12 +35,29 @@ import { useTransactions } from "./paymentBilling/hooks/useTransactions";
 import { formatAmount } from "./paymentBilling/utils";
 
 type ActiveTab = "products" | "enrollments" | "transactions";
+const STUDENT_PAYMENT_CART_KEY = "student-payment-cart";
+const STUDENT_PAYMENT_UPDATED_KEY = "student-payment-updated";
 
 const PaymentBillingManagement: React.FC = () => {
+  const router = useRouter();
   const { data: session } = useSession();
 
-  // Tab state
-  const [activeTab, setActiveTab] = useState<ActiveTab>("products");
+  // Tab state — read sessionStorage synchronously so there's no flash to "products"
+  const [activeTab, setActiveTab] = useState<ActiveTab>(() => {
+    if (typeof window !== "undefined") {
+      const pending = sessionStorage.getItem(
+        "payment-billing-tab",
+      ) as ActiveTab | null;
+      if (pending) return pending;
+    }
+    return "products";
+  });
+
+  // Clean up the pending tab key after it has been consumed by the initializer
+  useEffect(() => {
+    sessionStorage.removeItem("payment-billing-tab");
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // Data states
   const [products, setProducts] = useState<Product[]>([]);
@@ -61,10 +75,8 @@ const PaymentBillingManagement: React.FC = () => {
   const [studentPaymentCart, setStudentPaymentCart] = useState<CartStudent[]>(
     [],
   );
-  const [isStudentPaymentCheckoutOpen, setIsStudentPaymentCheckoutOpen] =
-    useState(false);
-  const [isProcessingStudentPayment, setIsProcessingStudentPayment] =
-    useState(false);
+  const [studentPaymentRefreshSignal, setStudentPaymentRefreshSignal] =
+    useState(0);
 
   // Custom hooks
   const cartHook = useCart(products);
@@ -133,6 +145,16 @@ const PaymentBillingManagement: React.FC = () => {
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeTab]);
+
+  useEffect(() => {
+    const handleStorage = (event: StorageEvent) => {
+      if (event.key === STUDENT_PAYMENT_UPDATED_KEY) {
+        setStudentPaymentRefreshSignal(Date.now());
+      }
+    };
+    window.addEventListener("storage", handleStorage);
+    return () => window.removeEventListener("storage", handleStorage);
+  }, []);
 
   const fetchData = async () => {
     setIsLoading(true);
@@ -222,69 +244,28 @@ const PaymentBillingManagement: React.FC = () => {
     );
   };
 
-  const handleStudentPaymentCheckout = async (paymentLines: PaymentLine[]) => {
-    setIsProcessingStudentPayment(true);
-    try {
-      // Process payment for each student in the cart
-      for (const student of studentPaymentCart) {
-        // Calculate proportional payment lines for this student
-        const totalCartAmount = studentPaymentCart.reduce(
-          (sum, s) => sum + s.amount_to_pay,
-          0,
-        );
-        const studentProportion = student.amount_to_pay / totalCartAmount;
-
-        const studentPayments = paymentLines.map((line) => ({
-          payment_type: line.payment_type,
-          amount:
-            Math.round(parseFloat(line.amount) * studentProportion * 100) / 100,
-          reference_no: line.reference_no || undefined,
-        }));
-
-        const response = await fetch("/api/auth/payment/multi", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            assessmentId: student.assessment_id,
-            payments: studentPayments,
-          }),
-        });
-
-        if (!response.ok) {
-          const errorData = await response.json();
-          throw new Error(
-            errorData.error ||
-              `Failed to process payment for ${student.student_number}`,
-          );
-        }
-      }
-
-      const paymentSummary = paymentLines
-        .map((l) => `${l.payment_type}: ${formatAmount(parseFloat(l.amount))}`)
-        .join(", ");
-
-      setSuccessModal({
-        isOpen: true,
-        message: `Payment processed successfully for ${studentPaymentCart.length} student(s)! (${paymentSummary})`,
-      });
-
-      insertIntoReports({
-        action: `User ${session?.user?.name} processed student payment of ${formatAmount(studentPaymentCart.reduce((sum, s) => sum + s.amount_to_pay, 0))} for ${studentPaymentCart.length} student(s)`,
-        user_id: Number(session?.user?.id),
-        created_at: new Date(),
-      });
-
-      clearStudentPaymentCart();
-      setIsStudentPaymentCheckoutOpen(false);
-    } catch (error: any) {
+  const openStudentPaymentCheckoutPage = () => {
+    if (studentPaymentCart.length === 0) {
       setErrorModal({
         isOpen: true,
-        message: "Payment Failed",
-        details: error.message || "Please try again.",
+        message: "Empty Cart",
+        details: "Please add student assessments before processing payment.",
       });
-    } finally {
-      setIsProcessingStudentPayment(false);
+      return;
     }
+
+    sessionStorage.setItem(
+      STUDENT_PAYMENT_CART_KEY,
+      JSON.stringify(studentPaymentCart),
+    );
+    router.push("/dashboard?view=student-payment-checkout");
+  };
+
+  const openStudentFinancialDetailTab = (assessmentId: number) => {
+    window.open(
+      `/dashboard?view=student-financial-detail&assessmentId=${assessmentId}`,
+      "_blank",
+    );
   };
 
   // Handle void transaction
@@ -463,13 +444,15 @@ const PaymentBillingManagement: React.FC = () => {
             setAcademicYearSearch={financialSummaryHook.setAcademicYearSearch}
             semesterSearch={financialSummaryHook.semesterSearch}
             setSemesterSearch={financialSummaryHook.setSemesterSearch}
+            refreshSignal={studentPaymentRefreshSignal}
             formatAmount={formatAmount}
             cartStudents={studentPaymentCart}
             onAddToCart={addStudentToPaymentCart}
             onRemoveFromCart={removeStudentFromPaymentCart}
             onClearCart={clearStudentPaymentCart}
-            onCheckout={() => setIsStudentPaymentCheckoutOpen(true)}
+            onCheckout={openStudentPaymentCheckoutPage}
             onUpdateCartAmount={updateStudentPaymentAmount}
+            onViewDetail={openStudentFinancialDetailTab}
           />
         )}
 
@@ -535,16 +518,6 @@ const PaymentBillingManagement: React.FC = () => {
         onClose={() => setIsCheckoutModalOpen(false)}
         onCheckout={handleProductCheckout}
         formatAmount={formatAmount}
-      />
-
-      {/* Student Payment Checkout Modal (mixed payments) */}
-      <StudentPaymentCheckoutModal
-        isOpen={isStudentPaymentCheckoutOpen}
-        cartStudents={studentPaymentCart}
-        onClose={() => setIsStudentPaymentCheckoutOpen(false)}
-        onCheckout={handleStudentPaymentCheckout}
-        formatAmount={formatAmount}
-        isProcessing={isProcessingStudentPayment}
       />
 
       {/* Success Modal */}

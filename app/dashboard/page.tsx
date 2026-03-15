@@ -15,6 +15,8 @@ import AssessmentManagement from "../components/AssessmentManagement";
 import ReportManagement from "../components/ReportManagement";
 import SchedulingManagement from "../components/SchedulingManagement";
 import PaymentBillingManagement from "../components/PaymentBillingManagement";
+import StudentPaymentCheckoutPage from "../components/paymentBilling/StudentPaymentCheckoutPage";
+import StudentFinancialDetailPage from "../components/paymentBilling/StudentFinancialDetailPage";
 import CurriculumManagement from "../components/curriculum";
 import FileMaintenanceManagement from "../components/FileMaintenanceManagement";
 import Settings from "../components/Settings";
@@ -84,6 +86,10 @@ function DashboardContent() {
         return <SchedulingManagement />;
       case "payment-billing":
         return <PaymentBillingManagement />;
+      case "student-payment-checkout":
+        return <StudentPaymentCheckoutPage />;
+      case "student-financial-detail":
+        return <StudentFinancialDetailPage />;
       case "section-management":
         return <SectionManagement />;
       case "faculty-subject-management":
