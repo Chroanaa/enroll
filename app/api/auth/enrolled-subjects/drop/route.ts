@@ -1,0 +1,213 @@
+import { NextRequest, NextResponse } from "next/server";
+import { getServerSession } from "next-auth";
+import { prisma } from "../../../../lib/prisma";
+import { authOptions } from "../../[...nextauth]/authOptions";
+import { insertIntoReports } from "@/app/utils/reportsUtils";
+
+function parseAcademicYearStart(academicYear: string): number | null {
+  const startYear = Number.parseInt(String(academicYear).split("-")[0], 10);
+  return Number.isNaN(startYear) ? null : startYear;
+}
+
+function getSemesterStartDate(
+  academicYear: string,
+  semester: number,
+  settingsMap: Record<string, string>,
+) {
+  const academicYearStart = parseAcademicYearStart(academicYear);
+
+  if (academicYearStart === null) {
+    return null;
+  }
+
+  if (semester === 1) {
+    const startMonth = Number.parseInt(settingsMap.semester_start_month || "8", 10);
+    const startDay = Number.parseInt(settingsMap.semester_start_day || "1", 10);
+    return new Date(academicYearStart, startMonth - 1, startDay);
+  }
+
+  if (semester === 2) {
+    const startMonth = Number.parseInt(
+      settingsMap.second_semester_start_month || "1",
+      10,
+    );
+    const startDay = Number.parseInt(
+      settingsMap.second_semester_start_day || "12",
+      10,
+    );
+    return new Date(academicYearStart + 1, startMonth - 1, startDay);
+  }
+
+  return null;
+}
+
+export async function POST(request: NextRequest) {
+  try {
+    const session = await getServerSession(authOptions);
+    const body = await request.json();
+    const { enrolledSubjectId, reason } = body as {
+      enrolledSubjectId?: number;
+      reason?: string;
+    };
+
+    if (!enrolledSubjectId || !Number.isFinite(enrolledSubjectId)) {
+      return NextResponse.json(
+        { error: "enrolledSubjectId is required" },
+        { status: 400 },
+      );
+    }
+
+    const enrolledSubjectRows = await prisma.$queryRaw<any[]>`
+      SELECT
+        es.*,
+        COALESCE(cc.course_code, s.code) AS course_code,
+        COALESCE(cc.descriptive_title, s.name) AS descriptive_title
+      FROM enrolled_subjects es
+      LEFT JOIN curriculum_course cc ON es.curriculum_course_id = cc.id
+      LEFT JOIN subject s ON es.subject_id = s.id
+      WHERE es.id = ${enrolledSubjectId}
+      LIMIT 1
+    `;
+
+    const enrolledSubject = enrolledSubjectRows[0];
+
+    if (!enrolledSubject) {
+      return NextResponse.json(
+        { error: "Enrolled subject not found" },
+        { status: 404 },
+      );
+    }
+
+    const settings = await prisma.settings.findMany({
+      where: {
+        key: {
+          in: [
+            "semester_start_month",
+            "semester_start_day",
+            "second_semester_start_month",
+            "second_semester_start_day",
+            "subject_drop_refundable_days",
+          ],
+        },
+      },
+    });
+
+    const settingsMap = settings.reduce(
+      (acc, setting) => {
+        acc[setting.key] = setting.value;
+        return acc;
+      },
+      {} as Record<string, string>,
+    );
+
+    const refundableDays = Number.parseInt(
+      settingsMap.subject_drop_refundable_days || "15",
+      10,
+    );
+
+    const serverNowResult = await prisma.$queryRaw<{ now: Date }[]>`
+      SELECT NOW() as now
+    `;
+    const droppedAt = serverNowResult[0]?.now || new Date();
+
+    const semesterStartDate = getSemesterStartDate(
+      enrolledSubject.academic_year,
+      enrolledSubject.semester,
+      settingsMap,
+    );
+
+    const refundDeadline = semesterStartDate
+      ? new Date(
+          semesterStartDate.getFullYear(),
+          semesterStartDate.getMonth(),
+          semesterStartDate.getDate() + refundableDays,
+        )
+      : null;
+
+    const refundable = refundDeadline ? droppedAt <= refundDeadline : false;
+    const droppedBy = session?.user?.id ? Number(session.user.id) : null;
+
+    await prisma.$transaction(async (tx) => {
+      await tx.$executeRaw`
+        INSERT INTO subject_drop_history (
+          enrolled_subject_id,
+          student_number,
+          program_id,
+          curriculum_course_id,
+          subject_id,
+          academic_year,
+          semester,
+          term,
+          year_level,
+          units_total,
+          status,
+          course_code,
+          descriptive_title,
+          dropped_at,
+          dropped_by,
+          drop_reason,
+          refundable,
+          refundable_days,
+          semester_start_date,
+          refund_deadline
+        ) VALUES (
+          ${enrolledSubject.id},
+          ${enrolledSubject.student_number},
+          ${enrolledSubject.program_id},
+          ${enrolledSubject.curriculum_course_id},
+          ${enrolledSubject.subject_id},
+          ${enrolledSubject.academic_year},
+          ${enrolledSubject.semester},
+          ${enrolledSubject.term},
+          ${enrolledSubject.year_level},
+          ${enrolledSubject.units_total},
+          ${enrolledSubject.status},
+          ${enrolledSubject.course_code},
+          ${enrolledSubject.descriptive_title},
+          ${droppedAt},
+          ${droppedBy},
+          ${reason || null},
+          ${refundable},
+          ${Number.isNaN(refundableDays) ? 15 : refundableDays},
+          ${semesterStartDate},
+          ${refundDeadline}
+        )
+      `;
+
+      await tx.$executeRaw`
+        DELETE FROM enrolled_subjects
+        WHERE id = ${enrolledSubjectId}
+      `;
+    });
+
+    if (droppedBy) {
+      await insertIntoReports({
+        action: `Dropped subject ${enrolledSubject.course_code} for ${enrolledSubject.student_number}${refundable ? " (refundable)" : " (non-refundable)"} by ${session?.user?.name}`,
+        user_id: droppedBy,
+        created_at: droppedAt,
+      });
+    }
+
+    return NextResponse.json({
+      success: true,
+      message: refundable
+        ? `Subject dropped successfully. This drop is refundable within the ${refundableDays}-day window.`
+        : `Subject dropped successfully. This drop is no longer refundable because it is beyond the ${refundableDays}-day window.`,
+      data: {
+        refundable,
+        refundableDays: Number.isNaN(refundableDays) ? 15 : refundableDays,
+        semesterStartDate: semesterStartDate?.toISOString() || null,
+        refundDeadline: refundDeadline?.toISOString() || null,
+        droppedAt: droppedAt.toISOString(),
+        courseCode: enrolledSubject.course_code,
+        descriptiveTitle: enrolledSubject.descriptive_title,
+      },
+    });
+  } catch (error: any) {
+    console.error("Error dropping enrolled subject:", error);
+    return NextResponse.json(
+      { error: error?.message || "Failed to drop subject" },
+      { status: 500 },
+    );
+  }
+}

@@ -29,6 +29,7 @@ import {
   Receipt,
   UserCog,
   House,
+  UserMinus,
 } from "lucide-react";
 import Image from "next/image";
 import { useSession, signOut } from "next-auth/react";
@@ -183,6 +184,12 @@ const Navigation: React.FC<NavigationProps> = ({
         label: "Assessment",
         icon: Calculator,
         allowedRoles: [ROLES.ADMIN, ROLES.CASHIER],
+      },
+      {
+        id: "subject-dropping",
+        label: "Subject Dropping",
+        icon: UserMinus,
+        allowedRoles: [ROLES.ADMIN, ROLES.REGISTRAR],
       },
       {
         id: "resident-enrollment",

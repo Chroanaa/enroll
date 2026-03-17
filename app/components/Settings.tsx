@@ -29,6 +29,7 @@ interface SemesterThresholdSettings {
   enrollmentStartDaysBefore: number;
   enrollmentEndDaysAfter: number;
   lateEnrollmentPenaltyDays: number;
+  subjectDropRefundableDays: number;
   semesterStartMonth: number;
   semesterStartDay: number;
   secondSemesterStartMonth: number;
@@ -63,6 +64,7 @@ const Settings: React.FC = () => {
     enrollmentStartDaysBefore: 30,
     enrollmentEndDaysAfter: 14,
     lateEnrollmentPenaltyDays: 7,
+    subjectDropRefundableDays: 15,
     semesterStartMonth: 8, // August
     semesterStartDay: 1,
     secondSemesterStartMonth: 1, // January
@@ -119,6 +121,9 @@ const Settings: React.FC = () => {
           lateEnrollmentPenaltyDays: parseInt(
             settingsMap["late_enrollment_penalty_days"] || "7",
           ),
+          subjectDropRefundableDays: parseInt(
+            settingsMap["subject_drop_refundable_days"] || "15",
+          ),
           semesterStartMonth: parseInt(
             settingsMap["semester_start_month"] || "8",
           ),
@@ -168,6 +173,12 @@ const Settings: React.FC = () => {
           key: "late_enrollment_penalty_days",
           value: settings.lateEnrollmentPenaltyDays.toString(),
           description: "Number of days for late enrollment with penalty",
+        },
+        {
+          key: "subject_drop_refundable_days",
+          value: settings.subjectDropRefundableDays.toString(),
+          description:
+            "Number of days from semester start when dropped subjects remain refundable",
         },
         {
           key: "semester_start_month",
@@ -1017,6 +1028,59 @@ const Settings: React.FC = () => {
                         style={{ color: colors.neutral }}
                       >
                         additional days (with penalty)
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <div
+                className='p-4 rounded-xl border'
+                style={{
+                  borderColor: colors.info + "30",
+                  backgroundColor: colors.info + "08",
+                }}
+              >
+                <div className='flex items-start justify-between gap-4'>
+                  <div className='flex-1'>
+                    <label
+                      className='block font-semibold mb-1'
+                      style={{ color: colors.primary }}
+                    >
+                      Subject Drop Refund Window (Days)
+                    </label>
+                    <p
+                      className='text-sm mb-3'
+                      style={{ color: colors.neutral }}
+                    >
+                      Subjects dropped within this many days from semester start
+                      are marked refundable.
+                    </p>
+                    <div className='flex items-center gap-3'>
+                      <input
+                        type='number'
+                        min='0'
+                        max='60'
+                        value={settings.subjectDropRefundableDays}
+                        onChange={(e) =>
+                          setSettings({
+                            ...settings,
+                            subjectDropRefundableDays:
+                              parseInt(e.target.value) || 0,
+                          })
+                        }
+                        className='w-24 px-4 py-2.5 rounded-lg border focus:outline-none focus:ring-2 text-center'
+                        style={{
+                          borderColor: colors.neutralBorder,
+                          backgroundColor: "white",
+                          color: colors.neutralDark,
+                        }}
+                      />
+                      <span
+                        className='text-sm font-medium'
+                        style={{ color: colors.neutral }}
+                      >
+                        days from semester start
                       </span>
                     </div>
                   </div>

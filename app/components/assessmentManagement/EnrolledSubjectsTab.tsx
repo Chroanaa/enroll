@@ -250,14 +250,12 @@ export const EnrolledSubjectsTab: React.FC<EnrolledSubjectsTabProps> = ({
                     >
                       Prerequisite
                     </th>
-                    {isEditMode && (
-                      <th
-                        className="px-4 py-3 text-center text-xs font-bold uppercase tracking-wider"
-                        style={{ color: colors.primary }}
-                      >
-                        Actions
-                      </th>
-                    )}
+                    <th
+                      className="px-4 py-3 text-center text-xs font-bold uppercase tracking-wider"
+                      style={{ color: colors.primary }}
+                    >
+                      Actions
+                    </th>
                   </tr>
                 </thead>
                 <tbody>
@@ -300,9 +298,9 @@ export const EnrolledSubjectsTab: React.FC<EnrolledSubjectsTabProps> = ({
                       >
                         {subject.prerequisite || "None"}
                       </td>
-                      {isEditMode && (
-                        <td className="px-4 py-3 text-center">
-                          <div className="flex items-center justify-center gap-2">
+                      <td className="px-4 py-3 text-center">
+                        <div className="flex items-center justify-center gap-2">
+                          {isEditMode ? (
                             <button
                               onClick={(e) => {
                                 e.stopPropagation();
@@ -315,16 +313,23 @@ export const EnrolledSubjectsTab: React.FC<EnrolledSubjectsTabProps> = ({
                             >
                               <X className="w-4 h-4" />
                             </button>
-                          </div>
-                        </td>
-                      )}
+                          ) : (
+                            <span
+                              className="text-xs font-medium"
+                              style={{ color: colors.tertiary }}
+                            >
+                              New
+                            </span>
+                          )}
+                        </div>
+                      </td>
                     </tr>
                   ))}
                 </tbody>
                 <tfoot>
                   <tr style={{ backgroundColor: colors.accent + "05" }}>
                     <td
-                      colSpan={isEditMode ? 5 : 4}
+                      colSpan={5}
                       className="px-4 py-3 text-right text-sm font-bold"
                       style={{ color: colors.primary }}
                     >
@@ -336,7 +341,6 @@ export const EnrolledSubjectsTab: React.FC<EnrolledSubjectsTabProps> = ({
                     >
                       {displayTotalUnits}
                     </td>
-                    {isEditMode && <td></td>}
                   </tr>
                 </tfoot>
               </table>

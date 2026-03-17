@@ -12,6 +12,7 @@ import ResidentPortalContent from "../resident/ResidentPortalContent";
 import ForecastingAnalytics from "../components/ForecastingAnalytics";
 import StudentForecastDashboard from "../components/StudentForecastDashboard";
 import AssessmentManagement from "../components/AssessmentManagement";
+import SubjectDroppingManagement from "../components/SubjectDroppingManagement";
 import ReportManagement from "../components/ReportManagement";
 import SchedulingManagement from "../components/SchedulingManagement";
 import PaymentBillingManagement from "../components/PaymentBillingManagement";
@@ -80,6 +81,8 @@ function DashboardContent() {
         return <StudentForecastDashboard />;
       case "assessment":
         return <AssessmentManagement />;
+      case "subject-dropping":
+        return <SubjectDroppingManagement />;
       case "reports":
         return <ReportManagement />;
       case "scheduling":
