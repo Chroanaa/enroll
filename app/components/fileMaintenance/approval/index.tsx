@@ -36,6 +36,27 @@ interface SubjectDropApproval {
   subjects?: ApprovalSubjectItem[];
 }
 
+interface CrossEnrollmentApproval {
+  id: number;
+  studentNumber: string;
+  studentName: string;
+  firstName?: string;
+  lastName?: string;
+  academicYear: string;
+  semester: number;
+  courseCode: string;
+  descriptiveTitle: string;
+  homeProgramCode?: string | null;
+  homeProgramName?: string | null;
+  hostProgramCode?: string | null;
+  hostProgramName?: string | null;
+  status: string;
+  requestedAt?: string | null;
+  reason?: string | null;
+  unitsTotal?: number | null;
+  subjects?: ApprovalSubjectItem[];
+}
+
 interface ApprovalSubjectItem {
   courseCode?: string | null;
   descriptiveTitle?: string | null;
@@ -50,16 +71,17 @@ interface ApprovalResponse {
   data?: {
     subjectOverloads: SubjectOverloadApproval[];
     subjectDrops: SubjectDropApproval[];
+    crossEnrollmentRequests: CrossEnrollmentApproval[];
     shiftingRequests: unknown[];
   };
   error?: string;
 }
 
-type ApprovalFilter = "all" | "overload" | "drop";
+type ApprovalFilter = "all" | "overload" | "drop" | "cross";
 
 type ApprovalRow = {
   key: string;
-  type: "overload" | "drop";
+  type: "overload" | "drop" | "cross";
   approvalId: string | number;
   studentNumber: string;
   studentName: string;
@@ -73,6 +95,7 @@ type ApprovalRow = {
   statusLabel: string;
   reason?: string | null;
   subjects?: ApprovalSubjectItem[];
+  contextLine?: string;
 };
 
 const cardStyle: React.CSSProperties = {
@@ -100,6 +123,9 @@ export default function ApprovalManagement() {
     SubjectOverloadApproval[]
   >([]);
   const [subjectDrops, setSubjectDrops] = useState<SubjectDropApproval[]>([]);
+  const [crossEnrollmentRequests, setCrossEnrollmentRequests] = useState<
+    CrossEnrollmentApproval[]
+  >([]);
 
   const fetchApprovals = async () => {
     setIsLoading(true);
@@ -115,6 +141,7 @@ export default function ApprovalManagement() {
 
       setSubjectOverloads(result.data.subjectOverloads || []);
       setSubjectDrops(result.data.subjectDrops || []);
+      setCrossEnrollmentRequests(result.data.crossEnrollmentRequests || []);
     } catch (fetchError) {
       setError(
         fetchError instanceof Error
@@ -123,6 +150,7 @@ export default function ApprovalManagement() {
       );
       setSubjectOverloads([]);
       setSubjectDrops([]);
+      setCrossEnrollmentRequests([]);
     } finally {
       setIsLoading(false);
     }
@@ -133,8 +161,15 @@ export default function ApprovalManagement() {
   }, []);
 
   const totalPendingItems = useMemo(
-    () => subjectOverloads.length + subjectDrops.length,
-    [subjectOverloads.length, subjectDrops.length],
+    () =>
+      subjectOverloads.length +
+      subjectDrops.length +
+      crossEnrollmentRequests.length,
+    [
+      crossEnrollmentRequests.length,
+      subjectDrops.length,
+      subjectOverloads.length,
+    ],
   );
 
   const approvalRows = useMemo<ApprovalRow[]>(() => {
@@ -174,8 +209,27 @@ export default function ApprovalManagement() {
       subjects: item.subjects || [],
     }));
 
-    return [...overloadRows, ...dropRows];
-  }, [subjectDrops, subjectOverloads]);
+    const crossRows = crossEnrollmentRequests.map<ApprovalRow>((item) => ({
+      key: `cross-${item.id}`,
+      type: "cross",
+      approvalId: item.id,
+      studentNumber: item.studentNumber,
+      studentName: item.studentName,
+      firstName: item.firstName,
+      lastName: item.lastName,
+      academicYear: item.academicYear,
+      semester: item.semester,
+      detailsPrimary: item.courseCode,
+      detailsSecondary: item.descriptiveTitle,
+      termLabel: `A.Y. ${item.academicYear} • Sem ${item.semester}`,
+      statusLabel: "Pending Approval",
+      reason: item.reason,
+      subjects: item.subjects || [],
+      contextLine: `Home ${item.homeProgramCode || item.homeProgramName || "N/A"} • Host ${item.hostProgramCode || item.hostProgramName || "N/A"}`,
+    }));
+
+    return [...overloadRows, ...dropRows, ...crossRows];
+  }, [crossEnrollmentRequests, subjectDrops, subjectOverloads]);
 
   const filteredRows = useMemo(() => {
     if (filter === "overload") {
@@ -184,6 +238,10 @@ export default function ApprovalManagement() {
 
     if (filter === "drop") {
       return approvalRows.filter((row) => row.type === "drop");
+    }
+
+    if (filter === "cross") {
+      return approvalRows.filter((row) => row.type === "cross");
     }
 
     return approvalRows;
@@ -202,7 +260,7 @@ export default function ApprovalManagement() {
               semester: row.semester,
             }
           : {
-              type: "drop",
+              type: row.type === "drop" ? "drop" : "cross_enrollment",
               id: row.approvalId,
             };
 
@@ -279,7 +337,9 @@ export default function ApprovalManagement() {
             <p className="mt-1 font-semibold">
               {confirmation.type === "overload"
                 ? "Subject Addition Beyond 27 Units"
-                : "Subject Drop Approval"}
+                : confirmation.type === "drop"
+                  ? "Subject Drop Approval"
+                  : "Cross-Enrollee Approval"}
             </p>
           </div>
           <div>
@@ -333,6 +393,11 @@ export default function ApprovalManagement() {
             </p>
             <p className="mt-1 font-semibold">{confirmation.detailsPrimary}</p>
             <p style={{ color: colors.tertiary }}>{confirmation.detailsSecondary}</p>
+            {confirmation.contextLine ? (
+              <p className="mt-1 text-xs" style={{ color: colors.neutral }}>
+                {confirmation.contextLine}
+              </p>
+            ) : null}
           </div>
           <div>
             <p className="text-[11px] font-bold uppercase tracking-[0.18em]" style={{ color: colors.tertiary }}>
@@ -365,6 +430,9 @@ export default function ApprovalManagement() {
             <p className="mt-2 leading-6" style={{ color: colors.primary }}>
               {confirmation.type === "drop"
                 ? confirmation.reason?.trim() || "No drop reason was provided."
+                : confirmation.type === "cross"
+                  ? confirmation.reason?.trim() ||
+                    "No cross-enrollee reason was provided."
                 : "This enrollment exceeded 27 total units and requires admin approval before it can proceed."}
             </p>
           </div>
@@ -375,7 +443,9 @@ export default function ApprovalManagement() {
             >
               {confirmation.type === "drop"
                 ? "Subject To Delete"
-                : "Student Subject Section"}
+                : confirmation.type === "cross"
+                  ? "Subject To Add"
+                  : "Student Subject Section"}
             </p>
 
             {subjectItems.length === 0 ? (
@@ -455,7 +525,7 @@ export default function ApprovalManagement() {
           </button>
         </div>
 
-        <div className="grid gap-4 md:grid-cols-3">
+        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
           <div className="rounded-2xl p-5" style={cardStyle}>
             <p className="text-sm font-semibold" style={{ color: colors.tertiary }}>
               Total Pending
@@ -478,6 +548,14 @@ export default function ApprovalManagement() {
             </p>
             <p className="mt-2 text-3xl font-bold" style={{ color: colors.primary }}>
               {subjectDrops.length}
+            </p>
+          </div>
+          <div className="rounded-2xl p-5" style={cardStyle}>
+            <p className="text-sm font-semibold" style={{ color: colors.tertiary }}>
+              Cross Enrollee
+            </p>
+            <p className="mt-2 text-3xl font-bold" style={{ color: colors.primary }}>
+              {crossEnrollmentRequests.length}
             </p>
           </div>
         </div>
@@ -503,7 +581,7 @@ export default function ApprovalManagement() {
                 Pending Approvals
               </h2>
               <p className="text-sm" style={{ color: colors.tertiary }}>
-                Combined approval queue for overload requests and subject drop requests.
+                Combined approval queue for overload requests, subject drops, and cross-enrollee requests.
               </p>
             </div>
 
@@ -529,6 +607,7 @@ export default function ApprovalManagement() {
                 <option value="all">All Requests</option>
                 <option value="overload">Beyond 27 Units</option>
                 <option value="drop">Subject Drops</option>
+                <option value="cross">Cross Enrollee</option>
               </select>
             </div>
           </div>
@@ -604,14 +683,22 @@ export default function ApprovalManagement() {
                             backgroundColor:
                               item.type === "overload"
                                 ? `${colors.warning}15`
-                                : `${colors.secondary}15`,
+                                : item.type === "drop"
+                                  ? `${colors.secondary}15`
+                                  : `${colors.info}15`,
                             color:
                               item.type === "overload"
                                 ? colors.warning
-                                : colors.secondary,
+                                : item.type === "drop"
+                                  ? colors.secondary
+                                  : colors.info,
                           }}
                         >
-                          {item.type === "overload" ? "Overload" : "Drop"}
+                          {item.type === "overload"
+                            ? "Overload"
+                            : item.type === "drop"
+                              ? "Drop"
+                              : "Cross Enrollee"}
                         </span>
                       </td>
                       <td className="px-4 py-3 text-sm" style={{ color: colors.primary }}>
@@ -625,6 +712,11 @@ export default function ApprovalManagement() {
                         <div className="text-xs" style={{ color: colors.tertiary }}>
                           {item.detailsSecondary}
                         </div>
+                        {item.contextLine ? (
+                          <div className="mt-1 text-[11px]" style={{ color: colors.neutral }}>
+                            {item.contextLine}
+                          </div>
+                        ) : null}
                       </td>
                       <td className="px-4 py-3 text-sm" style={{ color: colors.primary }}>
                         {item.termLabel}

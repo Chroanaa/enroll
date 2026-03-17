@@ -201,6 +201,12 @@ const Navigation: React.FC<NavigationProps> = ({
         allowedRoles: [ROLES.ADMIN, ROLES.REGISTRAR],
       },
       {
+        id: "cross-enrollee",
+        label: "Cross Enrollee",
+        icon: BookOpen,
+        allowedRoles: [ROLES.ADMIN, ROLES.REGISTRAR],
+      },
+      {
         id: "resident-enrollment",
         label: "Resident",
         icon: Users2,
