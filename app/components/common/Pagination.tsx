@@ -63,17 +63,27 @@ const Pagination: React.FC<PaginationProps> = ({
   if (totalItems === 0) return null;
 
   return (
-    <div className='px-6 py-4 border-t border-gray-100 flex flex-col sm:flex-row items-center justify-between gap-4'>
+    <div
+      className='flex flex-col items-center justify-between gap-4 px-6 py-4 sm:flex-row'
+      style={{
+        borderTop: `1px solid ${colors.neutralBorder}`,
+      }}
+    >
       <div className='flex items-center gap-2'>
-        <span className='text-sm text-gray-600'>Show</span>
+        <span className='text-sm' style={{ color: colors.neutral }}>
+          Show
+        </span>
         <select
           value={itemsPerPage}
           onChange={(e) => {
             onItemsPerPageChange(Number(e.target.value));
             onPageChange(1);
           }}
-          className='px-3 py-1.5 border border-gray-200 rounded-lg text-sm font-medium text-gray-700 focus:ring-2 focus:ring-offset-0 cursor-pointer bg-white'
+          className='cursor-pointer rounded-lg px-3 py-1.5 text-sm font-medium'
           style={{
+            border: `1px solid ${colors.neutralBorder}`,
+            backgroundColor: colors.paper,
+            color: colors.primary,
             outline: "none",
           }}
           onFocus={(e) => {
@@ -81,7 +91,7 @@ const Pagination: React.FC<PaginationProps> = ({
             e.currentTarget.style.boxShadow = `0 0 0 3px ${colors.secondary}20`;
           }}
           onBlur={(e) => {
-            e.currentTarget.style.borderColor = "#E5E7EB";
+            e.currentTarget.style.borderColor = colors.neutralBorder;
             e.currentTarget.style.boxShadow = "none";
           }}
         >
@@ -91,7 +101,7 @@ const Pagination: React.FC<PaginationProps> = ({
             </option>
           ))}
         </select>
-        <span className='text-sm text-gray-600'>
+        <span className='text-sm' style={{ color: colors.neutral }}>
           of {totalItems} {itemName}
         </span>
       </div>
@@ -101,9 +111,10 @@ const Pagination: React.FC<PaginationProps> = ({
           type="button"
           onClick={() => onPageChange(currentPage - 1)}
           disabled={currentPage === 1}
-          className='p-2 rounded-lg border border-gray-200 transition-all disabled:opacity-40 disabled:cursor-not-allowed hover:bg-gray-50'
+          className='rounded-lg border p-2 transition-all disabled:cursor-not-allowed disabled:opacity-40'
           style={{
-            color: currentPage === 1 ? "#9CA3AF" : colors.primary,
+            borderColor: colors.neutralBorder,
+            color: currentPage === 1 ? colors.neutral : colors.primary,
           }}
           onMouseEnter={(e) => {
             if (!e.currentTarget.disabled) {
@@ -113,7 +124,7 @@ const Pagination: React.FC<PaginationProps> = ({
           }}
           onMouseLeave={(e) => {
             if (!e.currentTarget.disabled) {
-              e.currentTarget.style.borderColor = "#E5E7EB";
+              e.currentTarget.style.borderColor = colors.neutralBorder;
               e.currentTarget.style.backgroundColor = "transparent";
             }
           }}
@@ -127,7 +138,8 @@ const Pagination: React.FC<PaginationProps> = ({
               return (
                 <span
                   key={`ellipsis-${index}`}
-                  className='px-2 text-gray-400'
+                  className='px-2'
+                  style={{ color: colors.neutral }}
                 >
                   ...
                 </span>
@@ -140,17 +152,16 @@ const Pagination: React.FC<PaginationProps> = ({
                 type="button"
                 key={pageNum}
                 onClick={() => onPageChange(pageNum)}
-                className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-all ${
-                  isActive
-                    ? "text-white"
-                    : "text-gray-700 hover:bg-gray-50"
-                }`}
+                className='rounded-lg px-3 py-1.5 text-sm font-medium transition-all'
                 style={
                   isActive
                     ? {
                         backgroundColor: colors.secondary,
+                        color: colors.paper,
                       }
-                    : {}
+                    : {
+                        color: colors.primary,
+                      }
                 }
                 onMouseEnter={(e) => {
                   if (!isActive) {
@@ -173,9 +184,10 @@ const Pagination: React.FC<PaginationProps> = ({
           type="button"
           onClick={() => onPageChange(currentPage + 1)}
           disabled={currentPage === totalPages}
-          className='p-2 rounded-lg border border-gray-200 transition-all disabled:opacity-40 disabled:cursor-not-allowed hover:bg-gray-50'
+          className='rounded-lg border p-2 transition-all disabled:cursor-not-allowed disabled:opacity-40'
           style={{
-            color: currentPage === totalPages ? "#9CA3AF" : colors.primary,
+            borderColor: colors.neutralBorder,
+            color: currentPage === totalPages ? colors.neutral : colors.primary,
           }}
           onMouseEnter={(e) => {
             if (!e.currentTarget.disabled) {
@@ -185,7 +197,7 @@ const Pagination: React.FC<PaginationProps> = ({
           }}
           onMouseLeave={(e) => {
             if (!e.currentTarget.disabled) {
-              e.currentTarget.style.borderColor = "#E5E7EB";
+              e.currentTarget.style.borderColor = colors.neutralBorder;
               e.currentTarget.style.backgroundColor = "transparent";
             }
           }}

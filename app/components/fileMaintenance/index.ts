@@ -1,4 +1,5 @@
 export { default as Building } from "./building";
+export { default as Approval } from "./approval";
 export { default as Section } from "./section";
 export { default as Room } from "./room";
 export { default as Department } from "./department";

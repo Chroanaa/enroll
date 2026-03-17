@@ -4,6 +4,13 @@ import { prisma } from "../../../../lib/prisma";
 import { authOptions } from "../../[...nextauth]/authOptions";
 import { insertIntoReports } from "@/app/utils/reportsUtils";
 
+const ROLES = {
+  ADMIN: 1,
+  CASHIER: 2,
+  FACULTY: 3,
+  REGISTRAR: 4,
+} as const;
+
 function parseAcademicYearStart(academicYear: string): number | null {
   const startYear = Number.parseInt(String(academicYear).split("-")[0], 10);
   return Number.isNaN(startYear) ? null : startYear;
@@ -44,6 +51,9 @@ function getSemesterStartDate(
 export async function POST(request: NextRequest) {
   try {
     const session = await getServerSession(authOptions);
+    const requesterRoleId = session?.user?.role
+      ? Number(session.user.role)
+      : null;
     const body = await request.json();
     const { enrolledSubjectId, reason } = body as {
       enrolledSubjectId?: number;
@@ -59,7 +69,20 @@ export async function POST(request: NextRequest) {
 
     const enrolledSubjectRows = await prisma.$queryRaw<any[]>`
       SELECT
-        es.*,
+        es.id,
+        es.student_number,
+        es.program_id,
+        es.curriculum_course_id,
+        es.subject_id,
+        es.academic_year,
+        es.semester,
+        es.term,
+        es.year_level,
+        es.units_total,
+        es.status,
+        es.drop_status,
+        es.enrolled_at,
+        es.updated_at,
         COALESCE(cc.course_code, s.code) AS course_code,
         COALESCE(cc.descriptive_title, s.name) AS descriptive_title
       FROM enrolled_subjects es
@@ -77,6 +100,18 @@ export async function POST(request: NextRequest) {
         { status: 404 },
       );
     }
+
+    if (
+      String(enrolledSubject.drop_status || "").toLowerCase() ===
+      "pending_approval"
+    ) {
+      return NextResponse.json(
+        { error: "This subject drop is already pending approval." },
+        { status: 409 },
+      );
+    }
+
+    const hasDirectDropApproval = requesterRoleId === ROLES.ADMIN;
 
     const settings = await prisma.settings.findMany({
       where: {
@@ -126,6 +161,7 @@ export async function POST(request: NextRequest) {
 
     const refundable = refundDeadline ? droppedAt <= refundDeadline : false;
     const droppedBy = session?.user?.id ? Number(session.user.id) : null;
+    const dropStatus = hasDirectDropApproval ? "dropped" : "pending_approval";
 
     await prisma.$transaction(async (tx) => {
       await tx.$executeRaw`
@@ -161,7 +197,7 @@ export async function POST(request: NextRequest) {
           ${enrolledSubject.term},
           ${enrolledSubject.year_level},
           ${enrolledSubject.units_total},
-          ${enrolledSubject.status},
+          ${dropStatus},
           ${enrolledSubject.course_code},
           ${enrolledSubject.descriptive_title},
           ${droppedAt},
@@ -174,15 +210,25 @@ export async function POST(request: NextRequest) {
         )
       `;
 
-      await tx.$executeRaw`
-        DELETE FROM enrolled_subjects
-        WHERE id = ${enrolledSubjectId}
-      `;
+      if (hasDirectDropApproval) {
+        await tx.$executeRaw`
+          DELETE FROM enrolled_subjects
+          WHERE id = ${enrolledSubjectId}
+        `;
+      } else {
+        await tx.$executeRaw`
+          UPDATE enrolled_subjects
+          SET drop_status = 'pending_approval', updated_at = ${droppedAt}
+          WHERE id = ${enrolledSubjectId}
+        `;
+      }
     });
 
     if (droppedBy) {
       await insertIntoReports({
-        action: `Dropped subject ${enrolledSubject.course_code} for ${enrolledSubject.student_number}${refundable ? " (refundable)" : " (non-refundable)"} by ${session?.user?.name}`,
+        action: hasDirectDropApproval
+          ? `Dropped subject ${enrolledSubject.course_code} for ${enrolledSubject.student_number}${refundable ? " (refundable)" : " (non-refundable)"} by ${session?.user?.name}`
+          : `Requested drop approval for subject ${enrolledSubject.course_code} for ${enrolledSubject.student_number} by ${session?.user?.name}`,
         user_id: droppedBy,
         created_at: droppedAt,
       });
@@ -190,10 +236,14 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({
       success: true,
-      message: refundable
-        ? `Subject dropped successfully. This drop is refundable within the ${refundableDays}-day window.`
-        : `Subject dropped successfully. This drop is no longer refundable because it is beyond the ${refundableDays}-day window.`,
+      message: hasDirectDropApproval
+        ? refundable
+          ? `Subject dropped successfully. This drop is refundable within the ${refundableDays}-day window.`
+          : `Subject dropped successfully. This drop is no longer refundable because it is beyond the ${refundableDays}-day window.`
+        : "Subject drop request submitted for approval.",
       data: {
+        status: dropStatus,
+        requiresApproval: !hasDirectDropApproval,
         refundable,
         refundableDays: Number.isNaN(refundableDays) ? 15 : refundableDays,
         semesterStartDate: semesterStartDate?.toISOString() || null,

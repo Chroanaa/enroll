@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from "react";
 import { BookOpen, Plus, X, Save, Edit } from "lucide-react";
 import { colors } from "../../colors";
-import type { EnrolledSubject } from "./types";
+import type { DroppedSubject, EnrolledSubject } from "./types";
 import { SubjectManagementModal } from "./SubjectManagementModal";
 
 interface EnrolledSubjectsTabProps {
@@ -17,6 +17,7 @@ interface EnrolledSubjectsTabProps {
   isLoadingSubjects: boolean;
   subjectsError: string;
   enrolledSubjects: EnrolledSubject[];
+  droppedSubjects?: DroppedSubject[];
   onAddSubject: (subjects: any[]) => void;
   onEditSubject: (subject: EnrolledSubject) => void;
   onRemoveSubject: (subjectId: number) => void;
@@ -34,6 +35,7 @@ export const EnrolledSubjectsTab: React.FC<EnrolledSubjectsTabProps> = ({
   isLoadingSubjects,
   subjectsError,
   enrolledSubjects,
+  droppedSubjects = [],
   onAddSubject,
   onEditSubject,
   onRemoveSubject,
@@ -250,12 +252,14 @@ export const EnrolledSubjectsTab: React.FC<EnrolledSubjectsTabProps> = ({
                     >
                       Prerequisite
                     </th>
-                    <th
-                      className="px-4 py-3 text-center text-xs font-bold uppercase tracking-wider"
-                      style={{ color: colors.primary }}
-                    >
-                      Actions
-                    </th>
+                    {isEditMode ? (
+                      <th
+                        className="px-4 py-3 text-center text-xs font-bold uppercase tracking-wider"
+                        style={{ color: colors.primary }}
+                      >
+                        Actions
+                      </th>
+                    ) : null}
                   </tr>
                 </thead>
                 <tbody>
@@ -298,9 +302,9 @@ export const EnrolledSubjectsTab: React.FC<EnrolledSubjectsTabProps> = ({
                       >
                         {subject.prerequisite || "None"}
                       </td>
-                      <td className="px-4 py-3 text-center">
-                        <div className="flex items-center justify-center gap-2">
-                          {isEditMode ? (
+                      {isEditMode ? (
+                        <td className="px-4 py-3 text-center">
+                          <div className="flex items-center justify-center gap-2">
                             <button
                               onClick={(e) => {
                                 e.stopPropagation();
@@ -313,36 +317,109 @@ export const EnrolledSubjectsTab: React.FC<EnrolledSubjectsTabProps> = ({
                             >
                               <X className="w-4 h-4" />
                             </button>
-                          ) : (
-                            <span
-                              className="text-xs font-medium"
-                              style={{ color: colors.tertiary }}
-                            >
-                              New
-                            </span>
-                          )}
-                        </div>
-                      </td>
+                          </div>
+                        </td>
+                      ) : null}
                     </tr>
                   ))}
                 </tbody>
                 <tfoot>
                   <tr style={{ backgroundColor: colors.accent + "05" }}>
                     <td
-                      colSpan={5}
+                      colSpan={isEditMode ? 5 : 4}
                       className="px-4 py-3 text-right text-sm font-bold"
                       style={{ color: colors.primary }}
                     >
                       Total Units:
                     </td>
                     <td
-                      className="px-4 py-3 text-center text-sm font-bold"
+                      className={`px-4 py-3 text-sm font-bold ${isEditMode ? "text-center" : "text-left"}`}
                       style={{ color: colors.secondary }}
                     >
                       {displayTotalUnits}
                     </td>
                   </tr>
                 </tfoot>
+              </table>
+            </div>
+          )}
+
+          {droppedSubjects.length > 0 && (
+            <div
+              className="overflow-x-auto rounded-xl border"
+              style={{ borderColor: colors.danger + "25" }}
+            >
+              <div
+                className="px-4 py-3 border-b"
+                style={{
+                  backgroundColor: colors.danger + "08",
+                  borderColor: colors.danger + "15",
+                }}
+              >
+                <h4 className="text-sm font-bold" style={{ color: colors.primary }}>
+                  Dropped Subjects
+                </h4>
+                <p className="text-xs mt-1" style={{ color: colors.tertiary }}>
+                  Subjects already dropped for this student in the current term.
+                </p>
+              </div>
+
+              <table className="w-full border-collapse">
+                <thead>
+                  <tr style={{ backgroundColor: colors.danger + "05" }}>
+                    <th className="px-4 py-3 text-left text-xs font-bold uppercase tracking-wider" style={{ color: colors.primary }}>
+                      Code
+                    </th>
+                    <th className="px-4 py-3 text-left text-xs font-bold uppercase tracking-wider" style={{ color: colors.primary }}>
+                      Course Title
+                    </th>
+                    <th className="px-4 py-3 text-center text-xs font-bold uppercase tracking-wider" style={{ color: colors.primary }}>
+                      Units
+                    </th>
+                    <th className="px-4 py-3 text-left text-xs font-bold uppercase tracking-wider" style={{ color: colors.primary }}>
+                      Reason
+                    </th>
+                    <th className="px-4 py-3 text-center text-xs font-bold uppercase tracking-wider" style={{ color: colors.primary }}>
+                      Status
+                    </th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {droppedSubjects.map((subject, index) => (
+                    <tr
+                      key={`${subject.id}-${index}`}
+                      className="border-b border-gray-100"
+                      style={{
+                        backgroundColor:
+                          index % 2 === 0 ? "transparent" : colors.paper + "30",
+                      }}
+                    >
+                      <td className="px-4 py-3 text-sm font-medium" style={{ color: colors.primary }}>
+                        {subject.course_code || "N/A"}
+                      </td>
+                      <td className="px-4 py-3 text-sm" style={{ color: colors.tertiary }}>
+                        {subject.descriptive_title || "No title"}
+                      </td>
+                      <td className="px-4 py-3 text-center text-sm font-semibold" style={{ color: colors.primary }}>
+                        {subject.units_total ?? 0}
+                      </td>
+                      <td className="px-4 py-3 text-sm" style={{ color: colors.tertiary }}>
+                        {subject.drop_reason || "No reason provided"}
+                      </td>
+                      <td className="px-4 py-3 text-center">
+                        <span
+                          className="rounded-full px-2.5 py-1 text-[10px] font-bold uppercase tracking-wide"
+                          style={{
+                            backgroundColor: `${colors.danger}12`,
+                            color: colors.danger,
+                          }}
+                        >
+                          Dropped
+                        </span>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
               </table>
             </div>
           )}

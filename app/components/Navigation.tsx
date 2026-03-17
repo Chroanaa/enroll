@@ -30,6 +30,7 @@ import {
   UserCog,
   House,
   UserMinus,
+  CheckSquare,
 } from "lucide-react";
 import Image from "next/image";
 import { useSession, signOut } from "next-auth/react";
@@ -52,10 +53,12 @@ const Navigation: React.FC<NavigationProps> = ({
   currentView,
   onViewChange,
 }) => {
-  const { data: session, status } = useSession();
+  const { data: session } = useSession();
 
-  // Default to ADMIN role (1) if session not loaded yet
-  const userRole = Number((session?.user as any)?.role) || ROLES.ADMIN;
+  const userRole = session?.user?.role
+    ? Number((session.user as any).role)
+    : null;
+  const resolvedUserRole = userRole ?? -1;
 
   const [isFileMaintenanceOpen, setIsFileMaintenanceOpen] = useState(false);
   const [isCurriculumOpen, setIsCurriculumOpen] = useState(false);
@@ -76,6 +79,12 @@ const Navigation: React.FC<NavigationProps> = ({
         label: "Students",
         icon: Users,
         allowedRoles: [ROLES.ADMIN, ROLES.REGISTRAR, ROLES.FACULTY],
+      },
+      {
+        id: "file-maintenance-approval",
+        label: "Approval",
+        icon: CheckSquare,
+        allowedRoles: [ROLES.ADMIN],
       },
       {
         id: "file-maintenance-building",
@@ -329,38 +338,38 @@ const Navigation: React.FC<NavigationProps> = ({
 
   // 5. Filtering Logic (remains largely the same, but compares numbers now)
   const filteredNavGroups = useMemo(() => {
-    if (!userRole) return [];
+    if (userRole === null) return [];
 
     return navGroups
       .map((group) => {
         const visibleItems = group.items.filter((item) => {
           // Check if role ID is in the allowed array
-          if (!item.allowedRoles.includes(userRole)) return false;
+          if (!item.allowedRoles.includes(resolvedUserRole)) return false;
 
           if (item.id === "file-maintenance") {
             const visibleSubItems = fileMaintenanceSubItems.filter((sub) =>
-              sub.allowedRoles.includes(userRole),
+              sub.allowedRoles.includes(resolvedUserRole),
             );
             return visibleSubItems.length > 0;
           }
 
           if (item.id === "curriculum") {
             const visibleSubItems = curriculumSubItems.filter((sub) =>
-              sub.allowedRoles.includes(userRole),
+              sub.allowedRoles.includes(resolvedUserRole),
             );
             return visibleSubItems.length > 0;
           }
 
           if (item.id === "transaction") {
             const visibleSubItems = transactionSubItems.filter((sub) =>
-              sub.allowedRoles.includes(userRole),
+              sub.allowedRoles.includes(resolvedUserRole),
             );
             return visibleSubItems.length > 0;
           }
 
           if (item.id === "report") {
             const visibleSubItems = reportSubItems.filter((sub) =>
-              sub.allowedRoles.includes(userRole),
+              sub.allowedRoles.includes(resolvedUserRole),
             );
             return visibleSubItems.length > 0;
           }
@@ -377,6 +386,7 @@ const Navigation: React.FC<NavigationProps> = ({
     curriculumSubItems,
     transactionSubItems,
     reportSubItems,
+    resolvedUserRole,
     userRole,
   ]);
 
@@ -398,17 +408,17 @@ const Navigation: React.FC<NavigationProps> = ({
 
   // Filter sub-items for rendering
   const visibleSubItems = fileMaintenanceSubItems.filter((item) =>
-    item.allowedRoles.includes(userRole),
+    item.allowedRoles.includes(resolvedUserRole),
   );
 
   const visibleCurriculumSubItems = curriculumSubItems.filter((item) =>
-    item.allowedRoles.includes(userRole),
+    item.allowedRoles.includes(resolvedUserRole),
   );
   const visibleTransactionSubItems = transactionSubItems.filter((item) =>
-    item.allowedRoles.includes(userRole),
+    item.allowedRoles.includes(resolvedUserRole),
   );
   const visibleReportSubItems = reportSubItems.filter((item) =>
-    item.allowedRoles.includes(userRole),
+    item.allowedRoles.includes(resolvedUserRole),
   );
 
   const isFileMaintenanceActive = currentView.startsWith("file-maintenance");
@@ -880,7 +890,7 @@ const Navigation: React.FC<NavigationProps> = ({
               {userRole === 2 && "Cashier"}
               {userRole === 3 && "Faculty"}
               {userRole === 4 && "Registrar"}
-              {!userRole && "Guest"}
+              {userRole === null && "Guest"}
             </p>
           </div>
         </div>

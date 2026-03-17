@@ -13,7 +13,7 @@ import ConfirmationModal from "./common/ConfirmationModal";
 import AssessmentSummaryModal, { AssessmentSummaryData } from "./common/AssessmentSummaryModal";
 import AssessmentStudentList from "./assessmentManagement/AssessmentStudentList";
 import SearchFilters from "./common/SearchFilters";
-import type { Fee, PaymentDetail, EnrolledSubject } from "./assessmentManagement/types";
+import type { Fee, PaymentDetail, EnrolledSubject, DroppedSubject } from "./assessmentManagement/types";
 import { StudentInfoSection } from "./assessmentManagement/StudentInfoSection";
 import { EnrolledSubjectsTab } from "./assessmentManagement/EnrolledSubjectsTab";
 import { PaymentCalculationTab } from "./assessmentManagement/PaymentCalculationTab";
@@ -63,6 +63,7 @@ const AssessmentManagement: React.FC = () => {
 
   // Enrolled Subjects
   const [enrolledSubjects, setEnrolledSubjects] = useState<EnrolledSubject[]>([]);
+  const [droppedSubjects, setDroppedSubjects] = useState<DroppedSubject[]>([]);
   const [isLoadingSubjects, setIsLoadingSubjects] = useState(false);
   const [subjectsError, setSubjectsError] = useState("");
 
@@ -259,6 +260,7 @@ const AssessmentManagement: React.FC = () => {
 
     // Reset assessment/enrollment-related state before loading a new student
     setEnrolledSubjects([]);
+    setDroppedSubjects([]);
     setTotalUnits(0);
     setFixedAmountTotal(0);
     setSubjectsError("");
@@ -375,6 +377,7 @@ const AssessmentManagement: React.FC = () => {
         setMajorName(null);
         setYearLevel(null);
         setEnrolledSubjects([]);
+        setDroppedSubjects([]);
         setTotalUnits(0);
         setFixedAmountTotal(0);
         setIsResidentReturnee(false);
@@ -391,6 +394,7 @@ const AssessmentManagement: React.FC = () => {
       setMajorName(null);
       setYearLevel(null);
       setEnrolledSubjects([]);
+      setDroppedSubjects([]);
       setTotalUnits(0);
       setFixedAmountTotal(0);
       setIsResidentReturnee(false);
@@ -472,6 +476,37 @@ const AssessmentManagement: React.FC = () => {
       subjectsAbortRef.current = abortController;
       const signal = abortController.signal;
 
+      const fetchDroppedSubjects = async () => {
+        if (!studentNumber || !currentTerm) {
+          setDroppedSubjects([]);
+          return;
+        }
+
+        try {
+          const response = await fetch(
+            `/api/auth/subject-drop-history?studentNumber=${encodeURIComponent(studentNumber.trim())}&academicYear=${encodeURIComponent(currentTerm.academicYear)}&semester=${semesterNum}`,
+            { signal }
+          );
+
+          if (signal.aborted) return;
+
+          if (!response.ok) {
+            setDroppedSubjects([]);
+            return;
+          }
+
+          const droppedData = await response.json();
+          setDroppedSubjects(
+            droppedData.success && Array.isArray(droppedData.data)
+              ? droppedData.data
+              : [],
+          );
+        } catch (error: any) {
+          if (error?.name === "AbortError") return;
+          setDroppedSubjects([]);
+        }
+      };
+
       // ALWAYS check enrolled_subjects first if studentNumber exists
       // This ensures we fetch the student's actual enrolled subjects, not curriculum
       if (studentNumber && currentTerm) {
@@ -487,6 +522,7 @@ const AssessmentManagement: React.FC = () => {
           if (enrolledData.success && enrolledData.data && enrolledData.data.length > 0) {
             // Student has existing enrolled subjects for this term, use them
             setEnrolledSubjects(enrolledData.data);
+            await fetchDroppedSubjects();
             const { regularUnits, fixedAmountSum } = calculateUnitsAndFixedAmounts(enrolledData.data);
             setTotalUnits(regularUnits);
             setFixedAmountTotal(fixedAmountSum);
@@ -535,6 +571,7 @@ const AssessmentManagement: React.FC = () => {
         if (curriculumData.success && curriculumData.data && curriculumData.data.courses && curriculumData.data.courses.length > 0) {
           console.log("Found", curriculumData.data.courses.length, "curriculum courses");
           setEnrolledSubjects(curriculumData.data.courses);
+          await fetchDroppedSubjects();
           const { regularUnits, fixedAmountSum } = calculateUnitsAndFixedAmounts(curriculumData.data.courses);
           setTotalUnits(regularUnits);
           setFixedAmountTotal(fixedAmountSum);
@@ -568,6 +605,7 @@ const AssessmentManagement: React.FC = () => {
           console.warn("Curriculum fetch returned no courses:", errorMsg);
           setSubjectsError(errorMsg);
           setEnrolledSubjects([]);
+          setDroppedSubjects([]);
           setTotalUnits(0);
           setFixedAmountTotal(0);
         }
@@ -583,6 +621,7 @@ const AssessmentManagement: React.FC = () => {
         console.error("Curriculum fetch failed:", errorMessage, "Status:", curriculumResponse.status);
         setSubjectsError(errorMessage);
         setEnrolledSubjects([]);
+        setDroppedSubjects([]);
         setTotalUnits(0);
         setFixedAmountTotal(0);
       }
@@ -593,6 +632,7 @@ const AssessmentManagement: React.FC = () => {
       console.error("Error fetching enrolled subjects:", error);
       setSubjectsError("Failed to fetch enrolled subjects");
       setEnrolledSubjects([]);
+      setDroppedSubjects([]);
       setTotalUnits(0);
       setFixedAmountTotal(0);
     } finally {
@@ -1773,6 +1813,7 @@ const AssessmentManagement: React.FC = () => {
                   isLoadingSubjects={isLoadingSubjects}
                   subjectsError={subjectsError}
                   enrolledSubjects={enrolledSubjects}
+                  droppedSubjects={droppedSubjects}
                   onAddSubject={handleAddSubject}
                   onEditSubject={handleEditSubject}
                   onRemoveSubject={handleRemoveSubject}

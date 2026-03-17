@@ -353,10 +353,12 @@ model enrolled_subjects {
   status               String?   @default("enrolled") @db.VarChar(20)
   enrolled_at          DateTime? @default(now()) @db.Timestamp(6)
   updated_at           DateTime? @default(now()) @db.Timestamp(6)
+  drop_status          String    @default("none") @db.VarChar(30)
 
   @@index([academic_year, semester], map: "idx_enrolled_subjects_academic_term")
   @@index([program_id, semester, academic_year], map: "idx_enrolled_subjects_program_semester")
   @@index([student_number], map: "idx_enrolled_subjects_student_number")
+  @@index([drop_status], map: "idx_enrolled_subjects_drop_status")
 }
 
 model category {
@@ -575,4 +577,33 @@ model miscellaneous_fee {
   @@index([category_id], map: "idx_miscellaneous_fee_category")
   @@index([status], map: "idx_miscellaneous_fee_status")
   @@map("miscellaneous_fees")
+}
+
+model subject_drop_history {
+  id                   Int       @id @default(autoincrement())
+  enrolled_subject_id  Int?
+  student_number       String    @db.VarChar(20)
+  program_id           Int?
+  curriculum_course_id Int
+  subject_id           Int?
+  academic_year        String    @db.VarChar(20)
+  semester             Int
+  term                 String?   @db.VarChar(50)
+  year_level           Int?
+  units_total          Int?      @default(0)
+  status               String?   @db.VarChar(20)
+  course_code          String?   @db.VarChar(50)
+  descriptive_title    String?   @db.VarChar(255)
+  dropped_at           DateTime  @default(now()) @db.Timestamp(6)
+  dropped_by           Int?
+  drop_reason          String?   @db.VarChar(255)
+  refundable           Boolean   @default(false)
+  refundable_days      Int       @default(15)
+  semester_start_date  DateTime? @db.Date
+  refund_deadline      DateTime? @db.Date
+  created_at           DateTime  @default(now()) @db.Timestamp(6)
+
+  @@index([academic_year, semester], map: "idx_subject_drop_history_academic_term")
+  @@index([dropped_at], map: "idx_subject_drop_history_dropped_at")
+  @@index([student_number], map: "idx_subject_drop_history_student_number")
 }

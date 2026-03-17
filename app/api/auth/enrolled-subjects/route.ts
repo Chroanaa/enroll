@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "../[...nextauth]/authOptions";
 import { prisma } from "../../../lib/prisma";
+import { getAcademicTerm } from "../../../utils/academicTermUtils";
 
 /**
  * POST /api/auth/enrolled-subjects
@@ -157,12 +158,50 @@ export async function GET(request: NextRequest) {
       );
     }
 
+    // Enforce server-side current-term access only.
+    // This blocks fetching previous or future term subjects even if query params are tampered with.
+    const serverTimeResult = await prisma.$queryRaw<
+      [{ now: Date }]
+    >`SELECT NOW() as now`;
+    const currentTerm = getAcademicTerm(serverTimeResult[0].now);
+    const currentSemesterNum = currentTerm.semester === "First" ? 1 : 2;
+
+    if (
+      academicYear !== currentTerm.academicYear ||
+      semesterNum !== currentSemesterNum
+    ) {
+      return NextResponse.json(
+        {
+          error: "Only enrolled subjects from the current academic term can be fetched.",
+          currentTerm: {
+            academicYear: currentTerm.academicYear,
+            semester: currentSemesterNum,
+            semesterLabel: currentTerm.semester,
+          },
+        },
+        { status: 403 }
+      );
+    }
+
     // Fetch enrolled subjects with prerequisite resolution.
     // Falls back to the subject table when the curriculum_course row has been
     // removed (e.g. after a curriculum delete/recreate), so data is never lost.
     const enrolledSubjects = await prisma.$queryRaw<any[]>`
       SELECT 
-        es.*,
+        es.id,
+        es.student_number,
+        es.program_id,
+        es.curriculum_course_id,
+        es.subject_id,
+        es.academic_year,
+        es.semester,
+        es.term,
+        es.year_level,
+        es.units_total,
+        es.status,
+        es.drop_status,
+        es.enrolled_at,
+        es.updated_at,
         COALESCE(cc.course_code, s.code)             AS course_code,
         COALESCE(cc.descriptive_title, s.name)       AS descriptive_title,
         COALESCE(cc.units_lec, s.units_lec)          AS units_lec,
@@ -252,6 +291,8 @@ export async function GET(request: NextRequest) {
         id: es.id, // This is the unique enrolled_subjects.id
         curriculum_course_id: es.curriculum_course_id,
         subject_id: es.subject_id,
+        status: es.status,
+        drop_status: es.drop_status,
         course_code: es.course_code,
         descriptive_title: es.descriptive_title,
         units_lec: es.units_lec || 0,
