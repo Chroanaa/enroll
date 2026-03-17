@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "../[...nextauth]/authOptions";
 import { prisma } from "../../../lib/prisma";
+import { recalculateAssessmentForTerm } from "../../../lib/recalculateAssessment";
 import { insertIntoReports } from "../../../utils/reportsUtils";
 
 const ROLES = {
@@ -26,7 +27,7 @@ export async function GET() {
       );
     }
 
-    const [subjectOverloads, subjectDrops] = await Promise.all([
+    const [subjectOverloads, subjectDrops, crossEnrollmentRequests] = await Promise.all([
       prisma.$queryRaw<any[]>`
         SELECT
           es.student_number,
@@ -109,6 +110,46 @@ export async function GET() {
         WHERE es.drop_status = 'pending_approval'
         ORDER BY es.updated_at DESC NULLS LAST, es.student_number ASC
       `,
+      prisma.$queryRaw<any[]>`
+        SELECT
+          cer.id,
+          cer.student_number,
+          cer.academic_year,
+          cer.semester,
+          cer.reason,
+          cer.status,
+          cer.requested_at,
+          cer.units_total,
+          enr.first_name,
+          enr.family_name AS last_name,
+          CONCAT_WS(', ', enr.family_name, enr.first_name, enr.middle_name) AS student_name,
+          COALESCE(cc.course_code, sub.code) AS course_code,
+          COALESCE(cc.descriptive_title, sub.name) AS descriptive_title,
+          home_program.code AS home_program_code,
+          home_program.name AS home_program_name,
+          host_program.code AS host_program_code,
+          host_program.name AS host_program_name
+        FROM student_cross_enrollment_requests cer
+        LEFT JOIN curriculum_course cc ON cc.id = cer.curriculum_course_id
+        LEFT JOIN subject sub ON sub.id = cer.subject_id
+        LEFT JOIN program home_program ON home_program.id = cer.home_program_id
+        LEFT JOIN program host_program ON host_program.id = cer.host_program_id
+        LEFT JOIN LATERAL (
+          SELECT e.first_name, e.middle_name, e.family_name
+          FROM enrollment e
+          WHERE e.student_number = cer.student_number
+            AND e.academic_year = cer.academic_year
+            AND (
+              (cer.semester = 1 AND e.term IN ('First Semester', '1st Semester', 'first', '1'))
+              OR
+              (cer.semester = 2 AND e.term IN ('Second Semester', '2nd Semester', 'second', '2'))
+            )
+          ORDER BY e.id DESC
+          LIMIT 1
+        ) enr ON TRUE
+        WHERE cer.status = 'pending_approval'
+        ORDER BY cer.requested_at DESC NULLS LAST, cer.id DESC
+      `,
     ]);
 
     return NextResponse.json({
@@ -144,6 +185,32 @@ export async function GET() {
               courseCode: item.course_code,
               descriptiveTitle: item.descriptive_title,
               unitsTotal: null,
+            },
+          ],
+        })),
+        crossEnrollmentRequests: crossEnrollmentRequests.map((item) => ({
+          id: item.id,
+          studentNumber: item.student_number,
+          studentName: item.student_name || item.student_number,
+          firstName: item.first_name || "",
+          lastName: item.last_name || "",
+          academicYear: item.academic_year,
+          semester: item.semester,
+          courseCode: item.course_code,
+          descriptiveTitle: item.descriptive_title,
+          homeProgramCode: item.home_program_code,
+          homeProgramName: item.home_program_name,
+          hostProgramCode: item.host_program_code,
+          hostProgramName: item.host_program_name,
+          status: item.status,
+          requestedAt: item.requested_at,
+          reason: item.reason,
+          unitsTotal: item.units_total,
+          subjects: [
+            {
+              courseCode: item.course_code,
+              descriptiveTitle: item.descriptive_title,
+              unitsTotal: item.units_total,
             },
           ],
         })),
@@ -255,6 +322,16 @@ export async function POST(request: Request) {
         );
       }
 
+      const pendingDropRows = await prisma.$queryRaw<any[]>`
+        SELECT refundable
+        FROM subject_drop_history
+        WHERE enrolled_subject_id = ${enrolledSubjectId}
+          AND status = 'pending_approval'
+        ORDER BY dropped_at DESC, id DESC
+        LIMIT 1
+      `;
+      const isRefundableDrop = Boolean(pendingDropRows[0]?.refundable);
+
       await prisma.$transaction(async (tx) => {
         await tx.$executeRaw`
           UPDATE subject_drop_history
@@ -267,6 +344,15 @@ export async function POST(request: Request) {
           DELETE FROM enrolled_subjects
           WHERE id = ${enrolledSubjectId}
         `;
+
+        if (isRefundableDrop) {
+          await recalculateAssessmentForTerm(
+            tx,
+            subject.student_number,
+            subject.academic_year,
+            subject.semester,
+          );
+        }
       });
 
       if (userId) {
@@ -280,6 +366,128 @@ export async function POST(request: Request) {
       return NextResponse.json({
         success: true,
         message: "Subject drop approved successfully.",
+      });
+    }
+
+    if (actionType === "cross_enrollment") {
+      const requestId = Number(body?.id);
+
+      if (!Number.isFinite(requestId)) {
+        return NextResponse.json(
+          { error: "id is required for cross-enrollee approval." },
+          { status: 400 },
+        );
+      }
+
+      const requestRows = await prisma.$queryRaw<any[]>`
+        SELECT
+          cer.id,
+          cer.student_number,
+          cer.home_program_id,
+          cer.curriculum_course_id,
+          cer.subject_id,
+          cer.academic_year,
+          cer.semester,
+          cer.year_level,
+          cer.units_total,
+          cer.status
+        FROM student_cross_enrollment_requests cer
+        WHERE cer.id = ${requestId}
+        LIMIT 1
+      `;
+
+      const requestRow = requestRows[0];
+
+      if (!requestRow) {
+        return NextResponse.json(
+          { error: "Pending cross-enrollee request not found." },
+          { status: 404 },
+        );
+      }
+
+      if (String(requestRow.status || "").toLowerCase() !== "pending_approval") {
+        return NextResponse.json(
+          { error: "This cross-enrollee request is no longer pending approval." },
+          { status: 409 },
+        );
+      }
+
+      const existingEnrolled = await prisma.$queryRaw<any[]>`
+        SELECT id
+        FROM enrolled_subjects
+        WHERE student_number = ${requestRow.student_number}
+          AND academic_year = ${requestRow.academic_year}
+          AND semester = ${requestRow.semester}
+          AND curriculum_course_id = ${requestRow.curriculum_course_id}
+        LIMIT 1
+      `;
+
+      if (existingEnrolled.length > 0) {
+        return NextResponse.json(
+          { error: "This subject is already enrolled for the student." },
+          { status: 409 },
+        );
+      }
+
+      await prisma.$transaction(async (tx) => {
+        await tx.$executeRaw`
+          INSERT INTO enrolled_subjects (
+            student_number,
+            program_id,
+            curriculum_course_id,
+            subject_id,
+            academic_year,
+            semester,
+            term,
+            year_level,
+            units_total,
+            status,
+            drop_status,
+            updated_at
+          )
+          VALUES (
+            ${requestRow.student_number},
+            ${requestRow.home_program_id},
+            ${requestRow.curriculum_course_id},
+            ${requestRow.subject_id},
+            ${requestRow.academic_year},
+            ${requestRow.semester},
+            ${requestRow.semester === 1 ? "First Semester" : "Second Semester"},
+            ${requestRow.year_level},
+            ${requestRow.units_total ?? 0},
+            'enrolled',
+            'none',
+            NOW()
+          )
+        `;
+
+        await recalculateAssessmentForTerm(
+          tx,
+          requestRow.student_number,
+          requestRow.academic_year,
+          requestRow.semester,
+        );
+
+        await tx.$executeRaw`
+          UPDATE student_cross_enrollment_requests
+          SET status = 'approved',
+              approved_by = ${userId},
+              approved_at = NOW()
+          WHERE id = ${requestId}
+        `;
+      });
+
+      if (userId) {
+        await insertIntoReports({
+          action: `Approved cross-enrollee request for ${requestRow.student_number} (${requestRow.academic_year} Sem ${requestRow.semester}) by ${session?.user?.name}`,
+          user_id: userId,
+          created_at: new Date(),
+        });
+      }
+
+      return NextResponse.json({
+        success: true,
+        message: "Cross-enrollee request approved successfully.",
       });
     }
 

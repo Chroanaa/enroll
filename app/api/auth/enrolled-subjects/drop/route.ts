@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { prisma } from "../../../../lib/prisma";
+import { recalculateAssessmentForTerm } from "../../../../lib/recalculateAssessment";
 import { authOptions } from "../../[...nextauth]/authOptions";
 import { insertIntoReports } from "@/app/utils/reportsUtils";
 
@@ -215,6 +216,15 @@ export async function POST(request: NextRequest) {
           DELETE FROM enrolled_subjects
           WHERE id = ${enrolledSubjectId}
         `;
+
+        if (refundable) {
+          await recalculateAssessmentForTerm(
+            tx,
+            enrolledSubject.student_number,
+            enrolledSubject.academic_year,
+            enrolledSubject.semester,
+          );
+        }
       } else {
         await tx.$executeRaw`
           UPDATE enrolled_subjects

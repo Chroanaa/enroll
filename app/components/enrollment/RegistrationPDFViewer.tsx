@@ -119,13 +119,23 @@ export default function RegistrationPDFViewer({ data, onClose }: RegistrationPDF
       >
         {/* Header */}
         <div className='border-b-2 px-6 py-4 print:py-2 print:px-4 relative' style={{ borderColor: colors.primary }}>
-          <div className='text-center'>
-            <h1 className='text-xl font-bold tracking-wide print:text-base mb-1' style={{ color: colors.primary }}>
-              COLEGIO DE STA. TERESA DE AVILA
-            </h1>
-            <p className='text-xs print:text-[10px]' style={{ color: colors.tertiary }}>
-              (Dean's Copy)
-            </p>
+          <div className='flex items-center justify-center gap-4 print:gap-3'>
+            <img
+              src='/logo.png'
+              alt='School Logo'
+              className='h-14 w-14 object-contain print:h-10 print:w-10'
+            />
+            <div className='text-center'>
+              <h1 className='text-xl font-bold tracking-wide print:text-base mb-1' style={{ color: colors.primary }}>
+                COLEGIO DE STA. TERESA DE AVILA
+              </h1>
+              <p className='text-xs print:text-[10px] leading-relaxed' style={{ color: colors.tertiary }}>
+                1177 Quirino Highway Barangay Kaligayan, Novaliches Quezon City
+              </p>
+              <p className='text-xs print:text-[10px]' style={{ color: colors.tertiary }}>
+                (02) 8275-3916 / officialcstaregistrar@gmail.com
+              </p>
+            </div>
           </div>
 
           {/* Action buttons - Hidden in Print */}
