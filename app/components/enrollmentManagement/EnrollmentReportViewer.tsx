@@ -2,6 +2,7 @@
 
 import React, { useMemo, useState } from "react";
 import { Filter, Printer, X } from "lucide-react";
+import Image from "next/image";
 import { colors } from "../../colors";
 import { useAcademicTermContext } from "../../contexts/AcademicTermContext";
 import { useProgramsWithMajors } from "../../hooks/useProgramsWithMajors";
@@ -244,6 +245,24 @@ export default function EnrollmentReportViewer({
               overflow-wrap: anywhere !important;
             }
 
+            .print-school-header {
+              margin-bottom: 12px !important;
+            }
+
+            .print-school-logo {
+              width: 52px !important;
+              height: 52px !important;
+            }
+
+            .print-school-name {
+              font-size: 18px !important;
+              line-height: 1.1 !important;
+            }
+
+            .print-school-subtitle {
+              font-size: 10px !important;
+            }
+
             .print-col-no { width: 4%; }
             .print-col-student-number { width: 10%; }
             .print-col-name { width: 18%; }
@@ -260,8 +279,14 @@ export default function EnrollmentReportViewer({
         className='min-h-screen p-4 md:p-8 flex items-start justify-center'
         onClick={(event) => event.stopPropagation()}
       >
-        <div className='report-shell w-full max-w-7xl rounded-3xl bg-white shadow-2xl overflow-hidden'>
-          <div className='print-hidden border-b px-6 py-5 flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between'>
+        <div 
+          className='report-shell w-full max-w-7xl rounded-3xl shadow-2xl overflow-hidden'
+          style={{ backgroundColor: colors.paper }}
+        >
+          <div 
+            className='print-hidden border-b px-6 py-5 flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between'
+            style={{ borderColor: `${colors.primary}20` }}
+          >
             <div>
               <h2
                 className='text-2xl font-bold'
@@ -269,7 +294,7 @@ export default function EnrollmentReportViewer({
               >
                 Enrollment Report
               </h2>
-              <p className='text-sm text-gray-500'>
+              <p className='text-sm opacity-70' style={{ color: colors.primary }}>
                 Filter students and print or save the preview as PDF.
               </p>
             </div>
@@ -278,7 +303,7 @@ export default function EnrollmentReportViewer({
               <button
                 type='button'
                 onClick={() => window.print()}
-                className='inline-flex items-center gap-2 rounded-xl px-4 py-2.5 text-white'
+                className='inline-flex items-center gap-2 rounded-xl px-5 py-2.5 text-white font-semibold transition-all hover:opacity-90 active:scale-95 shadow-sm'
                 style={{ backgroundColor: colors.secondary }}
               >
                 <Printer className='w-4 h-4' />
@@ -287,8 +312,8 @@ export default function EnrollmentReportViewer({
               <button
                 type='button'
                 onClick={onClose}
-                className='inline-flex items-center gap-2 rounded-xl px-4 py-2.5 border'
-                style={{ borderColor: colors.neutralBorder, color: colors.primary }}
+                className='inline-flex items-center gap-2 rounded-xl px-5 py-2.5 border font-semibold transition-all hover:bg-black/5 active:scale-95'
+                style={{ borderColor: colors.tertiary, color: colors.primary }}
               >
                 <X className='w-4 h-4' />
                 Close
@@ -296,7 +321,10 @@ export default function EnrollmentReportViewer({
             </div>
           </div>
 
-          <div className='print-hidden border-b px-6 py-5 bg-gray-50/80'>
+          <div 
+            className='print-hidden border-b px-6 py-5'
+            style={{ backgroundColor: `${colors.accent}10`, borderColor: `${colors.primary}10` }}
+          >
             <div className='flex items-center gap-2 mb-4'>
               <Filter className='w-4 h-4' style={{ color: colors.secondary }} />
               <span className='text-sm font-semibold' style={{ color: colors.primary }}>
@@ -304,16 +332,19 @@ export default function EnrollmentReportViewer({
               </span>
             </div>
 
-            <div className='grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-4'>
-              <label className='flex flex-col gap-2 text-sm'>
-                <span className='font-medium' style={{ color: colors.primary }}>
+            <div className='grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4'>
+              <label className='flex flex-col gap-1.5 text-sm'>
+                <span className='font-bold uppercase tracking-widest text-[10px] opacity-60' style={{ color: colors.primary }}>
                   Gender
                 </span>
                 <select
                   value={genderFilter}
                   onChange={(event) => setGenderFilter(event.target.value)}
-                  className='rounded-xl border px-3 py-2.5 bg-white'
-                  style={{ borderColor: colors.neutralBorder, color: colors.primary }}
+                  className='rounded-xl border px-3 py-2.5 bg-white font-medium focus:outline-none focus:ring-2 transition-all'
+                  style={{ 
+                    borderColor: `${colors.tertiary}40`, 
+                    color: colors.primary,
+                  }}
                 >
                   <option value='all'>All Genders</option>
                   <option value='male'>Male</option>
@@ -321,15 +352,18 @@ export default function EnrollmentReportViewer({
                 </select>
               </label>
 
-              <label className='flex flex-col gap-2 text-sm'>
-                <span className='font-medium' style={{ color: colors.primary }}>
+              <label className='flex flex-col gap-1.5 text-sm'>
+                <span className='font-bold uppercase tracking-widest text-[10px] opacity-60' style={{ color: colors.primary }}>
                   Program / Major
                 </span>
                 <select
                   value={programMajorFilter}
                   onChange={(event) => setProgramMajorFilter(event.target.value)}
-                  className='rounded-xl border px-3 py-2.5 bg-white'
-                  style={{ borderColor: colors.neutralBorder, color: colors.primary }}
+                  className='rounded-xl border px-3 py-2.5 bg-white font-medium focus:outline-none focus:ring-2 transition-all'
+                  style={{ 
+                    borderColor: `${colors.tertiary}40`, 
+                    color: colors.primary,
+                  }}
                 >
                   <option value='all'>All Programs / Majors</option>
                   {programs.map((program) => (
@@ -340,15 +374,18 @@ export default function EnrollmentReportViewer({
                 </select>
               </label>
 
-              <label className='flex flex-col gap-2 text-sm'>
-                <span className='font-medium' style={{ color: colors.primary }}>
+              <label className='flex flex-col gap-1.5 text-sm'>
+                <span className='font-bold uppercase tracking-widest text-[10px] opacity-60' style={{ color: colors.primary }}>
                   Status
                 </span>
                 <select
                   value={statusFilter}
                   onChange={(event) => setStatusFilter(event.target.value)}
-                  className='rounded-xl border px-3 py-2.5 bg-white'
-                  style={{ borderColor: colors.neutralBorder, color: colors.primary }}
+                  className='rounded-xl border px-3 py-2.5 bg-white font-medium focus:outline-none focus:ring-2 transition-all'
+                  style={{ 
+                    borderColor: `${colors.tertiary}40`, 
+                    color: colors.primary,
+                  }}
                   disabled={programsLoading}
                 >
                   {ENROLLMENT_STATUS_OPTIONS.map((option) => (
@@ -366,6 +403,34 @@ export default function EnrollmentReportViewer({
               className='mx-auto w-full max-w-5xl border border-gray-300 bg-white p-6 md:p-10'
               id='enrollment-report-print-area'
             >
+              <div className='print-school-header mb-8'>
+                <div className='flex items-center justify-center gap-4'>
+                  <div className='print-school-logo relative h-16 w-16 shrink-0'>
+                    <Image
+                      src='/logo.png'
+                      alt='School Logo'
+                      fill
+                      className='object-contain'
+                      priority
+                    />
+                  </div>
+                  <div className='text-center'>
+                    <h1
+                      className='print-school-name text-2xl font-black uppercase tracking-wide'
+                      style={{ color: colors.primary }}
+                    >
+                      Colegio de Sta. Teresa de Avila
+                    </h1>
+                    <p
+                      className='print-school-subtitle text-sm font-semibold uppercase tracking-[0.2em]'
+                      style={{ color: colors.secondary }}
+                    >
+                      Enrollment System Dashboard
+                    </p>
+                  </div>
+                </div>
+              </div>
+
               <div className='text-center space-y-1'>
                 <h1
                   className='print-title text-3xl font-bold'
@@ -382,35 +447,41 @@ export default function EnrollmentReportViewer({
               </div>
 
               <div className='print-meta mt-6 grid grid-cols-1 gap-3 md:grid-cols-2'>
-                <div className='print-meta-box rounded-xl border bg-gray-50 px-4 py-3'>
-                  <p className='text-xs uppercase tracking-wide text-gray-500'>Filters</p>
-                  <p className='mt-1 text-sm font-medium' style={{ color: colors.primary }}>
-                    {selectedGenderLabel} | {selectedProgramMajorLabel} | {selectedStatusLabel}
+                <div 
+                  className='print-meta-box rounded-2xl border px-5 py-4 transition-all'
+                  style={{ backgroundColor: `${colors.paper}`, borderColor: `${colors.tertiary}30` }}
+                >
+                  <p className='text-[10px] uppercase font-bold tracking-widest opacity-60' style={{ color: colors.primary }}>Filters Applied</p>
+                  <p className='mt-1 text-sm font-bold' style={{ color: colors.primary }}>
+                    {selectedGenderLabel} • {selectedProgramMajorLabel} • {selectedStatusLabel}
                   </p>
                 </div>
-                <div className='print-meta-box rounded-xl border bg-gray-50 px-4 py-3 md:text-right'>
-                  <p className='text-xs uppercase tracking-wide text-gray-500'>Total Students</p>
-                  <p className='mt-1 text-2xl font-bold' style={{ color: colors.secondary }}>
-                    {filteredEnrollments.length}
+                <div 
+                  className='print-meta-box rounded-2xl border px-5 py-4 md:text-right'
+                  style={{ backgroundColor: `${colors.secondary}10`, borderColor: `${colors.secondary}30` }}
+                >
+                  <p className='text-[10px] uppercase font-bold tracking-widest opacity-60' style={{ color: colors.secondary }}>Total Enrolled Units</p>
+                  <p className='mt-1 text-2xl font-black' style={{ color: colors.secondary }}>
+                    {filteredEnrollments.length} <span className="text-sm font-medium opacity-70">Students</span>
                   </p>
                 </div>
               </div>
 
-              <div className='mt-6 overflow-x-auto'>
+              <div className='mt-8 overflow-x-auto rounded-xl border overflow-hidden' style={{ borderColor: colors.primary }}>
                 <table
                   className='print-table w-full border-collapse text-sm'
-                  style={{ color: "#000000" }}
+                  style={{ color: colors.primary }}
                 >
                   <thead>
-                    <tr style={{ backgroundColor: "#E5E7EB" }}>
-                      <th className='print-col-no border border-gray-700 px-2 py-2 text-center'>No.</th>
-                      <th className='print-col-student-number border border-gray-700 px-2 py-2 text-left'>Student Number</th>
-                      <th className='print-col-name border border-gray-700 px-2 py-2 text-left'>Name</th>
-                      <th className='print-col-email border border-gray-700 px-2 py-2 text-left'>Email</th>
-                      <th className='print-col-gender border border-gray-700 px-2 py-2 text-left'>Gender</th>
-                      <th className='print-col-program border border-gray-700 px-2 py-2 text-left'>Program / Major</th>
-                      <th className='print-col-status border border-gray-700 px-2 py-2 text-left'>Status</th>
-                      <th className='print-col-date border border-gray-700 px-2 py-2 text-left'>Date Enrolled</th>
+                    <tr style={{ backgroundColor: colors.primary, color: colors.paper }}>
+                      <th className='print-col-no border border-gray-700 px-3 py-3 text-center font-bold'>No.</th>
+                      <th className='print-col-student-number border border-gray-700 px-3 py-3 text-left font-bold'>Student Number</th>
+                      <th className='print-col-name border border-gray-700 px-3 py-3 text-left font-bold'>Full Name</th>
+                      <th className='print-col-email border border-gray-700 px-3 py-3 text-left font-bold'>Email Address</th>
+                      <th className='print-col-gender border border-gray-700 px-3 py-3 text-left font-bold'>Gender</th>
+                      <th className='print-col-program border border-gray-700 px-3 py-3 text-left font-bold'>Program / Major</th>
+                      <th className='print-col-status border border-gray-700 px-3 py-3 text-left font-bold'>Status</th>
+                      <th className='print-col-date border border-gray-700 px-3 py-3 text-left font-bold'>Admission Date</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -418,40 +489,51 @@ export default function EnrollmentReportViewer({
                       <tr>
                         <td
                           colSpan={8}
-                          className='border border-gray-700 px-3 py-8 text-center text-gray-500'
+                          className='px-3 py-12 text-center font-medium italic opacity-50'
                         >
-                          No students found for the selected filters.
+                          No student records match the selected filters.
                         </td>
                       </tr>
                     ) : (
                       filteredEnrollments.map((enrollment, index) => (
-                        <tr key={String(enrollment.id)}>
-                          <td className='border border-gray-700 px-2 py-1.5 text-center'>
+                        <tr 
+                          key={String(enrollment.id)}
+                          className="hover:bg-black/[0.02] transition-colors"
+                        >
+                          <td className='border border-gray-300 px-3 py-2 text-center font-bold opacity-70'>
                             {index + 1}
                           </td>
-                          <td className='border border-gray-700 px-2 py-1.5'>
+                          <td className='border border-gray-300 px-3 py-2 font-mono text-[13px]'>
                             {enrollment.student_number || "N/A"}
                           </td>
-                          <td className='border border-gray-700 px-2 py-1.5 font-medium'>
+                          <td className='border border-gray-300 px-3 py-2 font-bold'>
                             {formatStudentName(enrollment)}
                           </td>
-                          <td className='border border-gray-700 px-2 py-1.5'>
+                          <td className='border border-gray-300 px-3 py-2 opacity-80'>
                             {enrollment.email_address || "N/A"}
                           </td>
-                          <td className='border border-gray-700 px-2 py-1.5'>
+                          <td className='border border-gray-300 px-3 py-2'>
                             {normalizeGender(enrollment.sex) === "male"
                               ? "Male"
                               : normalizeGender(enrollment.sex) === "female"
                                 ? "Female"
                                 : "N/A"}
                           </td>
-                          <td className='border border-gray-700 px-2 py-1.5'>
+                          <td className='border border-gray-300 px-3 py-2 text-[13px]'>
                             {formatProgramMajor(enrollment)}
                           </td>
-                          <td className='border border-gray-700 px-2 py-1.5'>
-                            {getStatusLabel(enrollment.status)}
+                          <td className='border border-gray-300 px-3 py-2'>
+                            <span 
+                              className="px-2 py-0.5 rounded-full text-[11px] font-bold uppercase"
+                              style={{ 
+                                backgroundColor: `${colors.secondary}20`,
+                                color: colors.secondary
+                              }}
+                            >
+                              {getStatusLabel(enrollment.status)}
+                            </span>
                           </td>
-                          <td className='border border-gray-700 px-2 py-1.5'>
+                          <td className='border border-gray-300 px-3 py-2 opacity-80'>
                             {formatEnrollmentDate(enrollment.admission_date)}
                           </td>
                         </tr>
@@ -459,14 +541,14 @@ export default function EnrollmentReportViewer({
                     )}
                   </tbody>
                   <tfoot>
-                    <tr>
+                    <tr style={{ backgroundColor: `${colors.primary}05` }}>
                       <td
                         colSpan={7}
-                        className='border border-gray-700 px-2 py-2 text-right font-semibold'
+                        className='border border-gray-700 px-4 py-3 text-right font-black uppercase tracking-widest text-[11px]'
                       >
-                        Number of Students
+                        Grand Total Students
                       </td>
-                      <td className='border border-gray-700 px-2 py-2 font-bold text-center'>
+                      <td className='border border-gray-700 px-4 py-3 font-black text-center text-lg' style={{ color: colors.secondary }}>
                         {filteredEnrollments.length}
                       </td>
                     </tr>

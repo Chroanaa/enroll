@@ -10,6 +10,7 @@ import EnrollmentForm from "./components/EnrollmentForm";
 import ForecastingAnalytics from "./components/ForecastingAnalytics";
 import StudentForecastDashboard from "./components/StudentForecastDashboard";
 import AssessmentManagement from "./components/AssessmentManagement";
+import SubjectDroppingManagement from "./components/SubjectDroppingManagement";
 import ReportManagement from "./components/ReportManagement";
 import PaymentsDashboard from "./components/reports/PaymentsDashboard";
 import SchedulingManagement from "./components/SchedulingManagement";
@@ -19,6 +20,7 @@ import ResidentPortalContent from "./resident/ResidentPortalContent";
 import SectionManagementPage from "./admin/sections/page";
 import FacultySubjectManagementPage from "./admin/faculty-subject-management/page";
 import {
+  Approval,
   Building,
   Section,
   Room,
@@ -41,6 +43,7 @@ import { AuthProvider } from "./contexts/AuthContext";
 import { useSession } from "next-auth/react";
 import { useRouter } from "next/navigation";
 import { useEffect } from "react";
+import { formatProgramDisplay } from "./utils/programUtils";
 
 const ROLES = {
   ADMIN: 1,
@@ -60,6 +63,7 @@ const VIEW_ROLES: Record<string, number[]> = {
   forecast: [ROLES.ADMIN, ROLES.REGISTRAR],
   "forecast-billing": [ROLES.ADMIN, ROLES.REGISTRAR],
   assessment: [ROLES.ADMIN, ROLES.CASHIER],
+  "subject-dropping": [ROLES.ADMIN, ROLES.REGISTRAR],
   reports: [ROLES.ADMIN, ROLES.REGISTRAR],
   "reports-payments-dashboard": [ROLES.ADMIN, ROLES.REGISTRAR, ROLES.CASHIER],
   scheduling: [ROLES.ADMIN, ROLES.REGISTRAR, ROLES.FACULTY],
@@ -69,6 +73,7 @@ const VIEW_ROLES: Record<string, number[]> = {
   curriculum: [ROLES.ADMIN, ROLES.REGISTRAR, ROLES.FACULTY],
   "curriculum-program": [ROLES.ADMIN, ROLES.REGISTRAR],
   "file-maintenance-building": [ROLES.ADMIN, ROLES.REGISTRAR],
+  "file-maintenance-approval": [ROLES.ADMIN],
   "file-maintenance-section": [ROLES.ADMIN, ROLES.REGISTRAR],
   "file-maintenance-room": [ROLES.ADMIN, ROLES.REGISTRAR],
   "file-maintenance-department": [ROLES.ADMIN, ROLES.REGISTRAR],
@@ -84,6 +89,10 @@ const VIEW_ROLES: Record<string, number[]> = {
   backups: [ROLES.ADMIN],
   settings: [ROLES.ADMIN],
 };
+
+
+
+
 
 function App() {
   const [currentView, setCurrentView] = useState("home");
@@ -132,6 +141,8 @@ function App() {
         return <StudentForecastDashboard />;
       case "assessment":
         return <AssessmentManagement />;
+      case "subject-dropping":
+        return <SubjectDroppingManagement />;
       case "reports":
         return <ReportManagement />;
       case "reports-payments-dashboard":
@@ -148,6 +159,8 @@ function App() {
         return <CurriculumManagement />;
       case "file-maintenance-building":
         return <Building />;
+      case "file-maintenance-approval":
+        return <Approval />;
       case "file-maintenance-section":
         return <Section />;
       case "file-maintenance-room":
@@ -198,6 +211,7 @@ function App() {
       <ProtectedRoute>
         <div className='flex h-screen bg-gray-50'>
           <Navigation
+            key={`nav-${userRole}`}
             currentView={currentView}
             onViewChange={handleViewChange}
           />

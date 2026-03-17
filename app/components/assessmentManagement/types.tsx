@@ -18,6 +18,8 @@ export interface EnrolledSubject {
   id: number;
   curriculum_id: number;
   subject_id?: number;
+  status?: string;
+  drop_status?: string;
   course_code: string;
   descriptive_title: string;
   units_lec?: number;
@@ -34,6 +36,21 @@ export interface EnrolledSubject {
     code: string;
     name: string;
   };
+}
+
+export interface DroppedSubject {
+  id: number;
+  enrolled_subject_id?: number | null;
+  student_number: string;
+  academic_year: string;
+  semester: number;
+  units_total?: number | null;
+  status?: string | null;
+  course_code?: string | null;
+  descriptive_title?: string | null;
+  dropped_at?: string | Date | null;
+  drop_reason?: string | null;
+  refundable?: boolean | null;
 }
 
 

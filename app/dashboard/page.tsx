@@ -12,6 +12,7 @@ import ResidentPortalContent from "../resident/ResidentPortalContent";
 import ForecastingAnalytics from "../components/ForecastingAnalytics";
 import StudentForecastDashboard from "../components/StudentForecastDashboard";
 import AssessmentManagement from "../components/AssessmentManagement";
+import SubjectDroppingManagement from "../components/SubjectDroppingManagement";
 import ReportManagement from "../components/ReportManagement";
 import PaymentsDashboard from "../components/reports/PaymentsDashboard";
 import SchedulingManagement from "../components/SchedulingManagement";
@@ -23,6 +24,7 @@ import FileMaintenanceManagement from "../components/FileMaintenanceManagement";
 import Settings from "../components/Settings";
 import AccountManagement from "../components/AccountManagement";
 import {
+  Approval,
   Building,
   Section,
   Room,
@@ -40,10 +42,13 @@ import MiscellaneousFees from "../components/MiscellaneousFees";
 import ProtectedRoute from "../components/ProtectedRoute";
 import SectionManagement from "../admin/sections/page";
 import FacultySubjectManagement from "../admin/faculty-subject-management/page";
+import { useSession } from "next-auth/react";
 
 function DashboardContent() {
   const searchParams = useSearchParams();
   const [currentView, setCurrentView] = useState("home");
+  const { data: session } = useSession();
+  const userRole = Number((session?.user as any)?.role) || 0;
 
   console.log("DashboardContent render - currentView:", currentView);
 
@@ -81,6 +86,8 @@ function DashboardContent() {
         return <StudentForecastDashboard />;
       case "assessment":
         return <AssessmentManagement />;
+      case "subject-dropping":
+        return <SubjectDroppingManagement />;
       case "reports":
         return <ReportManagement />;
       case "reports-payments-dashboard":
@@ -103,6 +110,8 @@ function DashboardContent() {
         return <FileMaintenanceManagement />;
       case "file-maintenance-building":
         return <Building />;
+      case "file-maintenance-approval":
+        return <Approval />;
       case "file-maintenance-section":
         return <Section />;
       case "file-maintenance-room":
@@ -139,7 +148,11 @@ function DashboardContent() {
   return (
     <ProtectedRoute>
       <div className='flex h-screen bg-gray-50'>
-        <Navigation currentView={currentView} onViewChange={handleViewChange} />
+        <Navigation
+          key={`nav-${userRole}`}
+          currentView={currentView}
+          onViewChange={handleViewChange}
+        />
         <main className='flex-1 overflow-auto'>{renderCurrentView()}</main>
       </div>
     </ProtectedRoute>
