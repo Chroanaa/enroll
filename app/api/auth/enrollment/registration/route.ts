@@ -1,5 +1,16 @@
 import { NextRequest, NextResponse } from "next/server";
+import { getServerSession } from "next-auth";
 import { prisma } from "../../../../lib/prisma";
+import { authOptions } from "../../[...nextauth]/authOptions";
+import { insertIntoReports } from "../../../../utils/reportsUtils";
+
+const normalizeSemesterLabel = (value: string) => {
+  const normalized = String(value || "").trim().toLowerCase();
+  if (["1", "1st", "first", "first semester"].includes(normalized)) return "first";
+  if (["2", "2nd", "second", "second semester"].includes(normalized)) return "second";
+  if (["3", "3rd", "summer"].includes(normalized)) return "summer";
+  return normalized || "unknown";
+};
 
 export async function GET(request: NextRequest) {
   try {
@@ -124,6 +135,38 @@ export async function GET(request: NextRequest) {
       }
     }
 
+    const normalizedSemesterForSection = semesterParam === '1'
+      ? 'first'
+      : semesterParam === '2'
+        ? 'second'
+        : semesterParam === 'first' || semesterParam === 'second' || semesterParam === 'summer'
+          ? semesterParam
+          : 'second';
+
+    const classListRows = await prisma.$queryRaw<any[]>`
+      SELECT
+        sec.section_name,
+        COALESCE(cc.course_code, sub.code) AS course_code,
+        COALESCE(cc.descriptive_title, sub.name) AS descriptive_title,
+        cs.day_of_week,
+        cs.start_time,
+        cs.end_time,
+        room.room_number,
+        CONCAT_WS(' ', fac.first_name, fac.last_name) AS faculty_name
+      FROM student_section ss
+      JOIN student_section_subjects sss ON sss.student_section_id = ss.id
+      JOIN class_schedule cs ON cs.id = sss.class_schedule_id
+      LEFT JOIN sections sec ON sec.id = ss.section_id
+      LEFT JOIN curriculum_course cc ON cc.id = cs.curriculum_course_id
+      LEFT JOIN subject sub ON sub.id = cc.subject_id
+      LEFT JOIN room ON room.id = cs.room_id
+      LEFT JOIN faculty fac ON fac.id = cs.faculty_id
+      WHERE ss.student_number = ${studentNumber}
+        AND ss.academic_year = ${academicYear}
+        AND ss.semester = ${normalizedSemesterForSection}
+      ORDER BY cs.day_of_week ASC, cs.start_time ASC
+    `;
+
     // Get assessment fees breakdown
     const assessmentFees = await prisma.assessment_fee.findMany({
       where: { assessment_id: assessment.id },
@@ -239,6 +282,16 @@ export async function GET(request: NextRequest) {
         totalInstallment: totalInstallment,
       },
       paymentSchedule,
+      classList: classListRows.map((row) => ({
+        sectionName: row.section_name || '',
+        courseCode: row.course_code || '',
+        descriptiveTitle: row.descriptive_title || '',
+        dayOfWeek: row.day_of_week || '',
+        startTime: row.start_time,
+        endTime: row.end_time,
+        roomNumber: row.room_number || '',
+        facultyName: row.faculty_name || '',
+      })),
     };
 
     return NextResponse.json(
@@ -253,5 +306,48 @@ export async function GET(request: NextRequest) {
     );
 
   
+  }
+}
+
+export async function POST(request: NextRequest) {
+  try {
+    const session = await getServerSession(authOptions);
+    const userId = Number((session?.user as any)?.id) || null;
+    const userName = String((session?.user as any)?.name || "").trim() || "Unknown user";
+    const roleId = Number((session?.user as any)?.role) || null;
+
+    if (!userId) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
+    const body = await request.json();
+    const studentNumber = String(body?.studentNumber || "").trim();
+    const academicYear = String(body?.academicYear || "").trim();
+    const semester = normalizeSemesterLabel(String(body?.semester || ""));
+    const context = String(body?.context || "").trim();
+
+    if (!studentNumber || !academicYear) {
+      return NextResponse.json(
+        { error: "studentNumber and academicYear are required." },
+        { status: 400 },
+      );
+    }
+
+    const contextSuffix = context ? ` | Context: ${context}` : "";
+    const roleSuffix = roleId ? ` | Role ID: ${roleId}` : "";
+
+    await insertIntoReports({
+      action: `Printed registration PDF for ${studentNumber} (${academicYear} ${semester}) by ${userName}${roleSuffix}${contextSuffix}`,
+      user_id: userId,
+      created_at: new Date(),
+    });
+
+    return NextResponse.json({ success: true, message: "Print audit recorded." });
+  } catch (error) {
+    console.error("Print audit error:", error);
+    return NextResponse.json(
+      { error: "Failed to record print audit." },
+      { status: 500 },
+    );
   }
 }

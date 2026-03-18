@@ -12,8 +12,10 @@ import StudentForecastDashboard from "./components/StudentForecastDashboard";
 import AssessmentManagement from "./components/AssessmentManagement";
 import SubjectDroppingManagement from "./components/SubjectDroppingManagement";
 import CrossEnrollmentManagement from "./components/CrossEnrollmentManagement";
+import ShiftingManagement from "./components/ShiftingManagement";
 import ReportManagement from "./components/ReportManagement";
 import PaymentsDashboard from "./components/reports/PaymentsDashboard";
+import RegistrationFormPrintReports from "./components/reports/RegistrationFormPrintReports";
 import SchedulingManagement from "./components/SchedulingManagement";
 import PaymentBillingManagement from "./components/PaymentBillingManagement";
 import CurriculumManagement from "./components/curriculum";
@@ -66,8 +68,10 @@ const VIEW_ROLES: Record<string, number[]> = {
   assessment: [ROLES.ADMIN, ROLES.CASHIER],
   "subject-dropping": [ROLES.ADMIN, ROLES.REGISTRAR],
   "cross-enrollee": [ROLES.ADMIN, ROLES.REGISTRAR],
+  shifting: [ROLES.ADMIN, ROLES.REGISTRAR],
   reports: [ROLES.ADMIN, ROLES.REGISTRAR],
   "reports-payments-dashboard": [ROLES.ADMIN, ROLES.REGISTRAR, ROLES.CASHIER],
+  "reports-registration-forms": [ROLES.ADMIN, ROLES.REGISTRAR],
   scheduling: [ROLES.ADMIN, ROLES.REGISTRAR, ROLES.FACULTY],
   "section-management": [ROLES.ADMIN, ROLES.REGISTRAR],
   "faculty-subject-management": [ROLES.ADMIN, ROLES.REGISTRAR],
@@ -147,10 +151,14 @@ function App() {
         return <SubjectDroppingManagement />;
       case "cross-enrollee":
         return <CrossEnrollmentManagement />;
+      case "shifting":
+        return <ShiftingManagement />;
       case "reports":
         return <ReportManagement />;
       case "reports-payments-dashboard":
         return <PaymentsDashboard />;
+      case "reports-registration-forms":
+        return <RegistrationFormPrintReports />;
       case "scheduling":
         return <SchedulingManagement />;
       case "section-management":

@@ -5,7 +5,7 @@ import { Reports } from "../../types";
 
 interface ReportsTableProps {
   reports: Reports[];
-  onDelete: (reportId: number) => void;
+  onDelete?: (reportId: number) => void;
 }
 
 const ReportsTable: React.FC<ReportsTableProps> = ({ reports, onDelete }) => {
@@ -32,16 +32,18 @@ const ReportsTable: React.FC<ReportsTableProps> = ({ reports, onDelete }) => {
               <th className='px-6 py-4 text-left text-xs font-bold uppercase tracking-wider text-gray-600'>
                 Created At
               </th>
-              <th className='px-6 py-4 text-right text-xs font-bold uppercase tracking-wider text-gray-600'>
-                Actions
-              </th>
+              {onDelete ? (
+                <th className='px-6 py-4 text-right text-xs font-bold uppercase tracking-wider text-gray-600'>
+                  Actions
+                </th>
+              ) : null}
             </tr>
           </thead>
           <tbody className='divide-y divide-gray-100'>
             {reports.length === 0 ? (
               <tr>
                 <td
-                  colSpan={5}
+                  colSpan={onDelete ? 5 : 4}
                   className='px-6 py-12 text-center text-gray-500'
                 >
                   <div className='flex flex-col items-center justify-center gap-3'>
@@ -108,17 +110,19 @@ const ReportsTable: React.FC<ReportsTableProps> = ({ reports, onDelete }) => {
                         </span>
                       </div>
                     </td>
-                    <td className='px-6 py-4 whitespace-nowrap text-right text-sm font-medium'>
-                      <div className='flex justify-end gap-2'>
-                        <button
-                          onClick={() => onDelete(report.id!)}
-                          className='p-2 rounded-lg hover:bg-white hover:shadow-sm border border-transparent hover:border-gray-200 transition-all text-red-600'
-                          title='Delete'
-                        >
-                          <Trash2 className='w-4 h-4' />
-                        </button>
-                      </div>
-                    </td>
+                    {onDelete ? (
+                      <td className='px-6 py-4 whitespace-nowrap text-right text-sm font-medium'>
+                        <div className='flex justify-end gap-2'>
+                          <button
+                            onClick={() => onDelete(report.id!)}
+                            className='p-2 rounded-lg hover:bg-white hover:shadow-sm border border-transparent hover:border-gray-200 transition-all text-red-600'
+                            title='Delete'
+                          >
+                            <Trash2 className='w-4 h-4' />
+                          </button>
+                        </div>
+                      </td>
+                    ) : null}
                   </tr>
                 );
               })

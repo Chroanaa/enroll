@@ -757,6 +757,7 @@ export function StudentAssignment({
                 <RegistrationPDFViewer
                   data={pdfViewer.data}
                   onClose={() => setPdfViewer({ open: false, data: null, loading: false })}
+                  auditContext="student_assignment"
                 />
               ) : null}
             </div>

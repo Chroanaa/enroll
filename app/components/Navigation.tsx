@@ -207,6 +207,12 @@ const Navigation: React.FC<NavigationProps> = ({
         allowedRoles: [ROLES.ADMIN, ROLES.REGISTRAR],
       },
       {
+        id: "shifting",
+        label: "Section Shifting",
+        icon: CalendarClock,
+        allowedRoles: [ROLES.ADMIN, ROLES.REGISTRAR],
+      },
+      {
         id: "resident-enrollment",
         label: "Resident",
         icon: Users2,
@@ -264,6 +270,12 @@ const Navigation: React.FC<NavigationProps> = ({
         label: "Financial Analytics",
         icon: DollarSign,
         allowedRoles: [ROLES.ADMIN, ROLES.REGISTRAR, ROLES.CASHIER],
+      },
+      {
+        id: "reports-registration-forms",
+        label: "Registration Forms",
+        icon: FileText,
+        allowedRoles: [ROLES.ADMIN, ROLES.REGISTRAR],
       },
     ],
     [],
