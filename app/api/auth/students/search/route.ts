@@ -19,8 +19,10 @@ export async function GET(request: NextRequest) {
     const academicStatus = searchParams.get('academicStatus') || 'all';
     const programId = searchParams.get('programId');
     const majorId = searchParams.get('majorId');
-    const limit = Math.min(parseInt(searchParams.get('limit') || '20'), 50); // Cap at 50
     const listAll = searchParams.get('listAll') === 'true';
+    const requestedLimit = parseInt(searchParams.get('limit') || '20');
+    const limitCap = listAll ? 500 : 50;
+    const limit = Math.min(requestedLimit, limitCap);
 
     // If not listing all and query is too short, return empty
     if (!listAll && query.length < 2) {

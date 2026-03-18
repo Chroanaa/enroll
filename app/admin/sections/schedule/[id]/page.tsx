@@ -47,6 +47,17 @@ const TIME_SLOTS = [
   '19:00', '19:30', '20:00', '20:30', '21:00'
 ];
 
+const parseTimeToMinutes = (time: string): number => {
+  const [h, m] = time.split(':').map(Number);
+  return h * 60 + m;
+};
+
+const formatMinutesAsHours = (minutes: number): string => {
+  const h = Math.floor(minutes / 60);
+  const m = minutes % 60;
+  return `${h}:${m.toString().padStart(2, '0')}`;
+};
+
 export default function BuildSchedulePage() {
   const router = useRouter();
   const params = useParams();
@@ -84,6 +95,7 @@ export default function BuildSchedulePage() {
     startTime: '',
     endTime: ''
   });
+  const [includeIrregularStudents, setIncludeIrregularStudents] = useState(false);
 
   // Lab schedule block (used when selected course has lab hours)
   const [labFormData, setLabFormData] = useState({
@@ -253,6 +265,97 @@ export default function BuildSchedulePage() {
 
     return { faculty: facultyConflict, room: roomConflict, section: sectionConflict };
   }, [editFormData, editOccupiedSlots, section]);
+
+  const editCourse = useMemo(() => {
+    if (!editScheduleModal.schedule) return null;
+    return curriculum.find(c => c.id === editScheduleModal.schedule?.curriculumCourseId) || null;
+  }, [curriculum, editScheduleModal.schedule]);
+
+  const editIsLabOnly = !!(
+    editCourse &&
+    Number(editCourse.lecture_hour) === 0 &&
+    (Number(editCourse.units_lab) > 0 || Number(editCourse.lab_hour) > 0)
+  );
+
+  const getEditMaxDurationMinutes = () => {
+    if (!editCourse) return null;
+    const totalHours = editIsLabOnly
+      ? Number(editCourse.lab_hour)
+      : Number(editCourse.lecture_hour) + Number(editCourse.lab_hour);
+
+    if (!Number.isFinite(totalHours) || totalHours <= 0) return null;
+    return totalHours * 60;
+  };
+
+  const getEditRelevantConflictSlots = () => {
+    const selectedFacultyId = editFormData.facultyId ? parseInt(editFormData.facultyId) : null;
+    const selectedRoomId = editFormData.roomId ? parseInt(editFormData.roomId) : null;
+
+    return editOccupiedSlots.filter(slot => {
+      const isSectionSlot = section && slot.sectionId === section.id;
+      const isFacultySlot = selectedFacultyId !== null && slot.facultyId === selectedFacultyId;
+      const isRoomSlot = selectedRoomId !== null && slot.roomId === selectedRoomId;
+      return Boolean(isSectionSlot || isFacultySlot || isRoomSlot);
+    });
+  };
+
+  const getEditAvailableStartTimes = () => {
+    const conflictSlots = getEditRelevantConflictSlots();
+    if (conflictSlots.length === 0) return TIME_SLOTS;
+
+    return TIME_SLOTS.filter((time) => {
+      const minutes = parseTimeToMinutes(time);
+      return !conflictSlots.some((slot) => minutes >= slot.startMinutes && minutes < slot.endMinutes);
+    });
+  };
+
+  const getEditAvailableEndTimes = (startTimeOverride?: string) => {
+    const startTime = startTimeOverride ?? editFormData.startTime;
+    if (!startTime) return [];
+
+    const conflictSlots = getEditRelevantConflictSlots();
+    const startTotal = parseTimeToMinutes(startTime);
+    const maxDurationMinutes = getEditMaxDurationMinutes();
+
+    return TIME_SLOTS.filter((time) => {
+      const endTotal = parseTimeToMinutes(time);
+      const duration = endTotal - startTotal;
+
+      if (duration <= 0) return false;
+      if (maxDurationMinutes !== null && duration > maxDurationMinutes) return false;
+
+      const hasOverlap = conflictSlots.some(
+        slot => startTotal < slot.endMinutes && endTotal > slot.startMinutes
+      );
+      return !hasOverlap;
+    });
+  };
+
+  const editDurationMinutes = useMemo(() => {
+    if (!editFormData.startTime || !editFormData.endTime) return 0;
+    return parseTimeToMinutes(editFormData.endTime) - parseTimeToMinutes(editFormData.startTime);
+  }, [editFormData.startTime, editFormData.endTime]);
+
+  const isEditDurationInvalid = useMemo(() => {
+    if (!editFormData.startTime || !editFormData.endTime) return false;
+    if (editDurationMinutes <= 0) return true;
+    const maxDuration = getEditMaxDurationMinutes();
+    return maxDuration !== null && editDurationMinutes > maxDuration;
+  }, [editFormData.startTime, editFormData.endTime, editDurationMinutes, editCourse, editIsLabOnly]);
+
+  const editIsLectureOnly = !!(
+    editCourse &&
+    Number(editCourse.lecture_hour) > 0 &&
+    Number(editCourse.lab_hour || 0) === 0 &&
+    Number(editCourse.units_lab || 0) === 0
+  );
+
+  const editLectureOnlyWarning = useMemo(() => {
+    if (!editIsLectureOnly || editDurationMinutes <= 0 || !editCourse) return null;
+    const requiredMinutes = Number(editCourse.lecture_hour) * 60;
+    if (editDurationMinutes >= requiredMinutes) return null;
+    return { requiredMinutes, actualMinutes: editDurationMinutes };
+  }, [editIsLectureOnly, editDurationMinutes, editCourse]);
 
   useEffect(() => {
     loadScheduleData();
@@ -430,6 +533,7 @@ export default function BuildSchedulePage() {
       startTime: '',
       endTime: ''
     });
+    setIncludeIrregularStudents(false);
     setError(null);
   };
 
@@ -524,6 +628,25 @@ export default function BuildSchedulePage() {
     !isLabOnly &&
     (Number(selectedCourse.units_lab) > 0 || Number(selectedCourse.lab_hour) > 0)
   );
+
+  const isLectureOnly = !!(
+    selectedCourse &&
+    Number(selectedCourse.lecture_hour) > 0 &&
+    Number(selectedCourse.lab_hour || 0) === 0 &&
+    Number(selectedCourse.units_lab || 0) === 0
+  );
+
+  const addDurationMinutes = useMemo(() => {
+    if (!formData.startTime || !formData.endTime) return 0;
+    return parseTimeToMinutes(formData.endTime) - parseTimeToMinutes(formData.startTime);
+  }, [formData.startTime, formData.endTime]);
+
+  const addLectureOnlyWarning = useMemo(() => {
+    if (!isLectureOnly || addDurationMinutes <= 0 || !selectedCourse) return null;
+    const requiredMinutes = Number(selectedCourse.lecture_hour) * 60;
+    if (addDurationMinutes >= requiredMinutes) return null;
+    return { requiredMinutes, actualMinutes: addDurationMinutes };
+  }, [isLectureOnly, addDurationMinutes, selectedCourse]);
 
   // Get section's occupied time slots for the selected day
   const getSectionOccupiedSlots = () => {
@@ -722,6 +845,7 @@ export default function BuildSchedulePage() {
         semester: section!.semester,
         // Lab-only subjects (lecture_hour=0) are treated as a single lab block
         isLabSchedule: isLabOnly,
+        includeIrregularStudents,
       } as any);
 
       // If course has BOTH lecture and lab, also create the separate lab time-block schedule
@@ -753,6 +877,7 @@ export default function BuildSchedulePage() {
           academicYear: section!.academicYear,
           semester: section!.semester,
           isLabSchedule: true,
+          includeIrregularStudents,
         } as any);
       }
 
@@ -779,6 +904,7 @@ export default function BuildSchedulePage() {
         startTime: '',
         endTime: ''
       });
+      setIncludeIrregularStudents(false);
       setLabFormData({ roomId: '', dayOfWeek: '', startTime: '', endTime: '' });
       setBreakMinutes(60);
     } catch (err) {
@@ -907,10 +1033,35 @@ export default function BuildSchedulePage() {
 
   // Handle edit form input change
   const handleEditInputChange = (name: string, value: string) => {
-    setEditFormData(prev => ({
-      ...prev,
-      [name]: value
-    }));
+    setEditFormData(prev => {
+      const next = {
+        ...prev,
+        [name]: value
+      };
+
+      if (name === 'dayOfWeek') {
+        next.startTime = '';
+        next.endTime = '';
+      }
+
+      if (name === 'startTime') {
+        next.endTime = '';
+        const maxDuration = getEditMaxDurationMinutes();
+        if (value && maxDuration && maxDuration > 0) {
+          const proposedEnd = parseTimeToMinutes(value) + maxDuration;
+          if (proposedEnd < 24 * 60) {
+            const hh = Math.floor(proposedEnd / 60).toString().padStart(2, '0');
+            const mm = (proposedEnd % 60).toString().padStart(2, '0');
+            const proposedTime = `${hh}:${mm}`;
+            if (getEditAvailableEndTimes(value).includes(proposedTime)) {
+              next.endTime = proposedTime;
+            }
+          }
+        }
+      }
+
+      return next;
+    });
   };
 
   // Handle saving schedule changes
@@ -1366,6 +1517,36 @@ export default function BuildSchedulePage() {
                       {error}
                     </div>
                   )}
+
+                  {addLectureOnlyWarning && (
+                    <div
+                      className="rounded-lg p-3 text-sm flex items-start gap-2"
+                      style={{
+                        backgroundColor: 'rgba(245, 158, 11, 0.08)',
+                        border: '1px solid rgba(245, 158, 11, 0.2)',
+                        color: '#B45309',
+                      }}
+                    >
+                      <AlertCircle className="w-4 h-4 mt-0.5 flex-shrink-0" />
+                      <span>
+                        Lecture-hour warning: this subject requires <strong>{formatMinutesAsHours(addLectureOnlyWarning.requiredMinutes)} hours</strong>,
+                        but selected time is only <strong>{formatMinutesAsHours(addLectureOnlyWarning.actualMinutes)} hours</strong>.
+                      </span>
+                    </div>
+                  )}
+
+                  <label
+                    className="flex items-center gap-2 text-sm cursor-pointer select-none"
+                    style={{ color: colors.primary }}
+                  >
+                    <input
+                      type="checkbox"
+                      checked={includeIrregularStudents}
+                      onChange={(e) => setIncludeIrregularStudents(e.target.checked)}
+                      className="rounded"
+                    />
+                    <span>Also apply to irregular students (explicit manual action)</span>
+                  </label>
 
                   <div className="grid grid-cols-2 gap-4">
                     <div>
@@ -2569,6 +2750,25 @@ export default function BuildSchedulePage() {
                 </div>
               )}
 
+              {editLectureOnlyWarning && (
+                <div
+                  className="p-3 rounded-lg text-sm flex items-center gap-2"
+                  style={{
+                    backgroundColor: 'rgba(245, 158, 11, 0.08)',
+                    border: '1px solid rgba(245, 158, 11, 0.2)',
+                    color: '#B45309',
+                  }}
+                >
+                  <AlertCircle className="w-4 h-4" />
+                  <div>
+                    <span className="font-medium">Lecture-hour warning</span>
+                    <span className="text-xs block mt-0.5">
+                      Required: {formatMinutesAsHours(editLectureOnlyWarning.requiredMinutes)} hours • Selected: {formatMinutesAsHours(editLectureOnlyWarning.actualMinutes)} hours
+                    </span>
+                  </div>
+                </div>
+              )}
+
               {/* Faculty */}
               <div>
                 <label className="flex items-center gap-1.5 text-xs font-medium mb-1.5" style={{ color: colors.primary }}>
@@ -2658,7 +2858,7 @@ export default function BuildSchedulePage() {
                     }}
                   >
                     <option value="">Select time...</option>
-                    {TIME_SLOTS.map((time) => (
+                    {getEditAvailableStartTimes().map((time) => (
                       <option key={time} value={time}>{time}</option>
                     ))}
                   </select>
@@ -2679,7 +2879,7 @@ export default function BuildSchedulePage() {
                     }}
                   >
                     <option value="">Select time...</option>
-                    {TIME_SLOTS.map((time) => (
+                    {getEditAvailableEndTimes().map((time) => (
                       <option key={time} value={time}>{time}</option>
                     ))}
                   </select>
@@ -2694,6 +2894,8 @@ export default function BuildSchedulePage() {
                     const [endHour, endMin] = editFormData.endTime.split(':').map(Number);
                     const duration = (endHour * 60 + endMin) - (startHour * 60 + startMin);
                     if (duration <= 0) return 'Invalid';
+                    const maxDuration = getEditMaxDurationMinutes();
+                    if (maxDuration !== null && duration > maxDuration) return 'Exceeds curriculum hours';
                     const hours = Math.floor(duration / 60);
                     const minutes = duration % 60;
                     return `${hours}h ${minutes > 0 ? `${minutes}m` : ''}`;
@@ -2722,7 +2924,7 @@ export default function BuildSchedulePage() {
               </button>
               <button
                 onClick={handleSaveScheduleChanges}
-                disabled={loading || loadingEditOccupied || !editFormData.facultyId || !editFormData.roomId || !editFormData.dayOfWeek || !editFormData.startTime || !editFormData.endTime || editConflicts.faculty || editConflicts.room || editConflicts.section}
+                disabled={loading || loadingEditOccupied || !editFormData.facultyId || !editFormData.roomId || !editFormData.dayOfWeek || !editFormData.startTime || !editFormData.endTime || editConflicts.faculty || editConflicts.room || editConflicts.section || isEditDurationInvalid}
                 className="px-6 py-2.5 rounded-lg font-medium text-white transition-all disabled:opacity-50 disabled:cursor-not-allowed"
                 style={{ backgroundColor: colors.secondary }}
               >

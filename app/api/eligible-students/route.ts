@@ -11,7 +11,7 @@ import { prisma } from "../../lib/prisma";
  * - yearLevel: number
  * - academicYear: string
  * - semester: string
- * - academicStatus: 'regular' | 'irregular' | 'all' (default: 'regular')
+ * - academicStatus: 'regular' | 'irregular' | 'all' (default: 'all')
  */
 export async function GET(request: NextRequest) {
   try {
@@ -21,7 +21,7 @@ export async function GET(request: NextRequest) {
     const yearLevel = searchParams.get("yearLevel");
     const academicYear = searchParams.get("academicYear");
     const semester = searchParams.get("semester");
-    const academicStatus = searchParams.get("academicStatus") || "regular"; // NEW: Filter by academic status
+    const academicStatus = searchParams.get("academicStatus") || "all"; // default include regular + irregular
 
     let targetProgramId = programId ? parseInt(programId) : null;
     let targetYearLevel = yearLevel;
@@ -91,6 +91,30 @@ export async function GET(request: NextRequest) {
         return "second";
       if (normalized === "3" || normalized === "summer") return "summer";
       return value;
+    };
+
+    const getAcademicYearStart = (value: string | null) => {
+      if (!value) return null;
+      const raw = String(value).trim();
+      if (!raw) return null;
+      const match = raw.match(/\d{4}/);
+      if (!match) return null;
+      return match[0];
+    };
+
+    const academicYearMatches = (enrollmentYear: string | null, targetYear: string | null) => {
+      if (!enrollmentYear || !targetYear) return false;
+
+      const enrollmentRaw = String(enrollmentYear).trim();
+      const targetRaw = String(targetYear).trim();
+      if (!enrollmentRaw || !targetRaw) return false;
+
+      if (enrollmentRaw === targetRaw) return true;
+      if (enrollmentRaw.includes(targetRaw) || targetRaw.includes(enrollmentRaw)) return true;
+
+      const enrollmentStart = getAcademicYearStart(enrollmentRaw);
+      const targetStart = getAcademicYearStart(targetRaw);
+      return Boolean(enrollmentStart && targetStart && enrollmentStart === targetStart);
     };
 
     const normalizedSemester = normalizeSemesterValue(targetSemester);
@@ -169,23 +193,8 @@ export async function GET(request: NextRequest) {
 
     // Filter students by academic year and term
     const matchingStudents = enrolledStudents.filter((enrollment) => {
-      // Check if academic year matches (could be "2024", "2024-2025", or "2025-2026" format)
       const enrollmentYear = enrollment.academic_year;
-      let yearMatches = false;
-
-      if (enrollmentYear) {
-        const targetYear = targetAcademicYear!;
-        // Check if enrollment year contains target year
-        // e.g., "2025-2026" contains "2025" or "2026"
-        yearMatches = enrollmentYear.includes(targetYear);
-
-        // Also check if target year is the start of the range
-        // e.g., target "2025" matches "2025-2026"
-        if (!yearMatches && enrollmentYear.includes("-")) {
-          const [startYear] = enrollmentYear.split("-");
-          yearMatches = startYear === targetYear;
-        }
-      }
+      const yearMatches = academicYearMatches(enrollmentYear, targetAcademicYear);
 
       // Check if term matches - normalize both sides for comparison
       const enrollmentTerm = normalizeSemesterValue(enrollment.term);

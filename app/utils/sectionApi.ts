@@ -44,6 +44,8 @@ export interface CreateClassScheduleRequest {
   semester: string;
   /** Pass true when creating the lab-time-block for a lecture+lab subject */
   isLabSchedule?: boolean;
+  /** Explicit admin action: also auto-link eligible irregular students */
+  includeIrregularStudents?: boolean;
 }
 
 export interface ClassScheduleResponse {
@@ -372,7 +374,8 @@ export async function getEligibleStudents(
     programId: programId.toString(),
     yearLevel: yearLevel.toString(),
     academicYear: academicYear,
-    semester: semester.toString()
+    semester: semester.toString(),
+    academicStatus: 'all'
   });
 
   const response = await fetch(`${API_BASE}/eligible-students?${params}`, {
