@@ -66,7 +66,7 @@ export function StudentAssignment({
   });
 
   type StatusFilter = 'ready' | 'no_payment' | 'current_section' | 'assigned' | 'no_subjects' | 'all';
-  const [statusFilter, setStatusFilter] = useState<StatusFilter>('ready');
+  const [statusFilter, setStatusFilter] = useState<StatusFilter>('all');
 
   useEffect(() => {
     if (isOpen && section) {
@@ -74,7 +74,7 @@ export function StudentAssignment({
       loadAssignedStudents();
       setOverrideCapacity(false);
       setShowAssigned(false);
-      setStatusFilter('ready');
+      setStatusFilter('all');
       setAssignConfirmOpen(false);
       setAssignSuccess({ open: false, message: '' });
     }

@@ -64,6 +64,29 @@ type StudentProfile = {
   yearLevel: number | null;
 };
 
+type ManualSubjectRow = {
+  student_section_subject_id: number;
+  class_schedule_id: number;
+  section_id: number;
+  section_name: string;
+  course_code: string;
+  descriptive_title: string;
+  day_of_week: string;
+  start_time: string;
+  end_time: string;
+};
+
+type ManualAlternativeRow = {
+  class_schedule_id: number;
+  section_id: number;
+  section_name: string;
+  course_code: string;
+  descriptive_title: string;
+  day_of_week: string;
+  start_time: string;
+  end_time: string;
+};
+
 const cardStyle: React.CSSProperties = {
   backgroundColor: "white",
   border: `1px solid ${colors.neutralBorder}`,
@@ -117,6 +140,20 @@ export default function ShiftingManagement() {
     data: null,
     loading: false,
   });
+  const [manualSubjects, setManualSubjects] = useState<ManualSubjectRow[]>([]);
+  const [manualAlternatives, setManualAlternatives] = useState<ManualAlternativeRow[]>([]);
+  const [selectedManualSubjectRowId, setSelectedManualSubjectRowId] = useState<number | null>(null);
+  const [selectedManualClassScheduleId, setSelectedManualClassScheduleId] = useState<number | null>(null);
+  const [selectedAlternativeScheduleId, setSelectedAlternativeScheduleId] = useState<number | null>(null);
+  const [loadingManualSubjects, setLoadingManualSubjects] = useState(false);
+  const [loadingManualAlternatives, setLoadingManualAlternatives] = useState(false);
+  const [submittingManualTransfer, setSubmittingManualTransfer] = useState(false);
+
+  const formatScheduleTime = (value: string) => {
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) return value;
+    return date.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" });
+  };
 
   const filteredStudents = useMemo(() => {
     const query = studentSearch.trim().toLowerCase();
@@ -308,6 +345,21 @@ export default function ShiftingManagement() {
       });
       setAssignment(currentAssignment);
       setToSectionId(null);
+
+      setLoadingManualSubjects(true);
+      const manualResponse = await fetch(
+        `/api/student-section/manual-subject?studentNumber=${encodeURIComponent(row.studentNumber)}&academicYear=${encodeURIComponent(academicYear)}&semester=${encodeURIComponent(semester)}`,
+      );
+      const manualJson = await manualResponse.json();
+      if (!manualResponse.ok || !manualJson?.success) {
+        throw new Error(manualJson?.error || "Failed to load student's section subjects.");
+      }
+
+      setManualSubjects(Array.isArray(manualJson?.data?.subjects) ? manualJson.data.subjects : []);
+      setManualAlternatives([]);
+      setSelectedManualSubjectRowId(null);
+      setSelectedManualClassScheduleId(null);
+      setSelectedAlternativeScheduleId(null);
     } catch (err) {
       setErrorModal({
         isOpen: true,
@@ -317,6 +369,84 @@ export default function ShiftingManagement() {
     } finally {
       setSelectingStudentNumber(null);
       setLoadingStudent(false);
+      setLoadingManualSubjects(false);
+    }
+  };
+
+  const handleSelectManualSubject = async (studentSectionSubjectId: number, classScheduleId: number) => {
+    if (!selectedStudent) return;
+
+    setSelectedManualSubjectRowId(studentSectionSubjectId);
+    setSelectedManualClassScheduleId(classScheduleId);
+    setSelectedAlternativeScheduleId(null);
+    setLoadingManualAlternatives(true);
+
+    try {
+      const response = await fetch(
+        `/api/student-section/manual-subject?studentNumber=${encodeURIComponent(selectedStudent.studentNumber)}&academicYear=${encodeURIComponent(academicYear)}&semester=${encodeURIComponent(semester)}&selectedClassScheduleId=${classScheduleId}`,
+      );
+      const result = await response.json();
+      if (!response.ok || !result?.success) {
+        throw new Error(result?.error || "Failed to load subject alternatives.");
+      }
+      setManualAlternatives(Array.isArray(result?.data?.alternatives) ? result.data.alternatives : []);
+    } catch (error) {
+      setManualAlternatives([]);
+      setErrorModal({
+        isOpen: true,
+        message: error instanceof Error ? error.message : "Failed to load subject alternatives.",
+        details: "",
+      });
+    } finally {
+      setLoadingManualAlternatives(false);
+    }
+  };
+
+  const handleSubmitManualTransfer = async () => {
+    if (!selectedStudent || !selectedManualSubjectRowId || !selectedAlternativeScheduleId) return;
+
+    setSubmittingManualTransfer(true);
+    try {
+      const response = await fetch("/api/student-section/manual-subject", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          studentNumber: selectedStudent.studentNumber,
+          academicYear,
+          semester,
+          studentSectionSubjectId: selectedManualSubjectRowId,
+          toClassScheduleId: selectedAlternativeScheduleId,
+        }),
+      });
+      const result = await response.json();
+      if (!response.ok || !result?.success) {
+        throw new Error(result?.error || "Failed to transfer subject schedule.");
+      }
+
+      setSuccessModal({
+        isOpen: true,
+        message: "Subject schedule changed successfully.",
+      });
+
+      const refreshResponse = await fetch(
+        `/api/student-section/manual-subject?studentNumber=${encodeURIComponent(selectedStudent.studentNumber)}&academicYear=${encodeURIComponent(academicYear)}&semester=${encodeURIComponent(semester)}`,
+      );
+      const refreshJson = await refreshResponse.json();
+      if (refreshResponse.ok && refreshJson?.success) {
+        setManualSubjects(Array.isArray(refreshJson?.data?.subjects) ? refreshJson.data.subjects : []);
+      }
+      setManualAlternatives([]);
+      setSelectedManualSubjectRowId(null);
+      setSelectedManualClassScheduleId(null);
+      setSelectedAlternativeScheduleId(null);
+    } catch (error) {
+      setErrorModal({
+        isOpen: true,
+        message: error instanceof Error ? error.message : "Failed to transfer subject schedule.",
+        details: "",
+      });
+    } finally {
+      setSubmittingManualTransfer(false);
     }
   };
 
@@ -599,6 +729,11 @@ export default function ShiftingManagement() {
                     setStudentProfile(null);
                     setAssignment(null);
                     setToSectionId(null);
+                    setManualSubjects([]);
+                    setManualAlternatives([]);
+                    setSelectedManualSubjectRowId(null);
+                    setSelectedManualClassScheduleId(null);
+                    setSelectedAlternativeScheduleId(null);
                   }}
                   className="inline-flex items-center gap-2 rounded-lg px-3 py-2 text-xs font-semibold"
                   style={{
@@ -621,59 +756,204 @@ export default function ShiftingManagement() {
                 </p>
               </div>
             ) : (
-              <div className="grid grid-cols-1 gap-4 px-6 py-6 lg:grid-cols-2">
-                <div className="space-y-3 rounded-xl border p-4" style={{ borderColor: colors.neutralBorder }}>
-                  <div className="flex items-center gap-2 text-sm font-semibold" style={{ color: colors.primary }}>
-                    <User className="h-4 w-4" />
-                    Student Profile
+              <div className="space-y-4 px-6 py-6">
+                <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+                  <div className="space-y-3 rounded-xl border p-4" style={{ borderColor: colors.neutralBorder }}>
+                    <div className="flex items-center gap-2 text-sm font-semibold" style={{ color: colors.primary }}>
+                      <User className="h-4 w-4" />
+                      Student Profile
+                    </div>
+                    <p className="text-sm" style={{ color: colors.primary }}>{studentProfile?.studentName || selectedStudent.studentName}</p>
+                    <p className="text-sm" style={{ color: colors.tertiary }}>{selectedStudent.studentNumber}</p>
+                    <p className="text-sm" style={{ color: colors.tertiary }}>{studentProfile?.programDisplay || selectedStudent.programCode}</p>
+                    <p className="text-sm" style={{ color: colors.tertiary }}>Current Section: {currentSection?.sectionName || "Not assigned"}</p>
+                    <p className="text-sm" style={{ color: colors.tertiary }}>Enrolled Subjects: {selectedStudent.enrolledSubjectCount}</p>
                   </div>
-                  <p className="text-sm" style={{ color: colors.primary }}>{studentProfile?.studentName || selectedStudent.studentName}</p>
-                  <p className="text-sm" style={{ color: colors.tertiary }}>{selectedStudent.studentNumber}</p>
-                  <p className="text-sm" style={{ color: colors.tertiary }}>{studentProfile?.programDisplay || selectedStudent.programCode}</p>
-                  <p className="text-sm" style={{ color: colors.tertiary }}>Current Section: {currentSection?.sectionName || "Not assigned"}</p>
-                  <p className="text-sm" style={{ color: colors.tertiary }}>Enrolled Subjects: {selectedStudent.enrolledSubjectCount}</p>
+
+                  <div className="space-y-3 rounded-xl border p-4" style={{ borderColor: colors.neutralBorder }}>
+                    <div className="flex items-center gap-2 text-sm font-semibold" style={{ color: colors.primary }}>
+                      <GraduationCap className="h-4 w-4" />
+                      Destination Section
+                    </div>
+
+                    <select
+                      className="h-11 w-full rounded-xl px-3 text-sm outline-none"
+                      style={{
+                        border: `1px solid ${colors.neutralBorder}`,
+                        backgroundColor: "white",
+                        color: colors.primary,
+                      }}
+                      value={toSectionId ?? ""}
+                      onChange={(event) => setToSectionId(event.target.value ? Number.parseInt(event.target.value, 10) : null)}
+                    >
+                      <option value="">Select destination section</option>
+                      {destinationSections.map((section) => (
+                        <option key={section.id} value={section.id}>
+                          {section.sectionName} ({section.studentCount}/{section.maxCapacity || "unlimited"})
+                        </option>
+                      ))}
+                    </select>
+
+                    {destinationSections.length === 0 && (
+                      <p className="text-xs" style={{ color: colors.warning }}>
+                        No destination sections match this student's program/year level for the active term.
+                      </p>
+                    )}
+
+                    <button
+                      type="button"
+                      onClick={() => setConfirmationOpen(true)}
+                      disabled={submitting || !toSectionId || !assignment}
+                      className="inline-flex w-full items-center justify-center gap-2 rounded-lg px-4 py-2.5 text-sm font-semibold text-white transition disabled:opacity-60"
+                      style={{ backgroundColor: colors.primary }}
+                    >
+                      <ArrowRightLeft className="h-4 w-4" />
+                      {submitting ? "Processing..." : "Submit Section Shift"}
+                    </button>
+                  </div>
                 </div>
 
-                <div className="space-y-3 rounded-xl border p-4" style={{ borderColor: colors.neutralBorder }}>
-                  <div className="flex items-center gap-2 text-sm font-semibold" style={{ color: colors.primary }}>
-                    <GraduationCap className="h-4 w-4" />
-                    Destination Section
+                <div className="rounded-xl border p-4" style={{ borderColor: colors.neutralBorder }}>
+                  <div className="flex flex-col gap-1">
+                    <h3 className="text-sm font-semibold" style={{ color: colors.primary }}>
+                      Manual Subject Transfer (Conflict Resolution)
+                    </h3>
+                    <p className="text-xs" style={{ color: colors.tertiary }}>
+                      Select one current subject (e.g. CPRO2), then choose the same subject from another section schedule.
+                    </p>
                   </div>
 
-                  <select
-                    className="h-11 w-full rounded-xl px-3 text-sm outline-none"
-                    style={{
-                      border: `1px solid ${colors.neutralBorder}`,
-                      backgroundColor: "white",
-                      color: colors.primary,
-                    }}
-                    value={toSectionId ?? ""}
-                    onChange={(event) => setToSectionId(event.target.value ? Number.parseInt(event.target.value, 10) : null)}
-                  >
-                    <option value="">Select destination section</option>
-                    {destinationSections.map((section) => (
-                      <option key={section.id} value={section.id}>
-                        {section.sectionName} ({section.studentCount}/{section.maxCapacity || "unlimited"})
-                      </option>
-                    ))}
-                  </select>
-
-                  {destinationSections.length === 0 && (
-                    <p className="text-xs" style={{ color: colors.warning }}>
-                      No destination sections match this student's program/year level for the active term.
+                  {loadingManualSubjects ? (
+                    <div className="mt-4 flex items-center gap-2 text-sm" style={{ color: colors.tertiary }}>
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                      Loading student section subjects...
+                    </div>
+                  ) : manualSubjects.length === 0 ? (
+                    <p className="mt-4 text-sm" style={{ color: colors.warning }}>
+                      No student section subjects found for this student.
                     </p>
-                  )}
+                  ) : (
+                    <>
+                      <div className="mt-4">
+                        <label className="mb-2 block text-xs font-semibold uppercase tracking-wide" style={{ color: colors.neutral }}>
+                          Select current subject schedule
+                        </label>
+                        <select
+                          className="h-11 w-full rounded-xl px-3 text-sm outline-none"
+                          style={{
+                            border: `1px solid ${colors.neutralBorder}`,
+                            backgroundColor: "white",
+                            color: colors.primary,
+                          }}
+                          value={selectedManualSubjectRowId ?? ""}
+                          onChange={(event) => {
+                            const rowId = event.target.value ? Number.parseInt(event.target.value, 10) : null;
+                            const selectedRow = manualSubjects.find((item) => item.student_section_subject_id === rowId);
+                            if (!rowId || !selectedRow) {
+                              setSelectedManualSubjectRowId(null);
+                              setSelectedManualClassScheduleId(null);
+                              setManualAlternatives([]);
+                              setSelectedAlternativeScheduleId(null);
+                              return;
+                            }
+                            handleSelectManualSubject(rowId, selectedRow.class_schedule_id).catch(() => {});
+                          }}
+                        >
+                          <option value="">Choose subject schedule</option>
+                          {manualSubjects.map((item) => (
+                            <option key={item.student_section_subject_id} value={item.student_section_subject_id}>
+                              {item.course_code} - {item.descriptive_title} | {item.section_name} | {item.day_of_week} {formatScheduleTime(item.start_time)}-{formatScheduleTime(item.end_time)}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
 
-                  <button
-                    type="button"
-                    onClick={() => setConfirmationOpen(true)}
-                    disabled={submitting || !toSectionId || !assignment}
-                    className="inline-flex w-full items-center justify-center gap-2 rounded-lg px-4 py-2.5 text-sm font-semibold text-white transition disabled:opacity-60"
-                    style={{ backgroundColor: colors.primary }}
-                  >
-                    <ArrowRightLeft className="h-4 w-4" />
-                    {submitting ? "Processing..." : "Submit Section Shift"}
-                  </button>
+                      <div className="mt-4 overflow-x-auto rounded-xl border" style={{ borderColor: colors.neutralBorder }}>
+                        <table className="min-w-full">
+                          <thead style={{ backgroundColor: `${colors.secondary}08` }}>
+                            <tr>
+                              <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide" style={{ color: colors.neutral }}>
+                                Subject
+                              </th>
+                              <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide" style={{ color: colors.neutral }}>
+                                Section
+                              </th>
+                              <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide" style={{ color: colors.neutral }}>
+                                Day
+                              </th>
+                              <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide" style={{ color: colors.neutral }}>
+                                Start
+                              </th>
+                              <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide" style={{ color: colors.neutral }}>
+                                End
+                              </th>
+                              <th className="px-4 py-3 text-center text-xs font-semibold uppercase tracking-wide" style={{ color: colors.neutral }}>
+                                Select
+                              </th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {loadingManualAlternatives ? (
+                              <tr>
+                                <td colSpan={6} className="px-4 py-6 text-center text-sm" style={{ color: colors.tertiary }}>
+                                  Loading available schedules...
+                                </td>
+                              </tr>
+                            ) : manualAlternatives.length === 0 ? (
+                              <tr>
+                                <td colSpan={6} className="px-4 py-6 text-center text-sm" style={{ color: colors.tertiary }}>
+                                  {selectedManualSubjectRowId
+                                    ? "No available schedules found for this subject in other sections."
+                                    : "Select a subject above to view available schedules from other sections."}
+                                </td>
+                              </tr>
+                            ) : (
+                              manualAlternatives.map((option) => (
+                                <tr key={option.class_schedule_id} style={{ borderTop: `1px solid ${colors.neutralBorder}` }}>
+                                  <td className="px-4 py-3 text-sm" style={{ color: colors.primary }}>
+                                    {option.course_code}
+                                  </td>
+                                  <td className="px-4 py-3 text-sm" style={{ color: colors.primary }}>
+                                    {option.section_name}
+                                  </td>
+                                  <td className="px-4 py-3 text-sm" style={{ color: colors.tertiary }}>
+                                    {option.day_of_week}
+                                  </td>
+                                  <td className="px-4 py-3 text-sm" style={{ color: colors.tertiary }}>
+                                    {formatScheduleTime(option.start_time)}
+                                  </td>
+                                  <td className="px-4 py-3 text-sm" style={{ color: colors.tertiary }}>
+                                    {formatScheduleTime(option.end_time)}
+                                  </td>
+                                  <td className="px-4 py-3 text-center">
+                                    <input
+                                      type="radio"
+                                      name="manual-transfer-schedule"
+                                      checked={selectedAlternativeScheduleId === option.class_schedule_id}
+                                      onChange={() => setSelectedAlternativeScheduleId(option.class_schedule_id)}
+                                    />
+                                  </td>
+                                </tr>
+                              ))
+                            )}
+                          </tbody>
+                        </table>
+                      </div>
+
+                      <div className="mt-4 flex justify-end">
+                        <button
+                          type="button"
+                          onClick={handleSubmitManualTransfer}
+                          disabled={!selectedManualSubjectRowId || !selectedAlternativeScheduleId || submittingManualTransfer}
+                          className="inline-flex items-center gap-2 rounded-lg px-4 py-2.5 text-sm font-semibold text-white transition disabled:opacity-60"
+                          style={{ backgroundColor: colors.secondary }}
+                        >
+                          {submittingManualTransfer ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
+                          {submittingManualTransfer ? "Applying..." : "Apply Subject Transfer"}
+                        </button>
+                      </div>
+                    </>
+                  )}
                 </div>
               </div>
             )}

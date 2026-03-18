@@ -372,7 +372,8 @@ export async function getEligibleStudents(
     programId: programId.toString(),
     yearLevel: yearLevel.toString(),
     academicYear: academicYear,
-    semester: semester.toString()
+    semester: semester.toString(),
+    academicStatus: 'all'
   });
 
   const response = await fetch(`${API_BASE}/eligible-students?${params}`, {
