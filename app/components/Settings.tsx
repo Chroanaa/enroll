@@ -16,6 +16,7 @@ import {
   Percent,
 } from "lucide-react";
 import { colors } from "../colors";
+import ConfirmationModal from "./common/ConfirmationModal";
 
 interface Setting {
   id: number;
@@ -77,6 +78,8 @@ const Settings: React.FC = () => {
     minDownpayment: 3000,
     installmentChargePercentage: 5,
   });
+  const [showSaveConfirmation, setShowSaveConfirmation] = useState(false);
+  const [showResetConfirmation, setShowResetConfirmation] = useState(false);
 
   useEffect(() => {
     fetchSettings();
@@ -1435,7 +1438,7 @@ const Settings: React.FC = () => {
           {/* Save Button */}
           <div className='flex justify-end gap-3'>
             <button
-              onClick={fetchSettings}
+              onClick={() => setShowResetConfirmation(true)}
               disabled={loading}
               className='flex items-center gap-2 px-6 py-3 rounded-xl font-medium transition-all duration-200'
               style={{
@@ -1450,7 +1453,7 @@ const Settings: React.FC = () => {
               Reset
             </button>
             <button
-              onClick={saveSettings}
+              onClick={() => setShowSaveConfirmation(true)}
               disabled={saving}
               className='flex items-center gap-2 px-6 py-3 rounded-xl font-medium transition-all duration-200'
               style={{
@@ -1472,6 +1475,37 @@ const Settings: React.FC = () => {
               {saving ? "Saving..." : "Save Settings"}
             </button>
           </div>
+
+          <ConfirmationModal
+            isOpen={showResetConfirmation}
+            onClose={() => setShowResetConfirmation(false)}
+            onConfirm={() => {
+              setShowResetConfirmation(false);
+              fetchSettings();
+            }}
+            title='Reset Changes'
+            message='Are you sure you want to reset the form values?'
+            description='Any unsaved changes in settings will be discarded and replaced with the latest saved values.'
+            confirmText='Reset'
+            cancelText='Keep Editing'
+            variant='warning'
+          />
+
+          <ConfirmationModal
+            isOpen={showSaveConfirmation}
+            onClose={() => setShowSaveConfirmation(false)}
+            onConfirm={() => {
+              setShowSaveConfirmation(false);
+              saveSettings();
+            }}
+            title='Save Settings'
+            message='Apply these settings now?'
+            description='This will update semester, enrollment, and payment settings for the system.'
+            confirmText='Save Settings'
+            cancelText='Review Again'
+            variant='info'
+            isLoading={saving}
+          />
         </div>
       </div>
     </div>
