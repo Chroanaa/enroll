@@ -1,7 +1,7 @@
 'use client';
 
 import React from 'react';
-import { X, Download } from 'lucide-react';
+import { X, Download, Loader2 } from 'lucide-react';
 import { colors } from '../../colors';
 
 interface EnrolledSubject {
@@ -16,6 +16,17 @@ interface PaymentSchedule {
   term: string;
   date: string;
   amount: number;
+}
+
+interface ClassListItem {
+  sectionName: string;
+  courseCode: string;
+  descriptiveTitle: string;
+  dayOfWeek: string;
+  startTime: string;
+  endTime: string;
+  roomNumber: string;
+  facultyName: string;
 }
 
 interface RegistrationData {
@@ -46,20 +57,98 @@ interface RegistrationData {
     totalInstallment: number;
   };
   paymentSchedule: PaymentSchedule[];
+  classList?: ClassListItem[];
 }
 
 interface RegistrationPDFViewerProps {
   data: RegistrationData;
   onClose: () => void;
+  auditContext?: string;
 }
 
-export default function RegistrationPDFViewer({ data, onClose }: RegistrationPDFViewerProps) {
+export default function RegistrationPDFViewer({ data, onClose, auditContext }: RegistrationPDFViewerProps) {
+  const [isPrinting, setIsPrinting] = React.useState(false);
   const totalUnits = data.enrolledSubjects.reduce((sum, s) => sum + s.units_total, 0);
   const totalLabUnits = data.enrolledSubjects.reduce((sum, s) => sum + s.units_lab, 0);
+  const classList = Array.isArray(data.classList) ? data.classList : [];
+  const formatScheduleTime = (timeValue: string) => {
+    const date = new Date(timeValue);
+    if (Number.isNaN(date.getTime())) return timeValue;
+    return date.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" });
+  };
+
+  const groupedClassList = React.useMemo(() => {
+    const grouped = new Map<
+      string,
+      {
+        sectionName: string;
+        courseCode: string;
+        descriptiveTitle: string;
+        facultyName: string;
+        days: string[];
+        times: string[];
+        rooms: string[];
+      }
+    >();
+
+    for (const item of classList) {
+      const key = `${item.courseCode}|||${item.descriptiveTitle}|||${item.facultyName || ""}`;
+      const existing = grouped.get(key) || {
+        sectionName: item.sectionName || "",
+        courseCode: item.courseCode,
+        descriptiveTitle: item.descriptiveTitle,
+        facultyName: item.facultyName || "",
+        days: [],
+        times: [],
+        rooms: [],
+      };
+
+      const formattedTime = `${formatScheduleTime(item.startTime)} - ${formatScheduleTime(item.endTime)}`;
+      if (item.dayOfWeek && !existing.days.includes(item.dayOfWeek)) {
+        existing.days.push(item.dayOfWeek);
+      }
+      existing.times.push(formattedTime);
+      existing.rooms.push(item.roomNumber || "N/A");
+      grouped.set(key, existing);
+    }
+
+    return Array.from(grouped.values());
+  }, [classList]);
+
+  const handlePrint = async () => {
+    if (isPrinting) return;
+
+    setIsPrinting(true);
+    try {
+      const response = await fetch("/api/auth/enrollment/registration", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          studentNumber: data.studentNumber,
+          academicYear: data.academicYear,
+          semester: data.semester,
+          context: auditContext || "registration_pdf",
+        }),
+      });
+
+      const result = await response.json().catch(() => ({}));
+      if (!response.ok || !result?.success) {
+        throw new Error(result?.error || "Failed to record print audit.");
+      }
+
+      window.print();
+    } catch (error) {
+      alert(error instanceof Error ? error.message : "Failed to record print audit.");
+    } finally {
+      setIsPrinting(false);
+    }
+  };
 
   return (
     <div
-      className='fixed inset-0 flex items-center justify-center p-4 z-50 backdrop-blur-sm overflow-y-auto print:p-0 print:static print:bg-white print:overflow-visible print:block print-container'
+      className='fixed inset-0 flex items-start justify-center p-4 pt-8 z-50 backdrop-blur-sm overflow-y-auto print:p-0 print:static print:bg-white print:overflow-visible print:block print-container'
       style={{ backgroundColor: 'rgba(0,0,0,0.4)' }}
       onClick={onClose}
     >
@@ -113,7 +202,7 @@ export default function RegistrationPDFViewer({ data, onClose }: RegistrationPDF
 
       <div
         id="registration-print-area"
-        className='rounded-lg shadow-2xl w-full max-w-5xl my-8 print:shadow-none print:my-0 print:w-full print:max-w-none'
+        className='rounded-lg shadow-2xl w-full max-w-5xl my-8 max-h-[90vh] overflow-y-auto print:shadow-none print:my-0 print:w-full print:max-w-none print:max-h-none print:overflow-visible'
         onClick={(e) => e.stopPropagation()}
         style={{ backgroundColor: colors.paper }}
       >
@@ -141,12 +230,13 @@ export default function RegistrationPDFViewer({ data, onClose }: RegistrationPDF
           {/* Action buttons - Hidden in Print */}
           <div className='absolute top-4 right-4 flex items-center gap-2 print:hidden'>
             <button
-              onClick={() => window.print()}
+              onClick={handlePrint}
+              disabled={isPrinting}
               className='p-2 rounded-lg transition-all'
               style={{ color: colors.primary, backgroundColor: `${colors.primary}10` }}
               title='Print/Download'
             >
-              <Download className='w-5 h-5' />
+              {isPrinting ? <Loader2 className='w-5 h-5 animate-spin' /> : <Download className='w-5 h-5' />}
             </button>
             <button
               onClick={onClose}
@@ -360,6 +450,55 @@ export default function RegistrationPDFViewer({ data, onClose }: RegistrationPDF
             </div>
           </div>
         </div>
+
+        {groupedClassList.length > 0 && (
+          <div className='px-6 pb-6 print:px-4 print:pb-4'>
+            <div className='text-sm font-bold mb-2 print:text-xs' style={{ color: colors.primary }}>
+              STUDENT CLASS LIST
+            </div>
+            <table className='w-full border-collapse text-xs print:text-[10px]'>
+              <thead>
+                <tr style={{ backgroundColor: `${colors.secondary}15` }}>
+                  <th className='border px-2 py-1 text-left' style={{ borderColor: colors.tertiary, color: colors.primary }}>Section</th>
+                  <th className='border px-2 py-1 text-left' style={{ borderColor: colors.tertiary, color: colors.primary }}>Course Description</th>
+                  <th className='border px-2 py-1 text-left' style={{ borderColor: colors.tertiary, color: colors.primary }}>Day/s</th>
+                  <th className='border px-2 py-1 text-left' style={{ borderColor: colors.tertiary, color: colors.primary }}>Time</th>
+                  <th className='border px-2 py-1 text-left' style={{ borderColor: colors.tertiary, color: colors.primary }}>Room</th>
+                  <th className='border px-2 py-1 text-left' style={{ borderColor: colors.tertiary, color: colors.primary }}>Faculty</th>
+                </tr>
+              </thead>
+              <tbody>
+                {groupedClassList.map((item, index) => (
+                  <tr key={`${item.courseCode}-${index}`}>
+                    <td className='border px-2 py-1' style={{ borderColor: colors.tertiary, color: colors.primary }}>
+                      {item.sectionName || "N/A"}
+                    </td>
+                    <td className='border px-2 py-1' style={{ borderColor: colors.tertiary, color: colors.primary }}>
+                      <div>{item.courseCode || "N/A"}</div>
+                      <div style={{ color: colors.tertiary }}>{item.descriptiveTitle || "N/A"}</div>
+                    </td>
+                    <td className='border px-2 py-1' style={{ borderColor: colors.tertiary, color: colors.primary }}>
+                      {item.days.length > 0 ? item.days.join(" / ") : "N/A"}
+                    </td>
+                    <td className='border px-2 py-1' style={{ borderColor: colors.tertiary, color: colors.primary }}>
+                      {item.times.map((timeRange, timeIndex) => (
+                        <div key={timeIndex}>{timeRange}</div>
+                      ))}
+                    </td>
+                    <td className='border px-2 py-1' style={{ borderColor: colors.tertiary, color: colors.primary }}>
+                      {item.rooms.map((room, roomIndex) => (
+                        <div key={roomIndex}>{room}</div>
+                      ))}
+                    </td>
+                    <td className='border px-2 py-1' style={{ borderColor: colors.tertiary, color: colors.primary }}>
+                      {item.facultyName || "TBA"}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
       </div>
     </div>
   );

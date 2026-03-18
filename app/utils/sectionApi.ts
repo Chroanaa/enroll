@@ -77,6 +77,27 @@ export interface BulkAssignStudentsResponse {
   }>;
 }
 
+export interface ShiftStudentRequest {
+  studentNumber: string;
+  toSectionId: number;
+  academicYear: string;
+  semester: string;
+  overrideCapacity?: boolean;
+}
+
+export interface ShiftStudentResponse {
+  studentNumber: string;
+  fromSectionId: number;
+  toSectionId: number;
+  academicYear: string;
+  semester: string;
+  matchedScheduleCount?: number;
+  daysSinceTermStart: number;
+  allowedDays: number;
+  requiresApproval?: boolean;
+  status?: "approved" | "pending_approval";
+}
+
 // Helper function
 const normalizeSemesterToNumber = (semester: string): number => {
   const normalized = semester.trim().toLowerCase();
@@ -315,6 +336,26 @@ export async function getStudentAssignments(filters?: {
   }
 
   const result = await response.json();
+  return result.data;
+}
+
+/**
+ * Shift a student from one section to another for the same term.
+ */
+export async function shiftStudent(
+  data: ShiftStudentRequest
+): Promise<ShiftStudentResponse> {
+  const response = await fetch(`${API_BASE}/student-section/shift`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(data)
+  });
+
+  const result = await response.json();
+  if (!response.ok) {
+    throw new Error(result?.message || 'Failed to shift student');
+  }
+
   return result.data;
 }
 

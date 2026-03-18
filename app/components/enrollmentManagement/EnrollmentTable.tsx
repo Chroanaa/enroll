@@ -1,71 +1,24 @@
-import React, { useState } from "react";
+import React from "react";
 import {
   User,
   BookOpen,
   Calendar,
   Edit2,
-  Trash2,
   UserPlus,
-  UserCheck,
 } from "lucide-react";
 import { colors } from "../../colors";
 import { Enrollment } from "../../types";
 import { getStatusColor, getStatusLabel } from "./utils";
-import ConfirmationModal from "../common/ConfirmationModal";
-import SuccessModal from "../common/SuccessModal";
 
 interface EnrollmentTableProps {
   enrollments: Enrollment[];
   onEdit: (enrollment: Enrollment) => void;
-  onDelete: (enrollmentId: string) => void;
-  onEnrollmentStatusChange?: () => void;
 }
 
 const EnrollmentTable: React.FC<EnrollmentTableProps> = ({
   enrollments,
   onEdit,
-  onDelete,
-  onEnrollmentStatusChange,
 }) => {
-  const [confirmModal, setConfirmModal] = useState<{ isOpen: boolean; enrollment: Enrollment | null }>({ isOpen: false, enrollment: null });
-  const [successModal, setSuccessModal] = useState<{ isOpen: boolean; message: string }>({ isOpen: false, message: '' });
-  const [enrolling, setEnrolling] = useState(false);
-
-  const handleEnrollClick = (enrollment: Enrollment) => {
-    setConfirmModal({ isOpen: true, enrollment });
-  };
-
-  const handleConfirmEnroll = async () => {
-    if (!confirmModal.enrollment) return;
-    
-    setEnrolling(true);
-    try {
-      const response = await fetch(`/api/auth/enroll/${confirmModal.enrollment.id}/status`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ status: 1 }) // 1 = Enrolled
-      });
-
-      if (!response.ok) {
-        const error = await response.json();
-        throw new Error(error.message || 'Failed to enroll student');
-      }
-
-      const studentName = `${confirmModal.enrollment.first_name} ${confirmModal.enrollment.family_name}`;
-      setConfirmModal({ isOpen: false, enrollment: null });
-      setSuccessModal({ isOpen: true, message: `${studentName} has been successfully enrolled!` });
-      
-      // Refresh the enrollment list
-      if (onEnrollmentStatusChange) {
-        onEnrollmentStatusChange();
-      }
-    } catch (error) {
-      console.error('Error enrolling student:', error);
-      alert(error instanceof Error ? error.message : 'Failed to enroll student');
-    } finally {
-      setEnrolling(false);
-    }
-  };
   return (
     <div className='bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden'>
       <div className='overflow-x-auto'>
@@ -217,30 +170,12 @@ const EnrollmentTable: React.FC<EnrollmentTableProps> = ({
                     </td>
                     <td className='px-6 py-4 whitespace-nowrap text-right text-sm font-medium'>
                       <div className='flex justify-end gap-2'>
-                        {(enrollment.status === 4 || enrollment.status === null) && (
-                          <button
-                            onClick={() => handleEnrollClick(enrollment)}
-                            className='px-3 py-2 rounded-lg hover:shadow-sm border transition-all text-white flex items-center gap-1.5'
-                            style={{ backgroundColor: colors.success, borderColor: colors.success }}
-                            title='Enroll Student'
-                          >
-                            <UserCheck className='w-4 h-4' />
-                            <span className='text-xs font-semibold'>Enroll</span>
-                          </button>
-                        )}
                         <button
                           onClick={() => onEdit(enrollment)}
                           className='p-2 rounded-lg hover:bg-white hover:shadow-sm border border-transparent hover:border-gray-200 transition-all text-blue-600'
                           title='Edit'
                         >
                           <Edit2 className='w-4 h-4' />
-                        </button>
-                        <button
-                          onClick={() => onDelete(enrollment.id)}
-                          className='p-2 rounded-lg hover:bg-white hover:shadow-sm border border-transparent hover:border-gray-200 transition-all text-red-600'
-                          title='Delete'
-                        >
-                          <Trash2 className='w-4 h-4' />
                         </button>
                       </div>
                     </td>
@@ -252,25 +187,6 @@ const EnrollmentTable: React.FC<EnrollmentTableProps> = ({
         </table>
       </div>
 
-      <ConfirmationModal
-        isOpen={confirmModal.isOpen}
-        onClose={() => setConfirmModal({ isOpen: false, enrollment: null })}
-        onConfirm={handleConfirmEnroll}
-        title="Confirm Enrollment"
-        message={`Are you sure you want to enroll ${confirmModal.enrollment?.first_name} ${confirmModal.enrollment?.family_name}?\n\nThis will change their status from "${getStatusLabel(confirmModal.enrollment?.status)}" to "Enrolled".`}
-        confirmText="Enroll Student"
-        cancelText="Cancel"
-        variant="success"
-        isLoading={enrolling}
-      />
-
-      <SuccessModal
-        isOpen={successModal.isOpen}
-        onClose={() => setSuccessModal({ isOpen: false, message: '' })}
-        message={successModal.message}
-        autoClose={true}
-        autoCloseDelay={3000}
-      />
     </div>
   );
 };

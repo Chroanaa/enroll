@@ -10,10 +10,9 @@ import {
 import { colors } from "../../colors";
 import { getEnrollments } from "@/app/utils/getEnrollments";
 import { cacheManager, CACHE_KEYS } from "@/app/utils/cache";
-import ConfirmationModal from "../common/ConfirmationModal";
 import SuccessModal from "../common/SuccessModal";
 import ErrorModal from "../common/ErrorModal";
-import { Enrollment, DeleteConfirmationState } from "../../types";
+import { Enrollment } from "../../types";
 import { ENROLLMENT_STATUS_OPTIONS, filterEnrollments } from "./utils";
 import StatsCards from "./StatsCards";
 import SearchFilters from "../common/SearchFilters";
@@ -237,12 +236,6 @@ const EnrollmentManagement: React.FC = () => {
   const [editingEnrollment, setEditingEnrollment] = useState<Enrollment | null>(
     null
   );
-  const [deleteConfirmation, setDeleteConfirmation] =
-    useState<DeleteConfirmationState>({
-      isOpen: false,
-      enrollmentId: null,
-      enrollmentName: "",
-    });
   const [successModal, setSuccessModal] = useState<{
     isOpen: boolean;
     message: string;
@@ -343,64 +336,6 @@ const EnrollmentManagement: React.FC = () => {
     }
   };
 
-  const handleDeleteEnrollment = (enrollmentId: string) => {
-    const enrollment = enrollments.find((e) => e.id === enrollmentId);
-    if (enrollment) {
-      const studentName = `${enrollment.first_name || ""} ${
-        enrollment.family_name || ""
-      }`.trim();
-      setDeleteConfirmation({
-        isOpen: true,
-        enrollmentId: enrollmentId,
-        enrollmentName: studentName || "this enrollment",
-      });
-    }
-  };
-
-  const confirmDeleteEnrollment = async () => {
-    if (deleteConfirmation.enrollmentId) {
-      try {
-        const response = await fetch("/api/auth/enroll", {
-          method: "DELETE",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify(deleteConfirmation.enrollmentId),
-        });
-
-        if (!response.ok) {
-          const errorData = await response.json();
-          throw new Error(errorData.error || "Failed to delete enrollment");
-        }
-
-        setEnrollments((prev) =>
-          prev.filter((e) => e.id !== deleteConfirmation.enrollmentId)
-        );
-        setDeleteConfirmation({
-          isOpen: false,
-          enrollmentId: null,
-          enrollmentName: "",
-        });
-        setSuccessModal({
-          isOpen: true,
-          message: `Enrollment for "${deleteConfirmation.enrollmentName}" has been deleted successfully.`,
-        });
-      } catch (error: any) {
-        setErrorModal({
-          isOpen: true,
-          message:
-            error.message || "An error occurred while deleting the enrollment.",
-          details: "Please try again.",
-        });
-        setDeleteConfirmation({
-          isOpen: false,
-          enrollmentId: null,
-          enrollmentName: "",
-        });
-      }
-    }
-  };
-
   if (loading) {
     return (
       <div
@@ -480,8 +415,6 @@ const EnrollmentManagement: React.FC = () => {
           <EnrollmentTable
             enrollments={paginatedEnrollments}
             onEdit={setEditingEnrollment}
-            onDelete={handleDeleteEnrollment}
-            onEnrollmentStatusChange={fetchEnrollments}
           />
           <Pagination
             currentPage={currentPage}
@@ -519,25 +452,6 @@ const EnrollmentManagement: React.FC = () => {
           onClose={() => setIsImportModalOpen(false)}
           onUpload={handleImportFile}
           isLoading={isImporting}
-        />
-
-        {/* Delete Confirmation Modal */}
-        <ConfirmationModal
-          isOpen={deleteConfirmation.isOpen}
-          onClose={() =>
-            setDeleteConfirmation({
-              isOpen: false,
-              enrollmentId: null,
-              enrollmentName: "",
-            })
-          }
-          onConfirm={confirmDeleteEnrollment}
-          title='Delete Enrollment'
-          message={`Are you sure you want to delete enrollment for "${deleteConfirmation.enrollmentName}"?`}
-          description='This action cannot be undone. All associated data will be permanently removed.'
-          confirmText='Delete Enrollment'
-          cancelText='Cancel'
-          variant='danger'
         />
 
         {/* Success Modal */}

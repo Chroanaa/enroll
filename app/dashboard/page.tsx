@@ -14,8 +14,10 @@ import StudentForecastDashboard from "../components/StudentForecastDashboard";
 import AssessmentManagement from "../components/AssessmentManagement";
 import SubjectDroppingManagement from "../components/SubjectDroppingManagement";
 import CrossEnrollmentManagement from "../components/CrossEnrollmentManagement";
+import ShiftingManagement from "../components/ShiftingManagement";
 import ReportManagement from "../components/ReportManagement";
 import PaymentsDashboard from "../components/reports/PaymentsDashboard";
+import RegistrationFormPrintReports from "../components/reports/RegistrationFormPrintReports";
 import SchedulingManagement from "../components/SchedulingManagement";
 import PaymentBillingManagement from "../components/PaymentBillingManagement";
 import StudentPaymentCheckoutPage from "../components/paymentBilling/StudentPaymentCheckoutPage";
@@ -91,10 +93,14 @@ function DashboardContent() {
         return <SubjectDroppingManagement />;
       case "cross-enrollee":
         return <CrossEnrollmentManagement />;
+      case "shifting":
+        return <ShiftingManagement />;
       case "reports":
         return <ReportManagement />;
       case "reports-payments-dashboard":
         return <PaymentsDashboard />;
+      case "reports-registration-forms":
+        return <RegistrationFormPrintReports />;
       case "scheduling":
         return <SchedulingManagement />;
       case "payment-billing":

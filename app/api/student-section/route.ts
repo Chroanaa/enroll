@@ -9,6 +9,10 @@ import {
   BulkAssignStudentsResponse,
   ApiError
 } from '../../types/sectionTypes';
+import {
+  getEnrolledSubjectIdsForTerm,
+  getMatchingScheduleIdsForSection,
+} from '../../utils/studentSectionMatching';
 
 const normalizeSemesterValue = (value: string) => {
   const normalized = value.trim().toLowerCase();
@@ -99,40 +103,6 @@ export async function POST(request: NextRequest) {
     const failed: Array<{ studentNumber: string; reason: string }> = [];
     let assigned = 0;
 
-    // Fetch all active class schedules for this section once
-    const sectionSchedules = await prisma.class_schedule.findMany({
-      where: {
-        section_id: body.sectionId,
-        status: 'active'
-      },
-      select: { id: true, curriculum_course_id: true }
-    });
-
-    // Resolve course_codes for all curriculum_course_ids used by this section's schedules.
-    // Different curriculum versions share the same course_code but have different IDs,
-    // so we must match by course_code rather than by curriculum_course_id directly.
-    const sectionCurriculumIds = [...new Set(sectionSchedules.map(s => s.curriculum_course_id))];
-    const sectionCurriculumCourses = await prisma.curriculum_course.findMany({
-      where: { id: { in: sectionCurriculumIds } },
-      select: { id: true, course_code: true }
-    });
-    const sectionCourseCodeById = new Map(sectionCurriculumCourses.map(cc => [cc.id, cc.course_code]));
-
-    // Map: course_code -> all schedule ids (handles both lecture + lab slots per course)
-    const schedulesByCourseCode = new Map<string, number[]>();
-    for (const s of sectionSchedules) {
-      const code = sectionCourseCodeById.get(s.curriculum_course_id);
-      if (code) {
-        if (!schedulesByCourseCode.has(code)) schedulesByCourseCode.set(code, []);
-        schedulesByCourseCode.get(code)!.push(s.id);
-      }
-    }
-
-    console.log(`\n[StudentSection] Section ${body.sectionId} has ${sectionSchedules.length} active schedule(s):`);
-    for (const [code, ids] of schedulesByCourseCode) {
-      console.log(`  course_code=${code}  schedule_ids=[${ids.join(', ')}]`);
-    }
-
     // Process each student
     for (const studentNumber of body.studentNumbers) {
       try {
@@ -194,98 +164,21 @@ export async function POST(request: NextRequest) {
             }
           });
 
-          // Get this student's enrolled_subjects for the term to match against section schedules
-          const semesterNum = normalizedSemester === 'first' ? 1 : normalizedSemester === 'second' ? 2 : 3;
+          const enrolledSubjectIds = await getEnrolledSubjectIdsForTerm(
+            tx,
+            studentNumber,
+            body.academicYear,
+            normalizedSemester,
+          );
 
-          // DEBUG: show all enrolled_subjects rows for this student regardless of filters
-          const allEnrolledRaw = await tx.enrolled_subjects.findMany({
-            where: { student_number: studentNumber },
-            select: { id: true, academic_year: true, semester: true, status: true, curriculum_course_id: true }
-          });
-          console.log(`\n[DEBUG] All enrolled_subjects rows for ${studentNumber} (${allEnrolledRaw.length} total):`);
-          allEnrolledRaw.forEach((r: any) => console.log(`  id=${r.id}  academic_year="${r.academic_year}"  semester=${r.semester}  status="${r.status}"  curriculum_course_id=${r.curriculum_course_id}`));
-          console.log(`[DEBUG] Query filters: academic_year="${body.academicYear}"  semester=${semesterNum}  status="enrolled"`);
-
-          const studentEnrolledSubjects = await tx.enrolled_subjects.findMany({
-            where: {
-              student_number: studentNumber,
-              academic_year: body.academicYear,
-              semester: semesterNum,
-              status: 'enrolled'
-            },
-            select: { curriculum_course_id: true }
-          });
-
-          // HARD BLOCK: student must have enrolled subjects before being assigned to a section
-          if (studentEnrolledSubjects.length === 0) {
+          if (enrolledSubjectIds.length === 0) {
             throw new Error('No enrolled subjects found for this term. Student must complete assessment first.');
           }
-
-          // Resolve course_codes for student's enrolled curriculum_course_ids.
-          // enrolled_subjects.curriculum_course_id may actually store subject_id values,
-          // so we bridge: enrolled cc_id -> curriculum_course.subject_id -> course_code
-          const enrolledCurriculumIds = [...new Set(studentEnrolledSubjects.map(es => es.curriculum_course_id))];
-
-          // Try direct id match first
-          const enrolledCurriculumCourses = await tx.curriculum_course.findMany({
-            where: { id: { in: enrolledCurriculumIds } },
-            select: { id: true, subject_id: true, course_code: true }
-          });
-
-          // If no direct match, try matching by subject_id (enrolled_subjects.curriculum_course_id stores subject_id)
-          const enrolledBySubjectId = enrolledCurriculumCourses.length === 0
-            ? await tx.curriculum_course.findMany({
-                where: { subject_id: { in: enrolledCurriculumIds } },
-                select: { id: true, subject_id: true, course_code: true }
-              })
-            : [];
-
-          // If still no match, enrolled_subjects.curriculum_course_id is actually subject.id
-          const enrolledBySubjectTable = (enrolledCurriculumCourses.length === 0 && enrolledBySubjectId.length === 0)
-            ? await tx.subject.findMany({
-                where: { id: { in: enrolledCurriculumIds } },
-                select: { id: true, code: true }
-              })
-            : [];
-
-          console.log(`[DEBUG] curriculum_course lookup by id: ${enrolledCurriculumCourses.length} rows`);
-          console.log(`[DEBUG] curriculum_course lookup by subject_id: ${enrolledBySubjectId.length} rows`);
-          console.log(`[DEBUG] subject table lookup by id: ${enrolledBySubjectTable.length} rows`);
-          enrolledBySubjectTable.forEach((s: any) => console.log(`  subject.id=${s.id} -> subject.code=${s.code}`));
-
-          // Build map: enrolled curriculum_course_id -> course_code
-          const enrolledCodeById = new Map<number, string>();
-          if (enrolledCurriculumCourses.length > 0) {
-            for (const cc of enrolledCurriculumCourses) enrolledCodeById.set(cc.id, cc.course_code);
-          } else if (enrolledBySubjectId.length > 0) {
-            for (const cc of enrolledBySubjectId) {
-              if (cc.subject_id != null) enrolledCodeById.set(cc.subject_id, cc.course_code);
-            }
-          } else {
-            // enrolled_subjects.curriculum_course_id is actually subject.id
-            for (const s of enrolledBySubjectTable) enrolledCodeById.set(s.id, s.code);
-          }
-
-          const enrolledCodesForStudent = [...enrolledCodeById.values()];
-          console.log(`\n[StudentSection] Student ${studentNumber} enrolled subjects (${enrolledCodesForStudent.length}):`);
-          enrolledCodesForStudent.forEach(code => console.log(`  course_code=${code}`));
-
-          const sectionCodes = [...schedulesByCourseCode.keys()];
-          const matchedCodes = enrolledCodesForStudent.filter(c => schedulesByCourseCode.has(c));
-          const unmatchedCodes = enrolledCodesForStudent.filter(c => !schedulesByCourseCode.has(c));
-          console.log(`  Section codes: [${sectionCodes.join(', ')}]`);
-          console.log(`  Matched: [${matchedCodes.join(', ')}]`);
-          console.log(`  Unmatched (student has but section doesn't): [${unmatchedCodes.join(', ')}]`);
-
-          // Match by course_code across curriculum versions
-          const rawMatchingIds: number[] = [];
-          for (const es of studentEnrolledSubjects) {
-            const code: string | undefined = enrolledCodeById.get(es.curriculum_course_id);
-            if (code && schedulesByCourseCode.has(code)) {
-              rawMatchingIds.push(...schedulesByCourseCode.get(code)!);
-            }
-          }
-          const scheduleIdsToAssign = [...new Set(rawMatchingIds)];
+          const scheduleIdsToAssign = await getMatchingScheduleIdsForSection(
+            tx,
+            body.sectionId,
+            enrolledSubjectIds,
+          );
 
           // Only assign schedules that match enrolled subjects — no fallback to all section schedules
           if (scheduleIdsToAssign.length === 0) {

@@ -72,16 +72,44 @@ interface ApprovalResponse {
     subjectOverloads: SubjectOverloadApproval[];
     subjectDrops: SubjectDropApproval[];
     crossEnrollmentRequests: CrossEnrollmentApproval[];
-    shiftingRequests: unknown[];
+    shiftingRequests: SectionShiftApproval[];
   };
   error?: string;
 }
 
-type ApprovalFilter = "all" | "overload" | "drop" | "cross";
+interface SectionShiftApproval {
+  id: number;
+  studentNumber: string;
+  studentName: string;
+  firstName?: string;
+  lastName?: string;
+  academicYear: string;
+  semester: string;
+  fromSectionId: number;
+  toSectionId: number;
+  fromSectionName?: string | null;
+  toSectionName?: string | null;
+  status: string;
+  requestedAt?: string | null;
+  requestedBy?: number | null;
+  requestedByRole?: number | null;
+  requestedByName?: string | null;
+  approvedBy?: number | null;
+  approvedByRole?: number | null;
+  approvedByName?: string | null;
+  executedBy?: number | null;
+  executedByRole?: number | null;
+  executedByName?: string | null;
+  approvedAt?: string | null;
+  executedAt?: string | null;
+  reason?: string | null;
+}
+
+type ApprovalFilter = "all" | "overload" | "drop" | "cross" | "shift";
 
 type ApprovalRow = {
   key: string;
-  type: "overload" | "drop" | "cross";
+  type: "overload" | "drop" | "cross" | "shift";
   approvalId: string | number;
   studentNumber: string;
   studentName: string;
@@ -126,6 +154,7 @@ export default function ApprovalManagement() {
   const [crossEnrollmentRequests, setCrossEnrollmentRequests] = useState<
     CrossEnrollmentApproval[]
   >([]);
+  const [shiftingRequests, setShiftingRequests] = useState<SectionShiftApproval[]>([]);
 
   const fetchApprovals = async () => {
     setIsLoading(true);
@@ -142,6 +171,7 @@ export default function ApprovalManagement() {
       setSubjectOverloads(result.data.subjectOverloads || []);
       setSubjectDrops(result.data.subjectDrops || []);
       setCrossEnrollmentRequests(result.data.crossEnrollmentRequests || []);
+      setShiftingRequests(result.data.shiftingRequests || []);
     } catch (fetchError) {
       setError(
         fetchError instanceof Error
@@ -151,6 +181,7 @@ export default function ApprovalManagement() {
       setSubjectOverloads([]);
       setSubjectDrops([]);
       setCrossEnrollmentRequests([]);
+      setShiftingRequests([]);
     } finally {
       setIsLoading(false);
     }
@@ -164,9 +195,11 @@ export default function ApprovalManagement() {
     () =>
       subjectOverloads.length +
       subjectDrops.length +
-      crossEnrollmentRequests.length,
+      crossEnrollmentRequests.length +
+      shiftingRequests.length,
     [
       crossEnrollmentRequests.length,
+      shiftingRequests.length,
       subjectDrops.length,
       subjectOverloads.length,
     ],
@@ -228,8 +261,26 @@ export default function ApprovalManagement() {
       contextLine: `Home ${item.homeProgramCode || item.homeProgramName || "N/A"} • Host ${item.hostProgramCode || item.hostProgramName || "N/A"}`,
     }));
 
-    return [...overloadRows, ...dropRows, ...crossRows];
-  }, [crossEnrollmentRequests, subjectDrops, subjectOverloads]);
+    const shiftRows = shiftingRequests.map<ApprovalRow>((item) => ({
+      key: `shift-${item.id}`,
+      type: "shift",
+      approvalId: item.id,
+      studentNumber: item.studentNumber,
+      studentName: item.studentName,
+      firstName: item.firstName,
+      lastName: item.lastName,
+      academicYear: item.academicYear,
+      semester: Number(item.semester === "first" ? 1 : item.semester === "second" ? 2 : 3),
+      detailsPrimary: `${item.fromSectionName || `Section #${item.fromSectionId}`} -> ${item.toSectionName || `Section #${item.toSectionId}`}`,
+      detailsSecondary: `Requested by ${item.requestedByName || "Registrar/Staff"}`,
+      termLabel: `A.Y. ${item.academicYear} | ${item.semester}`,
+      statusLabel: "Pending Approval",
+      reason: item.reason,
+      subjects: [],
+    }));
+
+    return [...overloadRows, ...dropRows, ...crossRows, ...shiftRows];
+  }, [crossEnrollmentRequests, shiftingRequests, subjectDrops, subjectOverloads]);
 
   const filteredRows = useMemo(() => {
     if (filter === "overload") {
@@ -242,6 +293,9 @@ export default function ApprovalManagement() {
 
     if (filter === "cross") {
       return approvalRows.filter((row) => row.type === "cross");
+    }
+    if (filter === "shift") {
+      return approvalRows.filter((row) => row.type === "shift");
     }
 
     return approvalRows;
@@ -259,7 +313,12 @@ export default function ApprovalManagement() {
               academicYear: row.academicYear,
               semester: row.semester,
             }
-          : {
+          : row.type === "shift"
+            ? {
+                type: "section_shift",
+                id: row.approvalId,
+              }
+            : {
               type: row.type === "drop" ? "drop" : "cross_enrollment",
               id: row.approvalId,
             };
@@ -339,7 +398,9 @@ export default function ApprovalManagement() {
                 ? "Subject Addition Beyond 27 Units"
                 : confirmation.type === "drop"
                   ? "Subject Drop Approval"
-                  : "Cross-Enrollee Approval"}
+                  : confirmation.type === "cross"
+                    ? "Cross-Enrollee Approval"
+                    : "Section Shift Approval"}
             </p>
           </div>
           <div>
@@ -433,7 +494,10 @@ export default function ApprovalManagement() {
                 : confirmation.type === "cross"
                   ? confirmation.reason?.trim() ||
                     "No cross-enrollee reason was provided."
-                : "This enrollment exceeded 27 total units and requires admin approval before it can proceed."}
+                : confirmation.type === "shift"
+                  ? confirmation.reason?.trim() ||
+                    "Section shift requested by registrar and awaiting admin/dean approval."
+                  : "This enrollment exceeded 27 total units and requires admin approval before it can proceed."}
             </p>
           </div>
           <div>
@@ -445,7 +509,9 @@ export default function ApprovalManagement() {
                 ? "Subject To Delete"
                 : confirmation.type === "cross"
                   ? "Subject To Add"
-                  : "Student Subject Section"}
+                  : confirmation.type === "shift"
+                    ? "Section Movement"
+                    : "Student Subject Section"}
             </p>
 
             {subjectItems.length === 0 ? (
@@ -558,6 +624,14 @@ export default function ApprovalManagement() {
               {crossEnrollmentRequests.length}
             </p>
           </div>
+          <div className="rounded-2xl p-5" style={cardStyle}>
+            <p className="text-sm font-semibold" style={{ color: colors.tertiary }}>
+              Section Shift
+            </p>
+            <p className="mt-2 text-3xl font-bold" style={{ color: colors.primary }}>
+              {shiftingRequests.length}
+            </p>
+          </div>
         </div>
 
         {error ? (
@@ -608,6 +682,7 @@ export default function ApprovalManagement() {
                 <option value="overload">Beyond 27 Units</option>
                 <option value="drop">Subject Drops</option>
                 <option value="cross">Cross Enrollee</option>
+                <option value="shift">Section Shift</option>
               </select>
             </div>
           </div>
@@ -695,10 +770,12 @@ export default function ApprovalManagement() {
                           }}
                         >
                           {item.type === "overload"
-                            ? "Overload"
-                            : item.type === "drop"
-                              ? "Drop"
-                              : "Cross Enrollee"}
+                              ? "Overload"
+                              : item.type === "drop"
+                                ? "Drop"
+                                : item.type === "cross"
+                                  ? "Cross Enrollee"
+                                  : "Section Shift"}
                         </span>
                       </td>
                       <td className="px-4 py-3 text-sm" style={{ color: colors.primary }}>

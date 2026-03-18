@@ -4,11 +4,12 @@ import React, { useEffect, useMemo, useState } from "react";
 import {
   ArrowLeft,
   BookOpen,
-  Loader2,
+  Building2,
+  GraduationCap,
   Search,
+  Send,
   User,
 } from "lucide-react";
-import { useSession } from "next-auth/react";
 import { colors } from "../colors";
 import { useAcademicTerm } from "../hooks/useAcademicTerm";
 import { useProgramsWithMajors } from "../hooks/useProgramsWithMajors";
@@ -46,11 +47,6 @@ interface AvailableCourse {
   units_total: number;
   year_level: number;
   semester: number;
-  hostProgramId: number;
-  hostMajorId: number | null;
-  hostProgramLabel: string;
-  hostProgramCode: string;
-  hostSelectionValue: string;
 }
 
 interface PendingRequest {
@@ -63,12 +59,6 @@ interface PendingRequest {
   status: string;
 }
 
-interface EnrolledSubjectReference {
-  curriculumCourseId: number | null;
-  subjectId: number | null;
-  courseCode: string;
-}
-
 const cardStyle: React.CSSProperties = {
   backgroundColor: "white",
   border: `1px solid ${colors.neutralBorder}`,
@@ -76,17 +66,21 @@ const cardStyle: React.CSSProperties = {
 };
 
 const secondaryCardStyle: React.CSSProperties = {
-  backgroundColor: "white",
+  backgroundColor: colors.paper,
   border: `1px solid ${colors.neutralBorder}`,
   boxShadow: `0 8px 18px ${colors.neutralBorder}24`,
 };
 
 const sectionEyebrowStyle: React.CSSProperties = {
-  color: colors.tertiary,
+  color: colors.neutral,
+};
+
+const stepLabelStyle: React.CSSProperties = {
+  color: colors.secondary,
 };
 
 const fieldClassName =
-  "w-full rounded-2xl border bg-white text-sm outline-none transition-all duration-200";
+  "w-full rounded-2xl border bg-white text-sm text-slate-800 outline-none transition-all duration-200 placeholder:text-slate-400 hover:border-slate-300 focus:border-[#955A27] focus:ring-4 focus:ring-[#955A27]/10";
 
 const primaryButtonClassName =
   "rounded-xl px-4 py-2.5 text-sm font-semibold text-white transition-all duration-200 hover:-translate-y-0.5 hover:shadow-lg active:translate-y-0 disabled:cursor-not-allowed disabled:opacity-60";
@@ -124,12 +118,10 @@ function EmptyStateCard({ icon: Icon, title, description }: EmptyStateProps) {
 }
 
 export default function CrossEnrollmentManagement() {
-  const { data: session } = useSession();
   const { currentTerm, loading: termLoading } = useAcademicTerm();
   const { programs, loading: programsLoading } = useProgramsWithMajors();
   const [students, setStudents] = useState<StudentListItem[]>([]);
   const [isLoadingStudents, setIsLoadingStudents] = useState(false);
-  const [selectingStudentNumber, setSelectingStudentNumber] = useState("");
   const [selectedStudent, setSelectedStudent] = useState<StudentDetails | null>(null);
   const [studentSearch, setStudentSearch] = useState("");
   const [studentCurrentPage, setStudentCurrentPage] = useState(1);
@@ -137,9 +129,6 @@ export default function CrossEnrollmentManagement() {
   const [hostSelection, setHostSelection] = useState("");
   const [availableCourses, setAvailableCourses] = useState<AvailableCourse[]>([]);
   const [pendingRequests, setPendingRequests] = useState<PendingRequest[]>([]);
-  const [enrolledSubjectsForTerm, setEnrolledSubjectsForTerm] = useState<
-    EnrolledSubjectReference[]
-  >([]);
   const [isLoadingCourses, setIsLoadingCourses] = useState(false);
   const [isLoadingRequests, setIsLoadingRequests] = useState(false);
   const [subjectSearch, setSubjectSearch] = useState("");
@@ -154,8 +143,6 @@ export default function CrossEnrollmentManagement() {
     message: "",
     details: "",
   });
-  const currentUserRole = Number((session?.user as any)?.role) || 0;
-  const isAdminUser = currentUserRole === 1;
 
   const semesterNum = currentTerm?.semester === "First" ? 1 : 2;
 
@@ -168,24 +155,20 @@ export default function CrossEnrollmentManagement() {
     const style = document.createElement("style");
     style.id = styleId;
     style.textContent = `
-      .request-queue-scroll {
-        scrollbar-color: ${colors.primary} ${colors.neutralLight};
-        scrollbar-width: thin;
-      }
       .request-queue-scroll::-webkit-scrollbar {
         width: 10px;
       }
       .request-queue-scroll::-webkit-scrollbar-track {
-        background: ${colors.neutralLight};
+        background: ${colors.paper};
         border-radius: 999px;
       }
       .request-queue-scroll::-webkit-scrollbar-thumb {
-        background: ${colors.primary};
-        border: 2px solid ${colors.neutralLight};
+        background: linear-gradient(${colors.accent}, ${colors.secondary});
+        border: 2px solid ${colors.paper};
         border-radius: 999px;
       }
       .request-queue-scroll::-webkit-scrollbar-thumb:hover {
-        background: ${colors.secondary};
+        background: linear-gradient(${colors.secondary}, ${colors.primary});
       }
     `;
 
@@ -232,37 +215,21 @@ export default function CrossEnrollmentManagement() {
   }, [currentTerm]);
 
   const loadStudentContext = async (studentNumber: string) => {
-    setSelectingStudentNumber(studentNumber);
     setIsLoadingCourses(true);
     setIsLoadingRequests(true);
 
     try {
-      const enrolledSubjectsUrl = currentTerm
-        ? `/api/auth/enrolled-subjects?studentNumber=${encodeURIComponent(
-            studentNumber,
-          )}&academicYear=${encodeURIComponent(currentTerm.academicYear)}&semester=${semesterNum}`
-        : null;
-
-      const requests = [
+      const [studentResponse, requestsResponse] = await Promise.all([
         fetch(`/api/students/${encodeURIComponent(studentNumber)}`),
         fetch(
           `/api/auth/cross-enrollment?studentNumber=${encodeURIComponent(
             studentNumber,
           )}`,
         ),
-      ] as Promise<Response>[];
-
-      if (enrolledSubjectsUrl) {
-        requests.push(fetch(enrolledSubjectsUrl));
-      }
-
-      const [studentResponse, requestsResponse, enrolledResponse] =
-        await Promise.all(requests);
-
-      const [studentResult, requestsResult, enrolledResult] = await Promise.all([
+      ]);
+      const [studentResult, requestsResult] = await Promise.all([
         studentResponse.json(),
         requestsResponse.json(),
-        enrolledResponse ? enrolledResponse.json() : Promise.resolve({ data: [] }),
       ]);
 
       if (!studentResponse.ok) {
@@ -272,12 +239,6 @@ export default function CrossEnrollmentManagement() {
       if (!requestsResponse.ok) {
         throw new Error(
           requestsResult.error || "Failed to load cross-enrollee requests.",
-        );
-      }
-
-      if (enrolledResponse && !enrolledResponse.ok) {
-        throw new Error(
-          enrolledResult.error || "Failed to load enrolled subjects.",
         );
       }
 
@@ -313,17 +274,6 @@ export default function CrossEnrollmentManagement() {
             }))
           : [],
       );
-      setEnrolledSubjectsForTerm(
-        Array.isArray(enrolledResult.data)
-          ? enrolledResult.data.map((item: any) => ({
-              curriculumCourseId: item.curriculum_course_id
-                ? Number(item.curriculum_course_id)
-                : null,
-              subjectId: item.subject_id ? Number(item.subject_id) : null,
-              courseCode: String(item.course_code || "").toLowerCase(),
-            }))
-          : [],
-      );
       setHostSelection("");
       setAvailableCourses([]);
       setSubjectSearch("");
@@ -337,70 +287,39 @@ export default function CrossEnrollmentManagement() {
         details: "",
       });
     } finally {
-      setSelectingStudentNumber("");
       setIsLoadingCourses(false);
       setIsLoadingRequests(false);
     }
   };
 
+  const selectedHostProgram = useMemo(() => {
+    return programs.find((item) => item.value === hostSelection) || null;
+  }, [hostSelection, programs]);
+
   useEffect(() => {
     const fetchHostCourses = async () => {
-      if (!currentTerm || !selectedStudent) {
-        setAvailableCourses([]);
-        return;
-      }
-
-      const hostPrograms = programs.filter(
-        (item) => item.programId !== selectedStudent.programId,
-      );
-      if (hostPrograms.length === 0) {
+      if (!selectedHostProgram || !currentTerm || !selectedStudent) {
         setAvailableCourses([]);
         return;
       }
 
       setIsLoadingCourses(true);
       try {
-        const settled = await Promise.allSettled(
-          hostPrograms.map(async (hostProgram) => {
-            let url = `/api/auth/curriculum/subjects?programId=${hostProgram.programId}&semester=${semesterNum}`;
-            if (hostProgram.majorId) {
-              url += `&majorId=${hostProgram.majorId}`;
-            }
-
-            const response = await fetch(url);
-            const result = await response.json();
-
-            if (!response.ok || !result.success) {
-              throw new Error(
-                result.error || `Failed to load subjects for ${hostProgram.label}.`,
-              );
-            }
-
-            const hostProgramCode = String(hostProgram.label).split(" - ")[0] || "N/A";
-            const hostSelectionValue = `${hostProgram.programId}-${hostProgram.majorId ?? "none"}`;
-
-            return (Array.isArray(result.data?.courses) ? result.data.courses : []).map(
-              (course: any) => ({
-                ...course,
-                hostProgramId: hostProgram.programId,
-                hostMajorId: hostProgram.majorId ?? null,
-                hostProgramLabel: hostProgram.label,
-                hostProgramCode,
-                hostSelectionValue,
-              }),
-            ) as AvailableCourse[];
-          }),
-        );
-
-        const successfulResults = settled
-          .filter((item): item is PromiseFulfilledResult<AvailableCourse[]> => item.status === "fulfilled")
-          .flatMap((item) => item.value);
-
-        if (successfulResults.length === 0) {
-          throw new Error("Failed to load host program subjects.");
+        let url = `/api/auth/curriculum/subjects?programId=${selectedHostProgram.programId}&semester=${semesterNum}`;
+        if (selectedHostProgram.majorId) {
+          url += `&majorId=${selectedHostProgram.majorId}`;
         }
 
-        setAvailableCourses(successfulResults);
+        const response = await fetch(url);
+        const result = await response.json();
+
+        if (!response.ok || !result.success) {
+          throw new Error(result.error || "Failed to load host program subjects.");
+        }
+
+        setAvailableCourses(
+          Array.isArray(result.data?.courses) ? result.data.courses : [],
+        );
       } catch (error) {
         setAvailableCourses([]);
         setErrorModal({
@@ -417,7 +336,7 @@ export default function CrossEnrollmentManagement() {
     };
 
     fetchHostCourses();
-  }, [currentTerm, programs, selectedStudent, semesterNum]);
+  }, [currentTerm, selectedHostProgram, selectedStudent, semesterNum]);
 
   const filteredStudents = useMemo(() => {
     const query = studentSearch.trim().toLowerCase();
@@ -440,66 +359,15 @@ export default function CrossEnrollmentManagement() {
     return filteredStudents.slice(startIndex, startIndex + studentItemsPerPage);
   }, [filteredStudents, studentCurrentPage, studentItemsPerPage]);
 
-  const pendingCourseKeys = useMemo(() => {
-    return new Set(
-      pendingRequests.map(
-        (item) =>
-          `${String(item.courseCode || "").toLowerCase()}::${String(item.hostProgramCode || "").toLowerCase()}`,
-      ),
-    );
+  const pendingCourseCodes = useMemo(() => {
+    return new Set(pendingRequests.map((item) => item.courseCode));
   }, [pendingRequests]);
-
-  const enrolledCurriculumCourseIds = useMemo(() => {
-    return new Set(
-      enrolledSubjectsForTerm
-        .map((item) => item.curriculumCourseId)
-        .filter((id): id is number => Number.isFinite(id)),
-    );
-  }, [enrolledSubjectsForTerm]);
-
-  const enrolledSubjectIds = useMemo(() => {
-    return new Set(
-      enrolledSubjectsForTerm
-        .map((item) => item.subjectId)
-        .filter((id): id is number => Number.isFinite(id)),
-    );
-  }, [enrolledSubjectsForTerm]);
-
-  const enrolledCourseCodes = useMemo(() => {
-    return new Set(
-      enrolledSubjectsForTerm
-        .map((item) => item.courseCode)
-        .filter((code) => Boolean(code)),
-    );
-  }, [enrolledSubjectsForTerm]);
 
   const filteredCourses = useMemo(() => {
     const query = subjectSearch.trim().toLowerCase();
 
     return availableCourses.filter((course) => {
-      if (enrolledCurriculumCourseIds.has(course.id)) {
-        return false;
-      }
-      if (course.subject_id && enrolledSubjectIds.has(Number(course.subject_id))) {
-        return false;
-      }
-      if (enrolledCourseCodes.has(course.course_code.toLowerCase())) {
-        return false;
-      }
-
-      const isPendingInHost = pendingCourseKeys.has(
-        `${course.course_code.toLowerCase()}::${course.hostProgramCode.toLowerCase()}`,
-      );
-      const isPendingByCodeOnly = pendingRequests.some(
-        (item) =>
-          String(item.courseCode || "").toLowerCase() ===
-            course.course_code.toLowerCase() && !item.hostProgramCode,
-      );
-      if (isPendingInHost || isPendingByCodeOnly) {
-        return false;
-      }
-
-      if (hostSelection && course.hostSelectionValue !== hostSelection) {
+      if (pendingCourseCodes.has(course.course_code)) {
         return false;
       }
 
@@ -509,20 +377,10 @@ export default function CrossEnrollmentManagement() {
 
       return (
         course.course_code.toLowerCase().includes(query) ||
-        course.descriptive_title.toLowerCase().includes(query) ||
-        course.hostProgramLabel.toLowerCase().includes(query)
+        course.descriptive_title.toLowerCase().includes(query)
       );
     });
-  }, [
-    availableCourses,
-    enrolledCourseCodes,
-    enrolledCurriculumCourseIds,
-    enrolledSubjectIds,
-    hostSelection,
-    pendingCourseKeys,
-    pendingRequests,
-    subjectSearch,
-  ]);
+  }, [availableCourses, pendingCourseCodes, subjectSearch]);
 
   const paginatedCourses = useMemo(() => {
     const startIndex = (subjectCurrentPage - 1) * subjectItemsPerPage;
@@ -547,7 +405,7 @@ export default function CrossEnrollmentManagement() {
   }, [programs, selectedStudent]);
 
   const submitCrossEnrollmentRequest = async () => {
-    if (!confirmationCourse || !selectedStudent || !currentTerm) {
+    if (!confirmationCourse || !selectedStudent || !currentTerm || !selectedHostProgram) {
       return;
     }
 
@@ -569,8 +427,8 @@ export default function CrossEnrollmentManagement() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           studentNumber: selectedStudent.studentNumber,
-          hostProgramId: confirmationCourse.hostProgramId,
-          hostMajorId: confirmationCourse.hostMajorId,
+          hostProgramId: selectedHostProgram.programId,
+          hostMajorId: selectedHostProgram.majorId,
           curriculumCourseId: confirmationCourse.id,
           academicYear: currentTerm.academicYear,
           semester: semesterNum,
@@ -605,7 +463,7 @@ export default function CrossEnrollmentManagement() {
   };
 
   const renderConfirmationContent = () => {
-    if (!confirmationCourse || !selectedStudent || !currentTerm) {
+    if (!confirmationCourse || !selectedStudent || !selectedHostProgram || !currentTerm) {
       return null;
     }
 
@@ -635,7 +493,7 @@ export default function CrossEnrollmentManagement() {
             </p>
             <p>
               <span style={{ color: colors.tertiary }}>Host Program:</span>{" "}
-              <span className="font-semibold">{confirmationCourse.hostProgramLabel}</span>
+              <span className="font-semibold">{selectedHostProgram.label}</span>
             </p>
             <p>
               <span style={{ color: colors.tertiary }}>Subject:</span>{" "}
@@ -677,49 +535,46 @@ export default function CrossEnrollmentManagement() {
   };
 
   return (
-    <div className="min-h-screen p-6" style={{ backgroundColor: colors.paper }}>
-      <div className="mx-auto flex w-full max-w-7xl flex-col gap-5">
-        <header className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-          <div className="space-y-2">
+    <div className="min-h-screen px-6 pb-6 pt-4" style={{ backgroundColor: colors.paper }}>
+      <div className="mx-auto max-w-7xl space-y-5">
+        <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+          <div className="max-w-2xl">
             <h1
-              className="text-[24px] font-semibold leading-tight"
+              className="text-[2.35rem] font-bold tracking-[-0.03em]"
               style={{ color: colors.primary }}
             >
               Cross Enrollee
             </h1>
-            <p
-              className="max-w-2xl text-sm leading-6"
-              style={{ color: colors.tertiary }}
-            >
+            <p className="mt-1 text-[12px] leading-6" style={{ color: colors.neutral }}>
               Submit approval requests for students who need to take a subject from a different program.
             </p>
           </div>
 
           <div
-            className="inline-flex items-center gap-3 rounded-xl px-4 py-3"
+            className="inline-flex items-center gap-3 rounded-2xl px-5 py-4"
             style={cardStyle}
           >
             <div
-              className="flex h-10 w-10 items-center justify-center rounded-xl"
+              className="flex h-11 w-11 items-center justify-center rounded-xl"
               style={{ backgroundColor: `${colors.secondary}12`, color: colors.secondary }}
             >
               <BookOpen className="h-5 w-5" />
             </div>
             <div>
               <p
-                className="text-[11px] font-semibold uppercase tracking-[0.18em]"
-                style={{ color: colors.neutral }}
+                className={sectionLabelClassName}
+                style={sectionEyebrowStyle}
               >
                 Active Term
               </p>
-              <p className="text-sm font-semibold" style={{ color: colors.primary }}>
+              <p className="mt-1 text-[15px] font-semibold" style={{ color: colors.primary }}>
                 {currentTerm
                   ? `${currentTerm.semester} Semester, ${currentTerm.academicYear}`
                   : "Loading current term..."}
               </p>
             </div>
           </div>
-        </header>
+        </div>
 
         {!selectedStudent ? (
           <section className="rounded-2xl p-6" style={cardStyle}>
@@ -728,7 +583,7 @@ export default function CrossEnrollmentManagement() {
                 <h2 className="text-[1.15rem] font-semibold" style={{ color: colors.primary }}>
                   Student Directory
                 </h2>
-                <p className={`${sectionDescriptionClassName} mt-1`} style={{ color: colors.tertiary }}>
+                <p className={`${sectionDescriptionClassName} mt-1`} style={{ color: colors.neutral }}>
                   Select the student who needs a cross-enrollee subject request.
                 </p>
               </div>
@@ -747,8 +602,6 @@ export default function CrossEnrollmentManagement() {
                   placeholder="Search student ID, name, or program"
                   className={`${fieldClassName} py-3 pl-11 pr-4`}
                   style={{
-                    borderColor: colors.neutralBorder,
-                    backgroundColor: colors.paper,
                     color: colors.primary,
                   }}
                 />
@@ -809,28 +662,20 @@ export default function CrossEnrollmentManagement() {
                         <td className="px-4 py-4 text-[14px] leading-6" style={{ color: colors.primary }}>
                           {student.name}
                         </td>
-                        <td className="px-4 py-4 text-[14px] leading-6" style={{ color: colors.primary }}>
+                        <td className="px-4 py-4 text-[14px] leading-6" style={{ color: colors.neutralDark }}>
                           {student.programCode || student.programName || "N/A"}
                         </td>
-                        <td className="px-4 py-4 text-[14px]" style={{ color: colors.primary }}>
+                        <td className="px-4 py-4 text-[14px]" style={{ color: colors.neutralDark }}>
                           {student.yearLevel ? `Year ${student.yearLevel}` : "N/A"}
                         </td>
                         <td className="px-4 py-4 text-center">
                           <button
                             type="button"
                             onClick={() => loadStudentContext(student.studentNumber)}
-                            disabled={Boolean(selectingStudentNumber)}
                             className={primaryButtonClassName}
                             style={{ backgroundColor: colors.secondary }}
                           >
-                            {selectingStudentNumber === student.studentNumber ? (
-                              <span className="inline-flex items-center gap-2">
-                                <Loader2 className="h-4 w-4 animate-spin" />
-                                Selecting...
-                              </span>
-                            ) : (
-                              "Select Student"
-                            )}
+                            Select Student
                           </button>
                         </td>
                       </tr>
@@ -859,7 +704,6 @@ export default function CrossEnrollmentManagement() {
               onClick={() => {
                 setSelectedStudent(null);
                 setPendingRequests([]);
-                setEnrolledSubjectsForTerm([]);
                 setAvailableCourses([]);
                 setHostSelection("");
                 setRequestReason("");
@@ -874,86 +718,53 @@ export default function CrossEnrollmentManagement() {
               Back to Student List
             </button>
 
-            <section className="rounded-2xl p-3.5" style={cardStyle}>
-              <div className="grid gap-2.5 lg:grid-cols-[minmax(0,320px)_minmax(0,1fr)] lg:items-stretch">
-                <div
-                  className="rounded-xl border px-3.5 py-2.5"
-                  style={{
-                    borderColor: colors.neutralBorder,
-                    backgroundColor: colors.paper,
-                  }}
-                >
-                  <p className={sectionLabelClassName} style={sectionEyebrowStyle}>
-                    Student Name
+            <section className="rounded-2xl px-5 py-4" style={cardStyle}>
+              <div className="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
+                <div className="min-w-0 xl:max-w-[280px]">
+                  <p
+                    className={sectionLabelClassName}
+                    style={sectionEyebrowStyle}
+                  >
+                    Student Summary
                   </p>
                   <h2
-                    className="mt-1 line-clamp-2 text-[1.08rem] font-semibold leading-[1.35]"
+                    className="mt-1 line-clamp-2 text-[1.2rem] font-semibold leading-[1.35]"
                     style={{ color: colors.primary }}
                   >
                     {selectedStudent.studentName}
                   </h2>
-                  <p
-                    className="mt-2 text-[13px] font-semibold"
-                    style={{ color: colors.secondary }}
-                  >
-                    {selectedStudent.studentNumber}
-                  </p>
                 </div>
 
-                <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-[170px_minmax(0,1.45fr)_130px_minmax(0,1.2fr)]">
-                  <div
-                    className="rounded-xl border px-3.5 py-2.5"
-                    style={{
-                      borderColor: colors.neutralBorder,
-                      backgroundColor: colors.paper,
-                    }}
-                  >
-                    <p className={sectionLabelClassName} style={sectionEyebrowStyle}>
+                <div className="grid gap-x-8 gap-y-3 sm:grid-cols-2 xl:grid-cols-4">
+                  <div className="min-w-0">
+                    <p className={sectionLabelClassName} style={{ color: colors.neutral }}>
                       Student ID
                     </p>
-                    <p className="mt-1 text-[14px] font-semibold" style={{ color: colors.primary }}>
+                    <p className="mt-1 text-[15px] font-semibold" style={{ color: colors.primary }}>
                       {selectedStudent.studentNumber}
                     </p>
                   </div>
-                  <div
-                    className="rounded-xl border px-3.5 py-2.5"
-                    style={{
-                      borderColor: colors.neutralBorder,
-                      backgroundColor: colors.paper,
-                    }}
-                  >
-                    <p className={sectionLabelClassName} style={sectionEyebrowStyle}>
+                  <div className="min-w-0">
+                    <p className={sectionLabelClassName} style={{ color: colors.neutral }}>
                       Program
                     </p>
-                    <p className="mt-1 line-clamp-2 text-[13px] font-semibold leading-5" style={{ color: colors.primary }}>
+                    <p className="mt-1 line-clamp-2 text-[14px] font-semibold leading-6" style={{ color: colors.neutralDark }}>
                       {selectedStudent.programDisplay}
                     </p>
                   </div>
-                  <div
-                    className="rounded-xl border px-3.5 py-2.5"
-                    style={{
-                      borderColor: colors.neutralBorder,
-                      backgroundColor: colors.paper,
-                    }}
-                  >
-                    <p className={sectionLabelClassName} style={sectionEyebrowStyle}>
+                  <div className="min-w-0">
+                    <p className={sectionLabelClassName} style={{ color: colors.neutral }}>
                       Year Level
                     </p>
-                    <p className="mt-1 text-[14px] font-semibold" style={{ color: colors.primary }}>
+                    <p className="mt-1 text-[15px] font-semibold" style={{ color: colors.primary }}>
                       {selectedStudent.yearLevel ? `Year ${selectedStudent.yearLevel}` : "N/A"}
                     </p>
                   </div>
-                  <div
-                    className="rounded-xl border px-3.5 py-2.5"
-                    style={{
-                      borderColor: colors.neutralBorder,
-                      backgroundColor: colors.paper,
-                    }}
-                  >
-                    <p className={sectionLabelClassName} style={sectionEyebrowStyle}>
+                  <div className="min-w-0">
+                    <p className={sectionLabelClassName} style={{ color: colors.neutral }}>
                       Email
                     </p>
-                    <p className="mt-1 truncate text-[13px] font-semibold" style={{ color: colors.primary }}>
+                    <p className="mt-1 truncate text-[14px] font-semibold" style={{ color: colors.neutralDark }}>
                       {selectedStudent.email || "N/A"}
                     </p>
                   </div>
@@ -961,40 +772,57 @@ export default function CrossEnrollmentManagement() {
               </div>
             </section>
 
-            <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_280px]">
-              <section className="rounded-2xl p-4" style={cardStyle}>
-                <div className="flex flex-col gap-1.5 border-b pb-3" style={{ borderColor: colors.neutralBorder }}>
+            <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_280px]">
+              <section className="rounded-2xl p-5" style={cardStyle}>
+                <div className="flex flex-col gap-2 border-b pb-5" style={{ borderColor: colors.neutralBorder }}>
+                  <p
+                    className={sectionLabelClassName}
+                    style={{ color: colors.neutral }}
+                  >
+                    Guided Request Flow
+                  </p>
                   <h2 className="text-[1.65rem] font-semibold tracking-tight" style={{ color: colors.primary }}>
                     Cross-Enrollee Request
                   </h2>
-                  <p className="text-[12px] leading-5" style={{ color: colors.tertiary }}>
+                  <p className={sectionDescriptionClassName} style={{ color: colors.neutral }}>
                     Follow the steps to request a subject from another program.
                   </p>
                 </div>
 
-                <div className="mt-3 space-y-3">
-                  <div className="flex flex-col gap-2.5 lg:flex-row lg:items-center">
-                    <div className="relative w-full lg:flex-1">
-                      <Search
-                        className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2"
-                        style={{ color: colors.tertiary }}
-                      />
-                      <input
-                        value={subjectSearch}
-                        onChange={(event) => {
-                          setSubjectSearch(event.target.value);
-                          setSubjectCurrentPage(1);
-                        }}
-                        placeholder="Search subject code, title, or host program"
-                        className={`${fieldClassName} py-3 pl-11 pr-4`}
+                <div className="mt-6 space-y-5">
+                  <div
+                    className="grid gap-4 rounded-2xl border p-4 lg:grid-cols-[132px_minmax(0,1fr)] lg:items-start"
+                    style={{
+                      borderColor: !hostSelection ? `${colors.secondary}50` : colors.neutralBorder,
+                      backgroundColor: !hostSelection ? `${colors.secondary}05` : "white",
+                    }}
+                  >
+                    <div className="relative">
+                      <div
+                        className="flex h-9 w-9 items-center justify-center rounded-full text-sm font-bold"
                         style={{
-                          borderColor: colors.neutralBorder,
-                          backgroundColor: colors.paper,
-                          color: colors.primary,
+                          backgroundColor: `${colors.secondary}14`,
+                          color: colors.secondary,
                         }}
+                      >
+                        1
+                      </div>
+                      <div
+                        className="ml-[17px] mt-2 hidden h-[calc(100%-2.25rem)] w-px lg:block"
+                        style={{ backgroundColor: colors.neutralBorder }}
                       />
+                      <p className="mt-3 text-[11px] font-semibold uppercase tracking-[0.2em]" style={stepLabelStyle}>
+                        Step 1
+                      </p>
+                      <p className="mt-1 text-[13px] font-semibold" style={{ color: colors.primary }}>
+                        Select host program
+                      </p>
                     </div>
-                    <div className="w-full lg:w-[320px]">
+                    <div>
+                      <div className="mb-2 flex items-center gap-2 text-[12px] leading-5" style={{ color: colors.neutral }}>
+                        <Building2 className="h-4 w-4" />
+                        <span>Choose the program where the student will take the subject.</span>
+                      </div>
                       <select
                         value={hostSelection}
                         onChange={(event) => {
@@ -1003,12 +831,12 @@ export default function CrossEnrollmentManagement() {
                         }}
                         className={`${fieldClassName} px-3 py-3`}
                         style={{
-                          backgroundColor: colors.paper,
-                          borderColor: colors.neutralBorder,
+                          backgroundColor: hostSelection ? "white" : `${colors.paper}`,
+                          borderColor: hostSelection ? colors.neutralBorder : `${colors.secondary}50`,
                           color: colors.primary,
                         }}
                       >
-                        <option value="">All host programs</option>
+                        <option value="">Select a host program</option>
                         {hostProgramOptions.map((item) => (
                           <option key={item.value} value={item.value}>
                             {item.label}
@@ -1019,129 +847,191 @@ export default function CrossEnrollmentManagement() {
                   </div>
 
                   <div
-                    className="overflow-x-auto rounded-2xl border"
-                    style={{ borderColor: colors.neutralBorder }}
-                  >
-                    <table className="min-w-full border-collapse">
-                      <thead>
-                        <tr style={{ backgroundColor: `${colors.accent}08` }}>
-                          <th className="px-4 py-3 text-left text-[11px] font-medium uppercase tracking-[0.2em]" style={{ color: colors.neutral }}>
-                            Code
-                          </th>
-                          <th className="px-4 py-3 text-left text-[11px] font-medium uppercase tracking-[0.2em]" style={{ color: colors.neutral }}>
-                            Subject
-                          </th>
-                          <th className="px-4 py-3 text-left text-[11px] font-medium uppercase tracking-[0.2em]" style={{ color: colors.neutral }}>
-                            Host Program
-                          </th>
-                          <th className="px-4 py-3 text-left text-[11px] font-medium uppercase tracking-[0.2em]" style={{ color: colors.neutral }}>
-                            Year
-                          </th>
-                          <th className="px-4 py-3 text-left text-[11px] font-medium uppercase tracking-[0.2em]" style={{ color: colors.neutral }}>
-                            Units
-                          </th>
-                          <th className="px-4 py-3 text-center text-[11px] font-medium uppercase tracking-[0.2em]" style={{ color: colors.neutral }}>
-                            Action
-                          </th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {isLoadingCourses || programsLoading ? (
-                          <tr>
-                            <td colSpan={6} className="px-4 py-12 text-center text-sm" style={{ color: colors.tertiary }}>
-                              Loading subjects...
-                            </td>
-                          </tr>
-                        ) : paginatedCourses.length === 0 ? (
-                          <tr>
-                            <td colSpan={6} className="px-0 py-0">
-                              <EmptyStateCard
-                                icon={BookOpen}
-                                title="No subjects available yet"
-                                description="No eligible subjects matched your current search and host-program filter."
-                              />
-                            </td>
-                          </tr>
-                        ) : (
-                          paginatedCourses.map((course) => (
-                            <tr
-                              key={`${course.id}-${course.hostSelectionValue}`}
-                              className="border-t align-middle transition-colors hover:bg-slate-50/70"
-                              style={{ borderColor: colors.neutralBorder }}
-                            >
-                              <td className="px-4 py-3.5 text-sm font-semibold" style={{ color: colors.primary }}>
-                                {course.course_code}
-                              </td>
-                              <td className="px-4 py-3.5 text-[14px] font-medium leading-6" style={{ color: colors.primary }}>
-                                {course.descriptive_title}
-                              </td>
-                              <td className="px-4 py-3.5 text-[13px] font-medium leading-5" style={{ color: colors.primary }}>
-                                {course.hostProgramLabel}
-                              </td>
-                              <td className="px-4 py-3.5 text-[14px]" style={{ color: colors.primary }}>
-                                Year {course.year_level}
-                              </td>
-                              <td className="px-4 py-3.5 text-[14px] font-medium" style={{ color: colors.primary }}>
-                                {course.units_total}
-                              </td>
-                              <td className="px-4 py-3.5 text-center">
-                                <button
-                                  type="button"
-                                  onClick={() => {
-                                    setConfirmationCourse(course);
-                                    setRequestReason("");
-                                  }}
-                                  className={primaryButtonClassName}
-                                  style={{
-                                    backgroundColor: colors.secondary,
-                                    boxShadow: `0 10px 20px ${colors.secondary}20`,
-                                  }}
-                                >
-                                  {isAdminUser ? "Add Subject" : "Request"}
-                                </button>
-                              </td>
-                            </tr>
-                          ))
-                        )}
-                      </tbody>
-                    </table>
-                  </div>
-
-                  <Pagination
-                    currentPage={subjectCurrentPage}
-                    totalPages={totalSubjectPages}
-                    totalItems={filteredCourses.length}
-                    itemsPerPage={subjectItemsPerPage}
-                    onPageChange={setSubjectCurrentPage}
-                    onItemsPerPageChange={(value) => {
-                      setSubjectItemsPerPage(value);
-                      setSubjectCurrentPage(1);
+                    className="grid gap-4 rounded-2xl border p-4 lg:grid-cols-[132px_minmax(0,1fr)] lg:items-start"
+                    style={{
+                      borderColor: hostSelection ? `${colors.secondary}40` : colors.neutralBorder,
+                      backgroundColor: hostSelection ? `${colors.secondary}04` : "white",
                     }}
-                  />
+                  >
+                    <div>
+                      <div
+                        className="flex h-9 w-9 items-center justify-center rounded-full text-sm font-bold"
+                        style={{
+                          backgroundColor: hostSelection
+                            ? `${colors.secondary}16`
+                            : `${colors.neutralBorder}`,
+                          color: hostSelection ? colors.secondary : colors.neutral,
+                        }}
+                      >
+                        2
+                      </div>
+                      <p className="mt-3 text-[11px] font-semibold uppercase tracking-[0.2em]" style={stepLabelStyle}>
+                        Step 2
+                      </p>
+                      <p className="mt-1 text-[13px] font-semibold" style={{ color: colors.primary }}>
+                        Review subjects
+                      </p>
+                    </div>
+                    <div className="space-y-3">
+                      <div className="flex items-center gap-2 text-[12px] leading-5" style={{ color: colors.neutral }}>
+                        <GraduationCap className="h-4 w-4" />
+                        <span>Pick a subject to submit for approval.</span>
+                      </div>
+                      <div className="relative w-full max-w-md">
+                        <Search
+                          className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2"
+                          style={{ color: colors.tertiary }}
+                        />
+                        <input
+                          value={subjectSearch}
+                          onChange={(event) => {
+                            setSubjectSearch(event.target.value);
+                            setSubjectCurrentPage(1);
+                          }}
+                          placeholder="Search subject code or title"
+                          className={`${fieldClassName} py-3 pl-11 pr-4`}
+                          style={{
+                            color: colors.primary,
+                          }}
+                        />
+                      </div>
+
+                      <div
+                        className="overflow-x-auto rounded-2xl border"
+                        style={{ borderColor: colors.neutralBorder }}
+                      >
+                        <table className="min-w-full border-collapse">
+                          <thead>
+                            <tr style={{ backgroundColor: `${colors.accent}08` }}>
+                              <th className="px-4 py-3 text-left text-[11px] font-medium uppercase tracking-[0.2em]" style={{ color: colors.neutral }}>
+                                Code
+                              </th>
+                              <th className="px-4 py-3 text-left text-[11px] font-medium uppercase tracking-[0.2em]" style={{ color: colors.neutral }}>
+                                Subject
+                              </th>
+                              <th className="px-4 py-3 text-left text-[11px] font-medium uppercase tracking-[0.2em]" style={{ color: colors.neutral }}>
+                                Year
+                              </th>
+                              <th className="px-4 py-3 text-left text-[11px] font-medium uppercase tracking-[0.2em]" style={{ color: colors.neutral }}>
+                                Units
+                              </th>
+                              <th className="px-4 py-3 text-center text-[11px] font-medium uppercase tracking-[0.2em]" style={{ color: colors.neutral }}>
+                                Step 3
+                              </th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {!hostSelection ? (
+                              <tr>
+                                <td colSpan={5} className="px-0 py-0">
+                                  <EmptyStateCard
+                                    icon={Building2}
+                                    title="Choose a host program first"
+                                    description="Once a host program is selected, available subjects for the current term will appear here."
+                                  />
+                                </td>
+                              </tr>
+                            ) : isLoadingCourses || programsLoading ? (
+                              <tr>
+                                <td colSpan={5} className="px-4 py-12 text-center text-sm" style={{ color: colors.tertiary }}>
+                                  Loading subjects...
+                                </td>
+                              </tr>
+                            ) : paginatedCourses.length === 0 ? (
+                              <tr>
+                                <td colSpan={5} className="px-0 py-0">
+                                  <EmptyStateCard
+                                    icon={BookOpen}
+                                    title="No subjects available yet"
+                                    description="This host program has no eligible subjects for the selected term, or matching requests are already pending."
+                                  />
+                                </td>
+                              </tr>
+                            ) : (
+                              paginatedCourses.map((course) => (
+                                <tr
+                                  key={course.id}
+                                  className="border-t align-middle transition-colors hover:bg-slate-50/70"
+                                  style={{ borderColor: colors.neutralBorder }}
+                                >
+                                  <td className="px-4 py-4 text-sm font-semibold" style={{ color: colors.primary }}>
+                                    {course.course_code}
+                                  </td>
+                                  <td className="px-4 py-4 text-[14px] font-medium leading-6" style={{ color: colors.primary }}>
+                                    {course.descriptive_title}
+                                  </td>
+                                  <td className="px-4 py-4 text-[14px]" style={{ color: colors.neutralDark }}>
+                                    Year {course.year_level}
+                                  </td>
+                                  <td className="px-4 py-4 text-[14px] font-medium" style={{ color: colors.neutralDark }}>
+                                    {course.units_total}
+                                  </td>
+                                  <td className="px-4 py-4 text-center">
+                                    <button
+                                      type="button"
+                                      onClick={() => {
+                                        setConfirmationCourse(course);
+                                        setRequestReason("");
+                                      }}
+                                      className={primaryButtonClassName}
+                                      style={{
+                                        backgroundColor: colors.secondary,
+                                        boxShadow: `0 10px 20px ${colors.secondary}20`,
+                                      }}
+                                    >
+                                      <span className="inline-flex items-center gap-2">
+                                        <Send className="h-4 w-4" />
+                                        Request
+                                      </span>
+                                    </button>
+                                  </td>
+                                </tr>
+                              ))
+                            )}
+                          </tbody>
+                        </table>
+                      </div>
+
+                      <Pagination
+                        currentPage={subjectCurrentPage}
+                        totalPages={totalSubjectPages}
+                        totalItems={filteredCourses.length}
+                        itemsPerPage={subjectItemsPerPage}
+                        onPageChange={setSubjectCurrentPage}
+                        onItemsPerPageChange={(value) => {
+                          setSubjectItemsPerPage(value);
+                          setSubjectCurrentPage(1);
+                        }}
+                      />
+                    </div>
+                  </div>
                 </div>
               </section>
 
-              <aside className="rounded-2xl border p-3.5" style={secondaryCardStyle}>
+              <aside
+                className="rounded-2xl border p-4"
+                style={secondaryCardStyle}
+              >
                 <div className="flex items-start justify-between gap-3">
                   <div>
                     <p
                       className={sectionLabelClassName}
-                      style={sectionEyebrowStyle}
+                      style={{ color: colors.neutral }}
                     >
                       Request Queue
                     </p>
-                    <h3 className="mt-1 text-[14px] font-semibold" style={{ color: colors.primary }}>
+                    <h3 className="mt-1 text-[14px] font-semibold" style={{ color: colors.neutralDark }}>
                       Pending Requests
                     </h3>
-                    <p className="mt-1 text-[11px] leading-5" style={{ color: colors.tertiary }}>
+                    <p className="mt-1 text-[11px] leading-5" style={{ color: colors.neutral }}>
                       Awaiting approval.
                     </p>
                   </div>
                   <span
                     className="rounded-full px-3 py-1 text-xs font-semibold"
                     style={{
-                      backgroundColor: `${colors.secondary}10`,
-                      color: colors.secondary,
+                      backgroundColor: `${colors.neutralBorder}`,
+                      color: colors.neutralDark,
                     }}
                   >
                     {pendingRequests.length}
@@ -1159,20 +1049,19 @@ export default function CrossEnrollmentManagement() {
                     description="Submitted cross-enrollee requests for this student will appear here while awaiting approval."
                   />
                 ) : (
-                  <div className="request-queue-scroll mt-4 max-h-[420px] space-y-3 overflow-y-auto pr-1">
+                  <div className="mt-4 max-h-[420px] space-y-3 overflow-y-auto pr-1">
                     {pendingRequests.map((request) => (
                       <div
                         key={request.id}
-                        className="rounded-2xl border px-4 py-3.5"
+                        className="rounded-xl border px-3 py-3"
                         style={{
                           borderColor: colors.neutralBorder,
-                          backgroundColor: colors.paper,
-                          boxShadow: `0 8px 18px ${colors.neutralBorder}16`,
+                          backgroundColor: "white",
                         }}
                       >
-                        <div className="flex items-start justify-between gap-2">
+                        <div className="flex items-start justify-between gap-3">
                           <div>
-                            <p className="text-sm font-bold" style={{ color: colors.primary }}>
+                            <p className="text-sm font-semibold" style={{ color: colors.primary }}>
                               {request.courseCode}
                             </p>
                             <p className="mt-1 text-[13px] leading-5" style={{ color: colors.primary }}>
@@ -1180,34 +1069,25 @@ export default function CrossEnrollmentManagement() {
                             </p>
                           </div>
                           <span
-                            className="inline-flex min-h-[28px] items-center justify-center rounded-full px-2 py-1 text-[9px] font-semibold uppercase tracking-[0.1em] leading-none"
+                            className="rounded-full px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.14em]"
                             style={{
-                              backgroundColor: colors.secondary,
-                              border: `1px solid ${colors.secondary}`,
-                              color: colors.paper,
+                              backgroundColor: `${colors.warning}12`,
+                              color: colors.warning,
                             }}
                           >
                             {request.status.replace(/_/g, " ")}
                           </span>
                         </div>
-                        <p className="mt-3 text-[11px] font-medium uppercase tracking-[0.18em]" style={{ color: colors.tertiary }}>
+                        <p className="mt-3 text-[11px] font-medium uppercase tracking-[0.18em]" style={{ color: colors.neutral }}>
                           Host Program
                         </p>
-                        <p className="mt-1 text-[13px] font-medium leading-5" style={{ color: colors.primary }}>
+                        <p className="mt-1 text-xs leading-5" style={{ color: colors.neutralDark }}>
                           {request.hostProgramCode || request.hostProgramName || "N/A"}
                         </p>
                         {request.reason ? (
-                          <>
-                            <p
-                              className="mt-3 text-[11px] font-medium uppercase tracking-[0.18em]"
-                              style={{ color: colors.tertiary }}
-                            >
-                              Reason
-                            </p>
-                            <p className="mt-1 text-[12px] leading-5" style={{ color: colors.primary }}>
-                              {request.reason}
-                            </p>
-                          </>
+                          <p className="mt-2 text-xs leading-5" style={{ color: colors.neutral }}>
+                            {request.reason}
+                          </p>
                         ) : null}
                       </div>
                     ))}
@@ -1225,26 +1105,14 @@ export default function CrossEnrollmentManagement() {
             setRequestReason("");
           }}
           onConfirm={submitCrossEnrollmentRequest}
-          title={
-            isAdminUser
-              ? "Add Cross-Enrollee Subject"
-              : "Submit Cross-Enrollee Request"
-          }
-          description={
-            isAdminUser
-              ? "Review the details before adding this subject directly to enrolled subjects."
-              : "Review the request details before submitting it for approval."
-          }
+          title="Submit Cross-Enrollee Request"
+          description="Review the request details before submitting it for approval."
           confirmText={
             submittingKey && confirmationCourse
               ? submittingKey === `course-${confirmationCourse.id}`
                 ? "Submitting..."
-                : isAdminUser
-                  ? "Add Subject"
-                  : "Submit Request"
-              : isAdminUser
-                ? "Add Subject"
                 : "Submit Request"
+              : "Submit Request"
           }
           cancelText="Cancel"
           variant="info"
