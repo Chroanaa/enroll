@@ -107,6 +107,7 @@ export default function IrregularEnrollmentPage() {
   const [studentSearchModal, setStudentSearchModal] = useState(false);
   const [studentStatusFilter, setStudentStatusFilter] = useState<'all' | 'regular' | 'irregular'>('all');
   const [loadingStudents, setLoadingStudents] = useState(false);
+  const [isSearchingStudents, setIsSearchingStudents] = useState(false);
 
   const [sections, setSections] = useState<Section[]>([]);
   const [selectedSection, setSelectedSection] = useState<Section | null>(null);
@@ -119,6 +120,7 @@ export default function IrregularEnrollmentPage() {
 
   const [schedules, setSchedules] = useState<ClassSchedule[]>([]);
   const [loadingSchedules, setLoadingSchedules] = useState(false);
+  const [timeFilter, setTimeFilter] = useState<'all' | 'no_conflict'>('no_conflict');
 
   const [enrolledSubjects, setEnrolledSubjects] = useState<EnrolledSubject[]>([]);
   const [loadingEnrolled, setLoadingEnrolled] = useState(false);
@@ -140,7 +142,7 @@ export default function IrregularEnrollmentPage() {
   const [semester, setSemester] = useState('second');
 
   // Derive current step for the progress indicator
-  const currentStep = !selectedStudent ? 1 : !selectedSection ? 2 : 3;
+  const currentStep = !selectedStudent ? 1 : !selectedAssessmentSubject ? 2 : 3;
 
   const handleViewChange = (view: string) => router.push(`/dashboard?view=${view}`);
 
@@ -182,66 +184,105 @@ export default function IrregularEnrollmentPage() {
     });
   }, [sections, sectionSearchQuery, sectionProgramFilter, sectionYearFilter, programsWithMajors]);
 
-  useEffect(() => { if (studentSearchModal) searchStudents(); }, [studentSearchModal, studentStatusFilter]);
+  useEffect(() => { if (studentSearchModal) searchStudents(); }, [studentSearchModal, studentStatusFilter, academicYear, semester]);
+  useEffect(() => {
+    if (!studentSearchModal) return;
+    const handle = setTimeout(() => {
+      searchStudents();
+    }, 250);
+    return () => clearTimeout(handle);
+  }, [studentSearchQuery, studentSearchModal]);
   useEffect(() => { if (selectedStudent) { loadEnrolledSubjects(); } }, [selectedStudent, academicYear, semester]);
-  useEffect(() => { if (selectedSection) loadSchedules(); }, [selectedSection]);
+  useEffect(() => { if (selectedAssessmentSubject) loadSchedulesBySubject(selectedAssessmentSubject.curriculum_course_id); }, [academicYear, semester]);
 
   const searchStudents = async () => {
-    setLoadingStudents(true);
+    const hasExistingRows = students.length > 0;
+    if (hasExistingRows) {
+      setIsSearchingStudents(true);
+    } else {
+      setLoadingStudents(true);
+    }
     try {
-      const res = await fetch(`/api/auth/students/search?listAll=true&academicStatus=${studentStatusFilter}&limit=100&academicYear=${academicYear}&semester=${semester}`);
-      if (res.ok) { const d = await res.json(); setStudents(d.data || []); }
-    } catch (e) { console.error(e); } finally { setLoadingStudents(false); }
-  };
+      const query = studentSearchQuery.trim();
+      const semesterNum = semester === 'first' ? 1 : semester === 'second' ? 2 : 3;
+      const params = new URLSearchParams({
+        academicStatus: studentStatusFilter,
+        academicYear,
+        semester,
+        limit: query ? '100' : '300',
+      });
+      if (query.length >= 2) {
+        params.set('query', query);
+      } else {
+        params.set('listAll', 'true');
+      }
 
-  const loadSectionsBySubject = async (curriculumCourseId: number) => {
-    setLoadingSections(true);
-    try {
-      console.log('[loadSectionsBySubject] Fetching sections for curriculum course:', curriculumCourseId);
-      const res = await fetch(`/api/sections-by-subject?curriculumCourseId=${curriculumCourseId}&academicYear=${academicYear}&semester=${semester}`);
-      console.log('[loadSectionsBySubject] Response status:', res.status);
-      if (!res.ok) {
-        const errorData = await res.json();
-        console.error('[loadSectionsBySubject] Error:', errorData);
-        setSections([]);
+      const [studentsRes, enrolledStudentsRes] = await Promise.all([
+        fetch(`/api/auth/students/search?${params.toString()}`),
+        fetch(
+          `/api/auth/enrolled-subjects/students?academicYear=${encodeURIComponent(
+            academicYear,
+          )}&semester=${semesterNum}`,
+        ),
+      ]);
+
+      if (!studentsRes.ok) {
+        setStudents([]);
         return;
       }
-      const data = await res.json();
-      console.log('[loadSectionsBySubject] Data received:', data);
-      setSections(data.data || []);
-    } catch (e) { 
-      console.error('[loadSectionsBySubject] Exception:', e); 
-      setSections([]); 
-    } finally { 
-      setLoadingSections(false); 
+
+      const studentsJson = await studentsRes.json();
+      const enrolledJson = enrolledStudentsRes.ok ? await enrolledStudentsRes.json() : { data: [] };
+
+      const enrolledStudentNumbers = new Set<string>(
+        Array.isArray(enrolledJson?.data)
+          ? enrolledJson.data
+              .map((value: any) =>
+                typeof value === 'string'
+                  ? value
+                  : typeof value?.studentNumber === 'string'
+                    ? value.studentNumber
+                    : null,
+              )
+              .filter(Boolean)
+          : [],
+      );
+
+      const filtered = Array.isArray(studentsJson?.data)
+        ? studentsJson.data.filter(
+            (student: any) =>
+              student?.studentNumber &&
+              enrolledStudentNumbers.has(String(student.studentNumber)),
+          )
+        : [];
+
+      setStudents(filtered);
+    } catch (e) { console.error(e); } finally {
+      setLoadingStudents(false);
+      setIsSearchingStudents(false);
     }
   };
 
   const handleSelectAssessmentSubject = async (subject: any) => {
     setSelectedAssessmentSubject(subject);
-    await loadSectionsBySubject(subject.curriculum_course_id);
+    await loadSchedulesBySubject(subject.curriculum_course_id);
     setSectionSearchQuery('');
     setSectionProgramFilter('all');
     setSectionYearFilter('all');
-    setSectionSearchModal(true);
+    setSectionSearchModal(false);
   };
 
-  const loadSchedules = async () => {
-    if (!selectedSection || !selectedStudent) return;
+  const loadSchedulesBySubject = async (curriculumCourseId: number) => {
+    if (!selectedStudent || !curriculumCourseId) return;
     setLoadingSchedules(true);
     try {
-      const semNum = semester === 'first' ? 1 : semester === 'second' ? 2 : parseInt(semester);
-      const enrolledRes = await fetch(`/api/auth/enrolled-subjects?studentNumber=${selectedStudent.studentNumber}&academicYear=${academicYear}&semester=${semNum}`);
-      let enrolledCourseIds: number[] = [];
-      if (enrolledRes.ok) {
-        const ed = await enrolledRes.json();
-        enrolledCourseIds = (ed.data || []).map((s: any) => s.curriculum_course_id);
-      }
-      const res = await fetch(`/api/class-schedule?sectionId=${selectedSection.id}&academicYear=${academicYear}&semester=${semester}`);
+      const res = await fetch(
+        `/api/class-schedule?curriculumCourseId=${curriculumCourseId}&academicYear=${academicYear}&semester=${semester}&status=active`,
+      );
       if (res.ok) {
         const data = await res.json();
         const all = (data.data || []).map((s: any) => ({
-          id: s.id, sectionId: selectedSection.id, sectionName: selectedSection.sectionName,
+          id: s.id, sectionId: s.sectionId, sectionName: s.sectionName,
           curriculumCourseId: s.curriculumCourseId,
           courseCode: s.courseCode || `Course ${s.curriculumCourseId}`,
           courseTitle: s.courseTitle || '',
@@ -251,9 +292,11 @@ export default function IrregularEnrollmentPage() {
           prerequisite: s.prerequisite || null, subjectYearLevel: s.subjectYearLevel || null,
           subjectSemester: s.subjectSemester || null, unitsTotal: s.unitsTotal || 0
         }));
-        setSchedules(all.filter((s: any) => enrolledCourseIds.includes(s.curriculumCourseId)));
+        setSchedules(all);
+      } else {
+        setSchedules([]);
       }
-    } catch (e) { console.error(e); } finally { setLoadingSchedules(false); }
+    } catch (e) { console.error(e); setSchedules([]); } finally { setLoadingSchedules(false); }
   };
 
   const loadEnrolledSubjects = async () => {
@@ -300,6 +343,31 @@ export default function IrregularEnrollmentPage() {
     const d = new Date(isoTime);
     return `${d.getHours().toString().padStart(2, '0')}:${d.getMinutes().toString().padStart(2, '0')}`;
   };
+
+  const parseTimeToMinutes = (time: string) => {
+    const [h, m] = String(time || '00:00').split(':').map(Number);
+    return (Number.isFinite(h) ? h : 0) * 60 + (Number.isFinite(m) ? m : 0);
+  };
+
+  const hasScheduleConflict = (schedule: ClassSchedule) => {
+    const targetDay = String(schedule.dayOfWeek || '').trim().toLowerCase();
+    const targetStart = parseTimeToMinutes(schedule.startTime);
+    const targetEnd = parseTimeToMinutes(schedule.endTime);
+
+    return enrolledSubjects.some((enrolled) => {
+      if (enrolled.classScheduleId === schedule.id) return false;
+      const enrolledDay = String(enrolled.dayOfWeek || '').trim().toLowerCase();
+      if (enrolledDay !== targetDay) return false;
+      const enrolledStart = parseTimeToMinutes(enrolled.startTime);
+      const enrolledEnd = parseTimeToMinutes(enrolled.endTime);
+      return targetStart < enrolledEnd && targetEnd > enrolledStart;
+    });
+  };
+
+  const visibleSchedules = useMemo(() => {
+    if (timeFilter === 'all') return schedules;
+    return schedules.filter((schedule) => !hasScheduleConflict(schedule));
+  }, [schedules, timeFilter, enrolledSubjects]);
 
   const handleSelectStudent = (student: Student) => {
     // Check if student has unpaid or no payment status
@@ -385,7 +453,7 @@ export default function IrregularEnrollmentPage() {
   };
 
   const handleAddSubject = async (schedule: ClassSchedule) => {
-    if (!selectedStudent || !selectedSection) return;
+    if (!selectedStudent) return;
     if (enrolledSubjects.some(e => e.classScheduleId === schedule.id)) {
       setError('Student is already enrolled in this class schedule'); return;
     }
@@ -398,13 +466,15 @@ export default function IrregularEnrollmentPage() {
     try {
       const res = await fetch('/api/irregular-enrollment', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ studentNumber: selectedStudent.studentNumber, classScheduleId: schedule.id, sectionId: selectedSection.id, academicYear, semester })
+        body: JSON.stringify({ studentNumber: selectedStudent.studentNumber, classScheduleId: schedule.id, sectionId: schedule.sectionId, academicYear, semester })
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.message || data.error || 'Failed to add subject');
       setSuccessModal({ isOpen: true, message: `Added ${schedule.courseCode} — ${schedule.courseTitle}` });
       await loadEnrolledSubjects();
-      await loadSchedules(); // Reload schedules to update the available subjects list
+      if (selectedAssessmentSubject?.curriculum_course_id) {
+        await loadSchedulesBySubject(selectedAssessmentSubject.curriculum_course_id);
+      }
     } catch (e) { setError(e instanceof Error ? e.message : 'Failed to add subject'); } finally { setSubmitting(false); }
   };
 
@@ -457,6 +527,10 @@ export default function IrregularEnrollmentPage() {
   const totalUnits = groupedEnrolledSubjects.reduce((sum, g) => sum + (g.unitsTotal || 0), 0);
   const assessmentTotalUnits = enrolledSubjectsFromAssessment.reduce((sum: number, s: any) => sum + (s.units_total || 0), 0);
   const hasAssessmentSubjects = enrolledSubjectsFromAssessment.length > 0;
+  const enrolledCurriculumCourseIds = useMemo(
+    () => new Set(enrolledSubjects.map((subject) => subject.curriculumCourseId)),
+    [enrolledSubjects],
+  );
 
   return (
     <div className="flex h-screen overflow-hidden">
@@ -497,7 +571,7 @@ export default function IrregularEnrollmentPage() {
           <div className="flex items-center gap-2 mt-4">
             {[
               { n: 1, label: 'Select Student' },
-              { n: 2, label: 'Pick Section' },
+              { n: 2, label: 'Pick Subject' },
               { n: 3, label: 'Add Subjects' },
             ].map(({ n, label }, i) => (
               <React.Fragment key={n}>
@@ -597,10 +671,7 @@ export default function IrregularEnrollmentPage() {
                       <div className="rounded-xl overflow-hidden" style={{ border: '1px solid rgba(99,102,241,0.15)' }}>
                         <div className="max-h-52 overflow-y-auto">
                           {enrolledSubjectsFromAssessment.map((subject: any, idx: number) => {
-                            const isSectioned = enrolledSubjects.some(e => {
-                              const sc = schedules.find(s => s.id === e.classScheduleId);
-                              return sc && sc.curriculumCourseId === subject.curriculum_course_id;
-                            });
+                            const isSectioned = enrolledCurriculumCourseIds.has(subject.curriculum_course_id);
                             return (
                               <div 
                                 key={subject.id} 
@@ -619,7 +690,10 @@ export default function IrregularEnrollmentPage() {
                                 <div className="flex items-center gap-1.5 flex-shrink-0">
                                   <span className="text-[10px] font-medium px-1.5 py-0.5 rounded" style={{ backgroundColor: 'rgba(149,90,39,0.08)', color: colors.secondary }}>{subject.units_total}u</span>
                                   {isSectioned ? (
-                                    <CheckCircle2 className="w-3 h-3" style={{ color: colors.success }} />
+                                    <span className="inline-flex items-center gap-1 text-[10px] font-semibold px-1.5 py-0.5 rounded-full" style={{ backgroundColor: 'rgba(16,185,129,0.12)', color: colors.success }}>
+                                      <CheckCircle2 className="w-3 h-3" />
+                                      Done
+                                    </span>
                                   ) : (
                                     <ChevronRight className="w-3 h-3 opacity-0 group-hover:opacity-100 transition-opacity" style={{ color: '#6366F1' }} />
                                   )}
@@ -646,9 +720,9 @@ export default function IrregularEnrollmentPage() {
                   <div className="w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-bold text-white" style={{ backgroundColor: currentStep > 2 ? colors.success : currentStep === 2 ? colors.secondary : '#CBD5E1' }}>
                     {currentStep > 2 ? <CheckCircle2 className="w-3 h-3" /> : '2'}
                   </div>
-                  <h2 className="text-sm font-semibold" style={{ color: colors.primary }}>Pick Section & Add Subjects</h2>
+                  <h2 className="text-sm font-semibold" style={{ color: colors.primary }}>Pick Subject & Add Subjects</h2>
                 </div>
-                <p className="text-xs pl-7" style={{ color: colors.neutral }}>Browse schedules from a section</p>
+                <p className="text-xs pl-7" style={{ color: colors.neutral }}>Click assessment subject to load same subject across sections</p>
               </div>
 
               {!selectedStudent ? (
@@ -659,27 +733,19 @@ export default function IrregularEnrollmentPage() {
                 </div>
               ) : (
                 <div className="flex-1 flex flex-col overflow-hidden p-5 gap-4">
-                  {/* Section picker */}
+                  {/* Selected assessment subject */}
                   <div>
-                    <label className="block text-xs font-semibold mb-1.5" style={{ color: colors.primary }}>Section</label>
-                    {selectedSection ? (
-                      <div className="w-full px-4 py-2.5 rounded-xl text-sm text-left flex items-center gap-3 transition-all" style={{ border: `1.5px solid ${colors.secondary}`, backgroundColor: 'rgba(149,90,39,0.03)', color: colors.primary }}>
-                        <Users className="w-4 h-4 flex-shrink-0" style={{ color: colors.tertiary }} />
-                        <span className="flex-1 truncate">{selectedSection.sectionName} — {selectedSection.programCode} Yr {selectedSection.yearLevel}</span>
-                        <button onClick={() => { setSelectedSection(null); setSchedules([]); }} className="p-0.5 rounded hover:bg-gray-100">
-                          <X className="w-3.5 h-3.5" style={{ color: colors.tertiary }} />
-                        </button>
-                      </div>
-                    ) : !hasAssessmentSubjects ? (
-                      <div className="w-full px-4 py-2.5 rounded-xl text-sm text-left flex items-center gap-3" style={{ border: '1.5px dashed rgba(179,116,74,0.15)', backgroundColor: 'rgba(241,245,249,0.5)', color: colors.neutral, opacity: 0.6 }}>
-                        <Users className="w-4 h-4 flex-shrink-0" style={{ color: colors.tertiary }} />
-                        <span className="flex-1 truncate">Complete assessment first</span>
+                    <label className="block text-xs font-semibold mb-1.5" style={{ color: colors.primary }}>Selected Assessment Subject</label>
+                    {selectedAssessmentSubject ? (
+                      <div className="w-full px-4 py-2.5 rounded-xl text-sm text-left flex items-center gap-3 transition-all" style={{ border: `1.5px solid #6366F1`, backgroundColor: 'rgba(99,102,241,0.03)', color: colors.primary }}>
+                        <BookOpen className="w-4 h-4 flex-shrink-0" style={{ color: '#6366F1' }} />
+                        <span className="flex-1 truncate">{selectedAssessmentSubject.course_code} — {selectedAssessmentSubject.descriptive_title}</span>
                       </div>
                     ) : (
                       <div className="p-3 rounded-xl text-center" style={{ border: '1px dashed rgba(99,102,241,0.2)', backgroundColor: 'rgba(99,102,241,0.02)' }}>
                         <AlertCircle className="w-5 h-5 mx-auto mb-1" style={{ color: '#6366F1' }} />
                         <p className="text-xs font-medium" style={{ color: colors.primary }}>Click a subject above</p>
-                        <p className="text-[10px] mt-0.5" style={{ color: colors.neutral }}>to see sections that offer it</p>
+                        <p className="text-[10px] mt-0.5" style={{ color: colors.neutral }}>to see same subject schedules from other sections</p>
                       </div>
                     )}
                   </div>
@@ -688,15 +754,28 @@ export default function IrregularEnrollmentPage() {
                   <div className="flex-1 flex flex-col overflow-hidden">
                     <div className="flex items-center justify-between mb-2 flex-shrink-0">
                       <label className="text-xs font-semibold" style={{ color: colors.primary }}>Available Subjects</label>
-                      {selectedSection && !loadingSchedules && schedules.length > 0 && (
-                        <span className="text-[10px] px-2 py-0.5 rounded-full" style={{ backgroundColor: 'rgba(149,90,39,0.08)', color: colors.secondary }}>{schedules.length} subjects</span>
+                      {selectedAssessmentSubject && !loadingSchedules && (
+                        <div className="flex items-center gap-2">
+                          <select
+                            value={timeFilter}
+                            onChange={(e) => setTimeFilter(e.target.value as 'all' | 'no_conflict')}
+                            className="text-[11px] px-2 py-1 rounded-lg border bg-white"
+                            style={{ borderColor: 'rgba(179,116,74,0.2)', color: colors.primary }}
+                          >
+                            <option value="no_conflict">No conflict only</option>
+                            <option value="all">Show all</option>
+                          </select>
+                          <span className="text-[10px] px-2 py-0.5 rounded-full" style={{ backgroundColor: 'rgba(149,90,39,0.08)', color: colors.secondary }}>
+                            {visibleSchedules.length}/{schedules.length} schedules
+                          </span>
+                        </div>
                       )}
                     </div>
 
-                    {!selectedSection ? (
+                    {!selectedAssessmentSubject ? (
                       <div className="flex-1 flex flex-col items-center justify-center rounded-xl p-6 text-center" style={{ border: '1px dashed rgba(179,116,74,0.2)', backgroundColor: 'rgba(253,251,248,0.5)' }}>
                         <Calendar className="w-8 h-8 mb-2" style={{ color: colors.neutralBorder }} />
-                        <p className="text-sm" style={{ color: colors.neutral }}>Pick a section above to see available subjects</p>
+                        <p className="text-sm" style={{ color: colors.neutral }}>Pick an assessment subject to see same-subject schedules</p>
                       </div>
                     ) : loadingSchedules ? (
                       <div className="flex-1 flex flex-col items-center justify-center gap-2">
@@ -704,41 +783,62 @@ export default function IrregularEnrollmentPage() {
                           <div key={i} className="w-full h-16 rounded-xl animate-pulse" style={{ backgroundColor: 'rgba(179,116,74,0.06)' }} />
                         ))}
                       </div>
-                    ) : schedules.length === 0 ? (
+                    ) : visibleSchedules.length === 0 ? (
                       <div className="flex-1 flex flex-col items-center justify-center rounded-xl p-6 text-center" style={{ border: '1px dashed rgba(179,116,74,0.2)', backgroundColor: 'rgba(253,251,248,0.5)' }}>
                         <BookOpen className="w-8 h-8 mb-2" style={{ color: colors.neutralBorder }} />
-                        <p className="text-sm font-medium" style={{ color: colors.neutral }}>No matching subjects</p>
-                        <p className="text-xs mt-1" style={{ color: colors.tertiary }}>This section has no schedules matching the student's assessment subjects</p>
+                        <p className="text-sm font-medium" style={{ color: colors.neutral }}>
+                          {schedules.length > 0 ? 'No schedule passed current time filter' : 'No matching subjects'}
+                        </p>
+                        <p className="text-xs mt-1" style={{ color: colors.tertiary }}>
+                          {schedules.length > 0
+                            ? 'Try "Show all" to inspect conflicting schedules.'
+                            : 'No section currently offers this subject for the selected term.'}
+                        </p>
                       </div>
                     ) : (
                       <div className="flex-1 overflow-y-auto space-y-2 pr-0.5">
-                        {schedules.map(schedule => {
+                        {visibleSchedules.map(schedule => {
                           const enrolled = isEnrolled(schedule.id);
                           const subjectEnrolled = isSubjectEnrolled(schedule.curriculumCourseId);
-                          const cannotAdd = enrolled || subjectEnrolled;
+                          const timeConflict = hasScheduleConflict(schedule);
+                          const cannotAdd = enrolled || subjectEnrolled || timeConflict;
                           return (
                             <div key={schedule.id} className="rounded-xl p-3 transition-all" style={{
-                              border: `1px solid ${enrolled ? 'rgba(16,185,129,0.25)' : subjectEnrolled ? 'rgba(245,158,11,0.25)' : 'rgba(179,116,74,0.12)'}`,
-                              backgroundColor: enrolled ? 'rgba(16,185,129,0.04)' : subjectEnrolled ? 'rgba(245,158,11,0.04)' : 'white'
+                              border: `1px solid ${enrolled ? 'rgba(16,185,129,0.25)' : subjectEnrolled ? 'rgba(245,158,11,0.25)' : timeConflict ? 'rgba(239,68,68,0.25)' : 'rgba(179,116,74,0.12)'}`,
+                              backgroundColor: enrolled ? 'rgba(16,185,129,0.04)' : subjectEnrolled ? 'rgba(245,158,11,0.04)' : timeConflict ? 'rgba(239,68,68,0.04)' : 'white'
                             }}>
                               <div className="flex items-start gap-3">
                                 <div className="flex-1 min-w-0">
                                   <div className="flex items-center gap-2 flex-wrap">
                                     <span className="text-sm font-bold" style={{ color: cannotAdd ? colors.neutral : colors.primary }}>{schedule.courseCode}</span>
                                     <span className="text-[10px] font-medium px-1.5 py-0.5 rounded" style={{ backgroundColor: 'rgba(149,90,39,0.08)', color: colors.secondary }}>{schedule.unitsTotal}u</span>
-                                    {enrolled && <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-full" style={{ backgroundColor: 'rgba(16,185,129,0.12)', color: colors.success }}>✓ Enrolled</span>}
-                                    {!enrolled && subjectEnrolled && <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-full" style={{ backgroundColor: 'rgba(245,158,11,0.12)', color: colors.warning }}>Other section</span>}
+                                    {enrolled && (
+                                      <span className="inline-flex items-center gap-1 text-[10px] font-semibold px-1.5 py-0.5 rounded-full" style={{ backgroundColor: 'rgba(16,185,129,0.12)', color: colors.success }}>
+                                        <CheckCircle2 className="w-3 h-3" />
+                                        Enrolled
+                                      </span>
+                                    )}
+                                    {!enrolled && subjectEnrolled && (
+                                      <span className="inline-flex items-center gap-1 text-[10px] font-semibold px-1.5 py-0.5 rounded-full" style={{ backgroundColor: 'rgba(245,158,11,0.12)', color: colors.warning }}>
+                                        <CheckCircle2 className="w-3 h-3" />
+                                        Other section
+                                      </span>
+                                    )}
+                                    {!enrolled && !subjectEnrolled && timeConflict && <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-full" style={{ backgroundColor: 'rgba(239,68,68,0.12)', color: colors.danger }}>Time conflict</span>}
                                   </div>
                                   <div className="text-xs mt-0.5 truncate" style={{ color: colors.neutral }}>{schedule.courseTitle}</div>
-                                  <div className="flex flex-wrap gap-x-3 gap-y-0.5 mt-1.5">
-                                    <span className="flex items-center gap-1 text-[10px]" style={{ color: colors.tertiary }}>
-                                      <Clock className="w-3 h-3" />{schedule.dayOfWeek} {schedule.startTime}–{schedule.endTime}
+                                  <div className="flex flex-wrap gap-x-3 gap-y-1 mt-2">
+                                    <span className="flex items-center gap-1 text-sm font-semibold" style={{ color: colors.primary }}>
+                                      <Clock className="w-4 h-4" style={{ color: colors.tertiary }} />
+                                      {schedule.dayOfWeek} {schedule.startTime}–{schedule.endTime}
                                     </span>
-                                    <span className="flex items-center gap-1 text-[10px]" style={{ color: colors.tertiary }}>
-                                      <MapPin className="w-3 h-3" />{schedule.roomNumber}
+                                    <span className="flex items-center gap-1 text-sm" style={{ color: colors.primary }}>
+                                      <MapPin className="w-4 h-4" style={{ color: colors.tertiary }} />
+                                      {schedule.roomNumber}
                                     </span>
-                                    <span className="flex items-center gap-1 text-[10px]" style={{ color: colors.tertiary }}>
-                                      <User className="w-3 h-3" />{schedule.facultyName}
+                                    <span className="flex items-center gap-1 text-sm" style={{ color: colors.primary }}>
+                                      <User className="w-4 h-4" style={{ color: colors.tertiary }} />
+                                      {schedule.facultyName}
                                     </span>
                                   </div>
                                   {schedule.prerequisite && (
@@ -803,7 +903,7 @@ export default function IrregularEnrollmentPage() {
                     <BookOpen className="w-7 h-7" style={{ color: colors.neutralBorder }} />
                   </div>
                   <p className="text-sm font-medium" style={{ color: colors.neutral }}>No subjects enrolled yet</p>
-                  <p className="text-xs mt-1" style={{ color: colors.tertiary }}>Add subjects from the section in Step 2</p>
+                  <p className="text-xs mt-1" style={{ color: colors.tertiary }}>Select an assessment subject and add available schedules in Step 2</p>
                 </div>
               ) : (
                 <div className="flex-1 overflow-y-auto p-4 space-y-2">
@@ -952,8 +1052,8 @@ export default function IrregularEnrollmentPage() {
                 <input type="text" value={studentSearchQuery} onChange={e => setStudentSearchQuery(e.target.value)} placeholder="Name or student number..." autoFocus className="w-full pl-9 pr-4 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-amber-400" />
               </div>
             </div>
-            <div className="flex-1 overflow-y-auto p-5 bg-gray-50">
-              {loadingStudents ? (
+            <div className="relative flex-1 overflow-y-auto p-5 bg-gray-50 min-h-[320px]">
+              {loadingStudents && students.length === 0 ? (
                 <div className="text-center py-12"><Loader2 className="w-7 h-7 animate-spin mx-auto mb-3" style={{ color: colors.secondary }} /><p className="text-sm" style={{ color: colors.neutral }}>Loading students...</p></div>
               ) : filteredStudents.length === 0 ? (
                 <div className="text-center py-12"><User className="w-10 h-10 mx-auto mb-3" style={{ color: colors.neutralBorder }} /><p className="text-sm" style={{ color: colors.neutral }}>No students found</p></div>
@@ -1008,6 +1108,13 @@ export default function IrregularEnrollmentPage() {
                       ))}
                     </tbody>
                   </table>
+                </div>
+              )}
+              {isSearchingStudents && students.length > 0 && (
+                <div className="absolute top-2 right-3 inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[11px] font-medium"
+                  style={{ backgroundColor: 'rgba(149,90,39,0.1)', color: colors.secondary }}>
+                  <Loader2 className="w-3 h-3 animate-spin" />
+                  Searching...
                 </div>
               )}
             </div>

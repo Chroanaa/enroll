@@ -2,6 +2,10 @@ import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '../../../lib/prisma';
 import { ApiError } from '../../../types/sectionTypes';
 
+const toMinutes = (value: Date): number => {
+  return value.getHours() * 60 + value.getMinutes();
+};
+
 /**
  * PATCH /api/class-schedule/{id}
  * Update a class schedule (faculty, room, day, time changes allowed for draft/active sections)
@@ -221,6 +225,53 @@ export async function PATCH(
       }
     }
 
+    // Protect assigned students (regular + irregular): do not allow schedule updates
+    // that create conflicts with their other enrolled class schedules.
+    if (dayOfWeek || startTime || endTime) {
+      const affectedStudentRows = await prisma.$queryRaw<any[]>`
+        SELECT
+          ss.student_number,
+          cs.day_of_week,
+          cs.start_time,
+          cs.end_time
+        FROM student_section_subjects current_sss
+        JOIN student_section ss ON ss.id = current_sss.student_section_id
+        JOIN student_section_subjects other_sss ON other_sss.student_section_id = ss.id
+        JOIN class_schedule cs ON cs.id = other_sss.class_schedule_id
+        WHERE current_sss.class_schedule_id = ${scheduleId}
+          AND other_sss.class_schedule_id <> ${scheduleId}
+          AND cs.status = 'active'
+      `;
+
+      const targetDay = String(newDayOfWeek || '').trim().toLowerCase();
+      const targetStart = toMinutes(newStartTime);
+      const targetEnd = toMinutes(newEndTime);
+
+      const conflictedStudents = new Set<string>();
+      for (const row of affectedStudentRows) {
+        const rowDay = String(row.day_of_week || '').trim().toLowerCase();
+        if (rowDay !== targetDay) continue;
+
+        const rowStart = toMinutes(new Date(row.start_time));
+        const rowEnd = toMinutes(new Date(row.end_time));
+        const hasOverlap = targetStart < rowEnd && targetEnd > rowStart;
+        if (hasOverlap) {
+          conflictedStudents.add(String(row.student_number));
+        }
+      }
+
+      if (conflictedStudents.size > 0) {
+        const previewStudents = Array.from(conflictedStudents).slice(0, 8);
+        return NextResponse.json(
+          {
+            error: "STUDENT_CONFLICT",
+            message: `Cannot update schedule. It conflicts with other classes of ${conflictedStudents.size} enrolled student(s): ${previewStudents.join(', ')}${conflictedStudents.size > previewStudents.length ? ', ...' : ''}`,
+          } as ApiError,
+          { status: 409 },
+        );
+      }
+    }
+
     // Build update object
     if (facultyId) updateData.faculty_id = newFacultyId;
     if (roomId) updateData.room_id = newRoomId;
@@ -326,13 +377,82 @@ export async function DELETE(
       );
     }
 
-    // Delete the schedule
-    await prisma.class_schedule.delete({
-      where: { id: scheduleId },
+    // Delete schedule and cleanup orphan irregular assignments.
+    // student_section_subjects rows are removed by FK cascade.
+    await prisma.$transaction(async (tx) => {
+      const affectedStudentSections = await tx.student_section_subjects.findMany({
+        where: { class_schedule_id: scheduleId },
+        distinct: ['student_section_id'],
+        select: { student_section_id: true }
+      });
+
+      const affectedIds = affectedStudentSections.map((row: any) => row.student_section_id);
+
+      await tx.class_schedule.delete({
+        where: { id: scheduleId },
+      });
+
+      if (affectedIds.length === 0) return;
+
+      const irregularRows = await tx.student_section.findMany({
+        where: {
+          id: { in: affectedIds },
+          assignment_type: 'irregular'
+        },
+        select: {
+          id: true,
+          section_id: true
+        }
+      });
+
+      if (irregularRows.length === 0) return;
+
+      const irregularIds = irregularRows.map((row: any) => row.id);
+      const remaining = await tx.student_section_subjects.groupBy({
+        by: ['student_section_id'],
+        where: {
+          student_section_id: { in: irregularIds }
+        },
+        _count: {
+          student_section_id: true
+        }
+      });
+
+      const stillHasSubjects = new Set(
+        remaining
+          .filter((row: any) => row._count.student_section_id > 0)
+          .map((row: any) => row.student_section_id)
+      );
+
+      const orphanRows = irregularRows.filter((row: any) => !stillHasSubjects.has(row.id));
+      if (orphanRows.length === 0) return;
+
+      await tx.student_section.deleteMany({
+        where: {
+          id: { in: orphanRows.map((row: any) => row.id) }
+        }
+      });
+
+      const decrementBySection = new Map<number, number>();
+      for (const row of orphanRows) {
+        decrementBySection.set(
+          row.section_id,
+          (decrementBySection.get(row.section_id) || 0) + 1
+        );
+      }
+
+      for (const [sectionId, count] of decrementBySection.entries()) {
+        await tx.sections.update({
+          where: { id: sectionId },
+          data: {
+            student_count: { decrement: count }
+          }
+        });
+      }
     });
 
     return NextResponse.json(
-      { success: true, message: "Schedule deleted successfully" },
+      { success: true, message: "Schedule deleted successfully and affected irregular assignments were reconciled" },
       { status: 200 },
     );
   } catch (error) {

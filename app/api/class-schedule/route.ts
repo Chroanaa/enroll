@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { Prisma } from '@prisma/client';
 import { prisma } from '../../lib/prisma';
 import {
   conflictChecker,
@@ -9,6 +10,13 @@ import {
   ClassScheduleResponse,
   ApiError
 } from '../../types/sectionTypes';
+
+const semesterToNumber = (semester: string): number => {
+  const normalized = semester.trim().toLowerCase();
+  if (normalized === '1' || normalized === 'first' || normalized === 'first semester') return 1;
+  if (normalized === '2' || normalized === 'second' || normalized === 'second semester') return 2;
+  return 3;
+};
 
 /**
  * POST /api/class-schedule
@@ -229,8 +237,9 @@ export async function POST(request: NextRequest) {
     }
 
     // Create class schedule - faculty_id can be null
+    // and auto-link it to regular students in this section who already enrolled this subject.
     const schedule = await prisma.$transaction(async (tx: any) => {
-      return await tx.class_schedule.create({
+      const createdSchedule = await tx.class_schedule.create({
         data: {
           section_id: body.sectionId,
           curriculum_course_id: body.curriculumCourseId,
@@ -244,6 +253,79 @@ export async function POST(request: NextRequest) {
           status: 'active'
         }
       });
+
+      const regularAssignments = await tx.student_section.findMany({
+        where: {
+          section_id: body.sectionId,
+          academic_year: body.academicYear,
+          semester: body.semester,
+          OR: [
+            { assignment_type: null },
+            { assignment_type: { not: 'irregular' } }
+          ]
+        },
+        select: {
+          id: true,
+          student_number: true
+        }
+      });
+
+      if (regularAssignments.length > 0) {
+        const semesterNum = semesterToNumber(body.semester);
+        const studentNumbers = regularAssignments.map((row: any) => row.student_number);
+
+        const enrolledRows = await tx.enrolled_subjects.findMany({
+          where: {
+            student_number: { in: studentNumbers },
+            academic_year: body.academicYear,
+            semester: semesterNum,
+            curriculum_course_id: body.curriculumCourseId,
+            status: 'enrolled'
+          },
+          select: { student_number: true }
+        });
+
+        const eligibleStudents = new Set(
+          enrolledRows.map((row: any) => row.student_number)
+        );
+
+        const eligibleAssignments = regularAssignments.filter((row: any) =>
+          eligibleStudents.has(row.student_number)
+        );
+
+        // Do not auto-modify students who already have this same subject
+        // assigned from another section/schedule (manual or irregular handling).
+        const existingSameSubjectRows = eligibleAssignments.length > 0
+          ? await tx.$queryRaw<any[]>`
+              SELECT DISTINCT sss.student_section_id
+              FROM student_section_subjects sss
+              JOIN class_schedule cs ON cs.id = sss.class_schedule_id
+              WHERE sss.student_section_id IN (${Prisma.join(eligibleAssignments.map((row: any) => row.id))})
+                AND cs.curriculum_course_id = ${body.curriculumCourseId}
+                AND cs.status = 'active'
+            `
+          : [];
+
+        const lockedStudentSectionIds = new Set(
+          existingSameSubjectRows.map((row: any) => row.student_section_id)
+        );
+
+        const linksToCreate = eligibleAssignments
+          .filter((row: any) => !lockedStudentSectionIds.has(row.id))
+          .map((row: any) => ({
+            student_section_id: row.id,
+            class_schedule_id: createdSchedule.id
+          }));
+
+        if (linksToCreate.length > 0) {
+          await tx.student_section_subjects.createMany({
+            data: linksToCreate,
+            skipDuplicates: true
+          });
+        }
+      }
+
+      return createdSchedule;
     });
 
     const response: ClassScheduleResponse = {

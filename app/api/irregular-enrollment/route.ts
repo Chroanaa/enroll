@@ -155,6 +155,10 @@ function formatTime(date: Date): string {
   return `${date.getHours().toString().padStart(2, '0')}:${date.getMinutes().toString().padStart(2, '0')}`;
 }
 
+function toMinutes(value: Date): number {
+  return value.getHours() * 60 + value.getMinutes();
+}
+
 
 /**
  * POST /api/irregular-enrollment
@@ -316,6 +320,43 @@ export async function POST(request: NextRequest) {
           message: `Student is already enrolled in ${course?.course_code || 'this subject'} (${course?.descriptive_title || ''})` 
         },
         { status: 409 }
+      );
+    }
+
+    // Prevent schedule conflict: same day with overlapping start/end time
+    const existingScheduleRows = await prisma.$queryRaw<any[]>`
+      SELECT
+        cs.id AS class_schedule_id,
+        cs.day_of_week,
+        cs.start_time,
+        cs.end_time
+      FROM student_section_subjects sss
+      JOIN class_schedule cs ON cs.id = sss.class_schedule_id
+      WHERE sss.student_section_id = ${studentSection.id}
+        AND cs.id <> ${classScheduleId}
+    `;
+
+    const targetStart = toMinutes(schedule.start_time);
+    const targetEnd = toMinutes(schedule.end_time);
+    const targetDay = String(schedule.day_of_week || "").trim().toLowerCase();
+
+    const hasTimeConflict = existingScheduleRows.some((existing) => {
+      const existingDay = String(existing.day_of_week || "").trim().toLowerCase();
+      if (existingDay !== targetDay) return false;
+
+      const existingStart = toMinutes(new Date(existing.start_time));
+      const existingEnd = toMinutes(new Date(existing.end_time));
+      return targetStart < existingEnd && targetEnd > existingStart;
+    });
+
+    if (hasTimeConflict) {
+      return NextResponse.json(
+        {
+          error: "Schedule time conflict",
+          message:
+            "Cannot add this schedule because it conflicts with the student's existing class time on the same day.",
+        },
+        { status: 409 },
       );
     }
 
