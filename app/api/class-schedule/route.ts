@@ -35,7 +35,10 @@ const semesterToNumber = (semester: string): number => {
  */
 export async function POST(request: NextRequest) {
   try {
-    const body: CreateClassScheduleRequest & { isLabSchedule?: boolean } = await request.json();
+    const body: CreateClassScheduleRequest & {
+      isLabSchedule?: boolean;
+      includeIrregularStudents?: boolean;
+    } = await request.json();
 
     // Validate required fields - Faculty is optional
     if (
@@ -259,10 +262,14 @@ export async function POST(request: NextRequest) {
           section_id: body.sectionId,
           academic_year: body.academicYear,
           semester: body.semester,
-          OR: [
-            { assignment_type: null },
-            { assignment_type: { not: 'irregular' } }
-          ]
+          ...(body.includeIrregularStudents
+            ? {}
+            : {
+                OR: [
+                  { assignment_type: null },
+                  { assignment_type: { not: 'irregular' } }
+                ]
+              })
         },
         select: {
           id: true,
