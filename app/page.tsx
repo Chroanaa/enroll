@@ -47,58 +47,7 @@ import { useSession } from "next-auth/react";
 import { useRouter } from "next/navigation";
 import { useEffect } from "react";
 import { formatProgramDisplay } from "./utils/programUtils";
-
-const ROLES = {
-  ADMIN: 1,
-  CASHIER: 2,
-  FACULTY: 3,
-  REGISTRAR: 4,
-};
-
-const VIEW_ROLES: Record<string, number[]> = {
-  home: [ROLES.ADMIN, ROLES.CASHIER, ROLES.FACULTY, ROLES.REGISTRAR],
-  dashboard: [ROLES.ADMIN, ROLES.CASHIER, ROLES.FACULTY, ROLES.REGISTRAR],
-  students: [ROLES.ADMIN, ROLES.REGISTRAR, ROLES.FACULTY],
-  courses: [ROLES.ADMIN, ROLES.REGISTRAR, ROLES.FACULTY],
-  enrollments: [ROLES.ADMIN, ROLES.REGISTRAR],
-  "enrollment-form": [ROLES.ADMIN, ROLES.REGISTRAR],
-  "resident-enrollment": [ROLES.ADMIN, ROLES.REGISTRAR],
-  forecast: [ROLES.ADMIN, ROLES.REGISTRAR],
-  "forecast-billing": [ROLES.ADMIN, ROLES.REGISTRAR],
-  assessment: [ROLES.ADMIN, ROLES.CASHIER],
-  "subject-dropping": [ROLES.ADMIN, ROLES.REGISTRAR],
-  "cross-enrollee": [ROLES.ADMIN, ROLES.REGISTRAR],
-  shifting: [ROLES.ADMIN, ROLES.REGISTRAR],
-  reports: [ROLES.ADMIN, ROLES.REGISTRAR],
-  "reports-payments-dashboard": [ROLES.ADMIN, ROLES.REGISTRAR, ROLES.CASHIER],
-  "reports-registration-forms": [ROLES.ADMIN, ROLES.REGISTRAR],
-  scheduling: [ROLES.ADMIN, ROLES.REGISTRAR, ROLES.FACULTY],
-  "section-management": [ROLES.ADMIN, ROLES.REGISTRAR],
-  "faculty-subject-management": [ROLES.ADMIN, ROLES.REGISTRAR],
-  "payment-billing": [ROLES.ADMIN, ROLES.CASHIER],
-  curriculum: [ROLES.ADMIN, ROLES.REGISTRAR, ROLES.FACULTY],
-  "curriculum-program": [ROLES.ADMIN, ROLES.REGISTRAR],
-  "file-maintenance-building": [ROLES.ADMIN, ROLES.REGISTRAR],
-  "file-maintenance-approval": [ROLES.ADMIN],
-  "file-maintenance-section": [ROLES.ADMIN, ROLES.REGISTRAR],
-  "file-maintenance-room": [ROLES.ADMIN, ROLES.REGISTRAR],
-  "file-maintenance-department": [ROLES.ADMIN, ROLES.REGISTRAR],
-  "file-maintenance-major": [ROLES.ADMIN, ROLES.REGISTRAR],
-  "file-maintenance-faculty": [ROLES.ADMIN, ROLES.REGISTRAR],
-  "file-maintenance-fees": [ROLES.ADMIN, ROLES.CASHIER],
-  "file-maintenance-discount": [ROLES.ADMIN, ROLES.CASHIER],
-  "file-maintenance-products": [ROLES.ADMIN, ROLES.CASHIER],
-  "file-maintenance-schools-programs": [ROLES.ADMIN, ROLES.REGISTRAR],
-  "file-maintenance-subject": [ROLES.ADMIN, ROLES.REGISTRAR, ROLES.FACULTY],
-  "miscellaneous-fees": [ROLES.ADMIN, ROLES.CASHIER],
-  "account-management": [ROLES.ADMIN],
-  backups: [ROLES.ADMIN],
-  settings: [ROLES.ADMIN],
-};
-
-
-
-
+import { ROLES, isViewAllowed } from "./lib/rbac";
 
 function App() {
   const [currentView, setCurrentView] = useState("home");
@@ -107,14 +56,8 @@ function App() {
 
   const userRole = Number((session?.user as any)?.role) || ROLES.ADMIN;
 
-  const isViewAllowed = (view: string): boolean => {
-    const allowed = VIEW_ROLES[view];
-    if (!allowed) return false;
-    return allowed.includes(userRole);
-  };
-
   const handleViewChange = (view: string) => {
-    if (isViewAllowed(view)) {
+    if (isViewAllowed(view, userRole)) {
       setCurrentView(view);
     } else {
       setCurrentView("dashboard");
@@ -122,7 +65,7 @@ function App() {
   };
 
   const renderCurrentView = () => {
-    if (!isViewAllowed(currentView)) {
+    if (!isViewAllowed(currentView, userRole)) {
       return <Dashboard />;
     }
 

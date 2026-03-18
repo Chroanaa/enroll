@@ -35,19 +35,12 @@ import {
 import Image from "next/image";
 import { useSession, signOut } from "next-auth/react";
 import { colors } from "../colors";
+import { ROLES, isViewAllowed } from "../lib/rbac";
 
 interface NavigationProps {
   currentView: string;
   onViewChange: (view: string) => void;
 }
-
-// 1. UPDATE: Define Roles using Integers (IDs)
-const ROLES = {
-  ADMIN: 1,
-  CASHIER: 2,
-  FACULTY: 3,
-  REGISTRAR: 4,
-};
 
 const Navigation: React.FC<NavigationProps> = ({
   currentView,
@@ -72,13 +65,13 @@ const Navigation: React.FC<NavigationProps> = ({
         id: "enrollment-form",
         label: "Student Information",
         icon: Users,
-        allowedRoles: [ROLES.ADMIN, ROLES.REGISTRAR, ROLES.FACULTY],
+        allowedRoles: [ROLES.ADMIN, ROLES.REGISTRAR, ROLES.FACULTY, ROLES.DEAN],
       },
       {
         id: "students",
         label: "Students",
         icon: Users,
-        allowedRoles: [ROLES.ADMIN, ROLES.REGISTRAR, ROLES.FACULTY],
+        allowedRoles: [ROLES.ADMIN, ROLES.REGISTRAR, ROLES.FACULTY, ROLES.DEAN],
       },
       {
         id: "file-maintenance-approval",
@@ -90,37 +83,37 @@ const Navigation: React.FC<NavigationProps> = ({
         id: "file-maintenance-building",
         label: "Building",
         icon: Building2,
-        allowedRoles: [ROLES.ADMIN, ROLES.REGISTRAR],
+        allowedRoles: [ROLES.ADMIN, ROLES.REGISTRAR, ROLES.DEAN],
       },
       {
         id: "file-maintenance-section",
         label: "Section",
         icon: FolderTree,
-        allowedRoles: [ROLES.ADMIN, ROLES.REGISTRAR],
+        allowedRoles: [ROLES.ADMIN, ROLES.REGISTRAR, ROLES.DEAN],
       },
       {
         id: "file-maintenance-room",
         label: "Room",
         icon: DoorOpen,
-        allowedRoles: [ROLES.ADMIN, ROLES.REGISTRAR],
+        allowedRoles: [ROLES.ADMIN, ROLES.REGISTRAR, ROLES.DEAN],
       },
       {
         id: "file-maintenance-department",
         label: "Department",
         icon: Network,
-        allowedRoles: [ROLES.ADMIN, ROLES.REGISTRAR],
+        allowedRoles: [ROLES.ADMIN, ROLES.REGISTRAR, ROLES.DEAN],
       },
       {
         id: "file-maintenance-major",
         label: "Major",
         icon: BookOpen,
-        allowedRoles: [ROLES.ADMIN, ROLES.REGISTRAR],
+        allowedRoles: [ROLES.ADMIN, ROLES.REGISTRAR, ROLES.DEAN],
       },
       {
         id: "file-maintenance-faculty",
         label: "Faculty",
         icon: Users2,
-        allowedRoles: [ROLES.ADMIN, ROLES.REGISTRAR],
+        allowedRoles: [ROLES.ADMIN, ROLES.REGISTRAR, ROLES.DEAN],
       },
       {
         id: "file-maintenance-fees",
@@ -144,13 +137,13 @@ const Navigation: React.FC<NavigationProps> = ({
         id: "file-maintenance-schools-programs",
         label: "Schools & Programs",
         icon: GraduationCap,
-        allowedRoles: [ROLES.ADMIN, ROLES.REGISTRAR],
+        allowedRoles: [ROLES.ADMIN, ROLES.REGISTRAR, ROLES.DEAN],
       },
       {
         id: "file-maintenance-subject",
         label: "Subject",
         icon: BookOpen,
-        allowedRoles: [ROLES.ADMIN, ROLES.REGISTRAR, ROLES.FACULTY],
+        allowedRoles: [ROLES.ADMIN, ROLES.REGISTRAR, ROLES.FACULTY, ROLES.DEAN],
       },
       {
         id: "miscellaneous-fees",
@@ -174,7 +167,7 @@ const Navigation: React.FC<NavigationProps> = ({
         id: "curriculum-program",
         label: "Program",
         icon: GraduationCap,
-        allowedRoles: [ROLES.ADMIN, ROLES.REGISTRAR],
+        allowedRoles: [ROLES.ADMIN, ROLES.REGISTRAR, ROLES.DEAN],
       },
     ],
     [],
@@ -186,7 +179,7 @@ const Navigation: React.FC<NavigationProps> = ({
         id: "enrollments",
         label: "Enrollment",
         icon: UserPlus,
-        allowedRoles: [ROLES.ADMIN, ROLES.REGISTRAR],
+        allowedRoles: [ROLES.ADMIN, ROLES.REGISTRAR, ROLES.DEAN],
       },
       {
         id: "assessment",
@@ -198,13 +191,13 @@ const Navigation: React.FC<NavigationProps> = ({
         id: "subject-dropping",
         label: "Subject Dropping",
         icon: UserMinus,
-        allowedRoles: [ROLES.ADMIN, ROLES.REGISTRAR],
+        allowedRoles: [ROLES.ADMIN, ROLES.REGISTRAR, ROLES.DEAN],
       },
       {
         id: "cross-enrollee",
         label: "Cross Enrollee",
         icon: BookOpen,
-        allowedRoles: [ROLES.ADMIN, ROLES.REGISTRAR],
+        allowedRoles: [ROLES.ADMIN, ROLES.REGISTRAR, ROLES.DEAN],
       },
       {
         id: "shifting",
@@ -216,7 +209,7 @@ const Navigation: React.FC<NavigationProps> = ({
         id: "resident-enrollment",
         label: "Resident",
         icon: Users2,
-        allowedRoles: [ROLES.ADMIN, ROLES.REGISTRAR],
+        allowedRoles: [ROLES.ADMIN, ROLES.REGISTRAR, ROLES.DEAN],
       },
       {
         id: "payment-billing",
@@ -245,25 +238,25 @@ const Navigation: React.FC<NavigationProps> = ({
         id: "forecast-billing",
         label: "Forecasting",
         icon: TrendingUp,
-        allowedRoles: [ROLES.ADMIN, ROLES.REGISTRAR],
+        allowedRoles: [ROLES.ADMIN, ROLES.REGISTRAR, ROLES.DEAN],
       },
       {
         id: "section-management",
         label: "Section Management",
         icon: FolderTree,
-        allowedRoles: [ROLES.ADMIN, ROLES.REGISTRAR],
+        allowedRoles: [ROLES.ADMIN, ROLES.REGISTRAR, ROLES.DEAN],
       },
       {
         id: "faculty-subject-management",
         label: "Faculty Management",
         icon: Users2,
-        allowedRoles: [ROLES.ADMIN, ROLES.REGISTRAR],
+        allowedRoles: [ROLES.ADMIN, ROLES.REGISTRAR, ROLES.DEAN],
       },
       {
         id: "reports",
         label: "Audit Trail",
         icon: FileBarChart,
-        allowedRoles: [ROLES.ADMIN, ROLES.REGISTRAR],
+        allowedRoles: [ROLES.ADMIN, ROLES.REGISTRAR, ROLES.DEAN],
       },
       {
         id: "reports-payments-dashboard",
@@ -296,6 +289,7 @@ const Navigation: React.FC<NavigationProps> = ({
               ROLES.REGISTRAR,
               ROLES.CASHIER,
               ROLES.FACULTY,
+              ROLES.DEAN,
             ],
           },
           {
@@ -310,7 +304,7 @@ const Navigation: React.FC<NavigationProps> = ({
             label: "Curriculum",
             icon: GraduationCap,
             hasSubmenu: true,
-            allowedRoles: [ROLES.ADMIN, ROLES.REGISTRAR, ROLES.FACULTY],
+            allowedRoles: [ROLES.ADMIN, ROLES.REGISTRAR, ROLES.FACULTY, ROLES.DEAN],
           },
         ],
       },
@@ -328,6 +322,7 @@ const Navigation: React.FC<NavigationProps> = ({
               ROLES.REGISTRAR,
               ROLES.CASHIER,
               ROLES.FACULTY,
+              ROLES.DEAN,
             ],
           },
           {
@@ -340,6 +335,7 @@ const Navigation: React.FC<NavigationProps> = ({
               ROLES.REGISTRAR,
               ROLES.CASHIER,
               ROLES.FACULTY,
+              ROLES.DEAN,
             ],
           },
           {
@@ -367,38 +363,35 @@ const Navigation: React.FC<NavigationProps> = ({
     return navGroups
       .map((group) => {
         const visibleItems = group.items.filter((item) => {
-          // Check if role ID is in the allowed array
-          if (!item.allowedRoles.includes(resolvedUserRole)) return false;
-
           if (item.id === "file-maintenance") {
             const visibleSubItems = fileMaintenanceSubItems.filter((sub) =>
-              sub.allowedRoles.includes(resolvedUserRole),
+              isViewAllowed(sub.id, resolvedUserRole),
             );
             return visibleSubItems.length > 0;
           }
 
           if (item.id === "curriculum") {
             const visibleSubItems = curriculumSubItems.filter((sub) =>
-              sub.allowedRoles.includes(resolvedUserRole),
+              isViewAllowed(sub.id, resolvedUserRole),
             );
             return visibleSubItems.length > 0;
           }
 
           if (item.id === "transaction") {
             const visibleSubItems = transactionSubItems.filter((sub) =>
-              sub.allowedRoles.includes(resolvedUserRole),
+              isViewAllowed(sub.id, resolvedUserRole),
             );
             return visibleSubItems.length > 0;
           }
 
           if (item.id === "report") {
             const visibleSubItems = reportSubItems.filter((sub) =>
-              sub.allowedRoles.includes(resolvedUserRole),
+              isViewAllowed(sub.id, resolvedUserRole),
             );
             return visibleSubItems.length > 0;
           }
 
-          return true;
+          return isViewAllowed(item.id, resolvedUserRole);
         });
 
         return { ...group, items: visibleItems };
@@ -432,17 +425,17 @@ const Navigation: React.FC<NavigationProps> = ({
 
   // Filter sub-items for rendering
   const visibleSubItems = fileMaintenanceSubItems.filter((item) =>
-    item.allowedRoles.includes(resolvedUserRole),
+    isViewAllowed(item.id, resolvedUserRole),
   );
 
   const visibleCurriculumSubItems = curriculumSubItems.filter((item) =>
-    item.allowedRoles.includes(resolvedUserRole),
+    isViewAllowed(item.id, resolvedUserRole),
   );
   const visibleTransactionSubItems = transactionSubItems.filter((item) =>
-    item.allowedRoles.includes(resolvedUserRole),
+    isViewAllowed(item.id, resolvedUserRole),
   );
   const visibleReportSubItems = reportSubItems.filter((item) =>
-    item.allowedRoles.includes(resolvedUserRole),
+    isViewAllowed(item.id, resolvedUserRole),
   );
 
   const isFileMaintenanceActive = currentView.startsWith("file-maintenance");
@@ -914,6 +907,7 @@ const Navigation: React.FC<NavigationProps> = ({
               {userRole === 2 && "Cashier"}
               {userRole === 3 && "Faculty"}
               {userRole === 4 && "Registrar"}
+              {userRole === 5 && "Dean"}
               {userRole === null && "Guest"}
             </p>
           </div>

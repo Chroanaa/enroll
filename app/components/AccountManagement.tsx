@@ -167,6 +167,8 @@ export default function AccountManagement() {
         return "bg-blue-100 text-blue-800";
       case 4:
         return "bg-orange-100 text-orange-800";
+      case 5:
+        return "bg-indigo-100 text-indigo-800";
       default:
         return "bg-gray-100 text-gray-800";
     }
