@@ -177,6 +177,7 @@ export interface Faculty {
   degree?: string;
   specialization?: string;
   status: "active" | "inactive";
+  user_id?: number | null;
 }
 
 export interface Fee {
