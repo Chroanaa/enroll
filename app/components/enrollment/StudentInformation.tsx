@@ -16,11 +16,6 @@ const StudentInformation: React.FC<EnrollmentPageProps> = ({
 }) => {
   // Disable all non-name fields when duplicate is detected or still checking
   const isFormDisabled = !!duplicateError || !!isCheckingDuplicate;
-
-  // Address state management
-  const [selectedProvince, setSelectedProvince] = useState(formData.address_province || "");
-  const [selectedCity, setSelectedCity] = useState(formData.address_city || "");
-  const [addressDetail, setAddressDetail] = useState(formData.address_detail || "");
   
   // Birthplace state management
   // Parse birthplace array: [province, city]
@@ -28,53 +23,77 @@ const StudentInformation: React.FC<EnrollmentPageProps> = ({
   const [selectedBirthplaceProvince, setSelectedBirthplaceProvince] = useState(birthplaceArray[0] || "");
   const [selectedBirthplaceCity, setSelectedBirthplaceCity] = useState(birthplaceArray[1] || "");
   
-  // Address data from PSGC API
-  const [provinces, setProvinces] = useState<string[]>([]);
-  const [cities, setCities] = useState<Array<{ name: string; type: string; code: string }>>([]);
-  const [loadingProvinces, setLoadingProvinces] = useState(false);
-  const [loadingCities, setLoadingCities] = useState(false);
-  
   // Birthplace data from PSGC API
   const [birthplaceProvinces, setBirthplaceProvinces] = useState<string[]>([]);
   const [birthplaceCities, setBirthplaceCities] = useState<Array<{ name: string; type: string; code: string }>>([]);
   const [loadingBirthplaceProvinces, setLoadingBirthplaceProvinces] = useState(false);
   const [loadingBirthplaceCities, setLoadingBirthplaceCities] = useState(false);
 
-  // Load provinces on mount
-  useEffect(() => {
-    const loadProvinces = async () => {
-      setLoadingProvinces(true);
-      try {
-        const data = await getProvinces();
-        setProvinces(data);
-      } catch (error) {
-        console.error("Error loading provinces:", error);
-      } finally {
-        setLoadingProvinces(false);
-      }
-    };
-    loadProvinces();
-  }, []);
+  const normalizeText = (value: string) =>
+    (value || "").trim().toUpperCase();
 
-  // Load cities/municipalities when province changes
+  const parseBirthplaceValue = (value: any): string[] => {
+    if (Array.isArray(value)) {
+      return [String(value[0] || "").trim(), String(value[1] || "").trim()];
+    }
+    if (value && typeof value === "object") {
+      const province =
+        value.province ?? value.birthplace_province ?? value.address_province;
+      const city = value.city ?? value.municipality ?? value.birthplace_city;
+      return [String(province || "").trim(), String(city || "").trim()];
+    }
+    if (typeof value === "string" && value.trim()) {
+      let current: any = value.trim();
+      for (let i = 0; i < 3; i += 1) {
+        if (typeof current !== "string") break;
+        const text = current.trim();
+        if (
+          !(text.startsWith("[") || text.startsWith("{") || text.startsWith('"'))
+        ) {
+          break;
+        }
+        try {
+          current = JSON.parse(text);
+        } catch {
+          break;
+        }
+      }
+
+      if (Array.isArray(current)) {
+        return [
+          String(current[0] || "").trim(),
+          String(current[1] || "").trim(),
+        ];
+      }
+
+      if (typeof current === "string" && current.startsWith("{") && current.endsWith("}")) {
+        const inner = current.slice(1, -1);
+        const parts = inner
+          .split(",")
+          .map((v) => v.replace(/^"+|"+$/g, "").trim())
+          .filter(Boolean);
+        if (parts.length >= 2) return [parts[0], parts[1]];
+        if (parts.length === 1) return [parts[0], ""];
+      }
+
+      if (typeof current === "string") {
+        const parts = current
+          .split(",")
+          .map((v) => v.trim())
+          .filter(Boolean);
+        if (parts.length >= 2) return [parts[0], parts.slice(1).join(", ")];
+        if (parts.length === 1) return [parts[0], ""];
+      }
+    }
+    return ["", ""];
+  };
+
+  // Sync local birthplace state when formData is loaded/updated externally
   useEffect(() => {
-    const loadCities = async () => {
-      if (!selectedProvince) {
-        setCities([]);
-        return;
-      }
-      setLoadingCities(true);
-      try {
-        const data = await getCitiesAndMunicipalitiesByProvince(selectedProvince);
-        setCities(data);
-      } catch (error) {
-        console.error("Error loading cities:", error);
-      } finally {
-        setLoadingCities(false);
-      }
-    };
-    loadCities();
-  }, [selectedProvince]);
+    const birthArray = parseBirthplaceValue(formData.birthplace);
+    setSelectedBirthplaceProvince(birthArray[0] || "");
+    setSelectedBirthplaceCity(birthArray[1] || "");
+  }, [formData.birthplace]);
 
   // Load birthplace provinces on mount
   useEffect(() => {
@@ -112,40 +131,24 @@ const StudentInformation: React.FC<EnrollmentPageProps> = ({
     loadBirthplaceCities();
   }, [selectedBirthplaceProvince]);
 
-  // Update complete address whenever address components change
+  // Reconcile saved birthplace province values like "METRO MANILA" to the exact
+  // option label from PSGC list (e.g., "Metro Manila"), so the select shows it.
   useEffect(() => {
-    const addressParts: string[] = [];
-    if (formData.address_detail) addressParts.push(formData.address_detail);
-    if (selectedCity) addressParts.push(selectedCity);
-    if (selectedProvince) addressParts.push(selectedProvince);
-    const newCompleteAddress = addressParts.join(", ");
-    if (formData.complete_address !== newCompleteAddress) {
-      handleInputChange("complete_address", newCompleteAddress);
+    if (!selectedBirthplaceProvince || birthplaceProvinces.length === 0) return;
+
+    const matchedProvince = birthplaceProvinces.find(
+      (province) =>
+        normalizeText(province) === normalizeText(selectedBirthplaceProvince),
+    );
+
+    if (matchedProvince && matchedProvince !== selectedBirthplaceProvince) {
+      setSelectedBirthplaceProvince(matchedProvince);
+      handleInputChange(
+        "birthplace",
+        JSON.stringify([matchedProvince, selectedBirthplaceCity || ""]),
+      );
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [formData.address_detail, selectedCity, selectedProvince]);
-
-
-  const handleProvinceChange = (province: string) => {
-    setSelectedProvince(province);
-    setSelectedCity("");
-    handleInputChange("address_province", province);
-    handleInputChange("address_city", "");
-  };
-
-  const handleCityChange = (city: string) => {
-    setSelectedCity(city);
-    handleInputChange("address_city", city);
-  };
-
-  // Handle address detail field change (house/building, street, barangay combined)
-  const handleAddressDetailChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const value = e.target.value.toUpperCase();
-    // Update local state immediately for responsive UI
-    setAddressDetail(value);
-    // Update formData
-    handleInputChange("address_detail", value);
-  };
+  }, [selectedBirthplaceProvince, selectedBirthplaceCity, birthplaceProvinces]);
 
   const handleBirthplaceProvinceChange = (province: string) => {
     setSelectedBirthplaceProvince(province);
@@ -160,6 +163,41 @@ const StudentInformation: React.FC<EnrollmentPageProps> = ({
     const birthplaceArray = [selectedBirthplaceProvince, city];
     handleInputChange("birthplace", JSON.stringify(birthplaceArray));
   };
+
+  const normalizeLocationKey = (value: string) =>
+    (value || "")
+      .toUpperCase()
+      .replace(/\(CITY\)|\(MUN\)|\(MUN\.\)/g, "")
+      .replace(/\bCITY OF\b/g, "")
+      .replace(/\bMUNICIPALITY OF\b/g, "")
+      .replace(/\bCITY\b/g, "")
+      .replace(/\bMUNICIPALITY\b/g, "")
+      .replace(/[^A-Z0-9]/g, "")
+      .trim();
+
+  // Reconcile saved birthplace city values like "CITY OF MANILA" with PSGC list entries (e.g. "Manila")
+  useEffect(() => {
+    if (!selectedBirthplaceProvince || !selectedBirthplaceCity || birthplaceCities.length === 0) {
+      return;
+    }
+
+    const currentKey = normalizeLocationKey(selectedBirthplaceCity);
+    const matched = birthplaceCities.find(
+      (item) => normalizeLocationKey(item.name) === currentKey,
+    );
+
+    if (matched && matched.name !== selectedBirthplaceCity) {
+      setSelectedBirthplaceCity(matched.name);
+      handleInputChange(
+        "birthplace",
+        JSON.stringify([selectedBirthplaceProvince, matched.name]),
+      );
+    }
+  }, [
+    selectedBirthplaceProvince,
+    selectedBirthplaceCity,
+    birthplaceCities,
+  ]);
 
   const inputClasses =
     "w-full px-4 py-2.5 rounded-xl border bg-white/50 transition-all duration-300 focus:ring-2 focus:ring-offset-0 outline-none";
@@ -562,7 +600,13 @@ const StudentInformation: React.FC<EnrollmentPageProps> = ({
                 onBlur={(e) => handleBlur(e, "birthplace")}
               >
                 <option value=''>{loadingBirthplaceProvinces ? "Loading provinces..." : "Select Province"}</option>
-                {birthplaceProvinces.map((province) => (
+                {[
+                  ...((selectedBirthplaceProvince &&
+                  !birthplaceProvinces.includes(selectedBirthplaceProvince)
+                    ? [selectedBirthplaceProvince]
+                    : []) as string[]),
+                  ...birthplaceProvinces,
+                ].map((province) => (
                   <option key={province} value={province}>
                     {province}
                   </option>
@@ -600,7 +644,23 @@ const StudentInformation: React.FC<EnrollmentPageProps> = ({
                     ? "Select City/Municipality"
                     : "Select Province first"}
                 </option>
-                {birthplaceCities.map((item) => (
+                {[
+                  ...((selectedBirthplaceCity &&
+                  !birthplaceCities.some(
+                    (item) =>
+                      normalizeText(item.name) ===
+                      normalizeText(selectedBirthplaceCity),
+                  )
+                    ? [
+                        {
+                          name: selectedBirthplaceCity,
+                          type: "City/Municipality",
+                          code: `custom-bp-${selectedBirthplaceCity}`,
+                        },
+                      ]
+                    : []) as Array<{ name: string; type: string; code: string }>),
+                  ...birthplaceCities,
+                ].map((item) => (
                     <option key={item.code} value={item.name}>
                       {item.name} ({item.type})
                     </option>
@@ -628,94 +688,21 @@ const StudentInformation: React.FC<EnrollmentPageProps> = ({
           >
             Complete Address
           </label>
-          <div className='grid grid-cols-1 md:grid-cols-2 gap-4 mb-4'>
-            {/* Province Dropdown */}
-            <div className='group'>
-              <label className='block text-xs font-medium mb-1 ml-1' style={{ color: colors.tertiary }}>
-                Province
-              </label>
-            <div className='relative'>
-              <select
-                name='address_province'
-                data-field='address_province'
-                value={selectedProvince}
-                onChange={(e) => handleProvinceChange(e.target.value)}
-                disabled={isFormDisabled || loadingProvinces}
-                className={`${inputClasses} appearance-none ${isFormDisabled || loadingProvinces ? disabledClasses : "cursor-pointer"} ${fieldErrors.complete_address ? "border-red-500" : ""}`}
-                style={getInputStyle("complete_address")}
-                onFocus={(e) => !isFormDisabled && handleFocus(e, "complete_address")}
-                onBlur={(e) => handleBlur(e, "complete_address")}
-              >
-                <option value=''>{loadingProvinces ? "Loading provinces..." : "Select Province"}</option>
-                {provinces.map((province) => (
-                  <option key={province} value={province}>
-                    {province}
-                  </option>
-                ))}
-              </select>
-              <div className='absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none opacity-50'>
-                <svg width='12' height='12' viewBox='0 0 12 12' fill='none' xmlns='http://www.w3.org/2000/svg'>
-                  <path d='M2.5 4.5L6 8L9.5 4.5' stroke='currentColor' strokeWidth='1.5' strokeLinecap='round' strokeLinejoin='round' />
-                </svg>
-              </div>
-            </div>
-          </div>
-
-            {/* City/Municipality Dropdown */}
-            <div className='group'>
-              <label className='block text-xs font-medium mb-1 ml-1' style={{ color: colors.tertiary }}>
-                City/Municipality
-              </label>
-            <div className='relative'>
-              <select
-                name='address_city'
-                data-field='address_city'
-                value={selectedCity}
-                onChange={(e) => handleCityChange(e.target.value)}
-                disabled={isFormDisabled || !selectedProvince || loadingCities}
-                className={`${inputClasses} appearance-none ${isFormDisabled || !selectedProvince || loadingCities ? disabledClasses : "cursor-pointer"} ${fieldErrors.complete_address ? "border-red-500" : ""}`}
-                style={getInputStyle("complete_address")}
-                onFocus={(e) => !isFormDisabled && handleFocus(e, "complete_address")}
-                onBlur={(e) => handleBlur(e, "complete_address")}
-              >
-                <option value=''>
-                  {loadingCities
-                    ? "Loading cities/municipalities..."
-                    : selectedProvince
-                    ? "Select City/Municipality"
-                    : "Select Province first"}
-                </option>
-                {cities.map((item) => (
-                    <option key={item.code} value={item.name}>
-                      {item.name} ({item.type})
-                    </option>
-                  ))}
-              </select>
-              <div className='absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none opacity-50'>
-                <svg width='12' height='12' viewBox='0 0 12 12' fill='none' xmlns='http://www.w3.org/2000/svg'>
-                  <path d='M2.5 4.5L6 8L9.5 4.5' stroke='currentColor' strokeWidth='1.5' strokeLinecap='round' strokeLinejoin='round' />
-                </svg>
-              </div>
-            </div>
-          </div>
-          </div>
-          {/* Address Detail (House/Building Number, Street, Barangay) */}
           <div className='group'>
-            <label className='block text-xs font-medium mb-1 ml-1' style={{ color: colors.tertiary }}>
-              House/Building Number, Street, Barangay
-            </label>
             <input
-              name='address_detail'
-              data-field='address_detail'
+              name='complete_address'
+              data-field='complete_address'
               type='text'
-              value={addressDetail}
-              onChange={handleAddressDetailChange}
+              value={formData.complete_address || ""}
+              onChange={(e) =>
+                handleInputChange("complete_address", e.target.value.toUpperCase())
+              }
               disabled={isFormDisabled}
               className={`${inputClasses} ${isFormDisabled ? disabledClasses : ""} ${fieldErrors.complete_address ? "border-red-500" : ""}`}
               style={getInputStyle("complete_address")}
               onFocus={(e) => !isFormDisabled && handleFocus(e, "complete_address")}
               onBlur={(e) => handleBlur(e, "complete_address")}
-              placeholder='e.g. 123 MAIN STREET, BARANGAY NAME'
+              placeholder='e.g. 90 CONGRESSIONAL SITIO 3 BATASAN HILLS, QUEZON CITY, METRO MANILA'
             />
           </div>
 

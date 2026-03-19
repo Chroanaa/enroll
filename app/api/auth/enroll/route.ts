@@ -253,6 +253,7 @@ export async function POST(request: NextRequest) {
         program_shs: program_shs ? program_shs.trim().toUpperCase() : null,
         remarks: remarks ? remarks.trim().toUpperCase() : null,
         status: 4,
+        verification_status: "pending",
       },
     });
 
@@ -284,7 +285,9 @@ export async function POST(request: NextRequest) {
 }
 export async function GET() {
   try {
-    const enrollments = await prisma.enrollment.findMany();
+    const enrollments = await prisma.enrollment.findMany({
+      orderBy: [{ admission_date: "desc" }, { id: "desc" }],
+    });
 
     const [programs, majors] = await Promise.all([
       prisma.program.findMany({
@@ -305,6 +308,38 @@ export async function GET() {
 
     const programsById = new Map(programs.map((program) => [program.id, program]));
     const majorsById = new Map(majors.map((major) => [major.id, major]));
+    const verifiedByIds = Array.from(
+      new Set(
+        enrollments
+          .map((enrollment) => enrollment.verified_by)
+          .filter((id): id is number => typeof id === "number")
+      )
+    );
+
+    const verifiers =
+      verifiedByIds.length > 0
+        ? await prisma.users.findMany({
+            where: {
+              id: { in: verifiedByIds },
+            },
+            select: {
+              id: true,
+              firstname: true,
+              middlename: true,
+              lastname: true,
+              username: true,
+            },
+          })
+        : [];
+
+    const verifiersById = new Map(
+      verifiers.map((user) => {
+        const fullName = `${user.firstname || ""} ${user.middlename || ""} ${user.lastname || ""}`
+          .replace(/\s+/g, " ")
+          .trim();
+        return [user.id, fullName || user.username || `User #${user.id}`];
+      })
+    );
 
     const enrichedEnrollments = enrollments.map((enrollment) => {
       const programId = parseInt(enrollment.course_program || "", 10);
@@ -321,6 +356,10 @@ export async function GET() {
         program_name: program?.name ?? null,
         program_code: program?.code ?? null,
         major_name: major?.name ?? null,
+        verified_by_name:
+          enrollment.verified_by !== null && enrollment.verified_by !== undefined
+            ? verifiersById.get(enrollment.verified_by) || null
+            : null,
       };
     });
 
@@ -353,7 +392,75 @@ export async function DELETE(request: NextRequest) {
 }
 export async function PUT(nextRequest: NextRequest) {
   try {
-    const data = await nextRequest.json();
+    const contentType = nextRequest.headers.get("content-type") || "";
+    let data: any = {};
+    let photoFile: File | null = null;
+
+    if (contentType.includes("multipart/form-data")) {
+      const formData = await nextRequest.formData();
+      data.id = Number(formData.get("id"));
+
+      const allowedFields = [
+        "student_number",
+        "admission_date",
+        "admission_status",
+        "term",
+        "department",
+        "course_program",
+        "year_level",
+        "requirements",
+        "family_name",
+        "first_name",
+        "middle_name",
+        "sex",
+        "civil_status",
+        "birthdate",
+        "birthplace",
+        "complete_address",
+        "contact_number",
+        "email_address",
+        "emergency_contact_name",
+        "emergency_relationship",
+        "emergency_contact_number",
+        "last_school_attended",
+        "previous_school_year",
+        "academic_year",
+        "program_shs",
+        "remarks",
+        "major_id",
+        "academic_status",
+      ];
+
+      allowedFields.forEach((field) => {
+        const value = formData.get(field);
+        if (value === null) return;
+        const asString = String(value);
+        if (field === "requirements") {
+          try {
+            data[field] = JSON.parse(asString);
+          } catch {
+            data[field] = [];
+          }
+          return;
+        }
+        if (field === "birthplace") {
+          try {
+            data[field] = JSON.parse(asString);
+          } catch {
+            data[field] = asString;
+          }
+          return;
+        }
+        data[field] = asString;
+      });
+
+      const maybePhoto = formData.get("photo");
+      if (maybePhoto instanceof File && maybePhoto.size > 0) {
+        photoFile = maybePhoto;
+      }
+    } else {
+      data = await nextRequest.json();
+    }
     
     if (!data.id) {
       return NextResponse.json(
@@ -390,15 +497,45 @@ export async function PUT(nextRequest: NextRequest) {
         else if (field === 'requirements') {
           updateData[field] = Array.isArray(data[field]) ? data[field] : [];
         }
+        else if (field === 'birthplace') {
+          if (Array.isArray(data[field])) {
+            updateData[field] = JSON.stringify(data[field]);
+          } else {
+            updateData[field] = data[field] || null;
+          }
+        }
         // Handle all other fields
         else {
           updateData[field] = data[field] || null;
         }
       }
     });
+
+    // Handle optional photo upload for edit flow
+    if (photoFile) {
+      const arrayBuffer = await photoFile.arrayBuffer();
+      const buffer = Buffer.from(arrayBuffer);
+      try {
+        const uploadsDir = path.join(
+          process.cwd(),
+          "public",
+          "uploads",
+          "enrollments",
+        );
+        await mkdir(uploadsDir, { recursive: true });
+
+        const fileName = generateUniqueFileName(photoFile.name);
+        const filePath = path.join(uploadsDir, fileName);
+        await writeFile(filePath, buffer);
+        updateData.photo = `/uploads/enrollments/${fileName}`;
+      } catch {
+        const mimeType = photoFile.type || "image/jpeg";
+        updateData.photo = `data:${mimeType};base64,${buffer.toString("base64")}`;
+      }
+    }
     
     const updatedEnrollment = await prisma.enrollment.update({
-      where: { id: data.id },
+      where: { id: Number(data.id) },
       data: updateData,
     });
     

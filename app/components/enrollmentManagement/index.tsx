@@ -18,8 +18,8 @@ import StatsCards from "./StatsCards";
 import SearchFilters from "../common/SearchFilters";
 import EnrollmentTable from "./EnrollmentTable";
 import Pagination from "../common/Pagination";
-import EditEnrollmentModal from "./EditEnrollmentModal";
 import EnrollmentReportViewer from "./EnrollmentReportViewer";
+import EnrollmentVerificationModal from "./EnrollmentVerificationModal";
 
 // --- Internal Import Modal Component ---
 interface ImportModalProps {
@@ -232,9 +232,11 @@ const EnrollmentManagement: React.FC = () => {
   const [isImportModalOpen, setIsImportModalOpen] = useState(false);
   const [isImporting, setIsImporting] = useState(false);
   const [isReportViewerOpen, setIsReportViewerOpen] = useState(false);
-
-  const [editingEnrollment, setEditingEnrollment] = useState<Enrollment | null>(
+  const [selectedEnrollment, setSelectedEnrollment] = useState<Enrollment | null>(
     null
+  );
+  const [verificationTab, setVerificationTab] = useState<"pending" | "verified">(
+    "pending"
   );
   const [successModal, setSuccessModal] = useState<{
     isOpen: boolean;
@@ -283,15 +285,25 @@ const EnrollmentManagement: React.FC = () => {
     [enrollments, searchTerm, statusFilter, courseFilter]
   );
 
+  const tabFilteredEnrollments = useMemo(() => {
+    return filteredEnrollments.filter((enrollment: any) => {
+      const verificationStatus = enrollment.verification_status || "pending";
+      if (verificationTab === "pending") {
+        return verificationStatus === "pending";
+      }
+      return verificationStatus !== "pending";
+    });
+  }, [filteredEnrollments, verificationTab]);
+
   // Pagination calculations
-  const totalPages = Math.ceil(filteredEnrollments.length / itemsPerPage);
+  const totalPages = Math.ceil(tabFilteredEnrollments.length / itemsPerPage);
   const startIndex = (currentPage - 1) * itemsPerPage;
   const endIndex = startIndex + itemsPerPage;
-  const paginatedEnrollments = filteredEnrollments.slice(startIndex, endIndex);
+  const paginatedEnrollments = tabFilteredEnrollments.slice(startIndex, endIndex);
 
   useEffect(() => {
     setCurrentPage(1);
-  }, [searchTerm, statusFilter, courseFilter]);
+  }, [searchTerm, statusFilter, courseFilter, verificationTab]);
 
   const handlePageChange = (page: number) => {
     setCurrentPage(page);
@@ -396,7 +408,7 @@ const EnrollmentManagement: React.FC = () => {
         <SearchFilters
           searchTerm={searchTerm}
           onSearchChange={setSearchTerm}
-          searchPlaceholder='Search by student name or course...'
+          searchPlaceholder='Search by student number, name, or course...'
           filters={[
             {
               value: statusFilter,
@@ -410,32 +422,70 @@ const EnrollmentManagement: React.FC = () => {
           ]}
         />
 
+        {/* Verification Tabs */}
+        <div className='bg-white rounded-2xl shadow-sm border border-gray-100 p-2'>
+          <div className='flex flex-wrap gap-2'>
+            <button
+              onClick={() => setVerificationTab("pending")}
+              className='px-4 py-2 rounded-xl text-sm font-semibold transition-all'
+              style={{
+                backgroundColor:
+                  verificationTab === "pending" ? `${colors.secondary}20` : "transparent",
+                color: verificationTab === "pending" ? colors.primary : "#6B7280",
+                border: `1px solid ${
+                  verificationTab === "pending" ? `${colors.secondary}60` : "#E5E7EB"
+                }`,
+              }}
+            >
+              Pending Verification
+            </button>
+            <button
+              onClick={() => setVerificationTab("verified")}
+              className='px-4 py-2 rounded-xl text-sm font-semibold transition-all'
+              style={{
+                backgroundColor:
+                  verificationTab === "verified" ? `${colors.secondary}20` : "transparent",
+                color: verificationTab === "verified" ? colors.primary : "#6B7280",
+                border: `1px solid ${
+                  verificationTab === "verified" ? `${colors.secondary}60` : "#E5E7EB"
+                }`,
+              }}
+            >
+              Verified / Reviewed
+            </button>
+          </div>
+        </div>
+
         {/* Enrollments Table */}
         <div>
           <EnrollmentTable
             enrollments={paginatedEnrollments}
-            onEdit={setEditingEnrollment}
+            onSelect={setSelectedEnrollment}
           />
           <Pagination
             currentPage={currentPage}
             totalPages={totalPages}
             itemsPerPage={itemsPerPage}
-            totalItems={filteredEnrollments.length}
+            totalItems={tabFilteredEnrollments.length}
             itemName='enrollments'
             onPageChange={handlePageChange}
             onItemsPerPageChange={setItemsPerPage}
           />
         </div>
-
-        {/* Edit Enrollment Modal */}
-        {editingEnrollment && (
-          <EditEnrollmentModal
-            enrollment={editingEnrollment}
+        {selectedEnrollment && (
+          <EnrollmentVerificationModal
+            enrollment={selectedEnrollment}
+            onClose={() => setSelectedEnrollment(null)}
             onSaved={async () => {
               await fetchEnrollments();
-              setSuccessModal({ isOpen: true, message: "Enrollment updated successfully." });
             }}
-            onCancel={() => setEditingEnrollment(null)}
+            onVerified={async () => {
+              await fetchEnrollments();
+              setSuccessModal({
+                isOpen: true,
+                message: "Enrollment verification updated successfully.",
+              });
+            }}
           />
         )}
 

@@ -108,6 +108,10 @@ model enrollment {
   major_id                 Int?
   year_level               Int?      @default(1)
   academic_status          String?   @default("regular") @db.VarChar(50)
+  verification_status      String?   @default("pending") @db.VarChar(30)
+  verified_by              Int?
+  verified_at              DateTime? @db.Timestamp(6)
+  verification_notes       String?
 }
 
 /// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
@@ -631,4 +635,27 @@ model student_cross_enrollment_requests {
   @@index([academic_year, semester], map: "idx_cross_enrollment_requests_term")
   @@index([status], map: "idx_cross_enrollment_requests_status")
   @@index([student_number], map: "idx_cross_enrollment_requests_student")
+}
+
+model student_section_shift_requests {
+  id                Int       @id @default(autoincrement())
+  student_number    String    @db.VarChar(20)
+  from_section_id   Int
+  to_section_id     Int
+  academic_year     String    @db.VarChar(20)
+  semester          String    @db.VarChar(50)
+  reason            String?
+  status            String    @default("pending_approval") @db.VarChar(30)
+  requested_by      Int?
+  requested_by_role Int?
+  requested_by_name String?   @db.VarChar(150)
+  approved_by       Int?
+  approved_by_role  Int?
+  approved_by_name  String?   @db.VarChar(150)
+  executed_by       Int?
+  executed_by_role  Int?
+  executed_by_name  String?   @db.VarChar(150)
+  requested_at      DateTime  @default(now()) @db.Timestamp(6)
+  approved_at       DateTime? @db.Timestamp(6)
+  executed_at       DateTime? @db.Timestamp(6)
 }
