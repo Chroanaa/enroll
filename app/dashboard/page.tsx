@@ -46,6 +46,7 @@ import ProtectedRoute from "../components/ProtectedRoute";
 import SectionManagement from "../admin/sections/page";
 import FacultySubjectManagement from "../admin/faculty-subject-management/page";
 import { useSession } from "next-auth/react";
+import { isViewAllowed } from "../lib/rbac";
 
 function DashboardContent() {
   const searchParams = useSearchParams();
@@ -53,30 +54,43 @@ function DashboardContent() {
   const { data: session } = useSession();
   const userRole = Number((session?.user as any)?.role) || 0;
 
-  console.log("DashboardContent render - currentView:", currentView);
+  const getSafeView = (view: string | null | undefined) => {
+    const fallback = isViewAllowed("dashboard", userRole)
+      ? "dashboard"
+      : "home";
+    if (!view) {
+      return fallback;
+    }
+
+    return isViewAllowed(view, userRole) ? view : fallback;
+  };
 
   // Read view from URL params on mount
   useEffect(() => {
     const view = searchParams.get("view");
-    if (view) {
-      setCurrentView(view);
-    }
-  }, [searchParams]);
+    setCurrentView(getSafeView(view));
+  }, [searchParams, userRole]);
 
   const handleViewChange = (view: string) => {
-    console.log("handleViewChange called with:", view);
-    setCurrentView(view);
+    setCurrentView(getSafeView(view));
   };
 
   const renderCurrentView = () => {
-    console.log("renderCurrentView - currentView:", currentView);
+    if (!isViewAllowed(currentView, userRole)) {
+      return isViewAllowed("dashboard", userRole) ? (
+        <Dashboard />
+      ) : (
+        <HomePage />
+      );
+    }
+
     switch (currentView) {
       case "home":
         return <HomePage />;
       case "dashboard":
         return <Dashboard />;
       case "students":
-        return <StudentManagement onViewChange={setCurrentView} />;
+        return <StudentManagement onViewChange={handleViewChange} />;
       case "courses":
         return <CourseManagement />;
       case "enrollments":

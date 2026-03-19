@@ -16,6 +16,9 @@ import { getDepartments } from "@/app/utils/departmentUtils";
 import { insertIntoReports } from "@/app/utils/reportsUtils";
 import { useSession } from "next-auth/react";
 import { invalidateRelatedCaches } from "@/app/utils/cache";
+
+const FACULTY_ROLE_ID = 3;
+const DEAN_ROLE_ID = 5;
 const FacultyManagement: React.FC = () => {
   const [faculty, setFaculty] = useState<Faculty[]>([]);
   const [departments, setDepartments] = useState<Department[]>([]);
@@ -95,6 +98,7 @@ const FacultyManagement: React.FC = () => {
   const [accountUsername, setAccountUsername] = useState("");
   const [accountPassword, setAccountPassword] = useState("");
   const [accountConfirmPassword, setAccountConfirmPassword] = useState("");
+  const [accountRole, setAccountRole] = useState<number>(FACULTY_ROLE_ID);
   const [showAccountPassword, setShowAccountPassword] = useState(false);
   const [showAccountConfirmPassword, setShowAccountConfirmPassword] =
     useState(false);
@@ -215,6 +219,7 @@ const FacultyManagement: React.FC = () => {
     setAccountUsername(fac.employee_id || "");
     setAccountPassword("");
     setAccountConfirmPassword("");
+    setAccountRole(FACULTY_ROLE_ID);
     setShowAccountPassword(false);
     setShowAccountConfirmPassword(false);
   };
@@ -224,6 +229,7 @@ const FacultyManagement: React.FC = () => {
     setAccountUsername("");
     setAccountPassword("");
     setAccountConfirmPassword("");
+    setAccountRole(FACULTY_ROLE_ID);
     setShowAccountPassword(false);
     setShowAccountConfirmPassword(false);
     setIsCreatingAccount(false);
@@ -275,6 +281,7 @@ const FacultyManagement: React.FC = () => {
           facultyId: accountModal.faculty.id,
           username: normalizedUsername,
           password: accountPassword,
+          role: accountRole,
         }),
       });
 
@@ -466,14 +473,21 @@ const FacultyManagement: React.FC = () => {
                   className='p-2 rounded-lg'
                   style={{ backgroundColor: `${colors.secondary}18` }}
                 >
-                  <UserPlus className='w-5 h-5' style={{ color: colors.secondary }} />
+                  <UserPlus
+                    className='w-5 h-5'
+                    style={{ color: colors.secondary }}
+                  />
                 </div>
                 <div>
-                  <h3 className='text-lg font-semibold' style={{ color: colors.primary }}>
+                  <h3
+                    className='text-lg font-semibold'
+                    style={{ color: colors.primary }}
+                  >
                     Create Faculty Account
                   </h3>
                   <p className='text-sm text-gray-500'>
-                    The name fields are pulled directly from this faculty record.
+                    The name fields are pulled directly from this faculty
+                    record.
                   </p>
                 </div>
               </div>
@@ -526,6 +540,22 @@ const FacultyManagement: React.FC = () => {
 
                 <div>
                   <label className='block text-sm font-medium text-gray-700 mb-1.5'>
+                    Role
+                  </label>
+                  <select
+                    value={accountRole}
+                    onChange={(e) =>
+                      setAccountRole(Number(e.target.value) || FACULTY_ROLE_ID)
+                    }
+                    className='w-full rounded-lg border border-gray-200 px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent'
+                  >
+                    <option value={FACULTY_ROLE_ID}>FACULTY</option>
+                    <option value={DEAN_ROLE_ID}>DEAN</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className='block text-sm font-medium text-gray-700 mb-1.5'>
                     Password
                   </label>
                   <div className='relative'>
@@ -558,7 +588,9 @@ const FacultyManagement: React.FC = () => {
                     <input
                       type={showAccountConfirmPassword ? "text" : "password"}
                       value={accountConfirmPassword}
-                      onChange={(e) => setAccountConfirmPassword(e.target.value)}
+                      onChange={(e) =>
+                        setAccountConfirmPassword(e.target.value)
+                      }
                       placeholder='Confirm password'
                       className='w-full rounded-lg border border-gray-200 px-3 py-2.5 pr-10 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent'
                     />
@@ -579,7 +611,8 @@ const FacultyManagement: React.FC = () => {
                 </div>
 
                 <div className='rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800'>
-                  This account will be created with Faculty role and linked to this faculty record via user_id.
+                  This account will be linked to this faculty record via user_id
+                  and assigned the selected role.
                 </div>
               </div>
 

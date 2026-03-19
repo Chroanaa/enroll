@@ -63,6 +63,19 @@ interface RoomSummary {
   total_available_capacity: number;
 }
 
+interface RoomRecommendation {
+  rooms_are_sufficient: boolean;
+  recommendation: "ROOMS_SUFFICIENT" | "ADD_ROOMS";
+  total_recommended_capacity: number;
+  total_available_capacity: number;
+  capacity_gap: number;
+  additional_sections_needed: number;
+  additional_rooms_needed: number;
+  average_available_room_capacity: number;
+  message: string;
+  notes: string;
+}
+
 interface ForecastResult {
   success: boolean;
   programs: string[];
@@ -71,6 +84,7 @@ interface ForecastResult {
   capacity: CapacityItem[];
   totalPrograms: number;
   room_summary?: RoomSummary;
+  room_recommendation?: RoomRecommendation;
 }
 
 interface StudentData {
@@ -269,6 +283,8 @@ const StudentForecastDashboard: React.FC = () => {
     );
   }, [forecastResult]);
 
+  const roomRecommendation = forecastResult?.room_recommendation;
+
   /* ── Render ── */
 
   return (
@@ -376,6 +392,96 @@ const StudentForecastDashboard: React.FC = () => {
                   color={colors.warning}
                   sub={`${forecastResult.room_summary?.total_available_capacity ?? 0} seat capacity`}
                 />
+              </div>
+            )}
+
+            {forecastResult?.room_recommendation && (
+              <div
+                className='mb-8 rounded-xl border p-4 sm:p-5'
+                style={{
+                  borderColor: forecastResult.room_recommendation
+                    .rooms_are_sufficient
+                    ? "#86EFAC"
+                    : "#FCA5A5",
+                  backgroundColor: forecastResult.room_recommendation
+                    .rooms_are_sufficient
+                    ? "#ECFDF5"
+                    : "#FEF2F2",
+                }}
+              >
+                <div className='flex items-start justify-between gap-3 flex-wrap'>
+                  <div>
+                    <p
+                      className='text-sm font-bold'
+                      style={{
+                        color: forecastResult.room_recommendation
+                          .rooms_are_sufficient
+                          ? "#065F46"
+                          : "#991B1B",
+                      }}
+                    >
+                      Room Recommendation:{" "}
+                      {forecastResult.room_recommendation.rooms_are_sufficient
+                        ? "Rooms are sufficient"
+                        : "Add rooms recommended"}
+                    </p>
+                    <p
+                      className='text-xs mt-1'
+                      style={{
+                        color: forecastResult.room_recommendation
+                          .rooms_are_sufficient
+                          ? "#047857"
+                          : "#B91C1C",
+                      }}
+                    >
+                      {forecastResult.room_recommendation.message}
+                    </p>
+                  </div>
+                  <div
+                    className='text-xs font-semibold px-2.5 py-1 rounded-full'
+                    style={{
+                      backgroundColor: forecastResult.room_recommendation
+                        .rooms_are_sufficient
+                        ? "#D1FAE5"
+                        : "#FECACA",
+                      color: forecastResult.room_recommendation
+                        .rooms_are_sufficient
+                        ? "#065F46"
+                        : "#991B1B",
+                    }}
+                  >
+                    {forecastResult.room_recommendation
+                      .additional_rooms_needed > 0
+                      ? `${forecastResult.room_recommendation.additional_rooms_needed} room(s) needed`
+                      : "0 additional rooms needed"}
+                  </div>
+                </div>
+                <div className='grid grid-cols-2 md:grid-cols-4 gap-3 mt-4 text-xs'>
+                  <div>
+                    <p className='text-gray-500'>Projected seat demand</p>
+                    <p className='font-semibold text-gray-900'>
+                      {forecastResult.room_recommendation.total_recommended_capacity.toLocaleString()}
+                    </p>
+                  </div>
+                  <div>
+                    <p className='text-gray-500'>Available seat capacity</p>
+                    <p className='font-semibold text-gray-900'>
+                      {forecastResult.room_recommendation.total_available_capacity.toLocaleString()}
+                    </p>
+                  </div>
+                  <div>
+                    <p className='text-gray-500'>Capacity gap</p>
+                    <p className='font-semibold text-gray-900'>
+                      {forecastResult.room_recommendation.capacity_gap.toLocaleString()}
+                    </p>
+                  </div>
+                  <div>
+                    <p className='text-gray-500'>Additional sections</p>
+                    <p className='font-semibold text-gray-900'>
+                      {forecastResult.room_recommendation.additional_sections_needed.toLocaleString()}
+                    </p>
+                  </div>
+                </div>
               </div>
             )}
 
@@ -711,6 +817,25 @@ const StudentForecastDashboard: React.FC = () => {
                           {totalSectionsNeeded > 1 ? "s" : ""} needed overall
                         </span>
                       )}
+                      {roomRecommendation && (
+                        <span
+                          className='ml-2 inline-flex items-center gap-1 px-2 py-0.5 rounded-full font-semibold'
+                          style={{
+                            backgroundColor:
+                              roomRecommendation.rooms_are_sufficient
+                                ? "#D1FAE5"
+                                : "#FEE2E2",
+                            color: roomRecommendation.rooms_are_sufficient
+                              ? "#065F46"
+                              : "#991B1B",
+                          }}
+                        >
+                          <Building2 className='w-3 h-3' />
+                          {roomRecommendation.rooms_are_sufficient
+                            ? "Rooms sufficient"
+                            : `Add ${roomRecommendation.additional_rooms_needed} room${roomRecommendation.additional_rooms_needed > 1 ? "s" : ""}`}
+                        </span>
+                      )}
                     </p>
                   </div>
                 </div>
@@ -840,20 +965,37 @@ const StudentForecastDashboard: React.FC = () => {
                               <UtilizationBadge rate={cap.utilization_rate} />
                             </td>
                             <td className='py-3 px-4 text-center'>
-                              {cap.add_section ? (
-                                <span className='inline-flex items-center gap-1 text-xs font-semibold px-2.5 py-1 rounded-full bg-amber-100 text-amber-800'>
-                                  <PlusCircle className='w-3 h-3' />
-                                  Add {cap.additional_sections_needed} Section
-                                  {cap.additional_sections_needed > 1
-                                    ? "s"
-                                    : ""}
-                                </span>
-                              ) : (
-                                <span className='inline-flex items-center gap-1 text-xs font-semibold px-2.5 py-1 rounded-full bg-emerald-100 text-emerald-700'>
-                                  <CheckCircle2 className='w-3 h-3' />
-                                  Sufficient
-                                </span>
-                              )}
+                              <div className='flex flex-col items-center gap-1'>
+                                {cap.add_section ? (
+                                  <span className='inline-flex items-center gap-1 text-xs font-semibold px-2.5 py-1 rounded-full bg-amber-100 text-amber-800'>
+                                    <PlusCircle className='w-3 h-3' />
+                                    Add {cap.additional_sections_needed} Section
+                                    {cap.additional_sections_needed > 1
+                                      ? "s"
+                                      : ""}
+                                  </span>
+                                ) : (
+                                  <span className='inline-flex items-center gap-1 text-xs font-semibold px-2.5 py-1 rounded-full bg-emerald-100 text-emerald-700'>
+                                    <CheckCircle2 className='w-3 h-3' />
+                                    Sufficient
+                                  </span>
+                                )}
+                                {roomRecommendation && (
+                                  <span
+                                    className='text-[11px] font-medium'
+                                    style={{
+                                      color:
+                                        roomRecommendation.rooms_are_sufficient
+                                          ? "#065F46"
+                                          : "#991B1B",
+                                    }}
+                                  >
+                                    {roomRecommendation.rooms_are_sufficient
+                                      ? "Rooms: Sufficient"
+                                      : `Rooms: Add ${roomRecommendation.additional_rooms_needed}`}
+                                  </span>
+                                )}
+                              </div>
                             </td>
                           </tr>
                         ))}

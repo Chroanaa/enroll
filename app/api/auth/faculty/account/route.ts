@@ -6,6 +6,8 @@ import { prisma } from "@/app/lib/prisma";
 
 const ADMIN_ROLE_ID = 1;
 const FACULTY_ROLE_ID = 3;
+const DEAN_ROLE_ID = 5;
+const ALLOWED_FACULTY_ACCOUNT_ROLES = new Set([FACULTY_ROLE_ID, DEAN_ROLE_ID]);
 
 export async function POST(request: NextRequest) {
   const session = await getServerSession(authOptions);
@@ -15,11 +17,11 @@ export async function POST(request: NextRequest) {
   }
 
   try {
-    const { facultyId, username, password } = await request.json();
+    const { facultyId, username, password, role } = await request.json();
 
     if (!facultyId || !username || !password) {
       return NextResponse.json(
-        { error: "Faculty ID, username, and password are required" },
+        { error: `Faculty ID, username, and password are required` },
         { status: 400 },
       );
     }
@@ -82,14 +84,26 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    const parsedRoleId = Number(role);
+    const selectedRoleId = Number.isFinite(parsedRoleId)
+      ? parsedRoleId
+      : FACULTY_ROLE_ID;
+
+    if (!ALLOWED_FACULTY_ACCOUNT_ROLES.has(selectedRoleId)) {
+      return NextResponse.json(
+        { error: "Role must be either FACULTY or DEAN" },
+        { status: 400 },
+      );
+    }
+
     const roleRecord = await prisma.roles.findUnique({
-      where: { id: FACULTY_ROLE_ID },
+      where: { id: selectedRoleId },
       select: { id: true },
     });
 
     if (!roleRecord) {
       return NextResponse.json(
-        { error: "Faculty role is not configured" },
+        { error: "Selected role is not configured" },
         { status: 500 },
       );
     }
@@ -101,7 +115,7 @@ export async function POST(request: NextRequest) {
         data: {
           username: username.trim(),
           password: hashedPassword,
-          role: FACULTY_ROLE_ID,
+          role: selectedRoleId,
           firstname: faculty.first_name,
           middlename: faculty.middle_name || null,
           lastname: faculty.last_name,
@@ -126,7 +140,7 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json(
       {
-        message: "Faculty account created and linked successfully",
+        message: "Account created and linked successfully",
         facultyId: parsedFacultyId,
         user: created,
       },

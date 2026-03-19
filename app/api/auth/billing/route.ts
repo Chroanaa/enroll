@@ -1,9 +1,45 @@
 import { NextResponse, NextRequest } from "next/server";
 import { prisma } from "@/app/lib/prisma";
+import { ROLES } from "@/app/lib/rbac";
+import { getSessionScope, isRoleAllowed } from "@/app/lib/accessScope";
+
+const BILLING_ALLOWED_ROLES = [ROLES.ADMIN, ROLES.CASHIER, ROLES.DEAN];
+
+async function canDeanAccessBillingRecord(
+  billingId: number,
+  deanDepartmentId: number,
+) {
+  const rows = await prisma.$queryRaw<Array<{ id: number }>>`
+    SELECT b.id
+    FROM billing b
+    LEFT JOIN enrollment e ON b.enrollee_id = e.id
+    WHERE b.id = ${billingId}
+      AND e.department = ${deanDepartmentId}
+    LIMIT 1
+  `;
+
+  return rows.length > 0;
+}
 
 // Get all billing records or students without billing
 export async function GET(request: NextRequest) {
   try {
+    const scope = await getSessionScope();
+    if (!scope) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
+    if (!isRoleAllowed(scope.roleId, BILLING_ALLOWED_ROLES)) {
+      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    }
+
+    if (scope.isDean && !scope.deanDepartmentId) {
+      return NextResponse.json(
+        { error: "Dean account is not linked to a department." },
+        { status: 403 },
+      );
+    }
+
     const { searchParams } = new URL(request.url);
     const unbilled = searchParams.get("unbilled");
 
@@ -23,6 +59,9 @@ export async function GET(request: NextRequest) {
             notIn: billedIds.length > 0 ? billedIds : [-1], // Use -1 to avoid empty array issue
           },
           status: 4, // Status 4 = For Payment
+          ...(scope.isDean && scope.deanDepartmentId
+            ? { department: scope.deanDepartmentId }
+            : {}),
         },
         orderBy: {
           family_name: "asc",
@@ -33,19 +72,35 @@ export async function GET(request: NextRequest) {
     }
 
     // Get all billing records with enrollee info
-    const billings = await prisma.$queryRaw`
-      SELECT 
-        b.*,
-        e.first_name,
-        e.family_name,
-        e.middle_name,
-        e.student_number,
-        e.course_program,
-        e.term as enrollment_term
-      FROM billing b
-      LEFT JOIN enrollment e ON b.enrollee_id = e.id
-      ORDER BY b.date_paid DESC NULLS LAST, b.id DESC
-    `;
+    const billings =
+      scope.isDean && scope.deanDepartmentId
+        ? await prisma.$queryRaw`
+            SELECT
+              b.*,
+              e.first_name,
+              e.family_name,
+              e.middle_name,
+              e.student_number,
+              e.course_program,
+              e.term as enrollment_term
+            FROM billing b
+            LEFT JOIN enrollment e ON b.enrollee_id = e.id
+            WHERE e.department = ${scope.deanDepartmentId}
+            ORDER BY b.date_paid DESC NULLS LAST, b.id DESC
+          `
+        : await prisma.$queryRaw`
+            SELECT
+              b.*,
+              e.first_name,
+              e.family_name,
+              e.middle_name,
+              e.student_number,
+              e.course_program,
+              e.term as enrollment_term
+            FROM billing b
+            LEFT JOIN enrollment e ON b.enrollee_id = e.id
+            ORDER BY b.date_paid DESC NULLS LAST, b.id DESC
+          `;
 
     return NextResponse.json(billings);
   } catch (error: any) {
@@ -63,6 +118,22 @@ export async function GET(request: NextRequest) {
 // Create a new billing/payment record
 export async function POST(request: NextRequest) {
   try {
+    const scope = await getSessionScope();
+    if (!scope) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
+    if (!isRoleAllowed(scope.roleId, BILLING_ALLOWED_ROLES)) {
+      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    }
+
+    if (scope.isDean && !scope.deanDepartmentId) {
+      return NextResponse.json(
+        { error: "Dean account is not linked to a department." },
+        { status: 403 },
+      );
+    }
+
     const data = await request.json();
     const { enrollee_id, term, payment_type, amount, reference_no, user_id } =
       data;
@@ -76,6 +147,20 @@ export async function POST(request: NextRequest) {
         },
         { status: 400 },
       );
+    }
+
+    if (scope.isDean && scope.deanDepartmentId) {
+      const enrollee = await prisma.enrollment.findUnique({
+        where: { id: Number(enrollee_id) },
+        select: { department: true },
+      });
+
+      if (!enrollee || enrollee.department !== scope.deanDepartmentId) {
+        return NextResponse.json(
+          { error: "Forbidden: Enrollee is outside your department." },
+          { status: 403 },
+        );
+      }
     }
 
     // Check if enrollee already has a billing record
@@ -125,6 +210,22 @@ export async function POST(request: NextRequest) {
 // Update a billing record
 export async function PATCH(request: NextRequest) {
   try {
+    const scope = await getSessionScope();
+    if (!scope) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
+    if (!isRoleAllowed(scope.roleId, BILLING_ALLOWED_ROLES)) {
+      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    }
+
+    if (scope.isDean && !scope.deanDepartmentId) {
+      return NextResponse.json(
+        { error: "Dean account is not linked to a department." },
+        { status: 403 },
+      );
+    }
+
     const data = await request.json();
     const { id, ...updateData } = data;
 
@@ -133,6 +234,19 @@ export async function PATCH(request: NextRequest) {
         { error: "Missing billing ID" },
         { status: 400 },
       );
+    }
+
+    if (scope.isDean && scope.deanDepartmentId) {
+      const allowed = await canDeanAccessBillingRecord(
+        Number(id),
+        scope.deanDepartmentId,
+      );
+      if (!allowed) {
+        return NextResponse.json(
+          { error: "Forbidden: Billing record is outside your department." },
+          { status: 403 },
+        );
+      }
     }
 
     const validFields = [
@@ -178,7 +292,36 @@ export async function PATCH(request: NextRequest) {
 // Delete a billing record
 export async function DELETE(request: NextRequest) {
   try {
+    const scope = await getSessionScope();
+    if (!scope) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
+    if (!isRoleAllowed(scope.roleId, BILLING_ALLOWED_ROLES)) {
+      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    }
+
+    if (scope.isDean && !scope.deanDepartmentId) {
+      return NextResponse.json(
+        { error: "Dean account is not linked to a department." },
+        { status: 403 },
+      );
+    }
+
     const id = await request.json();
+
+    if (scope.isDean && scope.deanDepartmentId) {
+      const allowed = await canDeanAccessBillingRecord(
+        Number(id),
+        scope.deanDepartmentId,
+      );
+      if (!allowed) {
+        return NextResponse.json(
+          { error: "Forbidden: Billing record is outside your department." },
+          { status: 403 },
+        );
+      }
+    }
 
     const deletedBilling = await prisma.billing.delete({
       where: { id: Number(id) },
