@@ -2927,6 +2927,16 @@ export default function BuildSchedulePage() {
                 disabled={loading || loadingEditOccupied || !editFormData.facultyId || !editFormData.roomId || !editFormData.dayOfWeek || !editFormData.startTime || !editFormData.endTime || editConflicts.faculty || editConflicts.room || editConflicts.section || isEditDurationInvalid}
                 className="px-6 py-2.5 rounded-lg font-medium text-white transition-all disabled:opacity-50 disabled:cursor-not-allowed"
                 style={{ backgroundColor: colors.secondary }}
+                onMouseEnter={(e) => {
+                  if (!e.currentTarget.disabled) {
+                    e.currentTarget.style.backgroundColor = colors.primary;
+                  }
+                }}
+                onMouseLeave={(e) => {
+                  if (!e.currentTarget.disabled) {
+                    e.currentTarget.style.backgroundColor = colors.secondary;
+                  }
+                }}
               >
                 {loading ? (
                   <span className="flex items-center gap-2">

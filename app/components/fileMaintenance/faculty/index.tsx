@@ -158,11 +158,11 @@ const FacultyManagement: React.FC = () => {
 
         const newFaculty = await response.json();
         const departmentName =
-          departments.find((d) => d.id === facultyData.department_id)?.name ||
+          departments.find((d) => d.id === newFaculty.department_id)?.name ||
           "";
         setFaculty((prev) => [
           ...prev,
-          { ...facultyData, id: newFaculty.id, departmentName },
+          { ...newFaculty, departmentName },
         ]);
         invalidateRelatedCaches("FACULTIES");
         setIsAddModalOpen(false);

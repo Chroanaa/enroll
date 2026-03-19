@@ -116,12 +116,6 @@ const Navigation: React.FC<NavigationProps> = ({
         allowedRoles: [ROLES.ADMIN, ROLES.REGISTRAR, ROLES.DEAN],
       },
       {
-        id: "file-maintenance-fees",
-        label: "Fees",
-        icon: DollarSign,
-        allowedRoles: [ROLES.ADMIN, ROLES.CASHIER],
-      },
-      {
         id: "file-maintenance-discount",
         label: "Discount",
         icon: Percent,
@@ -131,6 +125,12 @@ const Navigation: React.FC<NavigationProps> = ({
         id: "file-maintenance-products",
         label: "Products",
         icon: Package,
+        allowedRoles: [ROLES.ADMIN, ROLES.CASHIER],
+      },
+      {
+        id: "miscellaneous-fees",
+        label: "Miscellaneous Fees",
+        icon: Receipt,
         allowedRoles: [ROLES.ADMIN, ROLES.CASHIER],
       },
       {
@@ -144,12 +144,6 @@ const Navigation: React.FC<NavigationProps> = ({
         label: "Subject",
         icon: BookOpen,
         allowedRoles: [ROLES.ADMIN, ROLES.REGISTRAR, ROLES.FACULTY, ROLES.DEAN],
-      },
-      {
-        id: "miscellaneous-fees",
-        label: "Miscellaneous Fees",
-        icon: Receipt,
-        allowedRoles: [ROLES.ADMIN, ROLES.CASHIER],
       },
       {
         id: "account-management",

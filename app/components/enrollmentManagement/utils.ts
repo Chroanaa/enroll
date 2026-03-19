@@ -93,14 +93,23 @@ export const filterEnrollments = (
   statusFilter: "all" | 1 | 2 | 3 | 4,
   courseFilter: string
 ) => {
+  const normalizedSearch = searchTerm.toLowerCase().trim();
+  const compactSearch = normalizedSearch.replace(/[\s-]/g, "");
+
   return enrollments.filter((enrollment) => {
     const studentName = `${enrollment.first_name || ""} ${
       enrollment.middle_name || ""
     } ${enrollment.family_name || ""}`.toLowerCase();
     const courseName = enrollment.course_program?.toLowerCase() || "";
+    const studentNumber = String(enrollment.student_number || "").toLowerCase();
+    const compactStudentNumber = studentNumber.replace(/[\s-]/g, "");
+
     const matchesSearch =
-      studentName.includes(searchTerm.toLowerCase()) ||
-      courseName.includes(searchTerm.toLowerCase());
+      studentName.includes(normalizedSearch) ||
+      courseName.includes(normalizedSearch) ||
+      studentNumber.includes(normalizedSearch) ||
+      (compactSearch.length > 0 &&
+        compactStudentNumber.includes(compactSearch));
     const matchesStatus =
       statusFilter === "all" ||
       normalizeEnrollmentStatus(enrollment.status) === statusFilter;

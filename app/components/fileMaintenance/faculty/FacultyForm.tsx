@@ -23,14 +23,25 @@ interface FacultyFormProps {
   onCancel: () => void;
 }
 
+const generateFacultyPreviewId = (): string => {
+  const year = new Date().getFullYear();
+  const random6 = Math.floor(Math.random() * 1_000_000)
+    .toString()
+    .padStart(6, "0");
+  return `FAC${year}-${random6}`;
+};
+
 const FacultyForm: React.FC<FacultyFormProps> = ({
   faculty,
   onSave,
   onCancel,
 }) => {
+  const [generatedEmployeeId] = useState<string>(() =>
+    faculty?.employee_id || generateFacultyPreviewId()
+  );
   const initialFormData = useRef<Partial<Faculty>>(
     faculty || {
-      employee_id: "",
+      employee_id: generatedEmployeeId,
       first_name: "",
       last_name: "",
       middle_name: "",
@@ -87,12 +98,17 @@ const FacultyForm: React.FC<FacultyFormProps> = ({
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (
-      formData.employee_id &&
+    const hasCoreRequiredFields = Boolean(
       formData.first_name &&
       formData.last_name &&
       formData.email &&
-      formData.department_id
+      formData.department_id,
+    );
+    const hasRequiredEmployeeIdForEdit = faculty ? Boolean(formData.employee_id) : true;
+
+    if (
+      hasCoreRequiredFields &&
+      hasRequiredEmployeeIdForEdit
     ) {
       if (faculty && hasChanges()) {
         setShowSaveConfirmation(true);
@@ -103,15 +119,20 @@ const FacultyForm: React.FC<FacultyFormProps> = ({
   };
 
   const performSave = () => {
-    if (
-      formData.employee_id &&
+    const hasCoreRequiredFields = Boolean(
       formData.first_name &&
       formData.last_name &&
       formData.email &&
-      formData.department_id
+      formData.department_id,
+    );
+    const hasRequiredEmployeeIdForEdit = faculty ? Boolean(formData.employee_id) : true;
+
+    if (
+      hasCoreRequiredFields &&
+      hasRequiredEmployeeIdForEdit
     ) {
       const facultyData: Partial<Faculty> = {
-        employee_id: formData.employee_id!,
+        employee_id: faculty ? formData.employee_id! : generatedEmployeeId,
         first_name: formData.first_name!,
         last_name: formData.last_name!,
         middle_name: formData.middle_name || "",
@@ -214,29 +235,22 @@ const FacultyForm: React.FC<FacultyFormProps> = ({
                 </label>
                 <input
                   type='text'
-                  value={formData.employee_id || ""}
-                  onChange={(e) =>
-                    setFormData({
-                      ...formData,
-                      employee_id: e.target.value.toUpperCase(),
-                    })
-                  }
+                  value={faculty ? (formData.employee_id || "") : generatedEmployeeId}
+                  readOnly
                   className='w-full rounded-xl px-4 py-2.5 transition-all border-gray-200 focus:ring-2 focus:ring-offset-0'
                   style={{
                     border: "1px solid #E5E7EB",
                     outline: "none",
+                    backgroundColor: "#F9FAFB",
+                    color: colors.neutral,
                   }}
-                  onFocus={(e) => {
-                    e.currentTarget.style.borderColor = colors.secondary;
-                    e.currentTarget.style.boxShadow = `0 0 0 3px ${colors.secondary}20`;
-                  }}
-                  onBlur={(e) => {
-                    e.currentTarget.style.borderColor = "#E5E7EB";
-                    e.currentTarget.style.boxShadow = "none";
-                  }}
-                  placeholder="e.g. FAC-2024-001"
-                  required
+                  placeholder="Auto-generated on save"
                 />
+                {!faculty && (
+                  <p className='text-xs mt-1' style={{ color: colors.neutral }}>
+                    Faculty ID is auto-generated and reserved using format: FAC{new Date().getFullYear()}-######
+                  </p>
+                )}
               </div>
 
               <div>
