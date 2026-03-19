@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { Prisma } from "@prisma/client";
 import { getServerSession } from "next-auth";
 import { authOptions } from "../../[...nextauth]/authOptions";
 import { prisma } from "@/app/lib/prisma";
@@ -14,6 +15,27 @@ type EnrollmentPreview = {
   family_name: string | null;
   email_address: string | null;
 };
+
+type DropHistoryRow = {
+  student_number: string | null;
+  academic_year: string | null;
+  semester: number | null;
+  curriculum_course_id: number | null;
+  status: string | null;
+};
+
+function normalizeSemesterToNumber(value: unknown): number | null {
+  if (typeof value === "number" && Number.isFinite(value)) {
+    return value;
+  }
+
+  const text = String(value || "").trim().toLowerCase();
+  if (!text) return null;
+  if (text === "1" || text.includes("first")) return 1;
+  if (text === "2" || text.includes("second")) return 2;
+  if (text === "3" || text.includes("third") || text.includes("summer")) return 3;
+  return null;
+}
 
 export async function GET() {
   try {
@@ -93,7 +115,7 @@ export async function GET() {
       });
     }
 
-    const [sections, assignments] = await Promise.all([
+    const [sections, assignments, facultySchedules] = await Promise.all([
       prisma.sections.findMany({
         where: {
           id: { in: sectionIds },
@@ -123,6 +145,16 @@ export async function GET() {
           assignment_type: true,
         },
         orderBy: [{ section_id: "asc" }, { student_number: "asc" }],
+      }),
+      prisma.class_schedule.findMany({
+        where: {
+          faculty_id: faculty.id,
+          section_id: { in: sectionIds },
+        },
+        select: {
+          section_id: true,
+          curriculum_course_id: true,
+        },
       }),
     ]);
 
@@ -162,6 +194,94 @@ export async function GET() {
       scheduleCounts.map((row) => [row.section_id, row._count.id]),
     );
 
+    const curriculumBySection = new Map<number, Set<number>>();
+    for (const schedule of facultySchedules) {
+      if (!Number.isFinite(schedule.section_id) || !Number.isFinite(schedule.curriculum_course_id)) {
+        continue;
+      }
+      const sectionSet =
+        curriculumBySection.get(schedule.section_id) || new Set<number>();
+      sectionSet.add(Number(schedule.curriculum_course_id));
+      curriculumBySection.set(schedule.section_id, sectionSet);
+    }
+
+    const allCurriculumCourseIds = [
+      ...new Set(
+        facultySchedules
+          .map((row) => Number(row.curriculum_course_id))
+          .filter((id) => Number.isFinite(id)),
+      ),
+    ];
+    const allAcademicYears = [
+      ...new Set(assignments.map((row) => row.academic_year).filter(Boolean)),
+    ];
+
+    const dropHistoryRows =
+      studentNumbers.length > 0 &&
+      allCurriculumCourseIds.length > 0 &&
+      allAcademicYears.length > 0
+        ? await prisma.$queryRaw<DropHistoryRow[]>`
+            SELECT
+              student_number,
+              academic_year,
+              semester,
+              curriculum_course_id,
+              status
+            FROM subject_drop_history
+            WHERE student_number IN (${Prisma.join(studentNumbers)})
+              AND academic_year IN (${Prisma.join(allAcademicYears as string[])})
+              AND curriculum_course_id IN (${Prisma.join(allCurriculumCourseIds)})
+              AND status IN ('pending_approval', 'dropped')
+          `
+        : [];
+
+    const dropStatusByStudentTerm = new Map<
+      string,
+      { pending: number; dropped: number }
+    >();
+
+    for (const row of dropHistoryRows) {
+      const studentNumber = String(row.student_number || "");
+      const academicYear = String(row.academic_year || "");
+      const semesterNum = normalizeSemesterToNumber(row.semester);
+      const curriculumCourseId = Number(row.curriculum_course_id);
+      const normalizedStatus = String(row.status || "").toLowerCase();
+      if (
+        !studentNumber ||
+        !academicYear ||
+        !semesterNum ||
+        !Number.isFinite(curriculumCourseId)
+      ) {
+        continue;
+      }
+
+      for (const section of sections) {
+        if (
+          section.academic_year !== academicYear ||
+          normalizeSemesterToNumber(section.semester) !== semesterNum
+        ) {
+          continue;
+        }
+
+        const sectionCurricula = curriculumBySection.get(section.id);
+        if (!sectionCurricula || !sectionCurricula.has(curriculumCourseId)) {
+          continue;
+        }
+
+        const key = `${section.id}|${studentNumber}|${academicYear}|${semesterNum}`;
+        const bucket = dropStatusByStudentTerm.get(key) || {
+          pending: 0,
+          dropped: 0,
+        };
+        if (normalizedStatus === "pending_approval") {
+          bucket.pending += 1;
+        } else if (normalizedStatus === "dropped") {
+          bucket.dropped += 1;
+        }
+        dropStatusByStudentTerm.set(key, bucket);
+      }
+    }
+
     const studentsBySection = new Map<number, any[]>();
     for (const assignment of assignments) {
       const studentEnrollment = enrollmentByStudent.get(
@@ -176,6 +296,18 @@ export async function GET() {
         .join(" ")
         .trim();
 
+      const semesterNum = normalizeSemesterToNumber(assignment.semester);
+      const dropKey = `${assignment.section_id}|${assignment.student_number}|${assignment.academic_year}|${semesterNum || ""}`;
+      const dropStats = dropStatusByStudentTerm.get(dropKey);
+      const pendingDropCount = dropStats?.pending || 0;
+      const droppedCount = dropStats?.dropped || 0;
+      const dropStatus =
+        pendingDropCount > 0
+          ? "pending_drop"
+          : droppedCount > 0
+            ? "dropped"
+            : "active";
+
       const student = {
         assignmentId: assignment.id,
         studentNumber: assignment.student_number,
@@ -184,6 +316,9 @@ export async function GET() {
         academicYear: assignment.academic_year,
         semester: assignment.semester,
         assignmentType: assignment.assignment_type || "regular",
+        dropStatus,
+        pendingDropCount,
+        droppedCount,
       };
 
       const bucket = studentsBySection.get(assignment.section_id) || [];

@@ -13,6 +13,7 @@ import ForecastingAnalytics from "../components/ForecastingAnalytics";
 import StudentForecastDashboard from "../components/StudentForecastDashboard";
 import AssessmentManagement from "../components/AssessmentManagement";
 import SubjectDroppingManagement from "../components/SubjectDroppingManagement";
+import StudentDroppingManagement from "../components/StudentDroppingManagement";
 import CrossEnrollmentManagement from "../components/CrossEnrollmentManagement";
 import ShiftingManagement from "../components/ShiftingManagement";
 import ReportManagement from "../components/ReportManagement";
@@ -20,6 +21,7 @@ import PaymentsDashboard from "../components/reports/PaymentsDashboard";
 import RegistrationFormPrintReports from "../components/reports/RegistrationFormPrintReports";
 import SchedulingManagement from "../components/SchedulingManagement";
 import PaymentBillingManagement from "../components/PaymentBillingManagement";
+import RefundManagement from "../components/RefundManagement";
 import StudentPaymentCheckoutPage from "../components/paymentBilling/StudentPaymentCheckoutPage";
 import StudentFinancialDetailPage from "../components/paymentBilling/StudentFinancialDetailPage";
 import CurriculumManagement from "../components/curriculum";
@@ -91,6 +93,8 @@ function DashboardContent() {
         return <AssessmentManagement />;
       case "subject-dropping":
         return <SubjectDroppingManagement />;
+      case "student-dropping":
+        return <StudentDroppingManagement />;
       case "cross-enrollee":
         return <CrossEnrollmentManagement />;
       case "shifting":
@@ -105,6 +109,8 @@ function DashboardContent() {
         return <SchedulingManagement />;
       case "payment-billing":
         return <PaymentBillingManagement />;
+      case "refund":
+        return <RefundManagement />;
       case "student-payment-checkout":
         return <StudentPaymentCheckoutPage />;
       case "student-financial-detail":

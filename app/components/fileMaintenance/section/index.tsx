@@ -259,7 +259,7 @@ const SectionManagement: React.FC = () => {
               className='text-3xl font-bold tracking-tight'
               style={{ color: colors.primary }}
             >
-              Section Management
+              Scheduling Management
             </h1>
             <p className='text-gray-500 mt-1'>
               Manage section information and settings
