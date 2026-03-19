@@ -278,6 +278,38 @@ export async function POST(request: NextRequest) {
             semesterNum,
           );
         }
+
+        const remainingRows = await tx.$queryRaw<{ count: bigint }[]>`
+          SELECT COUNT(*)::bigint AS count
+          FROM enrolled_subjects
+          WHERE student_number = ${studentNumber}
+            AND academic_year = ${academicYear}
+            AND semester = ${semesterNum}
+        `;
+        const remainingCount = Number(remainingRows[0]?.count || 0);
+
+        // Keep enrollment status aligned with full student-drop outcome.
+        if (remainingCount === 0) {
+          await tx.$executeRaw`
+            UPDATE enrollment
+            SET status = 3
+            WHERE student_number = ${studentNumber}
+              AND academic_year = ${academicYear}
+              AND (
+                LOWER(COALESCE(term, '')) = CASE
+                  WHEN ${semesterNum} = 1 THEN 'first'
+                  WHEN ${semesterNum} = 2 THEN 'second'
+                  ELSE 'third'
+                END
+                OR LOWER(COALESCE(term, '')) = CASE
+                  WHEN ${semesterNum} = 1 THEN 'first semester'
+                  WHEN ${semesterNum} = 2 THEN 'second semester'
+                  ELSE 'third semester'
+                END
+                OR (${semesterNum} = 3 AND LOWER(COALESCE(term, '')) = 'summer')
+              )
+          `;
+        }
       } else if (actionableIds.length > 0) {
         await tx.$executeRaw`
           UPDATE enrolled_subjects
