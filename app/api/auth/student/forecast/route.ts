@@ -1,50 +1,164 @@
 import { NextResponse, NextRequest } from "next/server";
 import { prisma } from "@/app/lib/prisma";
+import { ROLES } from "@/app/lib/rbac";
+import { getSessionScope, isRoleAllowed } from "@/app/lib/accessScope";
 
 const FORECAST_API_URL = process.env.FORECAST_API_URL;
+const FORECAST_ALLOWED_ROLES = [ROLES.ADMIN, ROLES.REGISTRAR, ROLES.DEAN];
+
+function buildRoomRecommendation(capacity: any[], rooms: any[]) {
+  const totalRooms = rooms.length;
+  const availableRooms = rooms.filter((r) => r.status === "available").length;
+  const totalAvailableCapacity = rooms
+    .filter((r) => r.status === "available")
+    .reduce((sum, r) => sum + Number(r.capacity ?? 0), 0);
+
+  const totalRecommendedCapacity = capacity.reduce(
+    (sum, item) => sum + Number(item.new_total_capacity ?? 0),
+    0,
+  );
+  const totalAdditionalSectionsNeeded = capacity.reduce(
+    (sum, item) => sum + Number(item.additional_sections_needed ?? 0),
+    0,
+  );
+
+  const averageAvailableRoomCapacity =
+    availableRooms > 0
+      ? Math.max(1, Math.round(totalAvailableCapacity / availableRooms))
+      : 40;
+  const additionalCapacityNeeded = Math.max(
+    0,
+    totalRecommendedCapacity - totalAvailableCapacity,
+  );
+  const additionalRoomsNeeded =
+    additionalCapacityNeeded > 0
+      ? Math.ceil(additionalCapacityNeeded / averageAvailableRoomCapacity)
+      : 0;
+
+  const roomsAreSufficient =
+    additionalRoomsNeeded === 0 && totalAvailableCapacity > 0;
+
+  return {
+    rooms_are_sufficient: roomsAreSufficient,
+    recommendation: roomsAreSufficient ? "ROOMS_SUFFICIENT" : "ADD_ROOMS",
+    total_recommended_capacity: totalRecommendedCapacity,
+    total_available_capacity: totalAvailableCapacity,
+    capacity_gap: additionalCapacityNeeded,
+    additional_sections_needed: totalAdditionalSectionsNeeded,
+    additional_rooms_needed: additionalRoomsNeeded,
+    average_available_room_capacity: averageAvailableRoomCapacity,
+    message: roomsAreSufficient
+      ? "Available rooms are sufficient for the projected sections and students."
+      : `Additional rooms are recommended. Add at least ${additionalRoomsNeeded} room(s) to cover approximately ${additionalCapacityNeeded} more seat(s).`,
+    notes:
+      "This recommendation is based on available room seat capacity versus total projected section capacity.",
+  };
+}
 
 // ── GET — all data the frontend and Python server need ──────────────────────
 export async function GET(request: NextRequest) {
   try {
+    const scope = await getSessionScope();
+    if (!scope) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
+    if (!isRoleAllowed(scope.roleId, FORECAST_ALLOWED_ROLES)) {
+      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    }
+
+    if (scope.isDean && !scope.deanDepartmentId) {
+      return NextResponse.json(
+        { error: "Dean account is not linked to a department." },
+        { status: 403 },
+      );
+    }
+
     // ── Students by program × academic_year (for the frontend charts) ────
-    const studentsByProgram = await prisma.$queryRaw`
-      SELECT 
-        COALESCE(p.name, e.course_program) as program,
-        e.academic_year,
-        COUNT(*)::int as total_students
-      FROM enrollment e
-      LEFT JOIN program p ON 
-        (e.course_program ~ '^[0-9]+$' AND p.id = CAST(e.course_program AS INTEGER))
-        OR e.course_program = p.code 
-        OR e.course_program = p.name
-      WHERE e.course_program IS NOT NULL
-        AND e.academic_year IS NOT NULL
-        AND e.status = 1
-      GROUP BY COALESCE(p.name, e.course_program), e.academic_year
-      ORDER BY COALESCE(p.name, e.course_program), e.academic_year
-    `;
+    const studentsByProgram =
+      scope.isDean && scope.deanDepartmentId
+        ? await prisma.$queryRaw`
+            SELECT
+              COALESCE(p.name, e.course_program) as program,
+              e.academic_year,
+              COUNT(*)::int as total_students
+            FROM enrollment e
+            LEFT JOIN program p ON
+              (e.course_program ~ '^[0-9]+$' AND p.id = CAST(e.course_program AS INTEGER))
+              OR e.course_program = p.code
+              OR e.course_program = p.name
+            WHERE e.course_program IS NOT NULL
+              AND e.academic_year IS NOT NULL
+              AND e.status = 1
+              AND e.department = ${scope.deanDepartmentId}
+            GROUP BY COALESCE(p.name, e.course_program), e.academic_year
+            ORDER BY COALESCE(p.name, e.course_program), e.academic_year
+          `
+        : await prisma.$queryRaw`
+            SELECT
+              COALESCE(p.name, e.course_program) as program,
+              e.academic_year,
+              COUNT(*)::int as total_students
+            FROM enrollment e
+            LEFT JOIN program p ON
+              (e.course_program ~ '^[0-9]+$' AND p.id = CAST(e.course_program AS INTEGER))
+              OR e.course_program = p.code
+              OR e.course_program = p.name
+            WHERE e.course_program IS NOT NULL
+              AND e.academic_year IS NOT NULL
+              AND e.status = 1
+            GROUP BY COALESCE(p.name, e.course_program), e.academic_year
+            ORDER BY COALESCE(p.name, e.course_program), e.academic_year
+          `;
 
     const totalStudents = await prisma.enrollment.count({
-      where: { status: 1 },
+      where:
+        scope.isDean && scope.deanDepartmentId
+          ? { status: 1, department: scope.deanDepartmentId }
+          : { status: 1 },
     });
 
-    const studentsByTerm = await prisma.$queryRaw`
-      SELECT term, COUNT(*)::int as total_students
-      FROM enrollment
-      WHERE status = 1 AND term IS NOT NULL
-      GROUP BY term ORDER BY term
-    `;
+    const studentsByTerm =
+      scope.isDean && scope.deanDepartmentId
+        ? await prisma.$queryRaw`
+            SELECT term, COUNT(*)::int as total_students
+            FROM enrollment
+            WHERE status = 1
+              AND term IS NOT NULL
+              AND department = ${scope.deanDepartmentId}
+            GROUP BY term ORDER BY term
+          `
+        : await prisma.$queryRaw`
+            SELECT term, COUNT(*)::int as total_students
+            FROM enrollment
+            WHERE status = 1 AND term IS NOT NULL
+            GROUP BY term ORDER BY term
+          `;
 
-    const studentsByDepartment = await prisma.$queryRaw`
-      SELECT d.name as department_name, COUNT(e.id)::int as total_students
-      FROM enrollment e
-      LEFT JOIN department d ON e.department = d.id
-      WHERE e.status = 1
-      GROUP BY d.name ORDER BY total_students DESC
-    `;
+    const studentsByDepartment =
+      scope.isDean && scope.deanDepartmentId
+        ? await prisma.$queryRaw`
+            SELECT d.name as department_name, COUNT(e.id)::int as total_students
+            FROM enrollment e
+            LEFT JOIN department d ON e.department = d.id
+            WHERE e.status = 1
+              AND e.department = ${scope.deanDepartmentId}
+            GROUP BY d.name ORDER BY total_students DESC
+          `
+        : await prisma.$queryRaw`
+            SELECT d.name as department_name, COUNT(e.id)::int as total_students
+            FROM enrollment e
+            LEFT JOIN department d ON e.department = d.id
+            WHERE e.status = 1
+            GROUP BY d.name ORDER BY total_students DESC
+          `;
 
     // ── Enrollment counts by (program_code, admission_year) for Python ───
     const programs = await prisma.program.findMany({
+      where:
+        scope.isDean && scope.deanDepartmentId
+          ? { department_id: scope.deanDepartmentId }
+          : undefined,
       select: { id: true, code: true },
     });
     const programCodeMap = new Map(
@@ -55,6 +169,9 @@ export async function GET(request: NextRequest) {
       where: {
         course_program: { not: null },
         admission_date: { not: null },
+        ...(scope.isDean && scope.deanDepartmentId
+          ? { department: scope.deanDepartmentId }
+          : {}),
       },
       select: {
         course_program: true,
@@ -99,6 +216,10 @@ export async function GET(request: NextRequest) {
 
     // ── Section history grouped by (program_code, start_year) ────────────
     const rawSections = await prisma.sections.findMany({
+      where:
+        scope.isDean && scope.deanDepartmentId
+          ? { program_id: { in: programs.map((p) => p.id) } }
+          : undefined,
       select: {
         program_id: true,
         student_count: true,
@@ -183,12 +304,47 @@ export async function GET(request: NextRequest) {
 // ── POST — call Python forecast server for predictions + capacity ───────────
 export async function POST(request: NextRequest) {
   try {
+    const scope = await getSessionScope();
+    if (!scope) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
+    if (!isRoleAllowed(scope.roleId, FORECAST_ALLOWED_ROLES)) {
+      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    }
+
+    if (scope.isDean && !scope.deanDepartmentId) {
+      return NextResponse.json(
+        { error: "Dean account is not linked to a department." },
+        { status: 403 },
+      );
+    }
+
     const body = await request.json();
     const {
       data,
       section_history: inputSectionHistory,
       rooms: inputRooms,
     } = body;
+
+    const scopedPrograms = await prisma.program.findMany({
+      where:
+        scope.isDean && scope.deanDepartmentId
+          ? { department_id: scope.deanDepartmentId }
+          : undefined,
+      select: { id: true, code: true, name: true },
+    });
+
+    const allowedProgramKeys = new Set<string>();
+    for (const p of scopedPrograms) {
+      if (p.code) {
+        allowedProgramKeys.add(p.code.trim().toLowerCase());
+      }
+      if (p.name) {
+        allowedProgramKeys.add(p.name.trim().toLowerCase());
+      }
+      allowedProgramKeys.add(String(p.id));
+    }
 
     if (!data || !Array.isArray(data)) {
       return NextResponse.json(
@@ -197,7 +353,17 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    for (const item of data) {
+    const normalizedData =
+      scope.isDean && scope.deanDepartmentId
+        ? data.filter((item: any) => {
+            const key = String(item.program || item.course || "")
+              .trim()
+              .toLowerCase();
+            return key && allowedProgramKeys.has(key);
+          })
+        : data;
+
+    for (const item of normalizedData) {
       // Accept "course" as alias for "program"
       if (!item.program && item.course) {
         item.program = item.course;
@@ -225,7 +391,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Transform for the Python /predict endpoint (uses "course" not "program")
-    const transformedData = data.map((item: any) => ({
+    const transformedData = normalizedData.map((item: any) => ({
       course: item.program,
       total_students: item.total_students,
       year: item.year,
@@ -243,9 +409,7 @@ export async function POST(request: NextRequest) {
       !Array.isArray(section_history) ||
       section_history.length === 0
     ) {
-      const programs = await prisma.program.findMany({
-        select: { id: true, code: true },
-      });
+      const programs = scopedPrograms.map((p) => ({ id: p.id, code: p.code }));
       const programCodeMap = new Map(
         programs.map((p) => [p.id.toString(), p.code]),
       );
@@ -268,6 +432,10 @@ export async function POST(request: NextRequest) {
         section_history.length === 0
       ) {
         const rawSections = await prisma.sections.findMany({
+          where:
+            scope.isDean && scope.deanDepartmentId
+              ? { program_id: { in: programs.map((p) => p.id) } }
+              : undefined,
           select: {
             program_id: true,
             student_count: true,
@@ -342,7 +510,7 @@ export async function POST(request: NextRequest) {
       string,
       { year: number; total_students: number }[]
     > = {};
-    data.forEach((item: any) => {
+    normalizedData.forEach((item: any) => {
       if (!programGroups[item.program]) programGroups[item.program] = [];
       programGroups[item.program].push({
         year: item.year,
@@ -502,6 +670,11 @@ export async function POST(request: NextRequest) {
       });
     }
 
+    const roomRecommendation = buildRoomRecommendation(
+      capacity,
+      rooms as any[],
+    );
+
     return NextResponse.json({
       success: true,
       programs: Object.keys(programGroups),
@@ -518,6 +691,7 @@ export async function POST(request: NextRequest) {
           .filter((r: any) => r.status === "available")
           .reduce((sum: number, r: any) => sum + (r.capacity ?? 0), 0),
       },
+      room_recommendation: roomRecommendation,
     });
   } catch (error: any) {
     console.error("Error processing forecast data:", error);

@@ -296,6 +296,10 @@ export async function DELETE(request: NextRequest) {
     await prisma.users.delete({
       where: { id: Number(id) },
     });
+    await prisma.faculty.updateMany({
+      where: { user_id: Number(id) },
+      data: { user_id: null },
+    });
 
     return NextResponse.json({ message: "Account deleted successfully" });
   } catch (error) {

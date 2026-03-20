@@ -1,6 +1,6 @@
 "use client";
 import React, { useState, useMemo, useEffect } from "react";
-import { Plus } from "lucide-react";
+import { Plus, Eye, EyeOff, UserPlus } from "lucide-react";
 import { Faculty, Department } from "../../../types";
 import { colors } from "../../../colors";
 import ConfirmationModal from "../../common/ConfirmationModal";
@@ -16,6 +16,9 @@ import { getDepartments } from "@/app/utils/departmentUtils";
 import { insertIntoReports } from "@/app/utils/reportsUtils";
 import { useSession } from "next-auth/react";
 import { invalidateRelatedCaches } from "@/app/utils/cache";
+
+const FACULTY_ROLE_ID = 3;
+const DEAN_ROLE_ID = 5;
 const FacultyManagement: React.FC = () => {
   const [faculty, setFaculty] = useState<Faculty[]>([]);
   const [departments, setDepartments] = useState<Department[]>([]);
@@ -85,6 +88,21 @@ const FacultyManagement: React.FC = () => {
   });
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage, setItemsPerPage] = useState(10);
+  const [accountModal, setAccountModal] = useState<{
+    isOpen: boolean;
+    faculty: Faculty | null;
+  }>({
+    isOpen: false,
+    faculty: null,
+  });
+  const [accountUsername, setAccountUsername] = useState("");
+  const [accountPassword, setAccountPassword] = useState("");
+  const [accountConfirmPassword, setAccountConfirmPassword] = useState("");
+  const [accountRole, setAccountRole] = useState<number>(FACULTY_ROLE_ID);
+  const [showAccountPassword, setShowAccountPassword] = useState(false);
+  const [showAccountConfirmPassword, setShowAccountConfirmPassword] =
+    useState(false);
+  const [isCreatingAccount, setIsCreatingAccount] = useState(false);
 
   const filteredFaculty = useMemo(
     () => filterFaculty(faculty, searchTerm, statusFilter, positionFilter),
@@ -193,6 +211,106 @@ const FacultyManagement: React.FC = () => {
         facultyId: id,
         facultyName: `${fac.first_name} ${fac.last_name}`,
       });
+    }
+  };
+
+  const openCreateAccountModal = (fac: Faculty) => {
+    setAccountModal({ isOpen: true, faculty: fac });
+    setAccountUsername(fac.employee_id || "");
+    setAccountPassword("");
+    setAccountConfirmPassword("");
+    setAccountRole(FACULTY_ROLE_ID);
+    setShowAccountPassword(false);
+    setShowAccountConfirmPassword(false);
+  };
+
+  const closeCreateAccountModal = () => {
+    setAccountModal({ isOpen: false, faculty: null });
+    setAccountUsername("");
+    setAccountPassword("");
+    setAccountConfirmPassword("");
+    setAccountRole(FACULTY_ROLE_ID);
+    setShowAccountPassword(false);
+    setShowAccountConfirmPassword(false);
+    setIsCreatingAccount(false);
+  };
+
+  const handleCreateFacultyAccount = async () => {
+    if (!accountModal.faculty) {
+      return;
+    }
+
+    const normalizedUsername = accountUsername.trim();
+
+    if (normalizedUsername.length < 3) {
+      setErrorModal({
+        isOpen: true,
+        message: "Username must be at least 3 characters.",
+        details: "Please provide a valid username for this faculty account.",
+      });
+      return;
+    }
+
+    if (accountPassword.length < 6) {
+      setErrorModal({
+        isOpen: true,
+        message: "Password must be at least 6 characters.",
+        details: "Choose a stronger password before creating the account.",
+      });
+      return;
+    }
+
+    if (accountPassword !== accountConfirmPassword) {
+      setErrorModal({
+        isOpen: true,
+        message: "Passwords do not match.",
+        details: "Make sure both password fields are identical.",
+      });
+      return;
+    }
+
+    try {
+      setIsCreatingAccount(true);
+
+      const response = await fetch("/api/auth/faculty/account", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          facultyId: accountModal.faculty.id,
+          username: normalizedUsername,
+          password: accountPassword,
+          role: accountRole,
+        }),
+      });
+
+      const payload = await response.json();
+
+      if (!response.ok) {
+        throw new Error(payload?.error || "Failed to create faculty account.");
+      }
+
+      setFaculty((prev) =>
+        prev.map((item) =>
+          item.id === accountModal.faculty?.id
+            ? { ...item, user_id: payload?.user?.id ?? item.user_id }
+            : item,
+        ),
+      );
+
+      setSuccessModal({
+        isOpen: true,
+        message: `Account created for ${accountModal.faculty.first_name} ${accountModal.faculty.last_name}.`,
+      });
+      closeCreateAccountModal();
+    } catch (error: any) {
+      setErrorModal({
+        isOpen: true,
+        message: error.message || "Failed to create faculty account.",
+        details: "Please verify the credentials and try again.",
+      });
+      setIsCreatingAccount(false);
     }
   };
 
@@ -316,6 +434,8 @@ const FacultyManagement: React.FC = () => {
             faculty={paginatedFaculty}
             onEdit={setEditingFaculty}
             onDelete={handleDeleteFaculty}
+            onCreateAccount={openCreateAccountModal}
+            canCreateAccount={Number((session?.user as any)?.role) === 1}
             isLoading={isLoading}
           />
           <Pagination
@@ -339,6 +459,182 @@ const FacultyManagement: React.FC = () => {
               setIsAddModalOpen(false);
             }}
           />
+        )}
+
+        {/* Create Faculty Account Modal */}
+        {accountModal.isOpen && accountModal.faculty && (
+          <div className='fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4'>
+            <div className='w-full max-w-lg rounded-2xl bg-white shadow-2xl border border-gray-100 overflow-hidden'>
+              <div
+                className='px-6 py-4 border-b border-gray-100 flex items-center gap-3'
+                style={{ backgroundColor: `${colors.primary}08` }}
+              >
+                <div
+                  className='p-2 rounded-lg'
+                  style={{ backgroundColor: `${colors.secondary}18` }}
+                >
+                  <UserPlus
+                    className='w-5 h-5'
+                    style={{ color: colors.secondary }}
+                  />
+                </div>
+                <div>
+                  <h3
+                    className='text-lg font-semibold'
+                    style={{ color: colors.primary }}
+                  >
+                    Create Faculty Account
+                  </h3>
+                  <p className='text-sm text-gray-500'>
+                    The name fields are pulled directly from this faculty
+                    record.
+                  </p>
+                </div>
+              </div>
+
+              <div className='p-6 space-y-4'>
+                <div className='grid grid-cols-1 sm:grid-cols-3 gap-3'>
+                  <div>
+                    <label className='block text-xs font-semibold text-gray-500 mb-1'>
+                      First Name
+                    </label>
+                    <input
+                      value={accountModal.faculty.first_name}
+                      readOnly
+                      className='w-full rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-sm text-gray-700'
+                    />
+                  </div>
+                  <div>
+                    <label className='block text-xs font-semibold text-gray-500 mb-1'>
+                      Middle Name
+                    </label>
+                    <input
+                      value={accountModal.faculty.middle_name || ""}
+                      readOnly
+                      className='w-full rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-sm text-gray-700'
+                    />
+                  </div>
+                  <div>
+                    <label className='block text-xs font-semibold text-gray-500 mb-1'>
+                      Last Name
+                    </label>
+                    <input
+                      value={accountModal.faculty.last_name}
+                      readOnly
+                      className='w-full rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-sm text-gray-700'
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <label className='block text-sm font-medium text-gray-700 mb-1.5'>
+                    Username
+                  </label>
+                  <input
+                    value={accountUsername}
+                    onChange={(e) => setAccountUsername(e.target.value)}
+                    placeholder='Enter username'
+                    className='w-full rounded-lg border border-gray-200 px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent'
+                  />
+                </div>
+
+                <div>
+                  <label className='block text-sm font-medium text-gray-700 mb-1.5'>
+                    Role
+                  </label>
+                  <select
+                    value={accountRole}
+                    onChange={(e) =>
+                      setAccountRole(Number(e.target.value) || FACULTY_ROLE_ID)
+                    }
+                    className='w-full rounded-lg border border-gray-200 px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent'
+                  >
+                    <option value={FACULTY_ROLE_ID}>FACULTY</option>
+                    <option value={DEAN_ROLE_ID}>DEAN</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className='block text-sm font-medium text-gray-700 mb-1.5'>
+                    Password
+                  </label>
+                  <div className='relative'>
+                    <input
+                      type={showAccountPassword ? "text" : "password"}
+                      value={accountPassword}
+                      onChange={(e) => setAccountPassword(e.target.value)}
+                      placeholder='Enter password'
+                      className='w-full rounded-lg border border-gray-200 px-3 py-2.5 pr-10 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent'
+                    />
+                    <button
+                      type='button'
+                      onClick={() => setShowAccountPassword((prev) => !prev)}
+                      className='absolute right-2 top-1/2 -translate-y-1/2 p-1 text-gray-500 hover:text-gray-700'
+                    >
+                      {showAccountPassword ? (
+                        <EyeOff className='w-4 h-4' />
+                      ) : (
+                        <Eye className='w-4 h-4' />
+                      )}
+                    </button>
+                  </div>
+                </div>
+
+                <div>
+                  <label className='block text-sm font-medium text-gray-700 mb-1.5'>
+                    Confirm Password
+                  </label>
+                  <div className='relative'>
+                    <input
+                      type={showAccountConfirmPassword ? "text" : "password"}
+                      value={accountConfirmPassword}
+                      onChange={(e) =>
+                        setAccountConfirmPassword(e.target.value)
+                      }
+                      placeholder='Confirm password'
+                      className='w-full rounded-lg border border-gray-200 px-3 py-2.5 pr-10 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent'
+                    />
+                    <button
+                      type='button'
+                      onClick={() =>
+                        setShowAccountConfirmPassword((prev) => !prev)
+                      }
+                      className='absolute right-2 top-1/2 -translate-y-1/2 p-1 text-gray-500 hover:text-gray-700'
+                    >
+                      {showAccountConfirmPassword ? (
+                        <EyeOff className='w-4 h-4' />
+                      ) : (
+                        <Eye className='w-4 h-4' />
+                      )}
+                    </button>
+                  </div>
+                </div>
+
+                <div className='rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800'>
+                  This account will be linked to this faculty record via user_id
+                  and assigned the selected role.
+                </div>
+              </div>
+
+              <div className='px-6 py-4 border-t border-gray-100 flex justify-end gap-3'>
+                <button
+                  onClick={closeCreateAccountModal}
+                  disabled={isCreatingAccount}
+                  className='px-4 py-2 rounded-lg border border-gray-200 text-gray-700 hover:bg-gray-50 transition-colors disabled:opacity-60'
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleCreateFacultyAccount}
+                  disabled={isCreatingAccount}
+                  className='px-4 py-2 rounded-lg text-white transition-colors disabled:opacity-60'
+                  style={{ backgroundColor: colors.secondary }}
+                >
+                  {isCreatingAccount ? "Creating..." : "Create Account"}
+                </button>
+              </div>
+            </div>
+          </div>
         )}
 
         {/* Delete Confirmation Modal */}

@@ -42,6 +42,12 @@ interface NavigationProps {
   onViewChange: (view: string) => void;
 }
 
+type NavLeafItem = {
+  id: string;
+  label: string;
+  icon: any;
+};
+
 const Navigation: React.FC<NavigationProps> = ({
   currentView,
   onViewChange,
@@ -59,73 +65,64 @@ const Navigation: React.FC<NavigationProps> = ({
   const [isReportOpen, setIsReportOpen] = useState(false);
   const prevViewRef = useRef<string>("");
 
-  const fileMaintenanceSubItems = useMemo(
+  const canAccessView = (view: string) => isViewAllowed(view, resolvedUserRole);
+
+  const fileMaintenanceSubItems = useMemo<NavLeafItem[]>(
     () => [
       {
         id: "enrollment-form",
         label: "Student Information",
         icon: Users,
-        allowedRoles: [ROLES.ADMIN, ROLES.REGISTRAR, ROLES.FACULTY, ROLES.DEAN],
       },
       {
         id: "students",
         label: "Students",
         icon: Users,
-        allowedRoles: [ROLES.ADMIN, ROLES.REGISTRAR, ROLES.FACULTY, ROLES.DEAN],
       },
       {
         id: "file-maintenance-approval",
         label: "Approval",
         icon: CheckSquare,
-        allowedRoles: [ROLES.ADMIN],
       },
       {
         id: "file-maintenance-building",
         label: "Building",
         icon: Building2,
-        allowedRoles: [ROLES.ADMIN, ROLES.REGISTRAR, ROLES.DEAN],
       },
       {
         id: "file-maintenance-section",
         label: "Section",
         icon: FolderTree,
-        allowedRoles: [ROLES.ADMIN, ROLES.REGISTRAR, ROLES.DEAN],
       },
       {
         id: "file-maintenance-room",
         label: "Room",
         icon: DoorOpen,
-        allowedRoles: [ROLES.ADMIN, ROLES.REGISTRAR, ROLES.DEAN],
       },
       {
         id: "file-maintenance-department",
         label: "Department",
         icon: Network,
-        allowedRoles: [ROLES.ADMIN, ROLES.REGISTRAR, ROLES.DEAN],
       },
       {
         id: "file-maintenance-major",
         label: "Major",
         icon: BookOpen,
-        allowedRoles: [ROLES.ADMIN, ROLES.REGISTRAR, ROLES.DEAN],
       },
       {
         id: "file-maintenance-faculty",
         label: "Faculty",
         icon: Users2,
-        allowedRoles: [ROLES.ADMIN, ROLES.REGISTRAR, ROLES.DEAN],
       },
       {
         id: "file-maintenance-discount",
         label: "Discount",
         icon: Percent,
-        allowedRoles: [ROLES.ADMIN, ROLES.CASHIER],
       },
       {
         id: "file-maintenance-products",
         label: "Products",
         icon: Package,
-        allowedRoles: [ROLES.ADMIN, ROLES.CASHIER],
       },
       {
         id: "miscellaneous-fees",
@@ -137,132 +134,109 @@ const Navigation: React.FC<NavigationProps> = ({
         id: "file-maintenance-schools-programs",
         label: "Schools & Programs",
         icon: GraduationCap,
-        allowedRoles: [ROLES.ADMIN, ROLES.REGISTRAR, ROLES.DEAN],
       },
       {
         id: "file-maintenance-subject",
         label: "Subject",
         icon: BookOpen,
-        allowedRoles: [ROLES.ADMIN, ROLES.REGISTRAR, ROLES.FACULTY, ROLES.DEAN],
       },
       {
         id: "account-management",
         label: "Account Management",
         icon: UserCog,
-        allowedRoles: [ROLES.ADMIN],
       },
     ],
     [],
   );
 
-  const curriculumSubItems = useMemo(
+  const curriculumSubItems = useMemo<NavLeafItem[]>(
     () => [
       {
         id: "curriculum-program",
         label: "Program",
         icon: GraduationCap,
-        allowedRoles: [ROLES.ADMIN, ROLES.REGISTRAR, ROLES.DEAN],
       },
     ],
     [],
   );
 
-  const transactionSubItems = useMemo(
+  const transactionSubItems = useMemo<NavLeafItem[]>(
     () => [
       {
         id: "enrollments",
         label: "Enrollment",
         icon: UserPlus,
-        allowedRoles: [ROLES.ADMIN, ROLES.REGISTRAR, ROLES.DEAN],
       },
       {
         id: "assessment",
         label: "Assessment",
         icon: Calculator,
-        allowedRoles: [ROLES.ADMIN, ROLES.CASHIER],
       },
       {
         id: "subject-dropping",
         label: "Subject Dropping",
         icon: UserMinus,
-        allowedRoles: [ROLES.ADMIN, ROLES.REGISTRAR, ROLES.DEAN],
       },
       {
         id: "cross-enrollee",
         label: "Cross Enrollee",
         icon: BookOpen,
-        allowedRoles: [ROLES.ADMIN, ROLES.REGISTRAR, ROLES.DEAN],
       },
       {
         id: "shifting",
         label: "Section Shifting",
         icon: CalendarClock,
-        allowedRoles: [ROLES.ADMIN, ROLES.REGISTRAR],
       },
       {
         id: "resident-enrollment",
         label: "Resident",
         icon: Users2,
-        allowedRoles: [ROLES.ADMIN, ROLES.REGISTRAR, ROLES.DEAN],
       },
       {
         id: "payment-billing",
         label: "Payment",
         icon: CreditCard,
-        allowedRoles: [ROLES.ADMIN, ROLES.CASHIER],
       },
     ],
     [],
   );
 
-  const reportSubItems = useMemo(
+  const reportSubItems = useMemo<NavLeafItem[]>(
     () => [
       {
         id: "dashboard",
         label: "Dashboard",
         icon: BarChart3,
-        allowedRoles: [
-          ROLES.ADMIN,
-          ROLES.REGISTRAR,
-          ROLES.CASHIER,
-          ROLES.FACULTY,
-        ],
       },
       {
         id: "forecast-billing",
         label: "Forecasting",
         icon: TrendingUp,
-        allowedRoles: [ROLES.ADMIN, ROLES.REGISTRAR, ROLES.DEAN],
       },
       {
         id: "section-management",
         label: "Section Management",
         icon: FolderTree,
-        allowedRoles: [ROLES.ADMIN, ROLES.REGISTRAR, ROLES.DEAN],
       },
       {
         id: "faculty-subject-management",
         label: "Faculty Management",
         icon: Users2,
-        allowedRoles: [ROLES.ADMIN, ROLES.REGISTRAR, ROLES.DEAN],
       },
       {
         id: "reports",
         label: "Audit Trail",
         icon: FileBarChart,
-        allowedRoles: [ROLES.ADMIN, ROLES.REGISTRAR, ROLES.DEAN],
       },
       {
         id: "reports-payments-dashboard",
         label: "Financial Analytics",
         icon: DollarSign,
-        allowedRoles: [ROLES.ADMIN, ROLES.REGISTRAR, ROLES.CASHIER],
       },
       {
         id: "reports-registration-forms",
         label: "Registration Forms",
         icon: FileText,
-        allowedRoles: [ROLES.ADMIN, ROLES.REGISTRAR],
       },
     ],
     [],
@@ -298,7 +272,12 @@ const Navigation: React.FC<NavigationProps> = ({
             label: "Curriculum",
             icon: GraduationCap,
             hasSubmenu: true,
-            allowedRoles: [ROLES.ADMIN, ROLES.REGISTRAR, ROLES.FACULTY, ROLES.DEAN],
+            allowedRoles: [
+              ROLES.ADMIN,
+              ROLES.REGISTRAR,
+              ROLES.FACULTY,
+              ROLES.DEAN,
+            ],
           },
         ],
       },
@@ -359,33 +338,33 @@ const Navigation: React.FC<NavigationProps> = ({
         const visibleItems = group.items.filter((item) => {
           if (item.id === "file-maintenance") {
             const visibleSubItems = fileMaintenanceSubItems.filter((sub) =>
-              isViewAllowed(sub.id, resolvedUserRole),
+              canAccessView(sub.id),
             );
             return visibleSubItems.length > 0;
           }
 
           if (item.id === "curriculum") {
             const visibleSubItems = curriculumSubItems.filter((sub) =>
-              isViewAllowed(sub.id, resolvedUserRole),
+              canAccessView(sub.id),
             );
             return visibleSubItems.length > 0;
           }
 
           if (item.id === "transaction") {
             const visibleSubItems = transactionSubItems.filter((sub) =>
-              isViewAllowed(sub.id, resolvedUserRole),
+              canAccessView(sub.id),
             );
             return visibleSubItems.length > 0;
           }
 
           if (item.id === "report") {
             const visibleSubItems = reportSubItems.filter((sub) =>
-              isViewAllowed(sub.id, resolvedUserRole),
+              canAccessView(sub.id),
             );
             return visibleSubItems.length > 0;
           }
 
-          return isViewAllowed(item.id, resolvedUserRole);
+          return canAccessView(item.id);
         });
 
         return { ...group, items: visibleItems };
@@ -419,17 +398,17 @@ const Navigation: React.FC<NavigationProps> = ({
 
   // Filter sub-items for rendering
   const visibleSubItems = fileMaintenanceSubItems.filter((item) =>
-    isViewAllowed(item.id, resolvedUserRole),
+    canAccessView(item.id),
   );
 
   const visibleCurriculumSubItems = curriculumSubItems.filter((item) =>
-    isViewAllowed(item.id, resolvedUserRole),
+    canAccessView(item.id),
   );
   const visibleTransactionSubItems = transactionSubItems.filter((item) =>
-    isViewAllowed(item.id, resolvedUserRole),
+    canAccessView(item.id),
   );
   const visibleReportSubItems = reportSubItems.filter((item) =>
-    isViewAllowed(item.id, resolvedUserRole),
+    canAccessView(item.id),
   );
 
   const isFileMaintenanceActive = currentView.startsWith("file-maintenance");
@@ -654,22 +633,7 @@ const Navigation: React.FC<NavigationProps> = ({
                                     onClick={(e) => {
                                       e.preventDefault();
                                       e.stopPropagation();
-                                      console.log(
-                                        "Submenu item clicked:",
-                                        subItem.id,
-                                      );
-                                      console.log(
-                                        "onViewChange type:",
-                                        typeof onViewChange,
-                                      );
-                                      console.log(
-                                        "Calling onViewChange with:",
-                                        subItem.id,
-                                      );
                                       onViewChange(subItem.id);
-                                      console.log(
-                                        "onViewChange called successfully",
-                                      );
                                     }}
                                     className='w-full flex items-center justify-start gap-3 px-3 py-2 rounded-lg text-sm font-medium transition-all duration-200'
                                     style={

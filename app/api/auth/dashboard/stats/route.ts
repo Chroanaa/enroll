@@ -1,9 +1,40 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "../../../../lib/prisma";
 import { getAcademicTerm } from "../../../../utils/academicTermUtils";
+import { ROLES } from "@/app/lib/rbac";
+import { getSessionScope, isRoleAllowed } from "@/app/lib/accessScope";
+
+const DASHBOARD_ALLOWED_ROLES = [
+  ROLES.ADMIN,
+  ROLES.CASHIER,
+  ROLES.FACULTY,
+  ROLES.REGISTRAR,
+  ROLES.DEAN,
+];
 
 export async function GET(request: NextRequest) {
   try {
+    const scope = await getSessionScope();
+    if (!scope) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
+    if (!isRoleAllowed(scope.roleId, DASHBOARD_ALLOWED_ROLES)) {
+      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    }
+
+    if (scope.isDean && !scope.deanDepartmentId) {
+      return NextResponse.json(
+        { error: "Dean account is not linked to a department." },
+        { status: 403 },
+      );
+    }
+
+    const deanFilter =
+      scope.isDean && scope.deanDepartmentId
+        ? { department: scope.deanDepartmentId }
+        : {};
+
     // Get current server time from database to prevent tampering
     const serverTimeResult = await prisma.$queryRaw<
       [{ now: Date }]
@@ -37,34 +68,55 @@ export async function GET(request: NextRequest) {
       enrollmentsByDepartment,
     ] = await Promise.all([
       // Total enrollments
-      prisma.enrollment.count(),
+      prisma.enrollment.count({ where: deanFilter }),
 
       // Pending enrollments (status = 0 or null)
       prisma.enrollment.count({
-        where: { OR: [{ status: 0 }, { status: null }] },
+        where: {
+          OR: [{ status: 0 }, { status: null }],
+          ...deanFilter,
+        },
       }),
 
       // Approved enrollments (status = 1)
       prisma.enrollment.count({
-        where: { status: 1 },
+        where: { status: 1, ...deanFilter },
       }),
 
       // Total students
-      prisma.students.count(),
+      scope.isDean && scope.deanDepartmentId
+        ? prisma.enrollment
+            .findMany({
+              where: {
+                ...deanFilter,
+                student_number: { not: null },
+              },
+              distinct: ["student_number"],
+              select: { student_number: true },
+            })
+            .then((rows) => rows.length)
+        : prisma.students.count(),
 
       // Total programs
       prisma.program.count({
-        where: { status: "active" },
+        where:
+          scope.isDean && scope.deanDepartmentId
+            ? { status: "active", department_id: scope.deanDepartmentId }
+            : { status: "active" },
       }),
 
       // Total departments
       prisma.department.count({
-        where: { status: "active" },
+        where:
+          scope.isDean && scope.deanDepartmentId
+            ? { status: "active", id: scope.deanDepartmentId }
+            : { status: "active" },
       }),
 
       // Recent enrollments (last 7 days)
       prisma.enrollment.count({
         where: {
+          ...deanFilter,
           admission_date: {
             gte: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000),
           },
@@ -73,12 +125,14 @@ export async function GET(request: NextRequest) {
 
       // Enrollments by status
       prisma.enrollment.groupBy({
+        where: deanFilter,
         by: ["admission_status"],
         _count: { id: true },
       }),
 
       // Enrollments by department
       prisma.enrollment.groupBy({
+        where: deanFilter,
         by: ["department"],
         _count: { id: true },
         orderBy: { _count: { id: "desc" } },
@@ -108,6 +162,7 @@ export async function GET(request: NextRequest) {
     // Calculate enrollment trend (compare this week to last week)
     const lastWeekEnrollments = await prisma.enrollment.count({
       where: {
+        ...deanFilter,
         admission_date: {
           gte: new Date(Date.now() - 14 * 24 * 60 * 60 * 1000),
           lt: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000),
@@ -125,7 +180,10 @@ export async function GET(request: NextRequest) {
 
     // Get recent pending enrollments list
     const recentPendingEnrollments = await prisma.enrollment.findMany({
-      where: { OR: [{ status: 0 }, { status: null }] },
+      where: {
+        OR: [{ status: 0 }, { status: null }],
+        ...deanFilter,
+      },
       select: {
         id: true,
         family_name: true,
