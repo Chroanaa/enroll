@@ -26,14 +26,14 @@ export const NavigationButtons: React.FC<NavigationButtonsProps> = ({
   const isNextDisabled = isCheckingDuplicate || !!duplicateError;
   return (
     <div
-      className='flex justify-between gap-4 mt-8 pt-6 border-t animate-in fade-in duration-700 delay-500'
+      className='flex flex-col sm:flex-row sm:justify-between gap-3 sm:gap-4 mt-6 sm:mt-8 pt-5 sm:pt-6 border-t animate-in fade-in duration-700 delay-500'
       style={{ borderTopColor: colors.accent + "20" }}
     >
       <button
         type='button'
         onClick={onPrevious}
         disabled={currentPage === 1}
-        className='flex items-center gap-2 px-6 py-3 rounded-full text-sm font-semibold transition-all duration-300 disabled:opacity-40 disabled:cursor-not-allowed bg-white border shadow-sm hover:shadow-md active:scale-95'
+        className='w-full sm:w-auto order-2 sm:order-1 flex items-center justify-center gap-2 px-6 py-3 rounded-full text-sm font-semibold transition-all duration-300 disabled:opacity-40 disabled:cursor-not-allowed bg-white border shadow-sm hover:shadow-md active:scale-95'
         style={{
           borderColor: colors.tertiary + "30",
           color: colors.primary,
@@ -56,13 +56,13 @@ export const NavigationButtons: React.FC<NavigationButtonsProps> = ({
         <ChevronLeft className='w-4 h-4' />
         Previous Step
       </button>
-      <div className='flex gap-3'>
+      <div className='w-full sm:w-auto order-1 sm:order-2 flex gap-3'>
         {currentPage < totalPages ? (
           <button
             type='button'
             onClick={onNext}
             disabled={isNextDisabled}
-            className={`flex items-center gap-2 px-8 py-3 rounded-full text-sm font-semibold transition-all duration-300 text-white shadow-lg hover:shadow-xl active:scale-95 ${isNextDisabled ? "opacity-50 cursor-not-allowed" : ""}`}
+            className={`w-full sm:w-auto flex items-center justify-center gap-2 px-8 py-3 rounded-full text-sm font-semibold transition-all duration-300 text-white shadow-lg hover:shadow-xl active:scale-95 ${isNextDisabled ? "opacity-50 cursor-not-allowed" : ""}`}
             style={{
               backgroundColor: colors.secondary,
               boxShadow: `0 4px 14px ${colors.secondary}40`,
@@ -97,7 +97,7 @@ export const NavigationButtons: React.FC<NavigationButtonsProps> = ({
               }
             }}
             disabled={isSubmitting}
-            className='flex items-center gap-2 px-8 py-3 rounded-full text-sm font-semibold transition-all duration-300 text-white shadow-lg hover:shadow-xl active:scale-95 disabled:opacity-70 disabled:cursor-not-allowed disabled:transform-none'
+            className='w-full sm:w-auto flex items-center justify-center gap-2 px-8 py-3 rounded-full text-sm font-semibold transition-all duration-300 text-white shadow-lg hover:shadow-xl active:scale-95 disabled:opacity-70 disabled:cursor-not-allowed disabled:transform-none'
             style={{
               backgroundColor: colors.secondary,
               boxShadow: `0 4px 14px ${colors.secondary}40`,

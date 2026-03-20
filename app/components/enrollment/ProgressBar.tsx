@@ -15,8 +15,8 @@ export const ProgressBar: React.FC<ProgressBarProps> = ({
   const progress = (currentStep / totalSteps) * 100;
 
   return (
-    <div className='mb-8 animate-in fade-in slide-in-from-top-4 duration-700'>
-      <div className='flex justify-between items-end mb-3'>
+    <div className='mb-6 sm:mb-8 animate-in fade-in slide-in-from-top-4 duration-700'>
+      <div className='flex flex-col sm:flex-row sm:justify-between sm:items-end gap-3 mb-3'>
         <div>
           <span
             className='text-xs font-bold uppercase tracking-wider mb-1 block'
@@ -25,14 +25,14 @@ export const ProgressBar: React.FC<ProgressBarProps> = ({
             Step {currentStep} of {totalSteps}
           </span>
           <h2
-            className='text-xl font-bold tracking-tight'
+            className='text-lg sm:text-xl font-bold tracking-tight'
             style={{ color: colors.primary }}
           >
             {title}
           </h2>
         </div>
         <div
-          className='text-sm font-bold px-3 py-1 rounded-full'
+          className='text-xs sm:text-sm font-bold px-3 py-1 rounded-full w-fit'
           style={{
             color: colors.secondary,
             backgroundColor: colors.accent + "15",

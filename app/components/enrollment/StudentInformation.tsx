@@ -236,34 +236,34 @@ const StudentInformation: React.FC<EnrollmentPageProps> = ({
   return (
     <div className='space-y-4 animate-in slide-in-from-bottom-4 duration-500'>
       <div
-        className='p-6 rounded-2xl bg-white border shadow-lg shadow-gray-100/50'
+        className='p-3 sm:p-4 md:p-6 rounded-2xl bg-white border shadow-lg shadow-gray-100/50'
         style={{
           borderColor: colors.accent + "20",
           background: `linear-gradient(to bottom right, #ffffff, ${colors.paper})`,
         }}
       >
         <div
-          className='flex items-center gap-4 mb-6 pb-4 border-b'
+          className='flex flex-col sm:flex-row sm:items-center gap-3 sm:gap-4 mb-5 sm:mb-6 pb-4 border-b'
           style={{ borderColor: colors.accent + "10" }}
         >
           <div
-            className='p-3 rounded-2xl shadow-sm transform transition-transform hover:scale-105 duration-300'
+            className='p-2.5 sm:p-3 rounded-2xl shadow-sm transform transition-transform hover:scale-105 duration-300 w-fit'
             style={{
               backgroundColor: "white",
               border: `1px solid ${colors.accent}20`,
             }}
           >
-            <User className='w-6 h-6' style={{ color: colors.secondary }} />
+            <User className='w-5 h-5 sm:w-6 sm:h-6' style={{ color: colors.secondary }} />
           </div>
           <div>
             <h2
-              className='text-2xl font-bold tracking-tight'
+              className='text-lg sm:text-2xl font-bold tracking-tight'
               style={{ color: colors.primary }}
             >
               Student Information
             </h2>
             <p
-              className='text-sm mt-1 font-medium'
+              className='text-xs sm:text-sm mt-1 font-medium'
               style={{ color: colors.tertiary }}
             >
               Please provide your personal details
