@@ -32,6 +32,7 @@ interface SemesterThresholdSettings {
   lateEnrollmentPenaltyDays: number;
   subjectDropRefundableDays: number;
   sectionShiftingAllowedDays: number;
+  programShiftingAllowedDays: number;
   semesterStartMonth: number;
   semesterStartDay: number;
   secondSemesterStartMonth: number;
@@ -68,6 +69,7 @@ const Settings: React.FC = () => {
     lateEnrollmentPenaltyDays: 7,
     subjectDropRefundableDays: 15,
     sectionShiftingAllowedDays: 15,
+    programShiftingAllowedDays: 15,
     semesterStartMonth: 8, // August
     semesterStartDay: 1,
     secondSemesterStartMonth: 1, // January
@@ -132,6 +134,9 @@ const Settings: React.FC = () => {
           sectionShiftingAllowedDays: parseInt(
             settingsMap["section_shifting_allowed_days"] || "15",
           ),
+          programShiftingAllowedDays: parseInt(
+            settingsMap["program_shifting_allowed_days"] || "15",
+          ),
           semesterStartMonth: parseInt(
             settingsMap["semester_start_month"] || "8",
           ),
@@ -193,6 +198,12 @@ const Settings: React.FC = () => {
           value: settings.sectionShiftingAllowedDays.toString(),
           description:
             "Number of days from semester start when section shifting is allowed",
+        },
+        {
+          key: "program_shifting_allowed_days",
+          value: settings.programShiftingAllowedDays.toString(),
+          description:
+            "Number of days from semester start when program shifting is allowed",
         },
         {
           key: "semester_start_month",
@@ -1133,6 +1144,59 @@ const Settings: React.FC = () => {
                           setSettings({
                             ...settings,
                             sectionShiftingAllowedDays:
+                              parseInt(e.target.value) || 0,
+                          })
+                        }
+                        className='w-24 px-4 py-2.5 rounded-lg border focus:outline-none focus:ring-2 text-center'
+                        style={{
+                          borderColor: colors.neutralBorder,
+                          backgroundColor: "white",
+                          color: colors.neutralDark,
+                        }}
+                      />
+                      <span
+                        className='text-sm font-medium'
+                        style={{ color: colors.neutral }}
+                      >
+                        days from semester start
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <div
+                className='p-4 rounded-xl border'
+                style={{
+                  borderColor: colors.primary + "30",
+                  backgroundColor: colors.primary + "08",
+                }}
+              >
+                <div className='flex items-start justify-between gap-4'>
+                  <div className='flex-1'>
+                    <label
+                      className='block font-semibold mb-1'
+                      style={{ color: colors.primary }}
+                    >
+                      Program Shifting Window (Days)
+                    </label>
+                    <p
+                      className='text-sm mb-3'
+                      style={{ color: colors.neutral }}
+                    >
+                      Program shifting is allowed only within this many days
+                      from semester start.
+                    </p>
+                    <div className='flex items-center gap-3'>
+                      <input
+                        type='number'
+                        min='0'
+                        max='60'
+                        value={settings.programShiftingAllowedDays}
+                        onChange={(e) =>
+                          setSettings({
+                            ...settings,
+                            programShiftingAllowedDays:
                               parseInt(e.target.value) || 0,
                           })
                         }

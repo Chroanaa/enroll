@@ -16,6 +16,16 @@ type RoleContext = {
   isDean: boolean;
 };
 
+function getSemesterAliases(semester: number): string[] {
+  if (semester === 1) {
+    return ["first", "first semester", "1", "1st semester"];
+  }
+  if (semester === 2) {
+    return ["second", "second semester", "2", "2nd semester"];
+  }
+  return [];
+}
+
 async function getRoleContext(roleId: number): Promise<RoleContext> {
   if (!Number.isFinite(roleId) || roleId <= 0) {
     return {
@@ -106,6 +116,8 @@ export async function GET(request: NextRequest) {
     const status = searchParams.get("status") || "pending_approval";
     const currentTerm = await getServerCurrentTerm();
     const semesterNum = currentTerm.semester === "First" ? 1 : 2;
+    const firstSemesterAliases = getSemesterAliases(1);
+    const secondSemesterAliases = getSemesterAliases(2);
 
     const requests = await prisma.$queryRaw<any[]>`
       SELECT
@@ -127,6 +139,28 @@ export async function GET(request: NextRequest) {
         cer.approved_by,
         cer.requested_at,
         cer.approved_at,
+        EXISTS (
+          SELECT 1
+          FROM enrolled_subjects es
+          WHERE es.student_number = cer.student_number
+            AND es.academic_year = cer.academic_year
+            AND es.semester = cer.semester
+            AND es.curriculum_course_id = cer.curriculum_course_id
+        ) AS is_currently_enrolled,
+        EXISTS (
+          SELECT 1
+          FROM student_section ss
+          INNER JOIN student_section_subjects sss ON sss.student_section_id = ss.id
+          INNER JOIN class_schedule cs ON cs.id = sss.class_schedule_id
+          WHERE ss.student_number = cer.student_number
+            AND ss.academic_year = cer.academic_year
+            AND (
+              (cer.semester = 1 AND LOWER(COALESCE(ss.semester, '')) IN (${firstSemesterAliases[0]}, ${firstSemesterAliases[1]}, ${firstSemesterAliases[2]}, ${firstSemesterAliases[3]}))
+              OR
+              (cer.semester = 2 AND LOWER(COALESCE(ss.semester, '')) IN (${secondSemesterAliases[0]}, ${secondSemesterAliases[1]}, ${secondSemesterAliases[2]}, ${secondSemesterAliases[3]}))
+            )
+            AND cs.curriculum_course_id = cer.curriculum_course_id
+        ) AS has_section_assignment,
         COALESCE(cc.course_code, sub.code) AS course_code,
         COALESCE(cc.descriptive_title, sub.name) AS descriptive_title,
         home_program.name AS home_program_name,
@@ -182,6 +216,8 @@ export async function GET(request: NextRequest) {
         semester: item.semester,
         yearLevel: item.year_level,
         unitsTotal: item.units_total,
+        isCurrentlyEnrolled: Boolean(item.is_currently_enrolled),
+        hasSectionAssignment: Boolean(item.has_section_assignment),
         reason: item.reason,
         status: item.status,
         requestedAt: item.requested_at,

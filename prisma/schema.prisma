@@ -608,6 +608,7 @@ model subject_drop_history {
   created_at           DateTime  @default(now()) @db.Timestamp(6)
   refunded_at          DateTime? @db.Timestamp(6)
   refunded_by          Int?
+  assessment_adjusted  Boolean   @default(false)
 
   @@index([academic_year, semester], map: "idx_subject_drop_history_academic_term")
   @@index([dropped_at], map: "idx_subject_drop_history_dropped_at")
@@ -691,4 +692,30 @@ model refund_transactions {
   @@index([processed_at(sort: Desc)], map: "idx_refund_transactions_processed_at")
   @@index([subject_drop_history_id], map: "idx_refund_transactions_sdh_id")
   @@index([student_number, academic_year, semester], map: "idx_refund_transactions_student_term")
+}
+
+model student_program_shift_requests {
+  id                Int       @id @default(autoincrement())
+  student_number    String    @db.VarChar(20)
+  academic_year     String    @db.VarChar(20)
+  semester          Int
+  from_program_id   Int?
+  from_major_id     Int?
+  to_program_id     Int
+  to_major_id       Int?
+  reason            String?
+  status            String    @default("pending_approval") @db.VarChar(30)
+  requested_by      Int?
+  requested_by_role Int?
+  requested_by_name String?   @db.VarChar(150)
+  approved_by       Int?
+  approved_by_role  Int?
+  approved_by_name  String?   @db.VarChar(150)
+  requested_at      DateTime  @default(now()) @db.Timestamp(6)
+  approved_at       DateTime? @db.Timestamp(6)
+  executed_at       DateTime? @db.Timestamp(6)
+
+  @@index([requested_at(sort: Desc)], map: "idx_program_shift_requested_at")
+  @@index([status], map: "idx_program_shift_status")
+  @@index([student_number, academic_year, semester], map: "idx_program_shift_student_term")
 }

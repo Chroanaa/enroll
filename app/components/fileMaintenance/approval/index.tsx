@@ -73,6 +73,7 @@ interface ApprovalResponse {
     subjectDrops: SubjectDropApproval[];
     crossEnrollmentRequests: CrossEnrollmentApproval[];
     shiftingRequests: SectionShiftApproval[];
+    programShiftRequests: ProgramShiftApproval[];
   };
   error?: string;
 }
@@ -105,11 +106,31 @@ interface SectionShiftApproval {
   reason?: string | null;
 }
 
-type ApprovalFilter = "all" | "overload" | "drop" | "cross" | "shift";
+interface ProgramShiftApproval {
+  id: number;
+  studentNumber: string;
+  studentName: string;
+  firstName?: string;
+  lastName?: string;
+  academicYear: string;
+  semester: number;
+  fromProgramCode?: string | null;
+  fromProgramName?: string | null;
+  fromMajorName?: string | null;
+  toProgramCode?: string | null;
+  toProgramName?: string | null;
+  toMajorName?: string | null;
+  status: string;
+  requestedAt?: string | null;
+  requestedByName?: string | null;
+  reason?: string | null;
+}
+
+type ApprovalFilter = "all" | "overload" | "drop" | "cross" | "shift" | "program-shift";
 
 type ApprovalRow = {
   key: string;
-  type: "overload" | "drop" | "cross" | "shift";
+  type: "overload" | "drop" | "cross" | "shift" | "program-shift";
   approvalId: string | number;
   studentNumber: string;
   studentName: string;
@@ -155,6 +176,7 @@ export default function ApprovalManagement() {
     CrossEnrollmentApproval[]
   >([]);
   const [shiftingRequests, setShiftingRequests] = useState<SectionShiftApproval[]>([]);
+  const [programShiftRequests, setProgramShiftRequests] = useState<ProgramShiftApproval[]>([]);
 
   const fetchApprovals = async () => {
     setIsLoading(true);
@@ -172,6 +194,7 @@ export default function ApprovalManagement() {
       setSubjectDrops(result.data.subjectDrops || []);
       setCrossEnrollmentRequests(result.data.crossEnrollmentRequests || []);
       setShiftingRequests(result.data.shiftingRequests || []);
+      setProgramShiftRequests(result.data.programShiftRequests || []);
     } catch (fetchError) {
       setError(
         fetchError instanceof Error
@@ -182,6 +205,7 @@ export default function ApprovalManagement() {
       setSubjectDrops([]);
       setCrossEnrollmentRequests([]);
       setShiftingRequests([]);
+      setProgramShiftRequests([]);
     } finally {
       setIsLoading(false);
     }
@@ -196,9 +220,11 @@ export default function ApprovalManagement() {
       subjectOverloads.length +
       subjectDrops.length +
       crossEnrollmentRequests.length +
-      shiftingRequests.length,
+      shiftingRequests.length +
+      programShiftRequests.length,
     [
       crossEnrollmentRequests.length,
+      programShiftRequests.length,
       shiftingRequests.length,
       subjectDrops.length,
       subjectOverloads.length,
@@ -279,8 +305,27 @@ export default function ApprovalManagement() {
       subjects: [],
     }));
 
-    return [...overloadRows, ...dropRows, ...crossRows, ...shiftRows];
-  }, [crossEnrollmentRequests, shiftingRequests, subjectDrops, subjectOverloads]);
+    const programShiftRows = programShiftRequests.map<ApprovalRow>((item) => ({
+      key: `program-shift-${item.id}`,
+      type: "program-shift",
+      approvalId: item.id,
+      studentNumber: item.studentNumber,
+      studentName: item.studentName,
+      firstName: item.firstName,
+      lastName: item.lastName,
+      academicYear: item.academicYear,
+      semester: item.semester,
+      detailsPrimary: `${item.fromProgramCode || item.fromProgramName || "N/A"} -> ${item.toProgramCode || item.toProgramName || "N/A"}`,
+      detailsSecondary: `Requested by ${item.requestedByName || "Registrar/Staff"}`,
+      termLabel: `A.Y. ${item.academicYear} • Sem ${item.semester}`,
+      statusLabel: "Pending Approval",
+      reason: item.reason,
+      subjects: [],
+      contextLine: `From major: ${item.fromMajorName || "None"} • To major: ${item.toMajorName || "None"}`,
+    }));
+
+    return [...overloadRows, ...dropRows, ...crossRows, ...shiftRows, ...programShiftRows];
+  }, [crossEnrollmentRequests, programShiftRequests, shiftingRequests, subjectDrops, subjectOverloads]);
 
   const filteredRows = useMemo(() => {
     if (filter === "overload") {
@@ -296,6 +341,9 @@ export default function ApprovalManagement() {
     }
     if (filter === "shift") {
       return approvalRows.filter((row) => row.type === "shift");
+    }
+    if (filter === "program-shift") {
+      return approvalRows.filter((row) => row.type === "program-shift");
     }
 
     return approvalRows;
@@ -318,6 +366,11 @@ export default function ApprovalManagement() {
                 type: "section_shift",
                 id: row.approvalId,
               }
+            : row.type === "program-shift"
+              ? {
+                  type: "program_shift",
+                  id: row.approvalId,
+                }
             : {
               type: row.type === "drop" ? "drop" : "cross_enrollment",
               id: row.approvalId,
@@ -353,6 +406,16 @@ export default function ApprovalManagement() {
     } finally {
       setIsSubmitting("");
     }
+  };
+
+  const handleOpenIrregularEnrollment = (row: ApprovalRow) => {
+    const params = new URLSearchParams({
+      studentNumber: row.studentNumber,
+      academicYear: row.academicYear,
+      semester: String(row.semester),
+      from: "cross-enrollee-approval",
+    });
+    window.location.href = `/admin/irregular-enrollment?${params.toString()}`;
   };
 
   const renderConfirmationContent = () => {
@@ -400,7 +463,9 @@ export default function ApprovalManagement() {
                   ? "Subject Drop Approval"
                   : confirmation.type === "cross"
                     ? "Cross-Enrollee Approval"
-                    : "Section Shift Approval"}
+                    : confirmation.type === "shift"
+                      ? "Section Shift Approval"
+                      : "Program Shift Approval"}
             </p>
           </div>
           <div>
@@ -497,7 +562,10 @@ export default function ApprovalManagement() {
                 : confirmation.type === "shift"
                   ? confirmation.reason?.trim() ||
                     "Section shift requested by registrar and awaiting admin/dean approval."
-                  : "This enrollment exceeded 27 total units and requires admin approval before it can proceed."}
+                : confirmation.type === "program-shift"
+                  ? confirmation.reason?.trim() ||
+                    "Program shift requested and awaiting admin/dean approval."
+                : "This enrollment exceeded 27 total units and requires admin approval before it can proceed."}
             </p>
           </div>
           <div>
@@ -509,8 +577,10 @@ export default function ApprovalManagement() {
                 ? "Subject To Delete"
                 : confirmation.type === "cross"
                   ? "Subject To Add"
-                  : confirmation.type === "shift"
-                    ? "Section Movement"
+                : confirmation.type === "shift"
+                  ? "Section Movement"
+                  : confirmation.type === "program-shift"
+                    ? "Program Movement"
                     : "Student Subject Section"}
             </p>
 
@@ -558,6 +628,24 @@ export default function ApprovalManagement() {
               </div>
             )}
           </div>
+          {confirmation.type === "cross" ? (
+            <div>
+              <p
+                className="text-[11px] font-bold uppercase tracking-[0.18em]"
+                style={{ color: colors.tertiary }}
+              >
+                Next Step
+              </p>
+              <button
+                type="button"
+                onClick={() => handleOpenIrregularEnrollment(confirmation)}
+                className="mt-2 rounded-lg px-3 py-2 text-xs font-semibold text-white transition-all"
+                style={{ backgroundColor: colors.info }}
+              >
+                Open Manual / Irregular Enrollment
+              </button>
+            </div>
+          ) : null}
         </div>
       </div>
     );
@@ -632,6 +720,14 @@ export default function ApprovalManagement() {
               {shiftingRequests.length}
             </p>
           </div>
+          <div className="rounded-2xl p-5" style={cardStyle}>
+            <p className="text-sm font-semibold" style={{ color: colors.tertiary }}>
+              Program Shift
+            </p>
+            <p className="mt-2 text-3xl font-bold" style={{ color: colors.primary }}>
+              {programShiftRequests.length}
+            </p>
+          </div>
         </div>
 
         {error ? (
@@ -655,7 +751,7 @@ export default function ApprovalManagement() {
                 Pending Approvals
               </h2>
               <p className="text-sm" style={{ color: colors.tertiary }}>
-                Combined approval queue for overload requests, subject drops, and cross-enrollee requests.
+                Combined approval queue for overload, dropping, cross-enrollee, and shifting requests.
               </p>
             </div>
 
@@ -683,6 +779,7 @@ export default function ApprovalManagement() {
                 <option value="drop">Subject Drops</option>
                 <option value="cross">Cross Enrollee</option>
                 <option value="shift">Section Shift</option>
+                <option value="program-shift">Program Shift</option>
               </select>
             </div>
           </div>
@@ -760,13 +857,17 @@ export default function ApprovalManagement() {
                                 ? `${colors.warning}15`
                                 : item.type === "drop"
                                   ? `${colors.secondary}15`
-                                  : `${colors.info}15`,
+                                  : item.type === "program-shift"
+                                    ? `${colors.primary}15`
+                                    : `${colors.info}15`,
                             color:
                               item.type === "overload"
                                 ? colors.warning
                                 : item.type === "drop"
                                   ? colors.secondary
-                                  : colors.info,
+                                  : item.type === "program-shift"
+                                    ? colors.primary
+                                    : colors.info,
                           }}
                         >
                           {item.type === "overload"
@@ -775,7 +876,9 @@ export default function ApprovalManagement() {
                                 ? "Drop"
                                 : item.type === "cross"
                                   ? "Cross Enrollee"
-                                  : "Section Shift"}
+                                  : item.type === "shift"
+                                    ? "Section Shift"
+                                    : "Program Shift"}
                         </span>
                       </td>
                       <td className="px-4 py-3 text-sm" style={{ color: colors.primary }}>

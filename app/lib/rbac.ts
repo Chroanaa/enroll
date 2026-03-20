@@ -35,6 +35,7 @@ export const VIEW_ROLES: Record<string, number[]> = {
   "student-dropping": [ROLES.ADMIN, ROLES.REGISTRAR, ROLES.DEAN],
   "cross-enrollee": [ROLES.ADMIN, ROLES.REGISTRAR, ROLES.DEAN],
   shifting: [ROLES.ADMIN, ROLES.REGISTRAR],
+  "program-shifting": [ROLES.ADMIN, ROLES.REGISTRAR, ROLES.DEAN],
   reports: [ROLES.ADMIN, ROLES.REGISTRAR, ROLES.DEAN],
   "reports-payments-dashboard": [ROLES.ADMIN, ROLES.CASHIER, ROLES.DEAN],
   "reports-registration-forms": [ROLES.ADMIN, ROLES.REGISTRAR],

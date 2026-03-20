@@ -46,6 +46,7 @@ export async function GET(request: NextRequest) {
     const enrollmentWhere: any = {};
     enrollmentWhere.academic_year = academicYear;
     enrollmentWhere.term = { in: enrollmentTermValues(semesterInt) };
+    enrollmentWhere.verification_status = "approved";
 
     if (programIdFilter) {
       const parts = programIdFilter.split("-");
@@ -127,6 +128,11 @@ export async function GET(request: NextRequest) {
     } else {
       const [enr, asmts, programs, majors, payGroups] = await Promise.all([
         prisma.enrollment.findMany({
+          where: {
+            academic_year: academicYear,
+            term: { in: enrollmentTermValues(semesterInt) },
+            verification_status: "approved",
+          },
           select: enrollmentSelect,
           distinct: ["student_number"],
         }),

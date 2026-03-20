@@ -1,6 +1,6 @@
 "use client";
 import React, { useState, useEffect, Suspense } from "react";
-import { useSearchParams } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import Navigation from "../components/Navigation";
 import HomePage from "../components/HomePage";
 import Dashboard from "../components/Dashboard";
@@ -16,6 +16,7 @@ import SubjectDroppingManagement from "../components/SubjectDroppingManagement";
 import StudentDroppingManagement from "../components/StudentDroppingManagement";
 import CrossEnrollmentManagement from "../components/CrossEnrollmentManagement";
 import ShiftingManagement from "../components/ShiftingManagement";
+import ProgramShiftingManagement from "../components/ProgramShiftingManagement";
 import ReportManagement from "../components/ReportManagement";
 import PaymentsDashboard from "../components/reports/PaymentsDashboard";
 import RegistrationFormPrintReports from "../components/reports/RegistrationFormPrintReports";
@@ -51,6 +52,7 @@ import { useSession } from "next-auth/react";
 import { isViewAllowed } from "../lib/rbac";
 
 function DashboardContent() {
+  const router = useRouter();
   const searchParams = useSearchParams();
   const [currentView, setCurrentView] = useState("home");
   const { data: session } = useSession();
@@ -74,7 +76,9 @@ function DashboardContent() {
   }, [searchParams, userRole]);
 
   const handleViewChange = (view: string) => {
-    setCurrentView(getSafeView(view));
+    const safeView = getSafeView(view);
+    setCurrentView(safeView);
+    router.push(`/dashboard?view=${encodeURIComponent(safeView)}`);
   };
 
   const renderCurrentView = () => {
@@ -113,6 +117,8 @@ function DashboardContent() {
         return <CrossEnrollmentManagement />;
       case "shifting":
         return <ShiftingManagement />;
+      case "program-shifting":
+        return <ProgramShiftingManagement />;
       case "reports":
         return <ReportManagement />;
       case "reports-payments-dashboard":
