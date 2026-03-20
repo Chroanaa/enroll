@@ -15,7 +15,6 @@ const FileMaintenanceManagement: React.FC<FileMaintenanceManagementProps> = ({ a
       room: "Room",
       department: "Department",
       faculty: "Faculty",
-      fees: "Fees",
     };
     return labels[id || ""] || "File Maintenance";
   };
@@ -30,7 +29,7 @@ const FileMaintenanceManagement: React.FC<FileMaintenanceManagementProps> = ({ a
           <p style={{ color: colors.primary }}>
             {activeSubmenu 
               ? `Manage ${getSubmenuLabel(activeSubmenu).toLowerCase()} information and settings.`
-              : "Maintain essential institutional data including rooms, buildings, programs, departments, faculty records, and fees. Select an option from the sidebar to get started."}
+              : "Maintain essential institutional data including rooms, buildings, programs, departments, and faculty records. Select an option from the sidebar to get started."}
           </p>
         </div>
 
@@ -42,7 +41,7 @@ const FileMaintenanceManagement: React.FC<FileMaintenanceManagementProps> = ({ a
           <p className='text-gray-600'>
             {activeSubmenu 
               ? `${getSubmenuLabel(activeSubmenu)} management content will be displayed here.`
-              : "This module maintains essential institutional data updated, including rooms, buildings, programs, departments, faculty records, and fees."}
+              : "This module maintains essential institutional data updated, including rooms, buildings, programs, departments, and faculty records."}
           </p>
         </div>
       </div>

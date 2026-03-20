@@ -131,7 +131,7 @@ const ConfirmationModal: React.FC<ConfirmationModalProps> = ({
       onClick={onClose}
     >
       <div
-        className='rounded-2xl shadow-2xl w-full max-w-md overflow-hidden flex flex-col animate-in fade-in zoom-in duration-200'
+        className='rounded-2xl shadow-2xl w-full max-w-md max-h-[90vh] overflow-hidden flex flex-col animate-in fade-in zoom-in duration-200'
         style={{
           backgroundColor: "white",
         }}
@@ -178,7 +178,7 @@ const ConfirmationModal: React.FC<ConfirmationModalProps> = ({
         </div>
 
         {/* Content */}
-        <div className='p-6'>
+        <div className='p-6 flex-1 min-h-0 overflow-y-auto'>
           {customContent ? (
             <div className='mb-6'>{customContent}</div>
           ) : message ? (
@@ -248,52 +248,53 @@ const ConfirmationModal: React.FC<ConfirmationModalProps> = ({
             </div>
           ) : null}
 
-          {/* Action Buttons */}
-          <div
-            className='flex justify-end gap-3 pt-4 border-t'
-            style={{ borderColor: `${colors.primary}10` }}
+        </div>
+
+        {/* Action Buttons */}
+        <div
+          className='flex justify-end gap-3 px-6 py-4 border-t shrink-0'
+          style={{ borderColor: `${colors.primary}10` }}
+        >
+          <button
+            type='button'
+            onClick={onClose}
+            disabled={isLoading}
+            className='px-6 py-2.5 rounded-xl transition-all font-medium flex items-center gap-2 hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed'
+            style={{
+              color: colors.primary,
+              border: "1px solid #E5E7EB",
+            }}
           >
-            <button
-              type='button'
-              onClick={onClose}
-              disabled={isLoading}
-              className='px-6 py-2.5 rounded-xl transition-all font-medium flex items-center gap-2 hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed'
-              style={{
-                color: colors.primary,
-                border: "1px solid #E5E7EB",
-              }}
-            >
-              {cancelText}
-            </button>
-            <button
-              type='button'
-              onClick={handleConfirm}
-              disabled={isLoading}
-              className='px-6 py-2.5 text-white rounded-xl transition-all font-medium flex items-center gap-2 shadow-lg disabled:opacity-50 disabled:cursor-not-allowed'
-              style={{
-                backgroundColor: isLoading ? "#9CA3AF" : variantStyles.confirmBg,
-              }}
-              onMouseEnter={(e) => {
-                if (!isLoading) {
-                  e.currentTarget.style.backgroundColor = variantStyles.confirmHover;
-                }
-              }}
-              onMouseLeave={(e) => {
-                if (!isLoading) {
-                  e.currentTarget.style.backgroundColor = variantStyles.confirmBg;
-                }
-              }}
-            >
-              {isLoading ? (
-                <>
-                  <div className='w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin' />
-                  Processing...
-                </>
-              ) : (
-                displayConfirmText
-              )}
-            </button>
-          </div>
+            {cancelText}
+          </button>
+          <button
+            type='button'
+            onClick={handleConfirm}
+            disabled={isLoading}
+            className='px-6 py-2.5 text-white rounded-xl transition-all font-medium flex items-center gap-2 shadow-lg disabled:opacity-50 disabled:cursor-not-allowed'
+            style={{
+              backgroundColor: isLoading ? "#9CA3AF" : variantStyles.confirmBg,
+            }}
+            onMouseEnter={(e) => {
+              if (!isLoading) {
+                e.currentTarget.style.backgroundColor = variantStyles.confirmHover;
+              }
+            }}
+            onMouseLeave={(e) => {
+              if (!isLoading) {
+                e.currentTarget.style.backgroundColor = variantStyles.confirmBg;
+              }
+            }}
+          >
+            {isLoading ? (
+              <>
+                <div className='w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin' />
+                Processing...
+              </>
+            ) : (
+              displayConfirmText
+            )}
+          </button>
         </div>
       </div>
     </div>

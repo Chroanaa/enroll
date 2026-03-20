@@ -1,5 +1,39 @@
 import { NextResponse, NextRequest } from "next/server";
+import { getServerSession } from "next-auth";
 import { prisma } from "@/app/lib/prisma";
+import { authOptions } from "../[...nextauth]/authOptions";
+
+const ROLES = {
+  ADMIN: 1,
+} as const;
+
+type RoleContext = {
+  roleId: number;
+  roleName: string;
+  isDean: boolean;
+};
+
+async function getRoleContext(roleId: number): Promise<RoleContext> {
+  if (!Number.isFinite(roleId) || roleId <= 0) {
+    return { roleId: 0, roleName: "", isDean: false };
+  }
+
+  const roleRow = await prisma.roles.findUnique({
+    where: { id: roleId },
+    select: { role: true },
+  });
+
+  const roleName = String(roleRow?.role || "").trim().toLowerCase();
+  return {
+    roleId,
+    roleName,
+    isDean: roleName === "dean",
+  };
+}
+
+function canDeleteMiscFee(role: RoleContext) {
+  return role.roleId === ROLES.ADMIN || role.isDean;
+}
 
 export async function GET(request: NextRequest) {
   try {
@@ -25,7 +59,16 @@ export async function GET(request: NextRequest) {
       orderBy: { id: "asc" },
     });
 
-    return NextResponse.json(fees);
+    const session = await getServerSession(authOptions);
+    const userRole = Number((session?.user as any)?.role) || 0;
+    const roleContext = await getRoleContext(userRole);
+
+    return NextResponse.json({
+      data: fees,
+      permissions: {
+        canDelete: canDeleteMiscFee(roleContext),
+      },
+    });
   } catch (error: any) {
     console.error("Error fetching miscellaneous fees:", error);
     return NextResponse.json(
@@ -84,6 +127,17 @@ export async function PATCH(request: NextRequest) {
 
 export async function DELETE(request: NextRequest) {
   try {
+    const session = await getServerSession(authOptions);
+    const userRole = Number((session?.user as any)?.role) || 0;
+    const roleContext = await getRoleContext(userRole);
+
+    if (!canDeleteMiscFee(roleContext)) {
+      return NextResponse.json(
+        { error: "Only Admin or Dean can delete miscellaneous fees." },
+        { status: 403 },
+      );
+    }
+
     const id = await request.json();
     
     const deletedFee = await prisma.miscellaneous_fee.delete({

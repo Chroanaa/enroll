@@ -12,17 +12,17 @@ import { getStatusColor, getStatusLabel } from "./utils";
 
 interface EnrollmentTableProps {
   enrollments: Enrollment[];
-  onEdit: (enrollment: Enrollment) => void;
+  onSelect: (enrollment: Enrollment) => void;
 }
 
 const EnrollmentTable: React.FC<EnrollmentTableProps> = ({
   enrollments,
-  onEdit,
+  onSelect,
 }) => {
   return (
     <div className='bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden'>
       <div className='overflow-x-auto'>
-        <table className='w-full min-w-[900px]'>
+        <table className='w-full min-w-[1100px]'>
           <thead>
             <tr
               style={{
@@ -45,6 +45,12 @@ const EnrollmentTable: React.FC<EnrollmentTableProps> = ({
               <th className='px-6 py-4 text-left text-xs font-bold uppercase tracking-wider text-gray-600'>
                 Enrollment Date
               </th>
+              <th className='px-6 py-4 text-left text-xs font-bold uppercase tracking-wider text-gray-600'>
+                Verification
+              </th>
+              <th className='px-6 py-4 text-left text-xs font-bold uppercase tracking-wider text-gray-600'>
+                Verified By
+              </th>
               <th className='px-6 py-4 text-right text-xs font-bold uppercase tracking-wider text-gray-600'>
                 Actions
               </th>
@@ -54,7 +60,7 @@ const EnrollmentTable: React.FC<EnrollmentTableProps> = ({
             {enrollments.length === 0 ? (
               <tr>
                 <td
-                  colSpan={6}
+                  colSpan={8}
                   className='px-6 py-12 text-center text-gray-500'
                 >
                   <div className='flex flex-col items-center justify-center gap-3'>
@@ -168,14 +174,55 @@ const EnrollmentTable: React.FC<EnrollmentTableProps> = ({
                         </span>
                       </div>
                     </td>
+                    <td className='px-6 py-4 whitespace-nowrap'>
+                      <span
+                        className='inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium border'
+                        style={{
+                          backgroundColor:
+                            enrollment.verification_status === "approved"
+                              ? "#DCFCE7"
+                              : enrollment.verification_status === "rejected"
+                                ? "#FEE2E2"
+                                : enrollment.verification_status === "needs_revision"
+                                  ? "#DBEAFE"
+                                  : "#FEF3C7",
+                          color:
+                            enrollment.verification_status === "approved"
+                              ? "#166534"
+                              : enrollment.verification_status === "rejected"
+                                ? "#991B1B"
+                                : enrollment.verification_status === "needs_revision"
+                                  ? "#1E40AF"
+                                  : "#92400E",
+                          borderColor:
+                            enrollment.verification_status === "approved"
+                              ? "#86EFAC"
+                              : enrollment.verification_status === "rejected"
+                                ? "#FECACA"
+                                : enrollment.verification_status === "needs_revision"
+                                  ? "#93C5FD"
+                                  : "#FDE68A",
+                        }}
+                      >
+                        {(enrollment.verification_status || "pending")
+                          .replace("_", " ")
+                          .replace(/\b\w/g, (char) => char.toUpperCase())}
+                      </span>
+                    </td>
+                    <td className='px-6 py-4 whitespace-nowrap'>
+                      <span className='text-sm text-gray-600'>
+                        {(enrollment as any).verified_by_name || "N/A"}
+                      </span>
+                    </td>
                     <td className='px-6 py-4 whitespace-nowrap text-right text-sm font-medium'>
                       <div className='flex justify-end gap-2'>
                         <button
-                          onClick={() => onEdit(enrollment)}
-                          className='p-2 rounded-lg hover:bg-white hover:shadow-sm border border-transparent hover:border-gray-200 transition-all text-blue-600'
+                          onClick={() => onSelect(enrollment)}
+                          className='inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg hover:bg-white hover:shadow-sm border border-transparent hover:border-gray-200 transition-all text-blue-600'
                           title='Edit'
                         >
                           <Edit2 className='w-4 h-4' />
+                          <span className='text-xs font-semibold'>Edit</span>
                         </button>
                       </div>
                     </td>

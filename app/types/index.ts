@@ -96,6 +96,11 @@ export interface Enrollment extends EnrollmentFormData {
   courseId: string;
   enrollmentDate: string;
   status: number;
+  verification_status?: "pending" | "approved" | "rejected" | "needs_revision";
+  verified_by?: number | null;
+  verified_by_name?: string | null;
+  verified_at?: string | Date | null;
+  verification_notes?: string | null;
 }
 
 export interface StatusColor {

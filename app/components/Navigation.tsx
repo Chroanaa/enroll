@@ -128,6 +128,13 @@ const Navigation: React.FC<NavigationProps> = ({
         id: "file-maintenance-products",
         label: "Products",
         icon: Package,
+        allowedRoles: [ROLES.ADMIN, ROLES.CASHIER],
+      },
+      {
+        id: "miscellaneous-fees",
+        label: "Miscellaneous Fees",
+        icon: Receipt,
+        allowedRoles: [ROLES.ADMIN, ROLES.CASHIER],
       },
       {
         id: "file-maintenance-schools-programs",
