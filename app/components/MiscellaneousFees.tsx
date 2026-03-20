@@ -47,6 +47,8 @@ const MiscellaneousFees: React.FC = () => {
   const [filteredFees, setFilteredFees] = useState<MiscellaneousFee[]>([]);
   
   const [isLoading, setIsLoading] = useState(true);
+  const [canDeleteFees, setCanDeleteFees] = useState(false);
+  const [canDeleteCategories, setCanDeleteCategories] = useState(false);
   
   // Search and filter states
   const [searchTerm, setSearchTerm] = useState("");
@@ -125,10 +127,13 @@ const MiscellaneousFees: React.FC = () => {
   const fetchCategories = async () => {
     try {
       setIsLoading(true);
-      const response = await fetch('/api/auth/fee-categories?category_type=miscellaneous');
+      const response = await fetch('/api/auth/fee-categories?category_type=miscellaneous&includePermissions=1');
       if (!response.ok) throw new Error("Failed to fetch categories");
-      const data = await response.json();
+      const payload = await response.json();
+      const data = Array.isArray(payload) ? payload : (payload.data || []);
+      const permission = Array.isArray(payload) ? false : Boolean(payload?.permissions?.canDelete);
       setCategories(data);
+      setCanDeleteCategories(permission);
     } catch (error) {
       console.error("Error fetching categories:", error);
       setErrorModal({
@@ -146,7 +151,10 @@ const MiscellaneousFees: React.FC = () => {
       setIsLoading(true);
       const response = await fetch(`/api/auth/miscellaneous-fees`);
       if (!response.ok) throw new Error("Failed to fetch fees");
-      const data = await response.json();
+      const payload = await response.json();
+      const data = Array.isArray(payload) ? payload : (payload.data || []);
+      const permission = Array.isArray(payload) ? false : Boolean(payload?.permissions?.canDelete);
+      setCanDeleteFees(permission);
       // Filter fees by category_id
       const categoryFees = data.filter((fee: MiscellaneousFee) => fee.category_id === categoryId);
       setFees(categoryFees);
@@ -318,6 +326,42 @@ const MiscellaneousFees: React.FC = () => {
   const handleEditCategory = (category: FeeCategory) => {
     setSelectedCategoryForEdit(category);
     setIsEditCategoryModalOpen(true);
+  };
+
+  const handleDeleteCategory = (category: FeeCategory) => {
+    setConfirmModal({
+      isOpen: true,
+      title: "Delete Category",
+      message: `Are you sure you want to delete "${category.title}"? This will also delete all miscellaneous fees under this category.`,
+      onConfirm: async () => {
+        try {
+          const response = await fetch("/api/auth/fee-categories", {
+            method: "DELETE",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(category.id),
+          });
+
+          if (!response.ok) {
+            const payload = await response.json().catch(() => ({}));
+            throw new Error(payload?.error || "Failed to delete category");
+          }
+
+          await fetchCategories();
+          setSuccessModal({
+            isOpen: true,
+            message: "Category deleted successfully",
+          });
+        } catch (error) {
+          setErrorModal({
+            isOpen: true,
+            message: "Failed to delete category",
+            details: error instanceof Error ? error.message : "Unknown error",
+          });
+        } finally {
+          setConfirmModal((prev) => ({ ...prev, isOpen: false }));
+        }
+      },
+    });
   };
 
   const handleToggleCategoryStatus = async () => {
@@ -683,6 +727,20 @@ const MiscellaneousFees: React.FC = () => {
                               <Edit2 className="w-3.5 h-3.5" />
                               <span>Edit</span>
                             </button>
+                            {canDeleteCategories && (
+                              <button
+                                onClick={() => handleDeleteCategory(category)}
+                                className="group relative inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg font-medium text-xs transition-all duration-200 hover:shadow-md"
+                                style={{
+                                  backgroundColor: "#FEE2E2",
+                                  color: "#991B1B",
+                                }}
+                                title="Delete Category"
+                              >
+                                <Trash2 className="w-3.5 h-3.5" />
+                                <span>Delete</span>
+                              </button>
+                            )}
                           </div>
                         </td>
                       </tr>
@@ -832,18 +890,20 @@ const MiscellaneousFees: React.FC = () => {
                               <Edit2 className="w-3.5 h-3.5" />
                               <span>Edit</span>
                             </button>
-                            <button
-                              onClick={() => handleDelete(fee)}
-                              className="group relative inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg font-medium text-xs transition-all duration-200 hover:shadow-md"
-                              style={{
-                                backgroundColor: "#FEE2E2",
-                                color: "#991B1B",
-                              }}
-                              title="Delete Fee"
-                            >
-                              <Trash2 className="w-3.5 h-3.5" />
-                              <span>Delete</span>
-                            </button>
+                            {canDeleteFees && (
+                              <button
+                                onClick={() => handleDelete(fee)}
+                                className="group relative inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg font-medium text-xs transition-all duration-200 hover:shadow-md"
+                                style={{
+                                  backgroundColor: "#FEE2E2",
+                                  color: "#991B1B",
+                                }}
+                                title="Delete Fee"
+                              >
+                                <Trash2 className="w-3.5 h-3.5" />
+                                <span>Delete</span>
+                              </button>
+                            )}
                           </div>
                         </td>
                       </tr>

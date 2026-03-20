@@ -115,11 +115,6 @@ const Navigation: React.FC<NavigationProps> = ({
         icon: Users2,
       },
       {
-        id: "file-maintenance-fees",
-        label: "Fees",
-        icon: DollarSign,
-      },
-      {
         id: "file-maintenance-discount",
         label: "Discount",
         icon: Percent,
@@ -130,6 +125,12 @@ const Navigation: React.FC<NavigationProps> = ({
         icon: Package,
       },
       {
+        id: "miscellaneous-fees",
+        label: "Miscellaneous Fees",
+        icon: Receipt,
+        allowedRoles: [ROLES.ADMIN, ROLES.CASHIER],
+      },
+      {
         id: "file-maintenance-schools-programs",
         label: "Schools & Programs",
         icon: GraduationCap,
@@ -138,11 +139,6 @@ const Navigation: React.FC<NavigationProps> = ({
         id: "file-maintenance-subject",
         label: "Subject",
         icon: BookOpen,
-      },
-      {
-        id: "miscellaneous-fees",
-        label: "Miscellaneous Fees",
-        icon: Receipt,
       },
       {
         id: "account-management",

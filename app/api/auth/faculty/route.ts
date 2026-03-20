@@ -1,14 +1,56 @@
 import { NextResponse, NextRequest } from "next/server";
 import { prisma } from "@/app/lib/prisma";
 
+const generateFacultyEmployeeId = async (): Promise<string> => {
+  const year = new Date().getFullYear();
+
+  for (let attempt = 0; attempt < 25; attempt++) {
+    const random6 = Math.floor(Math.random() * 1_000_000)
+      .toString()
+      .padStart(6, "0");
+    const candidate = `FAC${year}-${random6}`;
+
+    const exists = await prisma.faculty.findFirst({
+      where: { employee_id: candidate },
+      select: { id: true },
+    });
+
+    if (!exists) {
+      return candidate;
+    }
+  }
+
+  throw new Error("Unable to generate unique Faculty ID. Please try again.");
+};
+
+const isValidFacultyEmployeeId = (value: string): boolean => {
+  const year = new Date().getFullYear();
+  const pattern = new RegExp(`^FAC${year}-\\d{6}$`);
+  return pattern.test(value);
+};
+
 export async function POST(request: NextRequest) {
   try {
     const data = await request.json();
-    // Remove id field if it exists - it should be auto-generated
-    const { id, ...facultyData } = data;
+    const { id, employee_id, ...facultyData } = data;
+    let employeeIdToUse: string;
+
+    if (typeof employee_id === "string" && isValidFacultyEmployeeId(employee_id)) {
+      const exists = await prisma.faculty.findFirst({
+        where: { employee_id },
+        select: { id: true },
+      });
+
+      employeeIdToUse = exists ? await generateFacultyEmployeeId() : employee_id;
+    } else {
+      employeeIdToUse = await generateFacultyEmployeeId();
+    }
     
     const newFaculty = await prisma.faculty.create({
-      data: facultyData as any,
+      data: {
+        ...(facultyData as any),
+        employee_id: employeeIdToUse,
+      },
     });
     return NextResponse.json(newFaculty);
   } catch (error) {
