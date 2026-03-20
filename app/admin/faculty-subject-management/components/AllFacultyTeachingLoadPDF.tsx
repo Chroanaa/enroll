@@ -310,14 +310,29 @@ export default function AllFacultyTeachingLoadPDF({
 
     async function fetchAllAndRender() {
       try {
-        // Fetch all faculty schedules in parallel
-        const scheduleResults = await Promise.all(
-          faculties.map(f =>
-            fetch(`/api/class-schedule?facultyId=${f.id}&academicYear=${encodeURIComponent(academicYear)}&semester=${encodeURIComponent(semester)}`)
-              .then(r => r.ok ? r.json() : { data: [] })
-              .then(j => (Array.isArray(j.data) ? j.data : []) as Schedule[])
-              .catch(() => [] as Schedule[])
-          )
+        const bulkResponse = await fetch('/api/class-schedule/faculty-bulk', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            facultyIds: faculties.map((faculty) => faculty.id),
+            academicYear,
+            semester,
+          }),
+        });
+        const bulkPayload = await bulkResponse.json();
+        if (!bulkResponse.ok) {
+          throw new Error(bulkPayload?.message || 'Failed to fetch faculty schedules');
+        }
+
+        const byFaculty =
+          bulkPayload?.data?.byFaculty && typeof bulkPayload.data.byFaculty === 'object'
+            ? bulkPayload.data.byFaculty
+            : {};
+
+        const scheduleResults: Schedule[][] = faculties.map((faculty) =>
+          Array.isArray(byFaculty[String(faculty.id)])
+            ? (byFaculty[String(faculty.id)] as Schedule[])
+            : []
         );
 
         if (cancelled || popup.closed) {
