@@ -23,7 +23,7 @@ export const VIEW_ROLES: Record<string, number[]> = {
     ROLES.REGISTRAR,
     ROLES.DEAN,
   ],
-  students: [ROLES.ADMIN, ROLES.REGISTRAR, ROLES.FACULTY, ROLES.DEAN],
+  students: [ROLES.FACULTY, ROLES.DEAN],
   courses: [ROLES.ADMIN, ROLES.REGISTRAR, ROLES.DEAN],
   enrollments: [ROLES.ADMIN, ROLES.REGISTRAR, ROLES.DEAN],
   "enrollment-form": [ROLES.ADMIN, ROLES.REGISTRAR, ROLES.DEAN],

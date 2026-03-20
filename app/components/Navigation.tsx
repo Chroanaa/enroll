@@ -46,6 +46,7 @@ type NavLeafItem = {
   id: string;
   label: string;
   icon: any;
+  allowedRoles?: number[];
 };
 
 const Navigation: React.FC<NavigationProps> = ({
@@ -78,6 +79,7 @@ const Navigation: React.FC<NavigationProps> = ({
         id: "students",
         label: "Students",
         icon: Users,
+        allowedRoles: [ROLES.FACULTY, ROLES.DEAN],
       },
       {
         id: "file-maintenance-approval",
@@ -115,6 +117,11 @@ const Navigation: React.FC<NavigationProps> = ({
         icon: Users2,
       },
       {
+        id: "file-maintenance-fees",
+        label: "Fees",
+        icon: DollarSign,
+      },
+      {
         id: "file-maintenance-discount",
         label: "Discount",
         icon: Percent,
@@ -123,6 +130,7 @@ const Navigation: React.FC<NavigationProps> = ({
         id: "file-maintenance-products",
         label: "Products",
         icon: Package,
+        allowedRoles: [ROLES.ADMIN, ROLES.CASHIER],
       },
       {
         id: "miscellaneous-fees",
@@ -139,6 +147,11 @@ const Navigation: React.FC<NavigationProps> = ({
         id: "file-maintenance-subject",
         label: "Subject",
         icon: BookOpen,
+      },
+      {
+        id: "miscellaneous-fees",
+        label: "Miscellaneous Fees",
+        icon: Receipt,
       },
       {
         id: "account-management",
