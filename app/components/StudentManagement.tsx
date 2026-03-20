@@ -25,6 +25,9 @@ interface SectionStudent {
   academicYear: string;
   semester: string | null;
   assignmentType: string;
+  dropStatus?: "active" | "pending_drop" | "dropped";
+  pendingDropCount?: number;
+  droppedCount?: number;
 }
 
 interface FacultySection {
@@ -314,13 +317,16 @@ const StudentManagement: React.FC<StudentManagementProps> = () => {
                         <th className='px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-500'>
                           Assignment Type
                         </th>
+                        <th className='px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-500'>
+                          Drop Status
+                        </th>
                       </tr>
                     </thead>
                     <tbody className='divide-y divide-gray-100'>
                       {filteredStudents.length === 0 ? (
                         <tr>
                           <td
-                            colSpan={4}
+                            colSpan={5}
                             className='px-4 py-10 text-center text-sm text-gray-500'
                           >
                             No students found for your search.
@@ -346,6 +352,27 @@ const StudentManagement: React.FC<StudentManagementProps> = () => {
                             </td>
                             <td className='px-4 py-3 text-sm text-gray-700 capitalize'>
                               {student.assignmentType}
+                            </td>
+                            <td className='px-4 py-3 text-sm'>
+                              {student.dropStatus === "pending_drop" ? (
+                                <span className='inline-flex items-center rounded-full px-2.5 py-1 text-xs font-semibold bg-amber-100 text-amber-700'>
+                                  Pending Drop
+                                  {student.pendingDropCount
+                                    ? ` (${student.pendingDropCount})`
+                                    : ""}
+                                </span>
+                              ) : student.dropStatus === "dropped" ? (
+                                <span className='inline-flex items-center rounded-full px-2.5 py-1 text-xs font-semibold bg-red-100 text-red-700'>
+                                  Dropped
+                                  {student.droppedCount
+                                    ? ` (${student.droppedCount})`
+                                    : ""}
+                                </span>
+                              ) : (
+                                <span className='inline-flex items-center rounded-full px-2.5 py-1 text-xs font-semibold bg-emerald-100 text-emerald-700'>
+                                  Active
+                                </span>
+                              )}
                             </td>
                           </tr>
                         ))

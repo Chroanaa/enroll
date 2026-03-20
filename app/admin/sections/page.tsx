@@ -280,7 +280,7 @@ export default function SectionsPage() {
               className="text-3xl font-bold tracking-tight"
               style={{ color: colors.primary }}
             >
-              Section Management
+              Scheduling Management
             </h1>
             <p className="text-gray-500 mt-1">
               Create, schedule, and manage academic sections

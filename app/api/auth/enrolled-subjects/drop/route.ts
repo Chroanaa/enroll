@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { Prisma } from "@prisma/client";
 import { getServerSession } from "next-auth";
 import { prisma } from "../../../../lib/prisma";
 import { recalculateAssessmentForTerm } from "../../../../lib/recalculateAssessment";
@@ -47,6 +48,19 @@ function getSemesterStartDate(
   }
 
   return null;
+}
+
+function getSemesterAliases(semester: number): string[] {
+  if (semester === 1) {
+    return ["first", "first semester", "1", "1st semester"];
+  }
+  if (semester === 2) {
+    return ["second", "second semester", "2", "2nd semester"];
+  }
+  if (semester === 3) {
+    return ["third", "third semester", "3", "3rd semester", "summer"];
+  }
+  return [];
 }
 
 export async function POST(request: NextRequest) {
@@ -212,9 +226,22 @@ export async function POST(request: NextRequest) {
       `;
 
       if (hasDirectDropApproval) {
+        const semesterAliases = getSemesterAliases(enrolledSubject.semester);
+
         await tx.$executeRaw`
           DELETE FROM enrolled_subjects
           WHERE id = ${enrolledSubjectId}
+        `;
+
+        await tx.$executeRaw`
+          DELETE FROM student_section_subjects sss
+          USING student_section ss, class_schedule cs
+          WHERE sss.student_section_id = ss.id
+            AND sss.class_schedule_id = cs.id
+            AND ss.student_number = ${enrolledSubject.student_number}
+            AND ss.academic_year = ${enrolledSubject.academic_year}
+            AND LOWER(COALESCE(ss.semester, '')) IN (${Prisma.join(semesterAliases)})
+            AND cs.curriculum_course_id = ${enrolledSubject.curriculum_course_id}
         `;
 
         if (refundable) {
@@ -224,6 +251,46 @@ export async function POST(request: NextRequest) {
             enrolledSubject.academic_year,
             enrolledSubject.semester,
           );
+        }
+
+        const remainingRows = await tx.$queryRaw<{ count: bigint }[]>`
+          SELECT COUNT(*)::bigint AS count
+          FROM enrolled_subjects
+          WHERE student_number = ${enrolledSubject.student_number}
+            AND academic_year = ${enrolledSubject.academic_year}
+            AND semester = ${enrolledSubject.semester}
+        `;
+
+        const remainingCount = Number(remainingRows[0]?.count || 0);
+
+        // If student has no remaining subjects for the term, mark enrollment as dropped.
+        if (remainingCount === 0) {
+          // Ensure no orphan student_section_subject links remain for this term.
+          await tx.$executeRaw`
+            DELETE FROM student_section_subjects sss
+            USING student_section ss
+            WHERE sss.student_section_id = ss.id
+              AND ss.student_number = ${enrolledSubject.student_number}
+              AND ss.academic_year = ${enrolledSubject.academic_year}
+              AND LOWER(COALESCE(ss.semester, '')) IN (${Prisma.join(semesterAliases)})
+          `;
+
+          await tx.$executeRaw`
+            UPDATE enrollment
+            SET status = 3
+            WHERE student_number = ${enrolledSubject.student_number}
+              AND academic_year = ${enrolledSubject.academic_year}
+              AND (
+                LOWER(COALESCE(term, '')) = CASE
+                  WHEN ${enrolledSubject.semester} = 1 THEN 'first'
+                  ELSE 'second'
+                END
+                OR LOWER(COALESCE(term, '')) = CASE
+                  WHEN ${enrolledSubject.semester} = 1 THEN 'first semester'
+                  ELSE 'second semester'
+                END
+              )
+          `;
         }
       } else {
         await tx.$executeRaw`

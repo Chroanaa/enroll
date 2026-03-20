@@ -110,6 +110,8 @@ const AssessmentManagement: React.FC = () => {
   const [selectedDiscount, setSelectedDiscount] = useState<Discount | null>(null);
   const [availableDiscounts, setAvailableDiscounts] = useState<Discount[]>([]);
   const [isLoadingDiscounts, setIsLoadingDiscounts] = useState(false);
+  const [persistedDiscountAmount, setPersistedDiscountAmount] = useState<number | null>(null);
+  const [persistedDiscountId, setPersistedDiscountId] = useState<number | null>(null);
   const [enrollmentData, setEnrollmentData] = useState<{
     admission_status: string | null;
     remarks: string | null;
@@ -267,6 +269,8 @@ const AssessmentManagement: React.FC = () => {
     setIsResidentReturnee(false);
     setSelectedDiscount(null);
     setDiscount(0);
+    setPersistedDiscountAmount(null);
+    setPersistedDiscountId(null);
     setEnrollmentData(null);
     // Reset assessment-saved flags so the form is unlocked for the new student
     setIsAssessmentSaved(false);
@@ -422,6 +426,20 @@ const AssessmentManagement: React.FC = () => {
 
       if (response.ok) {
         const assessment = await response.json();
+
+        const savedDiscountAmount = assessment.discount_amount !== null && assessment.discount_amount !== undefined
+          ? Number(assessment.discount_amount)
+          : 0;
+        setPersistedDiscountAmount(savedDiscountAmount);
+        setDiscount(savedDiscountAmount);
+        setPersistedDiscountId(
+          assessment.discount_id !== null && assessment.discount_id !== undefined
+            ? Number(assessment.discount_id)
+            : null
+        );
+        if (assessment.discount) {
+          setSelectedDiscount(assessment.discount);
+        }
         
         // Populate payment schedules if they exist
         if (assessment.payment_schedules && assessment.payment_schedules.length > 0) {
@@ -454,6 +472,12 @@ const AssessmentManagement: React.FC = () => {
         } else {
           setPaymentSchedules([]);
         }
+      } else {
+        setPersistedDiscountAmount(null);
+        setPersistedDiscountId(null);
+        setSelectedDiscount(null);
+        setDiscount(0);
+        setPaymentSchedules([]);
       }
     } catch (error: any) {
       if (error?.name === "AbortError") return;
@@ -967,6 +991,8 @@ const AssessmentManagement: React.FC = () => {
   // Handle discount selection from dropdown
   const handleDiscountChange = (discount: Discount | null) => {
     setSelectedDiscount(discount);
+    setPersistedDiscountAmount(null);
+    setPersistedDiscountId(discount?.id ?? null);
     
     if (discount) {
       const discountPercent = Number(discount.percentage);
@@ -979,22 +1005,43 @@ const AssessmentManagement: React.FC = () => {
 
   // Recalculate discount when tuition or selected discount changes
   useEffect(() => {
-    if (selectedDiscount && tuition > 0) {
+    if (persistedDiscountAmount !== null) {
+      setDiscount(persistedDiscountAmount);
+    } else if (selectedDiscount && tuition > 0) {
       const discountPercent = Number(selectedDiscount.percentage);
       const discountAmount = tuition * (discountPercent / 100);
       setDiscount(discountAmount);
     } else if (!selectedDiscount) {
       setDiscount(0);
     }
-  }, [tuition, selectedDiscount]);
+  }, [tuition, selectedDiscount, persistedDiscountAmount]);
+
+  // If an assessment has a saved discount_id, sync it once available discounts are loaded.
+  useEffect(() => {
+    if (!persistedDiscountId || availableDiscounts.length === 0 || selectedDiscount) return;
+    const matchedDiscount = availableDiscounts.find((d) => d.id === persistedDiscountId);
+    if (matchedDiscount) {
+      setSelectedDiscount(matchedDiscount);
+    }
+  }, [persistedDiscountId, availableDiscounts, selectedDiscount]);
 
   // Main calculation effect - uses new calculation utilities
   useEffect(() => {
+    const persistedDiscountPercentage =
+      persistedDiscountAmount !== null && tuition > 0
+        ? (persistedDiscountAmount / tuition) * 100
+        : 0;
+
     // Use the calculation utility function
     const results = calculateAssessment({
       enrolledSubjects,
       tuitionPerUnit: parseFloat(tuitionPerUnit) || 0,
-      discountPercentage: selectedDiscount ? Number(selectedDiscount.percentage) : 0,
+      discountPercentage:
+        persistedDiscountAmount !== null
+          ? persistedDiscountPercentage
+          : selectedDiscount
+            ? Number(selectedDiscount.percentage)
+            : 0,
       dynamicFees,
       paymentMode,
       downPayment,
@@ -1049,6 +1096,7 @@ const AssessmentManagement: React.FC = () => {
     fixedAmountTotal,
     downPayment,
     installmentChargePercentage,
+    persistedDiscountAmount,
   ]);
 
   // Optimized fee fetching with caching - using summarized fees endpoint

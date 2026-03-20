@@ -606,6 +606,8 @@ model subject_drop_history {
   semester_start_date  DateTime? @db.Date
   refund_deadline      DateTime? @db.Date
   created_at           DateTime  @default(now()) @db.Timestamp(6)
+  refunded_at          DateTime? @db.Timestamp(6)
+  refunded_by          Int?
 
   @@index([academic_year, semester], map: "idx_subject_drop_history_academic_term")
   @@index([dropped_at], map: "idx_subject_drop_history_dropped_at")
@@ -658,4 +660,35 @@ model student_section_shift_requests {
   requested_at      DateTime  @default(now()) @db.Timestamp(6)
   approved_at       DateTime? @db.Timestamp(6)
   executed_at       DateTime? @db.Timestamp(6)
+}
+
+model refund_transactions {
+  id                      Int      @id @default(autoincrement())
+  subject_drop_history_id Int
+  assessment_id           Int?
+  student_number          String   @db.VarChar(20)
+  academic_year           String   @db.VarChar(20)
+  semester                Int
+  course_code             String?  @db.VarChar(100)
+  descriptive_title       String?  @db.VarChar(255)
+  refund_amount           Decimal  @default(0) @db.Decimal(10, 2)
+  payout_amount           Decimal  @default(0) @db.Decimal(10, 2)
+  total_due_before        Decimal? @db.Decimal(10, 2)
+  total_due_after         Decimal? @db.Decimal(10, 2)
+  base_total_before       Decimal? @db.Decimal(10, 2)
+  base_total_after        Decimal? @db.Decimal(10, 2)
+  total_paid_before       Decimal? @db.Decimal(10, 2)
+  total_paid_after        Decimal? @db.Decimal(10, 2)
+  payment_mode            String?  @db.VarChar(20)
+  drop_reason             String?  @db.VarChar(255)
+  refund_reason           String?  @db.VarChar(255)
+  processed_by            Int?
+  processed_by_name       String?  @db.VarChar(150)
+  processed_at            DateTime @default(now()) @db.Timestamp(6)
+  reference_no            String?  @db.VarChar(100)
+
+  @@index([assessment_id], map: "idx_refund_transactions_assessment_id")
+  @@index([processed_at(sort: Desc)], map: "idx_refund_transactions_processed_at")
+  @@index([subject_drop_history_id], map: "idx_refund_transactions_sdh_id")
+  @@index([student_number, academic_year, semester], map: "idx_refund_transactions_student_term")
 }

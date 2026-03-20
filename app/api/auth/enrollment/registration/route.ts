@@ -55,6 +55,9 @@ export async function GET(request: NextRequest) {
           programCode = program.code || '';
           programName = program.name || '';
         }
+      } else {
+        programCode = enrollment.course_program;
+        programName = enrollment.course_program;
       }
     }
 
@@ -148,6 +151,7 @@ export async function GET(request: NextRequest) {
         sec.section_name,
         COALESCE(cc.course_code, sub.code) AS course_code,
         COALESCE(cc.descriptive_title, sub.name) AS descriptive_title,
+        COALESCE(cc.units_total, 0) AS units_total,
         cs.day_of_week,
         cs.start_time,
         cs.end_time,
@@ -250,7 +254,14 @@ export async function GET(request: NextRequest) {
     // Build response data
     const registrationData = {
       studentName: `${enrollment.family_name || ''}, ${enrollment.first_name || ''} ${enrollment.middle_name || ''}`.trim(),
+      familyName: enrollment.family_name || "",
+      firstName: enrollment.first_name || "",
+      middleName: enrollment.middle_name || "",
       studentNumber: enrollment.student_number || '',
+      yearLevel: enrollment.year_level || null,
+      academicStatus: enrollment.academic_status || "",
+      homeAddress: enrollment.complete_address || "",
+      mobileNumber: enrollment.contact_number || "",
       programCode: programCode,
       programName: programName,
       academicYear: academicYear,
@@ -286,6 +297,7 @@ export async function GET(request: NextRequest) {
         sectionName: row.section_name || '',
         courseCode: row.course_code || '',
         descriptiveTitle: row.descriptive_title || '',
+        unitsTotal: Number(row.units_total) || 0,
         dayOfWeek: row.day_of_week || '',
         startTime: row.start_time,
         endTime: row.end_time,

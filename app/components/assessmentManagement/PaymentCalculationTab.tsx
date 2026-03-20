@@ -236,7 +236,7 @@ export const PaymentCalculationTab: React.FC<PaymentCalculationTabProps> = ({
             </h3>
           </div>
           <div className="space-y-3">
-            {/* Tuition, Discount, Net Tuition */}
+            {/* Tuition, Discount, Discounted Price, Net Tuition */}
             {[
               {
                 label: "Tuition",
@@ -251,6 +251,13 @@ export const PaymentCalculationTab: React.FC<PaymentCalculationTabProps> = ({
                 setValue: setDiscount,
                 key: "discount",
                 isDiscount: true,
+              },
+              {
+                label: "Discounted Price",
+                value: discount,
+                setValue: () => {},
+                key: "discountedPrice",
+                readonly: true,
               },
               {
                 label: "Net Tuition",

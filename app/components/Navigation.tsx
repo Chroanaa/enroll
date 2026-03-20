@@ -178,6 +178,12 @@ const Navigation: React.FC<NavigationProps> = ({
         icon: UserMinus,
       },
       {
+        id: "student-dropping",
+        label: "Student Dropping",
+        icon: UserMinus,
+        allowedRoles: [ROLES.ADMIN, ROLES.REGISTRAR, ROLES.DEAN],
+      },
+      {
         id: "cross-enrollee",
         label: "Cross Enrollee",
         icon: BookOpen,
@@ -197,6 +203,12 @@ const Navigation: React.FC<NavigationProps> = ({
         label: "Payment",
         icon: CreditCard,
       },
+      {
+        id: "refund",
+        label: "Refund",
+        icon: DollarSign,
+        allowedRoles: [ROLES.ADMIN, ROLES.REGISTRAR, ROLES.CASHIER],
+      },
     ],
     [],
   );
@@ -215,7 +227,7 @@ const Navigation: React.FC<NavigationProps> = ({
       },
       {
         id: "section-management",
-        label: "Section Management",
+        label: "Scheduling Management",
         icon: FolderTree,
       },
       {
