@@ -1,6 +1,6 @@
 "use client";
 import React, { useState, useMemo, useEffect } from "react";
-import { Plus } from "lucide-react";
+import { Eye, EyeOff, Plus, Printer, UserPlus } from "lucide-react";
 import { Faculty, Department } from "../../../types";
 import { colors } from "../../../colors";
 import ConfirmationModal from "../../common/ConfirmationModal";
@@ -88,6 +88,23 @@ const FacultyManagement: React.FC = () => {
   });
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage, setItemsPerPage] = useState(10);
+  const [printDepartmentFilter, setPrintDepartmentFilter] = useState<string>("all");
+
+  const [accountModal, setAccountModal] = useState<{
+    isOpen: boolean;
+    faculty: Faculty | null;
+  }>({
+    isOpen: false,
+    faculty: null,
+  });
+  const [accountUsername, setAccountUsername] = useState("");
+  const [accountPassword, setAccountPassword] = useState("");
+  const [accountConfirmPassword, setAccountConfirmPassword] = useState("");
+  const [accountRole, setAccountRole] = useState<number>(FACULTY_ROLE_ID);
+  const [showAccountPassword, setShowAccountPassword] = useState(false);
+  const [showAccountConfirmPassword, setShowAccountConfirmPassword] =
+    useState(false);
+  const [isCreatingAccount, setIsCreatingAccount] = useState(false);
 
   const filteredFaculty = useMemo(
     () => filterFaculty(faculty, searchTerm, statusFilter, positionFilter),
@@ -218,7 +235,7 @@ const FacultyManagement: React.FC = () => {
   const endIndex = startIndex + itemsPerPage;
   const paginatedFaculty = filteredFaculty.slice(startIndex, endIndex);
 
-  // Reset to page 1 when filters change
+  // Reset to page 1 when filters changess
   useEffect(() => {
     setCurrentPage(1);
   }, [searchTerm, statusFilter, positionFilter]);
