@@ -5,6 +5,10 @@ import {
   generateORNumber,
   getServerDate,
 } from "@/app/utils/arNumberUtils";
+import { ROLES } from "@/app/lib/rbac";
+import { getSessionScope, isRoleAllowed } from "@/app/lib/accessScope";
+
+const PENDING_PAYMENT_ALLOWED_ROLES = [ROLES.ADMIN, ROLES.CASHIER, ROLES.DEAN];
 
 /**
  * GET /api/auth/enrollment/pending-payment
@@ -18,6 +22,22 @@ import {
  */
 export async function GET(request: NextRequest) {
   try {
+    const scope = await getSessionScope();
+    if (!scope) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
+    if (!isRoleAllowed(scope.roleId, PENDING_PAYMENT_ALLOWED_ROLES)) {
+      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    }
+
+    if (scope.isDean && !scope.deanDepartmentId) {
+      return NextResponse.json(
+        { error: "Dean account is not linked to a department." },
+        { status: 403 },
+      );
+    }
+
     const searchParams = request.nextUrl.searchParams;
     const search = searchParams.get("search");
     const academicYear = searchParams.get("academic_year");
@@ -25,6 +45,10 @@ export async function GET(request: NextRequest) {
     const where: any = {
       status: { in: [4, 5] }, // Pending (4) or Partially Paid (5)
     };
+
+    if (scope.isDean && scope.deanDepartmentId) {
+      where.department = scope.deanDepartmentId;
+    }
 
     if (academicYear) {
       where.academic_year = academicYear;
@@ -193,6 +217,22 @@ export async function GET(request: NextRequest) {
  */
 export async function POST(request: NextRequest) {
   try {
+    const scope = await getSessionScope();
+    if (!scope) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
+    if (!isRoleAllowed(scope.roleId, PENDING_PAYMENT_ALLOWED_ROLES)) {
+      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    }
+
+    if (scope.isDean && !scope.deanDepartmentId) {
+      return NextResponse.json(
+        { error: "Dean account is not linked to a department." },
+        { status: 403 },
+      );
+    }
+
     const body = await request.json();
     const { enrollee_id, assessment_id, payments, payment_mode, user_id } =
       body;
@@ -249,6 +289,14 @@ export async function POST(request: NextRequest) {
         throw new Error(
           "Enrollee not found or not in pending/partially paid status",
         );
+      }
+
+      if (
+        scope.isDean &&
+        scope.deanDepartmentId &&
+        enrollee.department !== scope.deanDepartmentId
+      ) {
+        throw new Error("Forbidden: Enrollee is outside your department");
       }
 
       // If assessment_id provided, record payments to the assessment

@@ -55,7 +55,7 @@ function App() {
   const { data: session, status } = useSession();
   const router = useRouter();
 
-  const userRole = Number((session?.user as any)?.role) || ROLES.ADMIN;
+  const userRole = Number((session?.user as any)?.role) || 0;
 
   const handleViewChange = (view: string) => {
     if (isViewAllowed(view, userRole)) {

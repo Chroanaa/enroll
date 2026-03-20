@@ -1,5 +1,14 @@
 import React from "react";
-import { Users2, Hash, Mail, Phone, Building2, Edit2, Trash2 } from "lucide-react";
+import {
+  Users2,
+  Hash,
+  Mail,
+  Phone,
+  Building2,
+  Edit2,
+  Trash2,
+  UserPlus,
+} from "lucide-react";
 import { Faculty } from "../../../types";
 import { colors } from "../../../colors";
 import { getStatusColor } from "../utils";
@@ -10,6 +19,8 @@ interface FacultyTableProps {
   faculty: Faculty[];
   onEdit: (faculty: Faculty) => void;
   onDelete: (id: number) => void;
+  onCreateAccount: (faculty: Faculty) => void;
+  canCreateAccount?: boolean;
   isLoading?: boolean;
 }
 
@@ -17,6 +28,8 @@ const FacultyTable: React.FC<FacultyTableProps> = ({
   faculty,
   onEdit,
   onDelete,
+  onCreateAccount,
+  canCreateAccount = false,
   isLoading = false,
 }) => {
   return (
@@ -78,7 +91,10 @@ const FacultyTable: React.FC<FacultyTableProps> = ({
               />
             ) : faculty.length === 0 ? (
               <tr>
-                <td colSpan={9} className='px-6 py-12 text-center text-gray-500'>
+                <td
+                  colSpan={9}
+                  className='px-6 py-12 text-center text-gray-500'
+                >
                   <div className='flex flex-col items-center justify-center gap-3'>
                     <div
                       className='p-3 rounded-full'
@@ -168,7 +184,7 @@ const FacultyTable: React.FC<FacultyTableProps> = ({
                     <td className='px-6 py-4 whitespace-nowrap'>
                       <span
                         className={`inline-flex px-2.5 py-0.5 rounded-full text-xs font-medium border ${getPositionColor(
-                          fac.position
+                          fac.position,
                         )}`}
                       >
                         {fac.position.charAt(0).toUpperCase() +
@@ -208,6 +224,20 @@ const FacultyTable: React.FC<FacultyTableProps> = ({
                     <td className='px-6 py-4 whitespace-nowrap text-right text-sm font-medium'>
                       <div className='flex justify-end gap-2'>
                         <button
+                          onClick={() => onCreateAccount(fac)}
+                          disabled={Boolean(fac.user_id) || !canCreateAccount}
+                          className='p-2 rounded-lg hover:bg-white hover:shadow-sm border border-transparent hover:border-gray-200 transition-all text-emerald-600 disabled:text-gray-400 disabled:hover:bg-transparent disabled:hover:shadow-none disabled:hover:border-transparent disabled:cursor-not-allowed'
+                          title={
+                            fac.user_id
+                              ? `Account linked (User ID: ${fac.user_id})`
+                              : !canCreateAccount
+                                ? "Admin access required"
+                                : "Create account"
+                          }
+                        >
+                          <UserPlus className='w-4 h-4' />
+                        </button>
+                        <button
                           onClick={() => onEdit(fac)}
                           className='p-2 rounded-lg hover:bg-white hover:shadow-sm border border-transparent hover:border-gray-200 transition-all text-blue-600'
                           title='Edit'
@@ -235,6 +265,3 @@ const FacultyTable: React.FC<FacultyTableProps> = ({
 };
 
 export default FacultyTable;
-
-
-
