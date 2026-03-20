@@ -46,6 +46,7 @@ type NavLeafItem = {
   id: string;
   label: string;
   icon: any;
+  allowedRoles?: number[];
 };
 
 const Navigation: React.FC<NavigationProps> = ({
@@ -78,6 +79,7 @@ const Navigation: React.FC<NavigationProps> = ({
         id: "students",
         label: "Students",
         icon: Users,
+        allowedRoles: [ROLES.FACULTY, ROLES.DEAN],
       },
       {
         id: "file-maintenance-approval",

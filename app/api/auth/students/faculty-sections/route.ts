@@ -6,6 +6,7 @@ import { prisma } from "@/app/lib/prisma";
 
 const ROLES = {
   FACULTY: 3,
+  DEAN: 5,
 } as const;
 
 type EnrollmentPreview = {
@@ -29,13 +30,45 @@ function normalizeSemesterToNumber(value: unknown): number | null {
     return value;
   }
 
-  const text = String(value || "").trim().toLowerCase();
+  const text = String(value || "")
+    .trim()
+    .toLowerCase();
   if (!text) return null;
   if (text === "1" || text.includes("first")) return 1;
   if (text === "2" || text.includes("second")) return 2;
-  if (text === "3" || text.includes("third") || text.includes("summer")) return 3;
+  if (text === "3" || text.includes("third") || text.includes("summer"))
+    return 3;
   return null;
 }
+
+type FacultyRecord = {
+  id: number;
+  employee_id: string;
+  first_name: string;
+  middle_name: string | null;
+  last_name: string;
+  department_id: number;
+  position: string;
+  email: string;
+  user_id: number | null;
+};
+
+const formatFullName = (
+  firstName?: string | null,
+  middleName?: string | null,
+  lastName?: string | null,
+) =>
+  [firstName, middleName, lastName]
+    .filter(Boolean)
+    .join(" ")
+    .replace(/\s+/g, " ")
+    .trim();
+
+const compareAcademicYearDesc = (left?: string | null, right?: string | null) =>
+  String(right || "").localeCompare(String(left || ""), undefined, {
+    numeric: true,
+    sensitivity: "base",
+  });
 
 export async function GET() {
   try {
@@ -43,14 +76,18 @@ export async function GET() {
     const userRole = Number((session?.user as any)?.role) || 0;
     const userId = Number((session?.user as any)?.id) || 0;
 
-    if (!session || userRole !== ROLES.FACULTY || !Number.isFinite(userId)) {
+    if (
+      !session ||
+      ![ROLES.FACULTY, ROLES.DEAN].includes(userRole) ||
+      !Number.isFinite(userId)
+    ) {
       return NextResponse.json(
-        { error: "Unauthorized. Faculty access only." },
+        { error: "Unauthorized. Faculty and dean access only." },
         { status: 403 },
       );
     }
 
-    const faculty = await prisma.faculty.findFirst({
+    const viewerFaculty = await prisma.faculty.findFirst({
       where: {
         user_id: userId,
       },
@@ -61,10 +98,13 @@ export async function GET() {
         middle_name: true,
         last_name: true,
         department_id: true,
+        position: true,
+        email: true,
+        user_id: true,
       },
     });
 
-    if (!faculty) {
+    if (!viewerFaculty) {
       return NextResponse.json(
         {
           error:
@@ -74,46 +114,75 @@ export async function GET() {
       );
     }
 
-    const [department, scheduleCounts] = await Promise.all([
-      prisma.department.findUnique({
-        where: { id: faculty.department_id },
-        select: { name: true },
-      }),
-      prisma.class_schedule.groupBy({
-        by: ["section_id"],
-        where: { faculty_id: faculty.id },
-        _count: { id: true },
-      }),
-    ]);
+    const departmentId =
+      viewerFaculty.department_id ||
+      Number((session.user as any)?.departmentId) ||
+      null;
 
-    const sectionIds = scheduleCounts
-      .map((row) => row.section_id)
-      .filter((id): id is number => Number.isFinite(id));
-
-    if (sectionIds.length === 0) {
-      return NextResponse.json({
-        success: true,
-        data: {
-          faculty: {
-            id: faculty.id,
-            employeeId: faculty.employee_id,
-            fullName: [
-              faculty.first_name,
-              faculty.middle_name,
-              faculty.last_name,
-            ]
-              .filter(Boolean)
-              .join(" "),
-            department: department?.name || "N/A",
-          },
-          sections: [],
-          summary: {
-            totalSections: 0,
-            totalStudents: 0,
-          },
+    if (!departmentId) {
+      return NextResponse.json(
+        {
+          error:
+            "No department is linked to this account. Please assign this user to a faculty record with a department.",
         },
-      });
+        { status: 404 },
+      );
     }
+
+    const department = await prisma.department.findUnique({
+      where: { id: departmentId },
+      select: { id: true, name: true },
+    });
+
+    const facultyWhere =
+      userRole === ROLES.DEAN
+        ? { department_id: departmentId }
+        : { id: viewerFaculty.id };
+
+    const facultyMembers = await prisma.faculty.findMany({
+      where: facultyWhere,
+      select: {
+        id: true,
+        employee_id: true,
+        first_name: true,
+        middle_name: true,
+        last_name: true,
+        department_id: true,
+        position: true,
+        email: true,
+        user_id: true,
+      },
+      orderBy: [{ last_name: "asc" }, { first_name: "asc" }],
+    });
+
+    const facultyIds = facultyMembers.map((faculty) => faculty.id);
+
+    const scheduleCounts =
+      facultyIds.length > 0
+        ? await prisma.class_schedule.groupBy({
+            by: ["faculty_id", "section_id"],
+            where: { faculty_id: { in: facultyIds } },
+            _count: { id: true },
+          })
+        : [];
+
+    const facultySectionRows = scheduleCounts.filter(
+      (
+        row,
+      ): row is {
+        faculty_id: number;
+        section_id: number;
+        _count: { id: number };
+      } => Number.isFinite(row.faculty_id),
+    );
+
+    const sectionIds = [
+      ...new Set(
+        facultySectionRows
+          .map((row) => row.section_id)
+          .filter((id): id is number => Number.isFinite(id)),
+      ),
+    ];
 
     const [sections, assignments, facultySchedules] = await Promise.all([
       prisma.sections.findMany({
@@ -148,7 +217,7 @@ export async function GET() {
       }),
       prisma.class_schedule.findMany({
         where: {
-          faculty_id: faculty.id,
+          faculty_id: { in: facultyIds },
           section_id: { in: sectionIds },
         },
         select: {
@@ -190,13 +259,12 @@ export async function GET() {
       enrollmentByStudent.set(key, row);
     }
 
-    const scheduleCountMap = new Map<number, number>(
-      scheduleCounts.map((row) => [row.section_id, row._count.id]),
-    );
-
     const curriculumBySection = new Map<number, Set<number>>();
     for (const schedule of facultySchedules) {
-      if (!Number.isFinite(schedule.section_id) || !Number.isFinite(schedule.curriculum_course_id)) {
+      if (
+        !Number.isFinite(schedule.section_id) ||
+        !Number.isFinite(schedule.curriculum_course_id)
+      ) {
         continue;
       }
       const sectionSet =
@@ -287,14 +355,11 @@ export async function GET() {
       const studentEnrollment = enrollmentByStudent.get(
         assignment.student_number,
       );
-      const fullName = [
+      const fullName = formatFullName(
         studentEnrollment?.first_name,
         studentEnrollment?.middle_name,
         studentEnrollment?.family_name,
-      ]
-        .filter(Boolean)
-        .join(" ")
-        .trim();
+      );
 
       const semesterNum = normalizeSemesterToNumber(assignment.semester);
       const dropKey = `${assignment.section_id}|${assignment.student_number}|${assignment.academic_year}|${semesterNum || ""}`;
@@ -326,46 +391,118 @@ export async function GET() {
       studentsBySection.set(assignment.section_id, bucket);
     }
 
-    const formattedSections = sections.map((section) => ({
-      id: section.id,
-      sectionName: section.section_name,
-      yearLevel: section.year_level,
-      academicYear: section.academic_year,
-      semester: section.semester,
-      status: section.status,
-      studentCount: section.student_count || 0,
-      maxCapacity: section.max_capacity || 0,
-      classScheduleCount: scheduleCountMap.get(section.id) || 0,
-      students: studentsBySection.get(section.id) || [],
-    }));
+    const sectionMap = new Map(
+      sections.map((section) => [
+        section.id,
+        {
+          id: section.id,
+          sectionName: section.section_name,
+          yearLevel: section.year_level,
+          academicYear: section.academic_year,
+          semester: section.semester,
+          status: section.status,
+          studentCount:
+            section.student_count ||
+            studentsBySection.get(section.id)?.length ||
+            0,
+          maxCapacity: section.max_capacity || 0,
+        },
+      ]),
+    );
 
-    const totalStudents = formattedSections.reduce(
-      (acc, section) => acc + section.students.length,
+    const sectionsByFaculty = new Map<number, any[]>();
+    for (const row of facultySectionRows) {
+      const baseSection = sectionMap.get(row.section_id);
+      if (!baseSection) {
+        continue;
+      }
+
+      const facultySections = sectionsByFaculty.get(row.faculty_id) || [];
+      facultySections.push({
+        ...baseSection,
+        classScheduleCount: row._count.id,
+        students: studentsBySection.get(row.section_id) || [],
+      });
+      sectionsByFaculty.set(row.faculty_id, facultySections);
+    }
+
+    const departmentName = department?.name || "N/A";
+
+    const formattedFaculty = facultyMembers.map((faculty: FacultyRecord) => {
+      const sectionsForFaculty = (sectionsByFaculty.get(faculty.id) || []).sort(
+        (left, right) =>
+          compareAcademicYearDesc(left.academicYear, right.academicYear) ||
+          String(left.sectionName || "").localeCompare(
+            String(right.sectionName || ""),
+            undefined,
+            { numeric: true, sensitivity: "base" },
+          ),
+      );
+
+      const totalStudents = sectionsForFaculty.reduce(
+        (acc, section) => acc + section.students.length,
+        0,
+      );
+
+      return {
+        id: faculty.id,
+        employeeId: faculty.employee_id,
+        fullName: formatFullName(
+          faculty.first_name,
+          faculty.middle_name,
+          faculty.last_name,
+        ),
+        department: departmentName,
+        position: faculty.position || "Faculty",
+        email: faculty.email,
+        sections: sectionsForFaculty,
+        summary: {
+          totalSections: sectionsForFaculty.length,
+          totalStudents,
+        },
+      };
+    });
+
+    const totalSections = formattedFaculty.reduce(
+      (acc, faculty) => acc + faculty.summary.totalSections,
+      0,
+    );
+    const totalStudents = formattedFaculty.reduce(
+      (acc, faculty) => acc + faculty.summary.totalStudents,
       0,
     );
 
     return NextResponse.json({
       success: true,
       data: {
-        faculty: {
-          id: faculty.id,
-          employeeId: faculty.employee_id,
-          fullName: [faculty.first_name, faculty.middle_name, faculty.last_name]
-            .filter(Boolean)
-            .join(" "),
-          department: department?.name || "N/A",
+        roleView: userRole === ROLES.DEAN ? "dean" : "faculty",
+        viewer: {
+          id: viewerFaculty.id,
+          employeeId: viewerFaculty.employee_id,
+          fullName: formatFullName(
+            viewerFaculty.first_name,
+            viewerFaculty.middle_name,
+            viewerFaculty.last_name,
+          ),
+          department: departmentName,
+          roleLabel: userRole === ROLES.DEAN ? "Dean" : "Faculty",
         },
-        sections: formattedSections,
+        department: {
+          id: department?.id || departmentId,
+          name: departmentName,
+        },
+        facultyMembers: formattedFaculty,
         summary: {
-          totalSections: formattedSections.length,
+          totalFaculty: formattedFaculty.length,
+          totalSections,
           totalStudents,
         },
       },
     });
   } catch (error) {
-    console.error("Error fetching faculty sections/students:", error);
+    console.error("Error fetching students tab data:", error);
     return NextResponse.json(
-      { error: "Failed to fetch faculty sections and students." },
+      { error: "Failed to fetch students tab data." },
       { status: 500 },
     );
   }
