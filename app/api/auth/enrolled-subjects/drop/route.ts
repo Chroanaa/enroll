@@ -13,6 +13,12 @@ const ROLES = {
   REGISTRAR: 4,
 } as const;
 
+async function ensureSubjectDropHistoryAssessmentAdjustedColumn() {
+  await prisma.$executeRawUnsafe(
+    "ALTER TABLE subject_drop_history ADD COLUMN IF NOT EXISTS assessment_adjusted BOOLEAN NOT NULL DEFAULT false",
+  );
+}
+
 function parseAcademicYearStart(academicYear: string): number | null {
   const startYear = Number.parseInt(String(academicYear).split("-")[0], 10);
   return Number.isNaN(startYear) ? null : startYear;
@@ -65,6 +71,8 @@ function getSemesterAliases(semester: number): string[] {
 
 export async function POST(request: NextRequest) {
   try {
+    await ensureSubjectDropHistoryAssessmentAdjustedColumn();
+
     const session = await getServerSession(authOptions);
     const requesterRoleId = session?.user?.role
       ? Number(session.user.role)
@@ -179,7 +187,7 @@ export async function POST(request: NextRequest) {
     const dropStatus = hasDirectDropApproval ? "dropped" : "pending_approval";
 
     await prisma.$transaction(async (tx) => {
-      await tx.$executeRaw`
+      const insertedDropRows = await tx.$queryRaw<{ id: number }[]>`
         INSERT INTO subject_drop_history (
           enrolled_subject_id,
           student_number,
@@ -223,7 +231,9 @@ export async function POST(request: NextRequest) {
           ${semesterStartDate},
           ${refundDeadline}
         )
+        RETURNING id
       `;
+      const insertedDropId = Number(insertedDropRows[0]?.id || 0);
 
       if (hasDirectDropApproval) {
         const semesterAliases = getSemesterAliases(enrolledSubject.semester);
@@ -251,6 +261,14 @@ export async function POST(request: NextRequest) {
             enrolledSubject.academic_year,
             enrolledSubject.semester,
           );
+
+          if (insertedDropId > 0) {
+            await tx.$executeRaw`
+              UPDATE subject_drop_history
+              SET assessment_adjusted = true
+              WHERE id = ${insertedDropId}
+            `;
+          }
         }
 
         const remainingRows = await tx.$queryRaw<{ count: bigint }[]>`

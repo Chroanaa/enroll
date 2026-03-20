@@ -7,12 +7,13 @@ import { SectionList } from '../../components/sections/SectionList';
 import { StudentAssignment } from '../../components/sections/StudentAssignment';
 import { activateSection, lockSection, unlockSection } from '../../utils/sectionApi';
 import { colors } from '../../colors';
-import { Lock, Unlock, CheckCircle, BookOpen, Printer, Loader2 } from 'lucide-react';
+import { Lock, Unlock, CheckCircle, BookOpen, Printer, Loader2, Users } from 'lucide-react';
 import SearchFilters from '../../components/common/SearchFilters';
 import ConfirmationModal from '../../components/common/ConfirmationModal';
 import SuccessModal from '../../components/common/SuccessModal';
 import ErrorModal from '../../components/common/ErrorModal';
 import AllSectionSchedulesPDF, { SectionForPDF } from './components/AllSectionSchedulesPDF';
+import AllSectionClasslistsPDF, { SectionForClasslistPDF } from './components/AllSectionClasslistsPDF';
 import { useAcademicTermContext } from '../../contexts/AcademicTermContext';
 import { getPrintAllSectionScheduleFilter } from '../../utils/academicTermUtils';
 import { primeScheduleResources } from '../../utils/scheduleResourceCache';
@@ -38,6 +39,10 @@ export default function SectionsPage() {
   const [pdfSections, setPdfSections] = useState<SectionForPDF[]>([]);
   const [filteredSectionsForPrint, setFilteredSectionsForPrint] = useState<SectionResponse[]>([]);
   const [loadingPdf, setLoadingPdf] = useState(false);
+  const [showClasslistPDF, setShowClasslistPDF] = useState(false);
+  const [classlistPopup, setClasslistPopup] = useState<Window | null>(null);
+  const [classlistSections, setClasslistSections] = useState<SectionForClasslistPDF[]>([]);
+  const [loadingClasslistPdf, setLoadingClasslistPdf] = useState(false);
 
   // Modal states
   const [isStudentAssignmentOpen, setIsStudentAssignmentOpen] = useState(false);
@@ -88,7 +93,7 @@ export default function SectionsPage() {
 
 
   const handlePrintAll = async () => {
-    // Open popup synchronously inside the click handler — browsers block window.open in async
+    // Open popup synchronously inside the click handler - browsers block window.open in async
     const popup = window.open('', '_blank', 'width=1100,height=820,scrollbars=yes');
     if (!popup) {
       alert('Popup was blocked. Please allow popups for this site and try again.');
@@ -129,6 +134,45 @@ export default function SectionsPage() {
   const handleCreateSchedule = (section: SectionResponse) => {
     // Navigate to dedicated schedule page
     router.push(`/admin/sections/schedule/${section.id}`);
+  };
+
+  const handlePrintClasslists = async () => {
+    const popup = window.open('', '_blank', 'width=1100,height=820,scrollbars=yes');
+    if (!popup) {
+      alert('Popup was blocked. Please allow popups for this site and try again.');
+      return;
+    }
+
+    setClasslistPopup(popup);
+    setLoadingClasslistPdf(true);
+
+    try {
+      const sections: SectionForClasslistPDF[] = filteredSectionsForPrint.map((s) => ({
+        id: s.id,
+        programId: s.programId,
+        sectionName: s.sectionName,
+        programCode: s.programCode ?? '',
+        programName: s.programName ?? '',
+        yearLevel: s.yearLevel,
+        academicYear: s.academicYear,
+        semester: s.semester,
+      }));
+
+      if (sections.length === 0) {
+        popup.close();
+        setClasslistPopup(null);
+        return;
+      }
+
+      setClasslistSections(sections);
+      setShowClasslistPDF(true);
+    } catch (error) {
+      console.error('Failed to prepare classlists PDF:', error);
+      popup.close();
+      setClasslistPopup(null);
+    } finally {
+      setLoadingClasslistPdf(false);
+    }
   };
 
   const handleViewSchedule = (section: SectionResponse) => {
@@ -295,8 +339,27 @@ export default function SectionsPage() {
               onMouseEnter={(e) => { if (!loadingPdf) e.currentTarget.style.backgroundColor = colors.secondary; }}
               onMouseLeave={(e) => { if (!loadingPdf) e.currentTarget.style.backgroundColor = colors.primary; }}
             >
-              <Printer className="w-4 h-4" />
-              {loadingPdf ? 'Loading…' : 'Print All Schedules'}
+              {loadingPdf ? (
+                <Loader2 className="w-4 h-4 animate-spin" />
+              ) : (
+                <Printer className="w-4 h-4" />
+              )}
+              {loadingPdf ? 'Loading...' : 'Print All Schedules'}
+            </button>
+            <button
+              onClick={handlePrintClasslists}
+              disabled={loadingClasslistPdf || filteredSectionsForPrint.length === 0}
+              className="flex items-center gap-2 px-5 py-3 rounded-lg font-medium text-sm transition-colors hover:shadow-md disabled:opacity-50 disabled:cursor-not-allowed"
+              style={{ backgroundColor: colors.info, color: 'white' }}
+              onMouseEnter={(e) => { if (!loadingClasslistPdf) e.currentTarget.style.backgroundColor = colors.primary; }}
+              onMouseLeave={(e) => { if (!loadingClasslistPdf) e.currentTarget.style.backgroundColor = colors.info; }}
+            >
+              {loadingClasslistPdf ? (
+                <Loader2 className="w-4 h-4 animate-spin" />
+              ) : (
+                <Users className="w-4 h-4" />
+              )}
+              {loadingClasslistPdf ? 'Loading...' : 'Print Classlist'}
             </button>
             <button
               onClick={handleManualEnrollment}
@@ -424,7 +487,7 @@ export default function SectionsPage() {
           details={errorModal.details}
         />
 
-        {/* Bulk section schedules PDF — mounts, writes to popup, then unmounts */}
+        {/* Bulk section schedules PDF - mounts, writes to popup, then unmounts */}
         {showBulkPDF && printPopup && (
           <AllSectionSchedulesPDF
             sections={pdfSections}
@@ -432,6 +495,19 @@ export default function SectionsPage() {
             onClose={() => { setShowBulkPDF(false); setPrintPopup(null); setPdfSections([]); }}
           />
         )}
+
+        {showClasslistPDF && classlistPopup && (
+          <AllSectionClasslistsPDF
+            sections={classlistSections}
+            popupWindow={classlistPopup}
+            onClose={() => {
+              setShowClasslistPDF(false);
+              setClasslistPopup(null);
+              setClasslistSections([]);
+            }}
+          />
+        )}
     </div>
   );
 }
+

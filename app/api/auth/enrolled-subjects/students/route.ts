@@ -1,12 +1,20 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "../../../../lib/prisma";
 
+function getSemesterAliases(semester: number): string[] {
+  if (semester === 1) return ["first", "first semester", "1", "1st semester"];
+  if (semester === 2) return ["second", "second semester", "2", "2nd semester"];
+  if (semester === 3) return ["third", "third semester", "3", "3rd semester", "summer"];
+  return [];
+}
+
 export async function GET(request: NextRequest) {
   try {
     const searchParams = request.nextUrl.searchParams;
     const academicYear = searchParams.get("academicYear");
     const semester = searchParams.get("semester");
     const includeDetails = searchParams.get("includeDetails") === "true";
+    const noSectionOnly = searchParams.get("noSectionOnly") === "true";
 
     if (!academicYear || !semester) {
       return NextResponse.json(
@@ -16,6 +24,7 @@ export async function GET(request: NextRequest) {
     }
 
     const semesterNum = Number.parseInt(semester, 10);
+    const semesterAliases = getSemesterAliases(semesterNum);
 
     if (semesterNum !== 1 && semesterNum !== 2 && semesterNum !== 3) {
       return NextResponse.json(
@@ -25,21 +34,41 @@ export async function GET(request: NextRequest) {
     }
 
     const rows = await prisma.$queryRaw<
-      { student_number: string; enrolled_subject_count: bigint | number }[]
+      {
+        student_number: string;
+        enrolled_subject_count: bigint | number;
+        no_section_subject_count: bigint | number;
+      }[]
     >`
       SELECT
         es.student_number,
-        COUNT(*) AS enrolled_subject_count
+        COUNT(*) AS enrolled_subject_count,
+        COUNT(*) FILTER (
+          WHERE NOT EXISTS (
+            SELECT 1
+            FROM student_section ss
+            INNER JOIN student_section_subjects sss ON sss.student_section_id = ss.id
+            INNER JOIN class_schedule cs ON cs.id = sss.class_schedule_id
+            WHERE ss.student_number = es.student_number
+              AND ss.academic_year = es.academic_year
+              AND LOWER(COALESCE(ss.semester, '')) IN (${semesterAliases[0]}, ${semesterAliases[1]}, ${semesterAliases[2]}, ${semesterAliases[3]}, ${semesterAliases[4] || semesterAliases[3]})
+              AND cs.curriculum_course_id = es.curriculum_course_id
+          )
+        ) AS no_section_subject_count
       FROM enrolled_subjects es
       WHERE es.academic_year = ${academicYear}
         AND es.semester = ${semesterNum}
         AND es.status = 'enrolled'
       GROUP BY es.student_number
       HAVING COUNT(*) > 0
-      ORDER BY es.student_number ASC
+      ORDER BY no_section_subject_count DESC, es.student_number ASC
     `;
 
-    const studentNumbers = rows.map((row) => row.student_number).filter(Boolean);
+    const filteredRows = noSectionOnly
+      ? rows.filter((row) => Number(row.no_section_subject_count || 0) > 0)
+      : rows;
+
+    const studentNumbers = filteredRows.map((row) => row.student_number).filter(Boolean);
 
     if (!includeDetails) {
       return NextResponse.json({
@@ -116,8 +145,12 @@ export async function GET(request: NextRequest) {
         programCode,
         yearLevel: enrollment.year_level ?? null,
         enrolledSubjectCount: Number(
-          rows.find((row) => row.student_number === enrollment.student_number)
+          filteredRows.find((row) => row.student_number === enrollment.student_number)
             ?.enrolled_subject_count || 0,
+        ),
+        noSectionSubjectCount: Number(
+          filteredRows.find((row) => row.student_number === enrollment.student_number)
+            ?.no_section_subject_count || 0,
         ),
       };
     });

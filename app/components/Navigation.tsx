@@ -30,6 +30,7 @@ import {
   UserCog,
   House,
   UserMinus,
+  ArrowLeftRight,
   CheckSquare,
 } from "lucide-react";
 import Image from "next/image";
@@ -205,6 +206,11 @@ const Navigation: React.FC<NavigationProps> = ({
         id: "shifting",
         label: "Section Shifting",
         icon: CalendarClock,
+      },
+      {
+        id: "program-shifting",
+        label: "Program Shifting",
+        icon: ArrowLeftRight,
       },
       {
         id: "resident-enrollment",

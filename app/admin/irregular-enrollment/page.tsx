@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useEffect, useMemo } from 'react';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import Navigation from '../../components/Navigation';
 import ConfirmationModal from '../../components/common/ConfirmationModal';
 import SuccessModal from '../../components/common/SuccessModal';
@@ -31,6 +31,7 @@ interface Student {
   paymentMode?: string | null;
   totalDue?: number | null;
   totalPaid?: number | null;
+  noSectionSubjectCount?: number;
 }
 
 interface Section {
@@ -99,6 +100,7 @@ function StepIndicator({ step, currentStep }: { step: number; currentStep: numbe
 
 export default function IrregularEnrollmentPage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const { programs: programsWithMajors, loading: loadingPrograms } = useProgramsWithMajors();
 
   const [students, setStudents] = useState<Student[]>([]);
@@ -140,6 +142,24 @@ export default function IrregularEnrollmentPage() {
 
   const [academicYear, setAcademicYear] = useState('2025-2026');
   const [semester, setSemester] = useState('second');
+  const [crossContext, setCrossContext] = useState<{
+    studentNumber: string;
+    academicYear: string;
+    semester: number;
+    curriculumCourseId: number | null;
+  } | null>(null);
+
+  const crossRequestId = Number(searchParams.get('crossRequestId') || '');
+  const prefillStudentNumber = searchParams.get('studentNumber')?.trim() || '';
+  const prefillAcademicYear = searchParams.get('academicYear')?.trim() || '';
+  const prefillSemester = searchParams.get('semester')?.trim() || '';
+  const prefillCurriculumCourseId = Number(searchParams.get('curriculumCourseId') || '');
+
+  const effectiveStudentNumber = crossContext?.studentNumber || prefillStudentNumber;
+  const effectiveAcademicYear = crossContext?.academicYear || prefillAcademicYear;
+  const effectiveSemester = crossContext ? String(crossContext.semester) : prefillSemester;
+  const effectiveCurriculumCourseId =
+    crossContext?.curriculumCourseId ?? prefillCurriculumCourseId;
 
   // Derive current step for the progress indicator
   const currentStep = !selectedStudent ? 1 : !selectedAssessmentSubject ? 2 : 3;
@@ -195,6 +215,103 @@ export default function IrregularEnrollmentPage() {
   useEffect(() => { if (selectedStudent) { loadEnrolledSubjects(); } }, [selectedStudent, academicYear, semester]);
   useEffect(() => { if (selectedAssessmentSubject) loadSchedulesBySubject(selectedAssessmentSubject.curriculum_course_id); }, [academicYear, semester]);
 
+  useEffect(() => {
+    const fetchCrossContext = async () => {
+      if (!Number.isFinite(crossRequestId) || crossRequestId <= 0) {
+        setCrossContext(null);
+        return;
+      }
+
+      try {
+        const response = await fetch(
+          `/api/auth/cross-enrollment/context?id=${crossRequestId}`,
+        );
+        const result = await response.json();
+        if (!response.ok || !result.success || !result.data) {
+          throw new Error(result.error || 'Failed to load cross-enrollee context.');
+        }
+
+        setCrossContext({
+          studentNumber: String(result.data.studentNumber || ''),
+          academicYear: String(result.data.academicYear || ''),
+          semester: Number(result.data.semester || 0),
+          curriculumCourseId:
+            result.data.curriculumCourseId === null || result.data.curriculumCourseId === undefined
+              ? null
+              : Number(result.data.curriculumCourseId),
+        });
+      } catch (error) {
+        console.error('Failed to prefill from cross request:', error);
+      }
+    };
+
+    fetchCrossContext();
+  }, [crossRequestId]);
+
+  useEffect(() => {
+    if (effectiveAcademicYear) {
+      setAcademicYear(effectiveAcademicYear);
+    }
+    if (effectiveSemester === '1' || effectiveSemester.toLowerCase() === 'first') {
+      setSemester('first');
+    } else if (effectiveSemester === '2' || effectiveSemester.toLowerCase() === 'second') {
+      setSemester('second');
+    } else if (effectiveSemester === '3' || effectiveSemester.toLowerCase() === 'third') {
+      setSemester('third');
+    }
+  }, [effectiveAcademicYear, effectiveSemester]);
+
+  useEffect(() => {
+    const bootstrapStudentFromParams = async () => {
+      if (!effectiveStudentNumber) return;
+      if (selectedStudent?.studentNumber === effectiveStudentNumber) return;
+
+      try {
+        const res = await fetch(`/api/students/${encodeURIComponent(effectiveStudentNumber)}`);
+        const studentResult = await res.json();
+        if (!res.ok) return;
+
+        const firstName = String(studentResult.first_name || '').trim();
+        const middleName = String(studentResult.middle_name || '').trim();
+        const lastName = String(studentResult.last_name || '').trim();
+        const fullName = [firstName, middleName, lastName].filter(Boolean).join(' ').trim();
+
+        setSelectedStudent({
+          studentId: Number(studentResult.id || 0),
+          studentNumber: String(studentResult.student_number || effectiveStudentNumber),
+          firstName,
+          middleName,
+          lastName,
+          name: fullName || effectiveStudentNumber,
+          email: String(studentResult.email_address || ''),
+          programId: Number(studentResult.program?.id || 0),
+          programCode: String(studentResult.program?.code || ''),
+          programName: String(studentResult.program?.name || ''),
+          academicStatus: String(studentResult.academic_status || 'irregular'),
+        });
+      } catch (error) {
+        console.error('Failed to prefill student from URL params:', error);
+      }
+    };
+
+    bootstrapStudentFromParams();
+  }, [effectiveStudentNumber, selectedStudent?.studentNumber]);
+
+  useEffect(() => {
+    if (!Number.isFinite(effectiveCurriculumCourseId) || effectiveCurriculumCourseId <= 0) return;
+    if (!Array.isArray(enrolledSubjectsFromAssessment) || enrolledSubjectsFromAssessment.length === 0) return;
+    if (selectedAssessmentSubject) return;
+
+    const matchedSubject = enrolledSubjectsFromAssessment.find((subject: any) => {
+      const curriculumId = Number(subject.curriculum_course_id || subject.curriculumCourseId || 0);
+      return curriculumId === effectiveCurriculumCourseId;
+    });
+
+    if (matchedSubject) {
+      setSelectedAssessmentSubject(matchedSubject);
+    }
+  }, [enrolledSubjectsFromAssessment, effectiveCurriculumCourseId, selectedAssessmentSubject]);
+
   const searchStudents = async () => {
     const hasExistingRows = students.length > 0;
     if (hasExistingRows) {
@@ -220,7 +337,7 @@ export default function IrregularEnrollmentPage() {
       const [studentsRes, enrolledStudentsRes] = await Promise.all([
         fetch(`/api/auth/students/search?${params.toString()}`),
         fetch(
-          `/api/auth/enrolled-subjects/students?academicYear=${encodeURIComponent(
+          `/api/auth/enrolled-subjects/students?includeDetails=true&noSectionOnly=true&academicYear=${encodeURIComponent(
             academicYear,
           )}&semester=${semesterNum}`,
         ),
@@ -234,26 +351,32 @@ export default function IrregularEnrollmentPage() {
       const studentsJson = await studentsRes.json();
       const enrolledJson = enrolledStudentsRes.ok ? await enrolledStudentsRes.json() : { data: [] };
 
-      const enrolledStudentNumbers = new Set<string>(
-        Array.isArray(enrolledJson?.data)
-          ? enrolledJson.data
-              .map((value: any) =>
-                typeof value === 'string'
-                  ? value
-                  : typeof value?.studentNumber === 'string'
-                    ? value.studentNumber
-                    : null,
-              )
-              .filter(Boolean)
-          : [],
-      );
+      const queueRows = Array.isArray(enrolledJson?.data) ? enrolledJson.data : [];
+      const queueByStudentNumber = new Map<string, number>();
+      for (const row of queueRows) {
+        const number = String(row?.studentNumber || '').trim();
+        if (!number) continue;
+        const count = Number(row?.noSectionSubjectCount || 0);
+        queueByStudentNumber.set(number, Number.isFinite(count) ? count : 0);
+      }
 
       const filtered = Array.isArray(studentsJson?.data)
-        ? studentsJson.data.filter(
-            (student: any) =>
-              student?.studentNumber &&
-              enrolledStudentNumbers.has(String(student.studentNumber)),
-          )
+        ? studentsJson.data
+            .filter(
+              (student: any) =>
+                student?.studentNumber &&
+                queueByStudentNumber.has(String(student.studentNumber)),
+            )
+            .map((student: any) => ({
+              ...student,
+              noSectionSubjectCount:
+                queueByStudentNumber.get(String(student.studentNumber)) || 0,
+            }))
+            .sort(
+              (a: any, b: any) =>
+                Number(b.noSectionSubjectCount || 0) -
+                Number(a.noSectionSubjectCount || 0),
+            )
         : [];
 
       setStudents(filtered);
@@ -1063,6 +1186,7 @@ export default function IrregularEnrollmentPage() {
                     <thead><tr style={{ borderBottom: '1px solid rgba(179,116,74,0.1)' }}>
                       <th className="text-left py-3 px-4 text-xs font-semibold uppercase tracking-wide" style={{ color: colors.tertiary }}>Student</th>
                       <th className="text-left py-3 px-4 text-xs font-semibold uppercase tracking-wide" style={{ color: colors.tertiary }}>Program</th>
+                      <th className="text-left py-3 px-4 text-xs font-semibold uppercase tracking-wide" style={{ color: colors.tertiary }}>No Section</th>
                       <th className="text-left py-3 px-4 text-xs font-semibold uppercase tracking-wide" style={{ color: colors.tertiary }}>Status</th>
                       <th className="text-left py-3 px-4 text-xs font-semibold uppercase tracking-wide" style={{ color: colors.tertiary }}>Payment</th>
                       <th className="py-3 px-4" />
@@ -1077,6 +1201,11 @@ export default function IrregularEnrollmentPage() {
                             </div>
                           </td>
                           <td className="py-3 px-4 text-sm" style={{ color: colors.neutral }}>{student.programCode || '—'}</td>
+                          <td className="py-3 px-4">
+                            <span className="text-xs px-2 py-0.5 rounded-full font-medium" style={{ backgroundColor: 'rgba(59,130,246,0.1)', color: '#1D4ED8' }}>
+                              {Number(student.noSectionSubjectCount || 0)} subject{Number(student.noSectionSubjectCount || 0) === 1 ? '' : 's'}
+                            </span>
+                          </td>
                           <td className="py-3 px-4">
                             <span className="text-xs px-2 py-0.5 rounded-full font-medium" style={{ backgroundColor: student.academicStatus === 'irregular' ? 'rgba(245,158,11,0.1)' : 'rgba(16,185,129,0.1)', color: student.academicStatus === 'irregular' ? '#D97706' : '#059669' }}>
                               {student.academicStatus || 'regular'}

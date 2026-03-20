@@ -4,7 +4,7 @@ import React, { useState, useEffect } from 'react';
 import { SectionResponse } from '../../types/sectionTypes';
 import { getSections } from '../../utils/sectionApi';
 import { colors } from '../../colors';
-import { Users, GraduationCap, Calendar, UserPlus, CheckCircle, Lock, Unlock, Pencil, Check, X as XIcon } from 'lucide-react';
+import { Users, GraduationCap, Calendar, UserPlus, CheckCircle, Lock, Unlock, Pencil, Check, X as XIcon, Loader2 } from 'lucide-react';
 import Pagination from '../common/Pagination';
 
 interface SectionListProps {
@@ -49,6 +49,7 @@ export function SectionList({
   const [editingCapacityId, setEditingCapacityId] = useState<number | null>(null);
   const [capacityInput, setCapacityInput] = useState('');
   const [savingCapacityId, setSavingCapacityId] = useState<number | null>(null);
+  const [actionLoadingKey, setActionLoadingKey] = useState<string | null>(null);
 
   useEffect(() => {
     loadSections();
@@ -81,6 +82,16 @@ export function SectionList({
       setError(err instanceof Error ? err.message : 'Failed to load sections');
     } finally {
       setLoading(false);
+    }
+  };
+
+  const runActionWithLoading = async (key: string, action?: () => void | Promise<void>) => {
+    if (!action) return;
+    setActionLoadingKey(key);
+    try {
+      await Promise.resolve(action());
+    } finally {
+      setActionLoadingKey((current) => (current === key ? null : current));
     }
   };
 
@@ -386,21 +397,40 @@ export function SectionList({
                             {section.status === 'draft' && (
                               <>
                                 <button
-                                  onClick={() => onCreateSchedule?.(section)}
+                                  onClick={() =>
+                                    runActionWithLoading(`schedule-${section.id}`, () =>
+                                      onCreateSchedule?.(section),
+                                    )
+                                  }
                                   onMouseEnter={() => onPrefetchSchedule?.(section)}
                                   onFocus={() => onPrefetchSchedule?.(section)}
+                                  disabled={actionLoadingKey === `schedule-${section.id}`}
                                   className="group relative inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg font-medium text-xs transition-all duration-200 hover:shadow-md"
                                   style={{
-                                    backgroundColor: '#F3E8FF',
-                                    color: '#7C3AED',
+                                    backgroundColor: `${colors.primary}12`,
+                                    color: colors.primary,
                                   }}
                                   title="Build Schedule"
                                 >
-                                  <Calendar className="w-3.5 h-3.5" />
-                                  <span>Schedule</span>
+                                  {actionLoadingKey === `schedule-${section.id}` ? (
+                                    <>
+                                      <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                                      <span>Loading...</span>
+                                    </>
+                                  ) : (
+                                    <>
+                                      <Calendar className="w-3.5 h-3.5" />
+                                      <span>Schedule</span>
+                                    </>
+                                  )}
                                 </button>
                                 <button
-                                  onClick={() => onActivate?.(section)}
+                                  onClick={() =>
+                                    runActionWithLoading(`activate-${section.id}`, () =>
+                                      onActivate?.(section),
+                                    )
+                                  }
+                                  disabled={actionLoadingKey === `activate-${section.id}`}
                                   className="group relative inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg font-medium text-xs transition-all duration-200 hover:shadow-md"
                                   style={{
                                     backgroundColor: '#D1FAE5',
@@ -408,56 +438,112 @@ export function SectionList({
                                   }}
                                   title="Activate Section"
                                 >
-                                  <CheckCircle className="w-3.5 h-3.5" />
-                                  <span>Activate</span>
+                                  {actionLoadingKey === `activate-${section.id}` ? (
+                                    <>
+                                      <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                                      <span>Loading...</span>
+                                    </>
+                                  ) : (
+                                    <>
+                                      <CheckCircle className="w-3.5 h-3.5" />
+                                      <span>Activate</span>
+                                    </>
+                                  )}
                                 </button>
                               </>
                             )}
                             {section.status === 'active' && (
                               <>
                                 <button
-                                  onClick={() => onViewSchedule?.(section)}
+                                  onClick={() =>
+                                    runActionWithLoading(`schedule-${section.id}`, () =>
+                                      onViewSchedule?.(section),
+                                    )
+                                  }
                                   onMouseEnter={() => onPrefetchSchedule?.(section)}
                                   onFocus={() => onPrefetchSchedule?.(section)}
+                                  disabled={actionLoadingKey === `schedule-${section.id}`}
                                   className="group relative inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg font-medium text-xs transition-all duration-200 hover:shadow-md"
                                   style={{
-                                    backgroundColor: '#F3E8FF',
-                                    color: '#7C3AED',
+                                    backgroundColor: `${colors.primary}12`,
+                                    color: colors.primary,
                                   }}
                                   title="View/Edit Schedule"
                                 >
-                                  <Calendar className="w-3.5 h-3.5" />
-                                  <span>Schedule</span>
+                                  {actionLoadingKey === `schedule-${section.id}` ? (
+                                    <>
+                                      <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                                      <span>Loading...</span>
+                                    </>
+                                  ) : (
+                                    <>
+                                      <Calendar className="w-3.5 h-3.5" />
+                                      <span>Schedule</span>
+                                    </>
+                                  )}
                                 </button>
                                 <button
-                                  onClick={() => onAssignStudents?.(section)}
+                                  onClick={() =>
+                                    runActionWithLoading(`assign-${section.id}`, () =>
+                                      onAssignStudents?.(section),
+                                    )
+                                  }
+                                  disabled={actionLoadingKey === `assign-${section.id}`}
                                   className="group relative inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg font-medium text-xs transition-all duration-200 hover:shadow-md"
                                   style={{
-                                    backgroundColor: '#FED7AA',
-                                    color: '#C2410C',
+                                    backgroundColor: `${colors.secondary}14`,
+                                    color: colors.secondary,
                                   }}
                                   title="Assign Students to Section"
                                 >
-                                  <UserPlus className="w-3.5 h-3.5" />
-                                  <span>Assign</span>
+                                  {actionLoadingKey === `assign-${section.id}` ? (
+                                    <>
+                                      <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                                      <span>Loading...</span>
+                                    </>
+                                  ) : (
+                                    <>
+                                      <UserPlus className="w-3.5 h-3.5" />
+                                      <span>Assign</span>
+                                    </>
+                                  )}
                                 </button>
                                 <button
-                                  onClick={() => onLock?.(section)}
+                                  onClick={() =>
+                                    runActionWithLoading(`lock-${section.id}`, () =>
+                                      onLock?.(section),
+                                    )
+                                  }
+                                  disabled={actionLoadingKey === `lock-${section.id}`}
                                   className="group relative inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg font-medium text-xs transition-all duration-200 hover:shadow-md"
                                   style={{
-                                    backgroundColor: '#E0E7FF',
-                                    color: '#4F46E5',
+                                    backgroundColor: `${colors.info}14`,
+                                    color: colors.info,
                                   }}
                                   title="Lock Section"
                                 >
-                                  <Lock className="w-3.5 h-3.5" />
-                                  <span>Lock</span>
+                                  {actionLoadingKey === `lock-${section.id}` ? (
+                                    <>
+                                      <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                                      <span>Loading...</span>
+                                    </>
+                                  ) : (
+                                    <>
+                                      <Lock className="w-3.5 h-3.5" />
+                                      <span>Lock</span>
+                                    </>
+                                  )}
                                 </button>
                               </>
                             )}
                             {section.status === 'locked' && (
                               <button
-                                onClick={() => onUnlock?.(section)}
+                                onClick={() =>
+                                  runActionWithLoading(`unlock-${section.id}`, () =>
+                                    onUnlock?.(section),
+                                  )
+                                }
+                                disabled={actionLoadingKey === `unlock-${section.id}`}
                                 className="group relative inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg font-medium text-xs transition-all duration-200 hover:shadow-md"
                                 style={{
                                   backgroundColor: '#FEF3C7',
@@ -465,8 +551,17 @@ export function SectionList({
                                 }}
                                 title="Unlock Section"
                               >
-                                <Unlock className="w-3.5 h-3.5" />
-                                <span>Unlock</span>
+                                {actionLoadingKey === `unlock-${section.id}` ? (
+                                  <>
+                                    <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                                    <span>Loading...</span>
+                                  </>
+                                ) : (
+                                  <>
+                                    <Unlock className="w-3.5 h-3.5" />
+                                    <span>Unlock</span>
+                                  </>
+                                )}
                               </button>
                             )}
                           </div>

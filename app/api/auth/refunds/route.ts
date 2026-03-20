@@ -20,6 +20,12 @@ function normalizeDiscountPercent(rawPercent: number, rawDiscountAmount: number,
   return 0;
 }
 
+async function ensureSubjectDropHistoryAssessmentAdjustedColumn() {
+  await prisma.$executeRawUnsafe(
+    "ALTER TABLE subject_drop_history ADD COLUMN IF NOT EXISTS assessment_adjusted BOOLEAN NOT NULL DEFAULT false",
+  );
+}
+
 export async function GET(request: NextRequest) {
   try {
     const query = (request.nextUrl.searchParams.get("query") || "").trim();
@@ -246,6 +252,8 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   try {
+    await ensureSubjectDropHistoryAssessmentAdjustedColumn();
+
     const session = await getServerSession(authOptions);
     const userRole = Number((session?.user as any)?.role || 0);
     const userId = Number((session?.user as any)?.id || 0);
@@ -284,6 +292,14 @@ export async function POST(request: NextRequest) {
         { status: 409 },
       );
     }
+
+    const dropMetaRows = await prisma.$queryRaw<{ assessment_adjusted: boolean }[]>`
+      SELECT COALESCE(assessment_adjusted, false) AS assessment_adjusted
+      FROM subject_drop_history
+      WHERE id = ${id}
+      LIMIT 1
+    `;
+    const isAssessmentAdjusted = Boolean(dropMetaRows[0]?.assessment_adjusted);
 
     const refundComputationRows = await prisma.$queryRaw<any[]>`
       SELECT
@@ -357,38 +373,50 @@ export async function POST(request: NextRequest) {
         const totalDueInstallment =
           assessment.total_due_installment != null ? Number(assessment.total_due_installment) : null;
 
-        const nextBaseTotal = roundToTwo(Math.max(0, baseTotal - refundAmount));
-        const nextTotalDue = roundToTwo(Math.max(0, totalDue - refundAmount));
-
         const paymentMode = String(assessment.payment_mode || "").toLowerCase();
-        const nextTotalDueCash =
-          paymentMode === "cash"
-            ? roundToTwo(Math.max(0, (totalDueCash ?? totalDue) - refundAmount))
-            : totalDueCash;
-        const nextTotalDueInstallment =
-          paymentMode === "installment"
-            ? roundToTwo(Math.max(0, (totalDueInstallment ?? totalDue) - refundAmount))
-            : totalDueInstallment;
-        const nextDueForMode =
+        let nextBaseTotal = baseTotal;
+        let nextTotalDue = totalDue;
+        let nextTotalDueCash = totalDueCash;
+        let nextTotalDueInstallment = totalDueInstallment;
+
+        if (!isAssessmentAdjusted) {
+          nextBaseTotal = roundToTwo(Math.max(0, baseTotal - refundAmount));
+          nextTotalDue = roundToTwo(Math.max(0, totalDue - refundAmount));
+          nextTotalDueCash =
+            paymentMode === "cash"
+              ? roundToTwo(Math.max(0, (totalDueCash ?? totalDue) - refundAmount))
+              : totalDueCash;
+          nextTotalDueInstallment =
+            paymentMode === "installment"
+              ? roundToTwo(Math.max(0, (totalDueInstallment ?? totalDue) - refundAmount))
+              : totalDueInstallment;
+
+          await tx.student_assessment.update({
+            where: { id: assessment.id },
+            data: {
+              base_total: nextBaseTotal,
+              total_due: nextTotalDue,
+              total_due_cash: nextTotalDueCash,
+              total_due_installment: nextTotalDueInstallment,
+            },
+          });
+
+          await tx.$executeRaw`
+            UPDATE subject_drop_history
+            SET assessment_adjusted = true
+            WHERE id = ${id}
+          `;
+        }
+
+        const currentDueForMode =
           paymentMode === "installment"
             ? Number(nextTotalDueInstallment ?? nextTotalDue)
             : Number(nextTotalDueCash ?? nextTotalDue);
         let totalPaidAfter = totalPaidBefore;
         let refundReferenceNo: string | null = null;
 
-        await tx.student_assessment.update({
-          where: { id: assessment.id },
-          data: {
-            base_total: nextBaseTotal,
-            total_due: nextTotalDue,
-            total_due_cash: nextTotalDueCash,
-            total_due_installment: nextTotalDueInstallment,
-          },
-        });
-
-        // Only record cash-out refund if student becomes overpaid after due reduction.
-        // For unpaid/partial students, no payout is made; due is simply reduced.
-        const refundPayoutAmount = roundToTwo(Math.max(0, totalPaidBefore - nextDueForMode));
+        const overpaymentAmount = roundToTwo(Math.max(0, totalPaidBefore - currentDueForMode));
+        const refundPayoutAmount = roundToTwo(Math.min(overpaymentAmount, refundAmount));
         if (refundPayoutAmount > 0) {
           refundReferenceNo = `REFUND-SDH-${id}`;
           totalPaidAfter = roundToTwo(totalPaidBefore - refundPayoutAmount);
@@ -437,7 +465,7 @@ export async function POST(request: NextRequest) {
             ${refundAmount},
             ${refundPayoutAmount},
             ${totalDue},
-            ${nextDueForMode},
+            ${currentDueForMode},
             ${baseTotal},
             ${nextBaseTotal},
             ${totalPaidBefore},

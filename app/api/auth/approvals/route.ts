@@ -58,6 +58,30 @@ const SHIFT_REQUESTS_TABLE_SQL = `
   )
 `;
 
+const PROGRAM_SHIFT_REQUESTS_TABLE_SQL = `
+  CREATE TABLE IF NOT EXISTS student_program_shift_requests (
+    id SERIAL PRIMARY KEY,
+    student_number VARCHAR(20) NOT NULL,
+    academic_year VARCHAR(20) NOT NULL,
+    semester INT NOT NULL,
+    from_program_id INT NULL,
+    from_major_id INT NULL,
+    to_program_id INT NOT NULL,
+    to_major_id INT NULL,
+    reason TEXT NULL,
+    status VARCHAR(30) NOT NULL DEFAULT 'pending_approval',
+    requested_by INT NULL,
+    requested_by_role INT NULL,
+    requested_by_name VARCHAR(150) NULL,
+    approved_by INT NULL,
+    approved_by_role INT NULL,
+    approved_by_name VARCHAR(150) NULL,
+    requested_at TIMESTAMP(6) NOT NULL DEFAULT NOW(),
+    approved_at TIMESTAMP(6) NULL,
+    executed_at TIMESTAMP(6) NULL
+  )
+`;
+
 async function ensureShiftRequestsTable() {
   await prisma.$executeRawUnsafe(SHIFT_REQUESTS_TABLE_SQL);
   await prisma.$executeRawUnsafe(
@@ -83,6 +107,37 @@ async function ensureShiftRequestsTable() {
   );
   await prisma.$executeRawUnsafe(
     "ALTER TABLE student_section_shift_requests ADD COLUMN IF NOT EXISTS executed_at TIMESTAMP(6) NULL",
+  );
+}
+
+async function ensureProgramShiftRequestsTable() {
+  await prisma.$executeRawUnsafe(PROGRAM_SHIFT_REQUESTS_TABLE_SQL);
+  await prisma.$executeRawUnsafe(
+    "ALTER TABLE student_program_shift_requests ADD COLUMN IF NOT EXISTS requested_by_role INT NULL",
+  );
+  await prisma.$executeRawUnsafe(
+    "ALTER TABLE student_program_shift_requests ADD COLUMN IF NOT EXISTS requested_by_name VARCHAR(150) NULL",
+  );
+  await prisma.$executeRawUnsafe(
+    "ALTER TABLE student_program_shift_requests ADD COLUMN IF NOT EXISTS approved_by INT NULL",
+  );
+  await prisma.$executeRawUnsafe(
+    "ALTER TABLE student_program_shift_requests ADD COLUMN IF NOT EXISTS approved_by_role INT NULL",
+  );
+  await prisma.$executeRawUnsafe(
+    "ALTER TABLE student_program_shift_requests ADD COLUMN IF NOT EXISTS approved_by_name VARCHAR(150) NULL",
+  );
+  await prisma.$executeRawUnsafe(
+    "ALTER TABLE student_program_shift_requests ADD COLUMN IF NOT EXISTS approved_at TIMESTAMP(6) NULL",
+  );
+  await prisma.$executeRawUnsafe(
+    "ALTER TABLE student_program_shift_requests ADD COLUMN IF NOT EXISTS executed_at TIMESTAMP(6) NULL",
+  );
+}
+
+async function ensureSubjectDropHistoryAssessmentAdjustedColumn() {
+  await prisma.$executeRawUnsafe(
+    "ALTER TABLE subject_drop_history ADD COLUMN IF NOT EXISTS assessment_adjusted BOOLEAN NOT NULL DEFAULT false",
   );
 }
 
@@ -119,6 +174,72 @@ interface ApprovalSubjectItem {
   units_total: number | null;
 }
 
+async function getEnrollmentRowForTerm(args: {
+  studentNumber: string;
+  academicYear: string;
+  semester: number;
+}) {
+  const aliases = getSemesterAliases(args.semester);
+  const rows = await prisma.$queryRaw<
+    { id: number; course_program: string | null; major_id: number | null }[]
+  >`
+    SELECT id, course_program, major_id
+    FROM enrollment
+    WHERE student_number = ${args.studentNumber}
+      AND academic_year = ${args.academicYear}
+      AND LOWER(COALESCE(term, '')) IN (${aliases[0]}, ${aliases[1]}, ${aliases[2]}, ${aliases[3]}, ${aliases[4] || aliases[3]})
+    ORDER BY id DESC
+    LIMIT 1
+  `;
+  if (rows[0]) return rows[0];
+
+  return prisma.enrollment.findFirst({
+    where: {
+      student_number: args.studentNumber,
+      academic_year: args.academicYear,
+    },
+    orderBy: { id: "desc" },
+    select: {
+      id: true,
+      course_program: true,
+      major_id: true,
+    },
+  });
+}
+
+async function clearStudentSectionAssignmentForTerm(tx: any, args: {
+  studentNumber: string;
+  academicYear: string;
+  semester: number;
+}) {
+  const aliases = getSemesterAliases(args.semester);
+  const assignmentRows = await tx.$queryRaw<{ id: number; section_id: number }[]>`
+    SELECT id, section_id
+    FROM student_section
+    WHERE student_number = ${args.studentNumber}
+      AND academic_year = ${args.academicYear}
+      AND LOWER(COALESCE(semester, '')) IN (${aliases[0]}, ${aliases[1]}, ${aliases[2]}, ${aliases[3]}, ${aliases[4] || aliases[3]})
+    ORDER BY id DESC
+    LIMIT 1
+  `;
+  const existingAssignment = assignmentRows[0];
+  if (!existingAssignment) return;
+
+  await tx.student_section_subjects.deleteMany({
+    where: { student_section_id: existingAssignment.id },
+  });
+
+  await tx.student_section.delete({
+    where: { id: existingAssignment.id },
+  });
+
+  await tx.$executeRaw`
+    UPDATE sections
+    SET student_count = GREATEST(COALESCE(student_count, 0) - 1, 0)
+    WHERE id = ${existingAssignment.section_id}
+  `;
+}
+
 export async function GET() {
   try {
     const session = await getServerSession(authOptions);
@@ -132,9 +253,15 @@ export async function GET() {
       );
     }
 
-    await ensureShiftRequestsTable();
+    await Promise.all([ensureShiftRequestsTable(), ensureProgramShiftRequestsTable()]);
 
-    const [subjectOverloads, subjectDrops, crossEnrollmentRequests, shiftingRequests] = await Promise.all([
+    const [
+      subjectOverloads,
+      subjectDrops,
+      crossEnrollmentRequests,
+      shiftingRequests,
+      programShiftRequests,
+    ] = await Promise.all([
       prisma.$queryRaw<any[]>`
         SELECT
           es.student_number,
@@ -297,6 +424,51 @@ export async function GET() {
         WHERE ssr.status = 'pending_approval'
         ORDER BY ssr.requested_at DESC NULLS LAST, ssr.id DESC
       `,
+      prisma.$queryRaw<any[]>`
+        SELECT
+          psr.id,
+          psr.student_number,
+          psr.academic_year,
+          psr.semester,
+          psr.from_program_id,
+          psr.from_major_id,
+          psr.to_program_id,
+          psr.to_major_id,
+          psr.reason,
+          psr.status,
+          psr.requested_by,
+          psr.requested_by_role,
+          psr.requested_by_name,
+          psr.approved_by,
+          psr.approved_by_role,
+          psr.approved_by_name,
+          psr.requested_at,
+          psr.approved_at,
+          psr.executed_at,
+          from_program.code AS from_program_code,
+          from_program.name AS from_program_name,
+          to_program.code AS to_program_code,
+          to_program.name AS to_program_name,
+          from_major.name AS from_major_name,
+          to_major.name AS to_major_name,
+          enr.first_name,
+          enr.family_name AS last_name,
+          CONCAT_WS(', ', enr.family_name, enr.first_name, enr.middle_name) AS student_name
+        FROM student_program_shift_requests psr
+        LEFT JOIN program from_program ON from_program.id = psr.from_program_id
+        LEFT JOIN program to_program ON to_program.id = psr.to_program_id
+        LEFT JOIN major from_major ON from_major.id = psr.from_major_id
+        LEFT JOIN major to_major ON to_major.id = psr.to_major_id
+        LEFT JOIN LATERAL (
+          SELECT e.first_name, e.middle_name, e.family_name
+          FROM enrollment e
+          WHERE e.student_number = psr.student_number
+          ORDER BY e.id DESC
+          LIMIT 1
+        ) enr ON TRUE
+        WHERE psr.status = 'pending_approval'
+        ORDER BY psr.requested_at DESC NULLS LAST, psr.id DESC
+      `,
     ]);
 
     return NextResponse.json({
@@ -389,6 +561,37 @@ export async function GET() {
           reason: item.reason,
           subjects: [],
         })),
+        programShiftRequests: programShiftRequests.map((item) => ({
+          id: item.id,
+          studentNumber: item.student_number,
+          studentName: item.student_name || item.student_number,
+          firstName: item.first_name || "",
+          lastName: item.last_name || "",
+          academicYear: item.academic_year,
+          semester: item.semester,
+          fromProgramId: item.from_program_id,
+          fromProgramCode: item.from_program_code,
+          fromProgramName: item.from_program_name,
+          fromMajorId: item.from_major_id,
+          fromMajorName: item.from_major_name,
+          toProgramId: item.to_program_id,
+          toProgramCode: item.to_program_code,
+          toProgramName: item.to_program_name,
+          toMajorId: item.to_major_id,
+          toMajorName: item.to_major_name,
+          status: item.status,
+          requestedAt: item.requested_at,
+          reason: item.reason,
+          requestedBy: item.requested_by,
+          requestedByRole: item.requested_by_role,
+          requestedByName: item.requested_by_name,
+          approvedBy: item.approved_by,
+          approvedByRole: item.approved_by_role,
+          approvedByName: item.approved_by_name,
+          approvedAt: item.approved_at,
+          executedAt: item.executed_at,
+          subjects: [],
+        })),
       },
     });
   } catch (error: any) {
@@ -402,6 +605,8 @@ export async function GET() {
 
 export async function POST(request: Request) {
   try {
+    await ensureSubjectDropHistoryAssessmentAdjustedColumn();
+
     const session = await getServerSession(authOptions);
     const userRole = Number((session?.user as any)?.role) || 0;
     const userId = Number((session?.user as any)?.id) || null;
@@ -500,14 +705,16 @@ export async function POST(request: Request) {
       }
 
       const pendingDropRows = await prisma.$queryRaw<any[]>`
-        SELECT refundable
+        SELECT id, refundable, COALESCE(assessment_adjusted, false) AS assessment_adjusted
         FROM subject_drop_history
         WHERE enrolled_subject_id = ${enrolledSubjectId}
           AND status = 'pending_approval'
         ORDER BY dropped_at DESC, id DESC
         LIMIT 1
       `;
+      const pendingDropId = Number(pendingDropRows[0]?.id || 0);
       const isRefundableDrop = Boolean(pendingDropRows[0]?.refundable);
+      const isAssessmentAdjusted = Boolean(pendingDropRows[0]?.assessment_adjusted);
 
       await prisma.$transaction(async (tx) => {
         const semesterAliases = getSemesterAliases(subject.semester);
@@ -535,13 +742,21 @@ export async function POST(request: Request) {
             AND cs.curriculum_course_id = ${subject.curriculum_course_id}
         `;
 
-        if (isRefundableDrop) {
+        if (isRefundableDrop && !isAssessmentAdjusted) {
           await recalculateAssessmentForTerm(
             tx,
             subject.student_number,
             subject.academic_year,
             subject.semester,
           );
+
+          if (pendingDropId > 0) {
+            await tx.$executeRaw`
+              UPDATE subject_drop_history
+              SET assessment_adjusted = true
+              WHERE id = ${pendingDropId}
+            `;
+          }
         }
 
         const remainingRows = await tx.$queryRaw<{ count: bigint }[]>`
@@ -860,6 +1075,206 @@ export async function POST(request: Request) {
       return NextResponse.json({
         success: true,
         message: "Section shift request approved successfully.",
+      });
+    }
+
+    if (actionType === "program_shift") {
+      await ensureProgramShiftRequestsTable();
+
+      const requestId = Number(body?.id);
+      if (!Number.isFinite(requestId)) {
+        return NextResponse.json(
+          { error: "id is required for program shift approval." },
+          { status: 400 },
+        );
+      }
+
+      const requestRows = await prisma.$queryRaw<any[]>`
+        SELECT *
+        FROM student_program_shift_requests
+        WHERE id = ${requestId}
+        LIMIT 1
+      `;
+
+      const shiftRequest = requestRows[0];
+      if (!shiftRequest) {
+        return NextResponse.json(
+          { error: "Pending program shift request not found." },
+          { status: 404 },
+        );
+      }
+      if (String(shiftRequest.status || "").toLowerCase() !== "pending_approval") {
+        return NextResponse.json(
+          { error: "This program shift request is no longer pending approval." },
+          { status: 409 },
+        );
+      }
+
+      const toProgram = await prisma.program.findUnique({
+        where: { id: Number(shiftRequest.to_program_id) },
+        select: { id: true, department_id: true },
+      });
+      if (!toProgram) {
+        return NextResponse.json(
+          { error: "Target program was not found." },
+          { status: 404 },
+        );
+      }
+
+      if (shiftRequest.to_major_id !== null && shiftRequest.to_major_id !== undefined) {
+        const toMajor = await prisma.major.findFirst({
+          where: {
+            id: Number(shiftRequest.to_major_id),
+            program_id: Number(shiftRequest.to_program_id),
+          },
+          select: { id: true },
+        });
+        if (!toMajor) {
+          return NextResponse.json(
+            { error: "Target major does not belong to the selected program." },
+            { status: 400 },
+          );
+        }
+      }
+
+      let archivedSubjectCount = 0;
+
+      await prisma.$transaction(async (tx) => {
+        const enrollment = await getEnrollmentRowForTerm({
+          studentNumber: String(shiftRequest.student_number),
+          academicYear: String(shiftRequest.academic_year),
+          semester: Number(shiftRequest.semester),
+        });
+        if (!enrollment) {
+          throw new Error("Enrollment record not found for this student and term.");
+        }
+
+        const enrolledSubjectRows = await tx.$queryRaw<any[]>`
+          SELECT
+            es.id,
+            es.student_number,
+            es.program_id,
+            es.curriculum_course_id,
+            es.subject_id,
+            es.academic_year,
+            es.semester,
+            es.term,
+            es.year_level,
+            es.units_total,
+            es.status,
+            COALESCE(cc.course_code, s.code) AS course_code,
+            COALESCE(cc.descriptive_title, s.name) AS descriptive_title
+          FROM enrolled_subjects es
+          LEFT JOIN curriculum_course cc ON cc.id = es.curriculum_course_id
+          LEFT JOIN subject s ON s.id = es.subject_id
+          WHERE es.student_number = ${String(shiftRequest.student_number)}
+            AND es.academic_year = ${String(shiftRequest.academic_year)}
+            AND es.semester = ${Number(shiftRequest.semester)}
+        `;
+
+        const dropReasonBase = String(shiftRequest.reason || "").trim()
+          ? `Program shift: ${String(shiftRequest.reason).trim()}`
+          : "Program shift";
+        const dropReason = `${dropReasonBase} (request #${requestId})`;
+        const droppedAt = new Date();
+
+        for (const subject of enrolledSubjectRows) {
+          await tx.$executeRaw`
+            INSERT INTO subject_drop_history (
+              enrolled_subject_id,
+              student_number,
+              program_id,
+              curriculum_course_id,
+              subject_id,
+              academic_year,
+              semester,
+              term,
+              year_level,
+              units_total,
+              status,
+              course_code,
+              descriptive_title,
+              dropped_at,
+              dropped_by,
+              drop_reason,
+              refundable,
+              refundable_days,
+              semester_start_date,
+              refund_deadline
+            ) VALUES (
+              ${subject.id},
+              ${subject.student_number},
+              ${subject.program_id},
+              ${subject.curriculum_course_id},
+              ${subject.subject_id},
+              ${subject.academic_year},
+              ${subject.semester},
+              ${subject.term},
+              ${subject.year_level},
+              ${subject.units_total},
+              'dropped',
+              ${subject.course_code},
+              ${subject.descriptive_title},
+              ${droppedAt},
+              ${userId},
+              ${dropReason},
+              false,
+              0,
+              NULL,
+              NULL
+            )
+          `;
+        }
+        archivedSubjectCount = enrolledSubjectRows.length;
+
+        await tx.enrollment.update({
+          where: { id: enrollment.id },
+          data: {
+            course_program: String(shiftRequest.to_program_id),
+            major_id:
+              shiftRequest.to_major_id === null || shiftRequest.to_major_id === undefined
+                ? null
+                : Number(shiftRequest.to_major_id),
+            department: toProgram.department_id ?? null,
+          },
+        });
+
+        await clearStudentSectionAssignmentForTerm(tx, {
+          studentNumber: String(shiftRequest.student_number),
+          academicYear: String(shiftRequest.academic_year),
+          semester: Number(shiftRequest.semester),
+        });
+
+        await tx.$executeRaw`
+          DELETE FROM enrolled_subjects
+          WHERE student_number = ${String(shiftRequest.student_number)}
+            AND academic_year = ${String(shiftRequest.academic_year)}
+            AND semester = ${Number(shiftRequest.semester)}
+        `;
+
+        await tx.$executeRaw`
+          UPDATE student_program_shift_requests
+          SET status = 'approved',
+              approved_by = ${userId},
+              approved_by_role = ${roleContext.roleId || null},
+              approved_by_name = ${userName},
+              approved_at = NOW(),
+              executed_at = NOW()
+          WHERE id = ${requestId}
+        `;
+      });
+
+      if (userId) {
+        await insertIntoReports({
+          action: `Approved program shift request for ${shiftRequest.student_number} (${shiftRequest.academic_year} Sem ${shiftRequest.semester}) by ${session?.user?.name}; archived ${archivedSubjectCount} enrolled subject(s) to shift history.`,
+          user_id: userId,
+          created_at: new Date(),
+        });
+      }
+
+      return NextResponse.json({
+        success: true,
+        message: "Program shift request approved successfully.",
       });
     }
 

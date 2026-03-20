@@ -11,8 +11,10 @@ import ForecastingAnalytics from "./components/ForecastingAnalytics";
 import StudentForecastDashboard from "./components/StudentForecastDashboard";
 import AssessmentManagement from "./components/AssessmentManagement";
 import SubjectDroppingManagement from "./components/SubjectDroppingManagement";
+import StudentDroppingManagement from "./components/StudentDroppingManagement";
 import CrossEnrollmentManagement from "./components/CrossEnrollmentManagement";
 import ShiftingManagement from "./components/ShiftingManagement";
+import ProgramShiftingManagement from "./components/ProgramShiftingManagement";
 import ReportManagement from "./components/ReportManagement";
 import PaymentsDashboard from "./components/reports/PaymentsDashboard";
 import RegistrationFormPrintReports from "./components/reports/RegistrationFormPrintReports";
@@ -58,11 +60,9 @@ function App() {
   const userRole = Number((session?.user as any)?.role) || 0;
 
   const handleViewChange = (view: string) => {
-    if (isViewAllowed(view, userRole)) {
-      setCurrentView(view);
-    } else {
-      setCurrentView("dashboard");
-    }
+    const safeView = isViewAllowed(view, userRole) ? view : "dashboard";
+    setCurrentView(safeView);
+    router.push(`/dashboard?view=${encodeURIComponent(safeView)}`);
   };
 
   const renderCurrentView = () => {
@@ -93,10 +93,14 @@ function App() {
         return <AssessmentManagement />;
       case "subject-dropping":
         return <SubjectDroppingManagement />;
+      case "student-dropping":
+        return <StudentDroppingManagement />;
       case "cross-enrollee":
         return <CrossEnrollmentManagement />;
       case "shifting":
         return <ShiftingManagement />;
+      case "program-shifting":
+        return <ProgramShiftingManagement />;
       case "reports":
         return <ReportManagement />;
       case "reports-payments-dashboard":

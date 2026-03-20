@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useEffect, useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
 import {
   ArrowLeft,
   BookOpen,
@@ -57,6 +58,11 @@ interface PendingRequest {
   hostProgramName: string | null;
   reason: string | null;
   status: string;
+  academicYear: string;
+  semester: number;
+  curriculumCourseId: number | null;
+  isCurrentlyEnrolled: boolean;
+  hasSectionAssignment: boolean;
 }
 
 const cardStyle: React.CSSProperties = {
@@ -118,6 +124,7 @@ function EmptyStateCard({ icon: Icon, title, description }: EmptyStateProps) {
 }
 
 export default function CrossEnrollmentManagement() {
+  const router = useRouter();
   const { currentTerm, loading: termLoading } = useAcademicTerm();
   const { programs, loading: programsLoading } = useProgramsWithMajors();
   const [students, setStudents] = useState<StudentListItem[]>([]);
@@ -224,7 +231,7 @@ export default function CrossEnrollmentManagement() {
         fetch(
           `/api/auth/cross-enrollment?studentNumber=${encodeURIComponent(
             studentNumber,
-          )}`,
+          )}&status=all`,
         ),
       ]);
       const [studentResult, requestsResult] = await Promise.all([
@@ -271,6 +278,14 @@ export default function CrossEnrollmentManagement() {
               hostProgramName: item.hostProgramName,
               reason: item.reason,
               status: item.status,
+              academicYear: item.academicYear,
+              semester: Number(item.semester || semesterNum),
+              curriculumCourseId:
+                item.curriculumCourseId === null || item.curriculumCourseId === undefined
+                  ? null
+                  : Number(item.curriculumCourseId),
+              isCurrentlyEnrolled: Boolean(item.isCurrentlyEnrolled),
+              hasSectionAssignment: Boolean(item.hasSectionAssignment),
             }))
           : [],
       );
@@ -362,6 +377,36 @@ export default function CrossEnrollmentManagement() {
   const pendingCourseCodes = useMemo(() => {
     return new Set(pendingRequests.map((item) => item.courseCode));
   }, [pendingRequests]);
+
+  const pendingApprovalRequests = useMemo(
+    () =>
+      pendingRequests.filter(
+        (item) => String(item.status || "").toLowerCase() === "pending_approval",
+      ),
+    [pendingRequests],
+  );
+
+  const noSectionQueue = useMemo(
+    () => {
+      const filtered = pendingRequests.filter((item) => {
+        const status = String(item.status || "").toLowerCase();
+        return status === "approved" && item.isCurrentlyEnrolled && !item.hasSectionAssignment;
+      });
+
+      // Avoid inflated counts from duplicate approved requests for the same subject.
+      const seen = new Set<string>();
+      const deduped: PendingRequest[] = [];
+      for (const item of filtered) {
+        const key = String(item.curriculumCourseId || item.courseCode || item.id);
+        if (seen.has(key)) continue;
+        seen.add(key);
+        deduped.push(item);
+      }
+
+      return deduped;
+    },
+    [pendingRequests],
+  );
 
   const filteredCourses = useMemo(() => {
     const query = subjectSearch.trim().toLowerCase();
@@ -460,6 +505,14 @@ export default function CrossEnrollmentManagement() {
     } finally {
       setSubmittingKey("");
     }
+  };
+
+  const openManualSection = (request: PendingRequest) => {
+    const params = new URLSearchParams({
+      crossRequestId: String(request.id),
+      from: "cross-enrollee-no-section-queue",
+    });
+    router.push(`/admin/irregular-enrollment?${params.toString()}`);
   };
 
   const renderConfirmationContent = () => {
@@ -1034,7 +1087,7 @@ export default function CrossEnrollmentManagement() {
                       color: colors.neutralDark,
                     }}
                   >
-                    {pendingRequests.length}
+                    {pendingApprovalRequests.length}
                   </span>
                 </div>
 
@@ -1042,55 +1095,128 @@ export default function CrossEnrollmentManagement() {
                   <div className="py-10 text-sm" style={{ color: colors.tertiary }}>
                     Loading requests...
                   </div>
-                ) : pendingRequests.length === 0 ? (
-                  <EmptyStateCard
-                    icon={User}
-                    title="No pending requests"
-                    description="Submitted cross-enrollee requests for this student will appear here while awaiting approval."
-                  />
                 ) : (
-                  <div className="mt-4 max-h-[420px] space-y-3 overflow-y-auto pr-1">
-                    {pendingRequests.map((request) => (
-                      <div
-                        key={request.id}
-                        className="rounded-xl border px-3 py-3"
-                        style={{
-                          borderColor: colors.neutralBorder,
-                          backgroundColor: "white",
-                        }}
-                      >
-                        <div className="flex items-start justify-between gap-3">
-                          <div>
-                            <p className="text-sm font-semibold" style={{ color: colors.primary }}>
-                              {request.courseCode}
-                            </p>
-                            <p className="mt-1 text-[13px] leading-5" style={{ color: colors.primary }}>
-                              {request.descriptiveTitle}
-                            </p>
-                          </div>
-                          <span
-                            className="rounded-full px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.14em]"
+                  <div className="mt-4 space-y-5">
+                    {pendingApprovalRequests.length === 0 ? (
+                      <EmptyStateCard
+                        icon={User}
+                        title="No pending requests"
+                        description="Submitted cross-enrollee requests for this student will appear here while awaiting approval."
+                      />
+                    ) : (
+                      <div className="max-h-[240px] space-y-3 overflow-y-auto pr-1 request-queue-scroll">
+                        {pendingApprovalRequests.map((request) => (
+                          <div
+                            key={request.id}
+                            className="rounded-xl border px-3 py-3"
                             style={{
-                              backgroundColor: `${colors.warning}12`,
-                              color: colors.warning,
+                              borderColor: colors.neutralBorder,
+                              backgroundColor: "white",
                             }}
                           >
-                            {request.status.replace(/_/g, " ")}
-                          </span>
-                        </div>
-                        <p className="mt-3 text-[11px] font-medium uppercase tracking-[0.18em]" style={{ color: colors.neutral }}>
-                          Host Program
-                        </p>
-                        <p className="mt-1 text-xs leading-5" style={{ color: colors.neutralDark }}>
-                          {request.hostProgramCode || request.hostProgramName || "N/A"}
-                        </p>
-                        {request.reason ? (
-                          <p className="mt-2 text-xs leading-5" style={{ color: colors.neutral }}>
-                            {request.reason}
-                          </p>
-                        ) : null}
+                            <div className="flex items-start justify-between gap-3">
+                              <div>
+                                <p className="text-sm font-semibold" style={{ color: colors.primary }}>
+                                  {request.courseCode}
+                                </p>
+                                <p className="mt-1 text-[13px] leading-5" style={{ color: colors.primary }}>
+                                  {request.descriptiveTitle}
+                                </p>
+                              </div>
+                              <span
+                                className="rounded-full px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.14em]"
+                                style={{
+                                  backgroundColor: `${colors.warning}12`,
+                                  color: colors.warning,
+                                }}
+                              >
+                                {request.status.replace(/_/g, " ")}
+                              </span>
+                            </div>
+                            <p className="mt-3 text-[11px] font-medium uppercase tracking-[0.18em]" style={{ color: colors.neutral }}>
+                              Host Program
+                            </p>
+                            <p className="mt-1 text-xs leading-5" style={{ color: colors.neutralDark }}>
+                              {request.hostProgramCode || request.hostProgramName || "N/A"}
+                            </p>
+                            {request.reason ? (
+                              <p className="mt-2 text-xs leading-5" style={{ color: colors.neutral }}>
+                                {request.reason}
+                              </p>
+                            ) : null}
+                          </div>
+                        ))}
                       </div>
-                    ))}
+                    )}
+
+                    <div className="border-t pt-4" style={{ borderColor: colors.neutralBorder }}>
+                      <div className="flex items-start justify-between gap-3">
+                        <div>
+                          <h3 className="text-[14px] font-semibold" style={{ color: colors.neutralDark }}>
+                            No Section Enrolled Subject Queue
+                          </h3>
+                          <p className="mt-1 text-[11px] leading-5" style={{ color: colors.neutral }}>
+                            Approved cross-enrollee subjects without section assignment.
+                          </p>
+                        </div>
+                        <span
+                          className="rounded-full px-3 py-1 text-xs font-semibold"
+                          style={{
+                            backgroundColor: `${colors.accent}12`,
+                            color: colors.secondary,
+                          }}
+                        >
+                          {noSectionQueue.length}
+                        </span>
+                      </div>
+
+                      {noSectionQueue.length === 0 ? (
+                        <p className="mt-3 text-xs leading-5" style={{ color: colors.neutral }}>
+                          No approved subjects are waiting for manual section assignment.
+                        </p>
+                      ) : (
+                        <div className="mt-3 max-h-[220px] space-y-3 overflow-y-auto pr-1 request-queue-scroll">
+                          {noSectionQueue.map((request) => (
+                            <div
+                              key={`no-section-${request.id}`}
+                              className="rounded-xl border px-3 py-3"
+                              style={{
+                                borderColor: colors.neutralBorder,
+                                backgroundColor: "white",
+                              }}
+                            >
+                              <div className="flex items-start justify-between gap-3">
+                                <div>
+                                  <p className="text-sm font-semibold" style={{ color: colors.primary }}>
+                                    {request.courseCode}
+                                  </p>
+                                  <p className="mt-1 text-[13px] leading-5" style={{ color: colors.primary }}>
+                                    {request.descriptiveTitle}
+                                  </p>
+                                </div>
+                                <span
+                                  className="rounded-full px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.14em]"
+                                  style={{
+                                    backgroundColor: `${colors.info}14`,
+                                    color: colors.info,
+                                  }}
+                                >
+                                  no section
+                                </span>
+                              </div>
+                              <button
+                                type="button"
+                                onClick={() => openManualSection(request)}
+                                className="mt-3 w-full rounded-lg px-3 py-2 text-xs font-semibold text-white transition-all"
+                                style={{ backgroundColor: colors.info }}
+                              >
+                                Go To Manual Section
+                              </button>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
                   </div>
                 )}
               </aside>
