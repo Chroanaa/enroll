@@ -262,7 +262,7 @@ const StudentManagement: React.FC<StudentManagementProps> = () => {
     null,
   );
 
-  const userRole = Number((session?.user as any)?.role) || 0;
+  const userRole = (session?.user as any)?.role || 0;
   const canAccessStudents = [ROLES.FACULTY, ROLES.DEAN].includes(userRole);
 
   useEffect(() => {
@@ -310,7 +310,8 @@ const StudentManagement: React.FC<StudentManagementProps> = () => {
 
   const selectedFaculty = useMemo(
     () =>
-      facultyMembers.find((faculty) => faculty.id === selectedFacultyId) || null,
+      facultyMembers.find((faculty) => faculty.id === selectedFacultyId) ||
+      null,
     [facultyMembers, selectedFacultyId],
   );
 
@@ -353,7 +354,8 @@ const StudentManagement: React.FC<StudentManagementProps> = () => {
   }, [searchTerm, selectedSection]);
 
   const handleFacultySelect = (facultyId: number) => {
-    const faculty = facultyMembers.find((item) => item.id === facultyId) || null;
+    const faculty =
+      facultyMembers.find((item) => item.id === facultyId) || null;
     setSelectedFacultyId(facultyId);
     setSelectedSectionId(faculty?.sections[0]?.id ?? null);
     setSearchTerm("");
@@ -723,7 +725,8 @@ const StudentManagement: React.FC<StudentManagementProps> = () => {
                           {selectedSection.sectionName}
                         </h2>
                         <p className='mt-2 text-sm text-gray-600'>
-                          {selectedFaculty.fullName} - {selectedFaculty.position}
+                          {selectedFaculty.fullName} -{" "}
+                          {selectedFaculty.position}
                         </p>
                         <div className='mt-4 flex flex-wrap gap-2'>
                           <InfoPill>
