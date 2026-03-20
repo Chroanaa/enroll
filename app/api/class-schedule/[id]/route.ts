@@ -30,6 +30,7 @@ export async function PATCH(
 
     const body = await request.json();
     const { facultyId, roomId, dayOfWeek, startTime, endTime } = body;
+    const hasFacultyField = Object.prototype.hasOwnProperty.call(body, "facultyId");
 
     // Get the schedule
     const schedule = await prisma.class_schedule.findUnique({
@@ -79,7 +80,11 @@ export async function PATCH(
     const newStartTime = startTime ? new Date(startTime) : schedule.start_time;
     const newEndTime = endTime ? new Date(endTime) : schedule.end_time;
     const newDayOfWeek = dayOfWeek || schedule.day_of_week;
-    const newFacultyId = facultyId ? parseInt(facultyId) : schedule.faculty_id;
+    const parsedFacultyId =
+      facultyId === null || facultyId === undefined || facultyId === ""
+        ? null
+        : parseInt(String(facultyId), 10);
+    const newFacultyId = hasFacultyField ? parsedFacultyId : schedule.faculty_id;
     const newRoomId = roomId ? parseInt(roomId) : schedule.room_id;
 
     // Validate time
@@ -94,7 +99,7 @@ export async function PATCH(
     }
 
     // Check for faculty conflicts (if faculty or time changed)
-    if (facultyId || dayOfWeek || startTime || endTime) {
+    if (newFacultyId && (hasFacultyField || dayOfWeek || startTime || endTime)) {
       const facultyConflict = await prisma.class_schedule.findFirst({
         where: {
           id: { not: scheduleId },
@@ -273,7 +278,7 @@ export async function PATCH(
     }
 
     // Build update object
-    if (facultyId) updateData.faculty_id = newFacultyId;
+    if (hasFacultyField) updateData.faculty_id = newFacultyId;
     if (roomId) updateData.room_id = newRoomId;
     if (dayOfWeek) updateData.day_of_week = newDayOfWeek;
     if (startTime) updateData.start_time = newStartTime;

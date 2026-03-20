@@ -18,6 +18,7 @@ import PaymentsDashboard from "./components/reports/PaymentsDashboard";
 import RegistrationFormPrintReports from "./components/reports/RegistrationFormPrintReports";
 import SchedulingManagement from "./components/SchedulingManagement";
 import PaymentBillingManagement from "./components/PaymentBillingManagement";
+import RefundManagement from "./components/RefundManagement";
 import CurriculumManagement from "./components/curriculum";
 import ResidentPortalContent from "./resident/ResidentPortalContent";
 import SectionManagementPage from "./admin/sections/page";
@@ -110,6 +111,8 @@ function App() {
         return <FacultySubjectManagementPage />;
       case "payment-billing":
         return <PaymentBillingManagement />;
+      case "refund":
+        return <RefundManagement />;
       case "curriculum":
         return <CurriculumManagement />;
       case "file-maintenance-building":

@@ -6,6 +6,7 @@ import { colors } from "../../colors";
 import { useAcademicTerm } from "../../hooks/useAcademicTerm";
 import Pagination from "../common/Pagination";
 import RegistrationPDFViewer from "../enrollment/RegistrationPDFViewer";
+import BlueCardPDFViewer from "../enrollment/BlueCardPDFViewer";
 import ErrorModal from "../common/ErrorModal";
 
 type StudentRow = {
@@ -27,8 +28,9 @@ const RegistrationFormPrintReports: React.FC = () => {
   const [loadingDirectory, setLoadingDirectory] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
   const [openingStudentNumber, setOpeningStudentNumber] = useState<string | null>(null);
-  const [pdfViewer, setPdfViewer] = useState<{ open: boolean; data: any | null; loading: boolean }>({
+  const [pdfViewer, setPdfViewer] = useState<{ open: boolean; type: "registration" | "blueCard" | null; data: any | null; loading: boolean }>({
     open: false,
+    type: null,
     data: null,
     loading: false,
   });
@@ -147,10 +149,10 @@ const RegistrationFormPrintReports: React.FC = () => {
     window.scrollTo({ top: 0, behavior: "smooth" });
   };
 
-  const handleOpenRegistrationForm = async (student: StudentRow) => {
+  const handleOpenForm = async (student: StudentRow, type: "registration" | "blueCard") => {
     if (!currentTerm?.academicYear) return;
     setOpeningStudentNumber(student.studentNumber);
-    setPdfViewer({ open: true, data: null, loading: true });
+    setPdfViewer({ open: true, type, data: null, loading: true });
 
     try {
       const params = new URLSearchParams({
@@ -161,14 +163,14 @@ const RegistrationFormPrintReports: React.FC = () => {
       const response = await fetch(`/api/auth/enrollment/registration?${params.toString()}`);
       const result = await response.json();
       if (!response.ok || !result?.success) {
-        throw new Error(result?.error || "Failed to load registration form.");
+        throw new Error(result?.error || "Failed to load print preview.");
       }
-      setPdfViewer({ open: true, data: result.data ?? result, loading: false });
+      setPdfViewer({ open: true, type, data: result.data ?? result, loading: false });
     } catch (error) {
-      setPdfViewer({ open: false, data: null, loading: false });
+      setPdfViewer({ open: false, type: null, data: null, loading: false });
       setErrorModal({
         isOpen: true,
-        message: error instanceof Error ? error.message : "Failed to load registration form.",
+        message: error instanceof Error ? error.message : "Failed to load print preview.",
         details: "",
       });
     } finally {
@@ -303,7 +305,7 @@ const RegistrationFormPrintReports: React.FC = () => {
                         <button
                           type="button"
                           disabled={openingStudentNumber === student.studentNumber}
-                          onClick={() => handleOpenRegistrationForm(student)}
+                          onClick={() => handleOpenForm(student, "registration")}
                           className="inline-flex min-w-[220px] items-center justify-center gap-2 rounded-xl px-5 py-3 text-[15px] font-semibold text-white transition-all disabled:cursor-not-allowed disabled:opacity-70"
                           style={{ backgroundColor: colors.secondary }}
                         >
@@ -314,6 +316,22 @@ const RegistrationFormPrintReports: React.FC = () => {
                             </>
                           ) : (
                             "Print Registration Form"
+                          )}
+                        </button>
+                        <button
+                          type="button"
+                          disabled={openingStudentNumber === student.studentNumber}
+                          onClick={() => handleOpenForm(student, "blueCard")}
+                          className="ml-2 inline-flex min-w-[180px] items-center justify-center gap-2 rounded-xl px-5 py-3 text-[15px] font-semibold text-white transition-all disabled:cursor-not-allowed disabled:opacity-70"
+                          style={{ backgroundColor: colors.primary }}
+                        >
+                          {openingStudentNumber === student.studentNumber ? (
+                            <>
+                              <Loader2 className="h-4 w-4 animate-spin" />
+                              Loading...
+                            </>
+                          ) : (
+                            "Print Blue Card"
                           )}
                         </button>
                       </td>
@@ -339,16 +357,24 @@ const RegistrationFormPrintReports: React.FC = () => {
       {pdfViewer.open && pdfViewer.loading ? (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
           <div className="rounded-xl bg-white px-6 py-4 text-sm font-medium" style={{ color: colors.primary }}>
-            Loading registration form...
+            Loading print preview...
           </div>
         </div>
       ) : null}
 
-      {pdfViewer.open && pdfViewer.data ? (
+      {pdfViewer.open && pdfViewer.type === "registration" && pdfViewer.data ? (
         <RegistrationPDFViewer
           data={pdfViewer.data}
-          onClose={() => setPdfViewer({ open: false, data: null, loading: false })}
+          onClose={() => setPdfViewer({ open: false, type: null, data: null, loading: false })}
           auditContext="reports_registration_forms"
+        />
+      ) : null}
+
+      {pdfViewer.open && pdfViewer.type === "blueCard" && pdfViewer.data ? (
+        <BlueCardPDFViewer
+          data={pdfViewer.data}
+          onClose={() => setPdfViewer({ open: false, type: null, data: null, loading: false })}
+          auditContext="reports_blue_card"
         />
       ) : null}
 

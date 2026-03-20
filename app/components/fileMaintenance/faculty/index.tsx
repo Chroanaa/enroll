@@ -1,6 +1,6 @@
 "use client";
 import React, { useState, useMemo, useEffect } from "react";
-import { Plus, Eye, EyeOff, UserPlus } from "lucide-react";
+import { Eye, EyeOff, Plus, Printer, UserPlus } from "lucide-react";
 import { Faculty, Department } from "../../../types";
 import { colors } from "../../../colors";
 import ConfirmationModal from "../../common/ConfirmationModal";
@@ -88,6 +88,8 @@ const FacultyManagement: React.FC = () => {
   });
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage, setItemsPerPage] = useState(10);
+  const [printDepartmentFilter, setPrintDepartmentFilter] = useState<string>("all");
+
   const [accountModal, setAccountModal] = useState<{
     isOpen: boolean;
     faculty: Faculty | null;
@@ -109,13 +111,131 @@ const FacultyManagement: React.FC = () => {
     [faculty, searchTerm, statusFilter, positionFilter],
   );
 
+  const printableFaculty = useMemo(() => {
+    const rows =
+      printDepartmentFilter === "all"
+        ? faculty
+        : faculty.filter(
+            (f) => Number(f.department_id) === Number(printDepartmentFilter),
+          );
+
+    return [...rows].sort((a, b) => {
+      const aName = `${a.last_name || ""}, ${a.first_name || ""}`.toLowerCase();
+      const bName = `${b.last_name || ""}, ${b.first_name || ""}`.toLowerCase();
+      return aName.localeCompare(bName);
+    });
+  }, [faculty, printDepartmentFilter]);
+
+  const handlePrintFacultyListPDF = () => {
+    if (printableFaculty.length === 0) {
+      setErrorModal({
+        isOpen: true,
+        message: "No faculty records to print for the selected department.",
+        details: "Choose a different department filter and try again.",
+      });
+      return;
+    }
+
+    const popup = window.open("", "_blank", "width=1100,height=800,scrollbars=yes");
+    if (!popup) {
+      setErrorModal({
+        isOpen: true,
+        message: "Popup blocked.",
+        details: "Allow popups for this site to open the PDF print viewer.",
+      });
+      return;
+    }
+
+    const selectedDepartmentName =
+      printDepartmentFilter === "all"
+        ? "All Departments"
+        : departments.find((d) => Number(d.id) === Number(printDepartmentFilter))
+            ?.name || "Unknown Department";
+
+    const now = new Date().toLocaleString();
+    const rowsHtml = printableFaculty
+      .map((f, index) => {
+        const fullName = `${f.first_name || ""} ${f.middle_name || ""} ${f.last_name || ""}`
+          .replace(/\s+/g, " ")
+          .trim();
+        return `
+          <tr>
+            <td>${index + 1}</td>
+            <td>${f.employee_id || "N/A"}</td>
+            <td>${fullName || "N/A"}</td>
+            <td>${f.email || "N/A"}</td>
+            <td>${f.phone || "N/A"}</td>
+            <td>${f.departmentName || "N/A"}</td>
+            <td>${f.position || "N/A"}</td>
+            <td>${f.status || "N/A"}</td>
+          </tr>
+        `;
+      })
+      .join("");
+
+    const html = `
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <meta charset="UTF-8" />
+        <title>Faculty List Report</title>
+        <style>
+          @page { size: A4 landscape; margin: 12mm; }
+          body { font-family: Arial, sans-serif; color: #111827; }
+          .header { margin-bottom: 12px; }
+          .title { font-size: 20px; font-weight: 700; margin: 0 0 6px 0; }
+          .meta { font-size: 12px; color: #4B5563; margin: 2px 0; }
+          table { width: 100%; border-collapse: collapse; font-size: 11px; }
+          th, td { border: 1px solid #D1D5DB; padding: 6px 8px; text-align: left; }
+          th { background: #F3F4F6; font-weight: 700; }
+          .footer { margin-top: 10px; font-size: 11px; color: #6B7280; }
+        </style>
+      </head>
+      <body>
+        <div class="header">
+          <h1 class="title">Faculty List Report</h1>
+          <p class="meta"><strong>Department:</strong> ${selectedDepartmentName}</p>
+          <p class="meta"><strong>Total Faculty:</strong> ${printableFaculty.length}</p>
+          <p class="meta"><strong>Generated:</strong> ${now}</p>
+        </div>
+        <table>
+          <thead>
+            <tr>
+              <th>#</th>
+              <th>Employee ID</th>
+              <th>Faculty Name</th>
+              <th>Email</th>
+              <th>Phone</th>
+              <th>Department</th>
+              <th>Position</th>
+              <th>Status</th>
+            </tr>
+          </thead>
+          <tbody>${rowsHtml}</tbody>
+        </table>
+        <p class="footer">Enrollment System - Faculty Management</p>
+        <script>
+          window.onload = function () {
+            window.focus();
+            window.print();
+          };
+        <\/script>
+      </body>
+      </html>
+    `;
+
+    popup.document.open();
+    popup.document.write(html);
+    popup.document.close();
+  };
+
   // Pagination calculations
   const totalPages = Math.ceil(filteredFaculty.length / itemsPerPage);
   const startIndex = (currentPage - 1) * itemsPerPage;
   const endIndex = startIndex + itemsPerPage;
   const paginatedFaculty = filteredFaculty.slice(startIndex, endIndex);
 
-  // Reset to page 1 when filters change
+  // Reset to page 1 when filters changess
   useEffect(() => {
     setCurrentPage(1);
   }, [searchTerm, statusFilter, positionFilter]);
@@ -383,14 +503,37 @@ const FacultyManagement: React.FC = () => {
               Manage faculty members and their assignments
             </p>
           </div>
-          <button
-            onClick={() => setIsAddModalOpen(true)}
-            className='flex items-center gap-2 px-5 py-3 text-white rounded-xl transition-all shadow-lg shadow-blue-900/20 hover:shadow-xl hover:scale-105 active:scale-95'
-            style={{ backgroundColor: colors.secondary }}
-          >
-            <Plus className='w-5 h-5' />
-            <span className='font-medium'>Add Faculty</span>
-          </button>
+          <div className='flex flex-wrap items-center gap-2'>
+            <select
+              value={printDepartmentFilter}
+              onChange={(e) => setPrintDepartmentFilter(e.target.value)}
+              className='px-3 py-2.5 rounded-xl border text-sm bg-white'
+              style={{ borderColor: colors.neutralBorder, color: colors.primary }}
+            >
+              <option value='all'>All Departments</option>
+              {departments.map((dept) => (
+                <option key={dept.id} value={String(dept.id)}>
+                  {dept.name}
+                </option>
+              ))}
+            </select>
+            <button
+              onClick={handlePrintFacultyListPDF}
+              className='flex items-center gap-2 px-4 py-2.5 text-white rounded-xl transition-all shadow-lg shadow-blue-900/20 hover:shadow-xl'
+              style={{ backgroundColor: colors.primary }}
+            >
+              <Printer className='w-4 h-4' />
+              <span className='font-medium'>Print PDF</span>
+            </button>
+            <button
+              onClick={() => setIsAddModalOpen(true)}
+              className='flex items-center gap-2 px-5 py-3 text-white rounded-xl transition-all shadow-lg shadow-blue-900/20 hover:shadow-xl hover:scale-105 active:scale-95'
+              style={{ backgroundColor: colors.secondary }}
+            >
+              <Plus className='w-5 h-5' />
+              <span className='font-medium'>Add Faculty</span>
+            </button>
+          </div>
         </div>
 
         {/* Search and Filters */}

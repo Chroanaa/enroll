@@ -94,19 +94,25 @@ export default function FacultySubjectsTable({
     setIsDeleting(true);
     try {
       const response = await fetch(`/api/class-schedule/${confirmModal.schedule.id}`, {
-        method: 'DELETE',
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          facultyId: null,
+        }),
       });
-      if (!response.ok) throw new Error('Failed to delete schedule');
+      if (!response.ok) throw new Error('Failed to unassign faculty');
       
       setSuccessModal({
         isOpen: true,
-        message: `Subject "${confirmModal.schedule.courseCode}" has been successfully removed from the faculty's schedule.`
+        message: `Subject "${confirmModal.schedule.courseCode}" has been unassigned from this faculty. Class schedule was kept.`
       });
       
       await fetchSchedules();
     } catch (error) {
       console.error('Error deleting schedule:', error);
-      alert('Failed to delete schedule');
+      alert('Failed to unassign faculty');
     } finally {
       setIsDeleting(false);
       setConfirmModal({ isOpen: false, schedule: null });
@@ -264,10 +270,10 @@ export default function FacultySubjectsTable({
         title="Remove Subject Assignment"
         message={
           confirmModal.schedule
-            ? `Are you sure you want to remove "${confirmModal.schedule.courseCode}" (${confirmModal.schedule.courseTitle}) from this faculty's schedule?\n\nSection: ${confirmModal.schedule.sectionName || 'N/A'}\nDay: ${confirmModal.schedule.dayOfWeek}\nTime: ${formatTime(confirmModal.schedule.startTime)} - ${formatTime(confirmModal.schedule.endTime)}`
+            ? `Are you sure you want to unassign "${confirmModal.schedule.courseCode}" (${confirmModal.schedule.courseTitle}) from this faculty?\n\nSection: ${confirmModal.schedule.sectionName || 'N/A'}\nDay: ${confirmModal.schedule.dayOfWeek}\nTime: ${formatTime(confirmModal.schedule.startTime)} - ${formatTime(confirmModal.schedule.endTime)}\n\nThis will keep the class schedule and only clear the assigned faculty.`
             : ''
         }
-        confirmText="Remove Subject"
+        confirmText="Unassign Faculty"
         variant="danger"
         icon={<Trash2 className="w-6 h-6" />}
         isLoading={isDeleting}
