@@ -73,7 +73,7 @@ const compareAcademicYearDesc = (left?: string | null, right?: string | null) =>
 export async function GET() {
   try {
     const session = await getServerSession(authOptions);
-    const userRole = Number((session?.user as any)?.role) || 0;
+    const userRole = (session?.user as any)?.role || 0;
     const userId = Number((session?.user as any)?.id) || 0;
 
     if (
