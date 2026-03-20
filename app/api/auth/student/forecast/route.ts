@@ -80,7 +80,7 @@ export async function GET(request: NextRequest) {
         ? await prisma.$queryRaw`
             SELECT
               COALESCE(p.name, e.course_program) as program,
-              e.academic_year,
+              EXTRACT(YEAR FROM e.admission_date)::int as year,
               COUNT(*)::int as total_students
             FROM enrollment e
             LEFT JOIN program p ON
@@ -88,16 +88,20 @@ export async function GET(request: NextRequest) {
               OR e.course_program = p.code
               OR e.course_program = p.name
             WHERE e.course_program IS NOT NULL
-              AND e.academic_year IS NOT NULL
+              AND e.admission_date IS NOT NULL
               AND e.status = 1
               AND e.department = ${scope.deanDepartmentId}
-            GROUP BY COALESCE(p.name, e.course_program), e.academic_year
-            ORDER BY COALESCE(p.name, e.course_program), e.academic_year
+            GROUP BY
+              COALESCE(p.name, e.course_program),
+              EXTRACT(YEAR FROM e.admission_date)::int
+            ORDER BY
+              COALESCE(p.name, e.course_program),
+              EXTRACT(YEAR FROM e.admission_date)::int
           `
         : await prisma.$queryRaw`
             SELECT
               COALESCE(p.name, e.course_program) as program,
-              e.academic_year,
+              EXTRACT(YEAR FROM e.admission_date)::int as year,
               COUNT(*)::int as total_students
             FROM enrollment e
             LEFT JOIN program p ON
@@ -105,10 +109,14 @@ export async function GET(request: NextRequest) {
               OR e.course_program = p.code
               OR e.course_program = p.name
             WHERE e.course_program IS NOT NULL
-              AND e.academic_year IS NOT NULL
+              AND e.admission_date IS NOT NULL
               AND e.status = 1
-            GROUP BY COALESCE(p.name, e.course_program), e.academic_year
-            ORDER BY COALESCE(p.name, e.course_program), e.academic_year
+            GROUP BY
+              COALESCE(p.name, e.course_program),
+              EXTRACT(YEAR FROM e.admission_date)::int
+            ORDER BY
+              COALESCE(p.name, e.course_program),
+              EXTRACT(YEAR FROM e.admission_date)::int
           `;
 
     const totalStudents = await prisma.enrollment.count({
@@ -607,6 +615,41 @@ export async function POST(request: NextRequest) {
         predicted_year: c.predicted_year ?? null,
         predicted_count: c.predicted_students ?? 0,
       }));
+    }
+
+    // When both forecast and capacity are available, align capacity rows to the
+    // predicted enrollment counts so downstream tables/summaries don't fall back
+    // to stale or differently named fields from the capacity payload.
+    if (capacity.length > 0 && forecast.length > 0) {
+      const forecastByProgram = new Map(
+        forecast.map((item: any) => [item.course, item]),
+      );
+
+      capacity = capacity.map((cap: any) => {
+        const matchingForecast = forecastByProgram.get(cap.program);
+        if (!matchingForecast) return cap;
+
+        const predictedStudents =
+          matchingForecast.predicted_count ?? cap.predicted_students ?? 0;
+        const predictedYear =
+          matchingForecast.predicted_year ?? cap.predicted_year ?? null;
+        const totalCapacity = Number(cap.new_total_capacity ?? 0);
+        const utilizationRate =
+          totalCapacity > 0
+            ? Math.round((predictedStudents / totalCapacity) * 100)
+            : cap.utilization_rate ?? 0;
+
+        return {
+          ...cap,
+          predicted_students: predictedStudents,
+          predicted_year: predictedYear,
+          utilization_rate: utilizationRate,
+          status:
+            cap.additional_sections_needed > 0
+              ? `Add ${cap.additional_sections_needed} section(s) — current ${cap.current_sections} section(s) can only hold ${cap.current_capacity} students but ${predictedStudents} are predicted`
+              : `No additional sections needed — current ${cap.current_sections} section(s) with capacity ${cap.current_capacity} can accommodate ${predictedStudents} predicted students`,
+        };
+      });
     }
 
     // Build capacity recommendations if neither the Python server nor normalization produced them
