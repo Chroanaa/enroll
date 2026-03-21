@@ -1,5 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "../../../../lib/prisma";
+import { getSessionScope, isRoleAllowed } from "@/app/lib/accessScope";
+import { ROLES } from "@/app/lib/rbac";
+
+const ASSESSMENT_SUMMARY_ALLOWED_ROLES = [
+  ROLES.ADMIN,
+  ROLES.CASHIER,
+  ROLES.DEAN,
+];
 
 function convertSemesterToInt(semester: string | number): number {
   if (typeof semester === "number") return semester;
@@ -23,6 +31,22 @@ function enrollmentTermValues(semesterInt: number): string[] {
 
 export async function GET(request: NextRequest) {
   try {
+    const scope = await getSessionScope();
+    if (!scope) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
+    if (!isRoleAllowed(scope.roleId, ASSESSMENT_SUMMARY_ALLOWED_ROLES)) {
+      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    }
+
+    if (scope.isDean && !scope.deanDepartmentId) {
+      return NextResponse.json(
+        { error: "Dean account is not linked to a department." },
+        { status: 403 },
+      );
+    }
+
     const searchParams = request.nextUrl.searchParams;
     const academicYear = searchParams.get("academicYear");
     const semester = searchParams.get("semester");
@@ -47,6 +71,9 @@ export async function GET(request: NextRequest) {
     enrollmentWhere.academic_year = academicYear;
     enrollmentWhere.term = { in: enrollmentTermValues(semesterInt) };
     enrollmentWhere.verification_status = "approved";
+    if (scope.isDean && scope.deanDepartmentId) {
+      enrollmentWhere.department = scope.deanDepartmentId;
+    }
 
     if (programIdFilter) {
       const parts = programIdFilter.split("-");
@@ -128,11 +155,7 @@ export async function GET(request: NextRequest) {
     } else {
       const [enr, asmts, programs, majors, payGroups] = await Promise.all([
         prisma.enrollment.findMany({
-          where: {
-            academic_year: academicYear,
-            term: { in: enrollmentTermValues(semesterInt) },
-            verification_status: "approved",
-          },
+          where: enrollmentWhere,
           select: enrollmentSelect,
           distinct: ["student_number"],
         }),

@@ -2,6 +2,10 @@ import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "../../[...nextauth]/authOptions";
 import { prisma } from "../../../../lib/prisma";
+import {
+  ensureDeanStudentAccess,
+  getSessionScope,
+} from "@/app/lib/accessScope";
 
 const ROLES = {
   ADMIN: 1,
@@ -28,7 +32,9 @@ async function getRoleContext(roleId: number): Promise<RoleContext> {
     select: { role: true },
   });
 
-  const roleName = String(roleRow?.role || "").trim().toLowerCase();
+  const roleName = String(roleRow?.role || "")
+    .trim()
+    .toLowerCase();
 
   return {
     roleId,
@@ -38,17 +44,33 @@ async function getRoleContext(roleId: number): Promise<RoleContext> {
 }
 
 function canAccessContext(role: RoleContext) {
-  return role.roleId === ROLES.ADMIN || role.roleId === ROLES.REGISTRAR || role.isDean;
+  return (
+    role.roleId === ROLES.ADMIN ||
+    role.roleId === ROLES.REGISTRAR ||
+    role.isDean
+  );
 }
 
 export async function GET(request: NextRequest) {
   try {
     const session = await getServerSession(authOptions);
+    const scope = await getSessionScope();
     const userRole = Number((session?.user as any)?.role) || 0;
     const roleContext = await getRoleContext(userRole);
 
+    if (!scope) {
+      return NextResponse.json({ error: "Unauthorized." }, { status: 401 });
+    }
+
     if (!canAccessContext(roleContext)) {
       return NextResponse.json({ error: "Unauthorized." }, { status: 403 });
+    }
+
+    if (scope.isDean && !scope.deanDepartmentId) {
+      return NextResponse.json(
+        { error: "Dean account is not linked to a department." },
+        { status: 403 },
+      );
     }
 
     const requestId = Number(request.nextUrl.searchParams.get("id"));
@@ -73,7 +95,19 @@ export async function GET(request: NextRequest) {
 
     const row = rows[0];
     if (!row) {
-      return NextResponse.json({ error: "Cross-enrollee request not found." }, { status: 404 });
+      return NextResponse.json(
+        { error: "Cross-enrollee request not found." },
+        { status: 404 },
+      );
+    }
+
+    const access = await ensureDeanStudentAccess(scope, {
+      studentNumber: row.student_number,
+      academicYear: row.academic_year,
+      semester: row.semester,
+    });
+    if (!access.ok) {
+      return NextResponse.json({ error: access });
     }
 
     return NextResponse.json({
@@ -95,4 +129,3 @@ export async function GET(request: NextRequest) {
     );
   }
 }
-

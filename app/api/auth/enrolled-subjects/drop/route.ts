@@ -4,6 +4,10 @@ import { getServerSession } from "next-auth";
 import { prisma } from "../../../../lib/prisma";
 import { recalculateAssessmentForTerm } from "../../../../lib/recalculateAssessment";
 import { authOptions } from "../../[...nextauth]/authOptions";
+import {
+  ensureDeanStudentAccess,
+  getSessionScope,
+} from "@/app/lib/accessScope";
 import { insertIntoReports } from "@/app/utils/reportsUtils";
 
 const ROLES = {
@@ -36,7 +40,10 @@ function getSemesterStartDate(
   }
 
   if (semester === 1) {
-    const startMonth = Number.parseInt(settingsMap.semester_start_month || "8", 10);
+    const startMonth = Number.parseInt(
+      settingsMap.semester_start_month || "8",
+      10,
+    );
     const startDay = Number.parseInt(settingsMap.semester_start_day || "1", 10);
     return new Date(academicYearStart, startMonth - 1, startDay);
   }
@@ -122,6 +129,16 @@ export async function POST(request: NextRequest) {
         { error: "Enrolled subject not found" },
         { status: 404 },
       );
+    }
+
+    const scope = await getSessionScope();
+    const access = await ensureDeanStudentAccess(scope, {
+      studentNumber: enrolledSubject.student_number,
+      academicYear: enrolledSubject.academic_year,
+      semester: enrolledSubject.semester,
+    });
+    if (!access.ok) {
+      return NextResponse.json({ error: access });
     }
 
     if (

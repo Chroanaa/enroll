@@ -3,17 +3,26 @@ import { getServerSession } from "next-auth";
 import { prisma } from "../../../../lib/prisma";
 import { authOptions } from "../../[...nextauth]/authOptions";
 import { insertIntoReports } from "../../../../utils/reportsUtils";
+import {
+  ensureDeanStudentAccess,
+  getSessionScope,
+} from "@/app/lib/accessScope";
 
 const normalizeSemesterLabel = (value: string) => {
-  const normalized = String(value || "").trim().toLowerCase();
-  if (["1", "1st", "first", "first semester"].includes(normalized)) return "first";
-  if (["2", "2nd", "second", "second semester"].includes(normalized)) return "second";
+  const normalized = String(value || "")
+    .trim()
+    .toLowerCase();
+  if (["1", "1st", "first", "first semester"].includes(normalized))
+    return "first";
+  if (["2", "2nd", "second", "second semester"].includes(normalized))
+    return "second";
   if (["3", "3rd", "summer"].includes(normalized)) return "summer";
   return normalized || "unknown";
 };
 
 export async function GET(request: NextRequest) {
   try {
+    const scope = await getSessionScope();
     const { searchParams } = new URL(request.url);
     const studentNumber = searchParams.get("studentNumber");
     const academicYear = searchParams.get("academicYear");
@@ -21,13 +30,30 @@ export async function GET(request: NextRequest) {
 
     if (!studentNumber || !academicYear || !semesterParam) {
       return NextResponse.json(
-        { error: "Missing required parameters: studentNumber, academicYear, semester" },
-        { status: 400 }
+        {
+          error:
+            "Missing required parameters: studentNumber, academicYear, semester",
+        },
+        { status: 400 },
       );
     }
 
+    const access = await ensureDeanStudentAccess(scope, {
+      studentNumber,
+      academicYear,
+      semester: semesterParam,
+    });
+    if (!access.ok) {
+      return NextResponse.json({ error: access });
+    }
+
     // Convert semester to number
-    const semester = semesterParam === 'first' ? 1 : semesterParam === 'second' ? 2 : parseInt(semesterParam);
+    const semester =
+      semesterParam === "first"
+        ? 1
+        : semesterParam === "second"
+          ? 2
+          : parseInt(semesterParam);
 
     // Get student enrollment info
     const enrollment = await prisma.enrollment.findFirst({
@@ -37,13 +63,13 @@ export async function GET(request: NextRequest) {
     if (!enrollment) {
       return NextResponse.json(
         { error: "Enrollment not found" },
-        { status: 404 }
+        { status: 404 },
       );
     }
 
     // Get program info
-    let programCode = '';
-    let programName = '';
+    let programCode = "";
+    let programName = "";
     if (enrollment.course_program) {
       const programId = parseInt(enrollment.course_program);
       if (!isNaN(programId)) {
@@ -52,8 +78,8 @@ export async function GET(request: NextRequest) {
           select: { code: true, name: true },
         });
         if (program) {
-          programCode = program.code || '';
-          programName = program.name || '';
+          programCode = program.code || "";
+          programName = program.name || "";
         }
       } else {
         programCode = enrollment.course_program;
@@ -73,7 +99,7 @@ export async function GET(request: NextRequest) {
     if (!assessment) {
       return NextResponse.json(
         { error: "Assessment not found for this student" },
-        { status: 404 }
+        { status: 404 },
       );
     }
 
@@ -101,10 +127,16 @@ export async function GET(request: NextRequest) {
     // This handles cases where assessment subjects were not saved to enrolled_subjects
     // but the student was still assigned class schedules through irregular enrollment.
     if (enrolledSubjects.length === 0) {
-      const semesterStr = semesterParam === '1' ? '1' :
-                          semesterParam === '2' ? '2' :
-                          semesterParam === 'first' ? 'first' :
-                          semesterParam === 'second' ? 'second' : semesterParam;
+      const semesterStr =
+        semesterParam === "1"
+          ? "1"
+          : semesterParam === "2"
+            ? "2"
+            : semesterParam === "first"
+              ? "first"
+              : semesterParam === "second"
+                ? "second"
+                : semesterParam;
 
       const sectionSubjects = await prisma.$queryRaw<any[]>`
         SELECT DISTINCT
@@ -131,20 +163,23 @@ export async function GET(request: NextRequest) {
         enrolledSubjects = sectionSubjects.map((r: any) => ({
           ...r,
           units_total: r.units_total ?? 0,
-          units_lec:   r.units_lec   ?? 0,
-          units_lab:   r.units_lab   ?? 0,
+          units_lec: r.units_lec ?? 0,
+          units_lab: r.units_lab ?? 0,
           fixed_amount: r.fixed_amount ?? null,
         }));
       }
     }
 
-    const normalizedSemesterForSection = semesterParam === '1'
-      ? 'first'
-      : semesterParam === '2'
-        ? 'second'
-        : semesterParam === 'first' || semesterParam === 'second' || semesterParam === 'summer'
-          ? semesterParam
-          : 'second';
+    const normalizedSemesterForSection =
+      semesterParam === "1"
+        ? "first"
+        : semesterParam === "2"
+          ? "second"
+          : semesterParam === "first" ||
+              semesterParam === "second" ||
+              semesterParam === "summer"
+            ? semesterParam
+            : "second";
 
     const classListRows = await prisma.$queryRaw<any[]>`
       SELECT
@@ -177,7 +212,9 @@ export async function GET(request: NextRequest) {
     });
 
     // Calculate fee breakdown
-    const labFee = assessmentFees.find(f => f.fee_category.toUpperCase() === 'LAB')?.amount || 0;
+    const labFee =
+      assessmentFees.find((f) => f.fee_category.toUpperCase() === "LAB")
+        ?.amount || 0;
 
     // Calculate lab fee from enrolled subjects: sum of units_lab × 1000
     // Exclude subjects that have a fixed amount (e.g. NSTP, PE) — those are billed separately
@@ -189,45 +226,67 @@ export async function GET(request: NextRequest) {
 
     // Collect all miscellaneous fees (category = 'miscellaneous') and sum them
     const miscFeeItems = assessmentFees
-      .filter(f => f.fee_category.toLowerCase() === 'miscellaneous')
-      .map(f => ({ name: f.fee_name, amount: Number(f.amount) }));
+      .filter((f) => f.fee_category.toLowerCase() === "miscellaneous")
+      .map((f) => ({ name: f.fee_name, amount: Number(f.amount) }));
     const miscFee = miscFeeItems.reduce((sum, f) => sum + f.amount, 0);
 
     // Build fixed-amount fee items from enrolled subjects (e.g. NSTP, PE)
     const fixedFeeItems = enrolledSubjects
-      .filter((s: any) => s.fixed_amount !== null && s.fixed_amount !== undefined && Number(s.fixed_amount) > 0)
-      .map((s: any) => ({ name: s.course_code || '', amount: Number(s.fixed_amount) }));
-    const fixedAmountTotal = Number(assessment.fixed_amount_total) || fixedFeeItems.reduce((sum, f) => sum + f.amount, 0);
+      .filter(
+        (s: any) =>
+          s.fixed_amount !== null &&
+          s.fixed_amount !== undefined &&
+          Number(s.fixed_amount) > 0,
+      )
+      .map((s: any) => ({
+        name: s.course_code || "",
+        amount: Number(s.fixed_amount),
+      }));
+    const fixedAmountTotal =
+      Number(assessment.fixed_amount_total) ||
+      fixedFeeItems.reduce((sum, f) => sum + f.amount, 0);
 
     // Get payment schedule
     const paymentSchedules = await prisma.payment_schedule.findMany({
       where: { assessment_id: assessment.id },
-      orderBy: { due_date: 'asc' },
+      orderBy: { due_date: "asc" },
     });
 
     // Format payment schedule
-    const paymentSchedule = paymentSchedules.map(p => ({
-      term: p.label || '',
-      date: p.due_date ? new Date(p.due_date).toLocaleDateString('en-US', { day: 'numeric', month: 'short', year: 'numeric' }) : '',
+    const paymentSchedule = paymentSchedules.map((p) => ({
+      term: p.label || "",
+      date: p.due_date
+        ? new Date(p.due_date).toLocaleDateString("en-US", {
+            day: "numeric",
+            month: "short",
+            year: "numeric",
+          })
+        : "",
       amount: Number(p.amount) || 0,
     }));
 
     const baseTotal = Number(assessment.base_total) || 0;
     const downPayment = Number(assessment.down_payment) || 0;
     const netInstallment = Math.max(0, baseTotal - downPayment);
-    const installmentCharge = assessment.insurance_amount != null
-      ? Number(assessment.insurance_amount)
-      : Math.round(netInstallment * 0.05 * 100) / 100;
-    const totalInstallment = paymentSchedule.length > 0
-      ? paymentSchedule.reduce((sum, p) => sum + p.amount, 0)
-      : Math.max(
-          0,
-          (Number(assessment.total_due_installment) || 0) - downPayment
-        );
+    const installmentCharge =
+      assessment.insurance_amount != null
+        ? Number(assessment.insurance_amount)
+        : Math.round(netInstallment * 0.05 * 100) / 100;
+    const totalInstallment =
+      paymentSchedule.length > 0
+        ? paymentSchedule.reduce((sum, p) => sum + p.amount, 0)
+        : Math.max(
+            0,
+            (Number(assessment.total_due_installment) || 0) - downPayment,
+          );
 
     // Calculate tuition fee per unit — prefer the curriculum's stored rate
-    const totalUnits = enrolledSubjects.reduce((sum: number, s: any) => sum + (Number(s.units_total) || 0), 0);
-    const calculatedTuitionPerUnit = totalUnits > 0 ? Number(assessment.gross_tuition) / totalUnits : 0;
+    const totalUnits = enrolledSubjects.reduce(
+      (sum: number, s: any) => sum + (Number(s.units_total) || 0),
+      0,
+    );
+    const calculatedTuitionPerUnit =
+      totalUnits > 0 ? Number(assessment.gross_tuition) / totalUnits : 0;
 
     // Fetch tuition_fee_per_unit from curriculum via enrolled_subjects → curriculum_course → curriculum
     let tuitionFeePerUnit = calculatedTuitionPerUnit;
@@ -249,15 +308,14 @@ export async function GET(request: NextRequest) {
       // Column may not exist yet in DB — fall back to calculated value
     }
 
-
-    
     // Build response data
     const registrationData = {
-      studentName: `${enrollment.family_name || ''}, ${enrollment.first_name || ''} ${enrollment.middle_name || ''}`.trim(),
+      studentName:
+        `${enrollment.family_name || ""}, ${enrollment.first_name || ""} ${enrollment.middle_name || ""}`.trim(),
       familyName: enrollment.family_name || "",
       firstName: enrollment.first_name || "",
       middleName: enrollment.middle_name || "",
-      studentNumber: enrollment.student_number || '',
+      studentNumber: enrollment.student_number || "",
       yearLevel: enrollment.year_level || null,
       academicStatus: enrollment.academic_status || "",
       homeAddress: enrollment.complete_address || "",
@@ -265,10 +323,15 @@ export async function GET(request: NextRequest) {
       programCode: programCode,
       programName: programName,
       academicYear: academicYear,
-      semester: semesterParam === 'first' ? '1st' : semesterParam === 'second' ? '2nd' : semesterParam,
-      enrolledSubjects: enrolledSubjects.map(s => ({
-        course_code: s.course_code || '',
-        descriptive_title: s.descriptive_title || '',
+      semester:
+        semesterParam === "first"
+          ? "1st"
+          : semesterParam === "second"
+            ? "2nd"
+            : semesterParam,
+      enrolledSubjects: enrolledSubjects.map((s) => ({
+        course_code: s.course_code || "",
+        descriptive_title: s.descriptive_title || "",
         units_lec: Number(s.units_lec) || 0,
         units_lab: Number(s.units_lab) || 0,
         units_total: Number(s.units_total) || 0,
@@ -294,38 +357,38 @@ export async function GET(request: NextRequest) {
       },
       paymentSchedule,
       classList: classListRows.map((row) => ({
-        sectionName: row.section_name || '',
-        courseCode: row.course_code || '',
-        descriptiveTitle: row.descriptive_title || '',
+        sectionName: row.section_name || "",
+        courseCode: row.course_code || "",
+        descriptiveTitle: row.descriptive_title || "",
         unitsTotal: Number(row.units_total) || 0,
-        dayOfWeek: row.day_of_week || '',
+        dayOfWeek: row.day_of_week || "",
         startTime: row.start_time,
         endTime: row.end_time,
-        roomNumber: row.room_number || '',
-        facultyName: row.faculty_name || '',
+        roomNumber: row.room_number || "",
+        facultyName: row.faculty_name || "",
       })),
     };
 
     return NextResponse.json(
       { success: true, data: registrationData },
-      { status: 200 }
+      { status: 200 },
     );
   } catch (error) {
     console.error("Fetch registration data error:", error);
     return NextResponse.json(
       { error: "Internal server error" },
-      { status: 500 }
+      { status: 500 },
     );
-
-  
   }
 }
 
 export async function POST(request: NextRequest) {
   try {
     const session = await getServerSession(authOptions);
+    const scope = await getSessionScope();
     const userId = Number((session?.user as any)?.id) || null;
-    const userName = String((session?.user as any)?.name || "").trim() || "Unknown user";
+    const userName =
+      String((session?.user as any)?.name || "").trim() || "Unknown user";
     const roleId = Number((session?.user as any)?.role) || null;
 
     if (!userId) {
@@ -345,6 +408,15 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    const access = await ensureDeanStudentAccess(scope, {
+      studentNumber,
+      academicYear,
+      semester,
+    });
+    if (!access.ok) {
+      return NextResponse.json({ error: access });
+    }
+
     const contextSuffix = context ? ` | Context: ${context}` : "";
     const roleSuffix = roleId ? ` | Role ID: ${roleId}` : "";
 
@@ -354,7 +426,10 @@ export async function POST(request: NextRequest) {
       created_at: new Date(),
     });
 
-    return NextResponse.json({ success: true, message: "Print audit recorded." });
+    return NextResponse.json({
+      success: true,
+      message: "Print audit recorded.",
+    });
   } catch (error) {
     console.error("Print audit error:", error);
     return NextResponse.json(

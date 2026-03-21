@@ -3,6 +3,10 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "../[...nextauth]/authOptions";
 import { prisma } from "../../../lib/prisma";
 import { getAcademicTerm } from "../../../utils/academicTermUtils";
+import {
+  ensureDeanStudentAccess,
+  getSessionScope,
+} from "@/app/lib/accessScope";
 
 /**
  * POST /api/auth/enrolled-subjects
@@ -15,10 +19,19 @@ export async function POST(request: NextRequest) {
     const data = await request.json();
     const { studentNumber, programId, academicYear, semester, subjects } = data;
 
-    if (!studentNumber || !programId || !academicYear || !semester || !Array.isArray(subjects)) {
+    if (
+      !studentNumber ||
+      !programId ||
+      !academicYear ||
+      !semester ||
+      !Array.isArray(subjects)
+    ) {
       return NextResponse.json(
-        { error: "Missing required fields: studentNumber, programId, academicYear, semester, and subjects array" },
-        { status: 400 }
+        {
+          error:
+            "Missing required fields: studentNumber, programId, academicYear, semester, and subjects array",
+        },
+        { status: 400 },
       );
     }
 
@@ -26,8 +39,18 @@ export async function POST(request: NextRequest) {
     if (semesterNum !== 1 && semesterNum !== 2) {
       return NextResponse.json(
         { error: "semester must be 1 or 2" },
-        { status: 400 }
+        { status: 400 },
       );
+    }
+
+    const scope = await getSessionScope();
+    const access = await ensureDeanStudentAccess(scope, {
+      studentNumber,
+      academicYear,
+      semester: semesterNum,
+    });
+    if (!access.ok) {
+      return NextResponse.json({ error: access });
     }
 
     // Check if enrolled subjects already exist for this student, academic year, and semester
@@ -67,7 +90,8 @@ export async function POST(request: NextRequest) {
     // Determine status based on total units and user role
     // If total units > 27 and user is not admin, set status to "pending"
     // Otherwise, set status to "enrolled"
-    const enrollmentStatus = totalUnits > 27 && !isAdmin ? "pending" : "enrolled";
+    const enrollmentStatus =
+      totalUnits > 27 && !isAdmin ? "pending" : "enrolled";
 
     // Insert enrolled subjects (either new term or updated term)
     if (subjects.length > 0) {
@@ -88,8 +112,9 @@ export async function POST(request: NextRequest) {
       // This is faster than individual inserts but still safe
       if (enrolledSubjectsData.length > 0) {
         await prisma.$transaction(
-          enrolledSubjectsData.map((subjectData) =>
-            prisma.$executeRaw`
+          enrolledSubjectsData.map(
+            (subjectData) =>
+              prisma.$executeRaw`
               INSERT INTO enrolled_subjects (
                 student_number, program_id, curriculum_course_id, subject_id,
                 academic_year, semester, term, year_level, units_total, status
@@ -105,21 +130,23 @@ export async function POST(request: NextRequest) {
                 ${subjectData.units_total},
                 ${subjectData.status}
               )
-            `
-          )
+            `,
+          ),
         );
       }
     }
 
-    const statusMessage = enrollmentStatus === "pending" 
-      ? " Subjects are pending approval due to exceeding 27 units. Admin approval is required."
-      : "";
+    const statusMessage =
+      enrollmentStatus === "pending"
+        ? " Subjects are pending approval due to exceeding 27 units. Admin approval is required."
+        : "";
 
     return NextResponse.json({
       success: true,
-      message: (recordsExist 
-        ? "Enrolled subjects updated successfully" 
-        : "Enrolled subjects saved successfully") + statusMessage,
+      message:
+        (recordsExist
+          ? "Enrolled subjects updated successfully"
+          : "Enrolled subjects saved successfully") + statusMessage,
       action: recordsExist ? "updated" : "inserted",
       status: enrollmentStatus,
     });
@@ -127,7 +154,7 @@ export async function POST(request: NextRequest) {
     console.error("Error saving enrolled subjects:", error);
     return NextResponse.json(
       { error: error.message || "Failed to save enrolled subjects" },
-      { status: 500 }
+      { status: 500 },
     );
   }
 }
@@ -138,6 +165,7 @@ export async function POST(request: NextRequest) {
  */
 export async function GET(request: NextRequest) {
   try {
+    const scope = await getSessionScope();
     const searchParams = request.nextUrl.searchParams;
     const studentNumber = searchParams.get("studentNumber");
     const academicYear = searchParams.get("academicYear");
@@ -146,7 +174,7 @@ export async function GET(request: NextRequest) {
     if (!studentNumber || !academicYear || !semester) {
       return NextResponse.json(
         { error: "studentNumber, academicYear, and semester are required" },
-        { status: 400 }
+        { status: 400 },
       );
     }
 
@@ -154,8 +182,17 @@ export async function GET(request: NextRequest) {
     if (semesterNum !== 1 && semesterNum !== 2) {
       return NextResponse.json(
         { error: "semester must be 1 or 2" },
-        { status: 400 }
+        { status: 400 },
       );
+    }
+
+    const access = await ensureDeanStudentAccess(scope, {
+      studentNumber,
+      academicYear,
+      semester: semesterNum,
+    });
+    if (!access.ok) {
+      return NextResponse.json({ error: access });
     }
 
     // Enforce server-side current-term access only.
@@ -172,14 +209,15 @@ export async function GET(request: NextRequest) {
     ) {
       return NextResponse.json(
         {
-          error: "Only enrolled subjects from the current academic term can be fetched.",
+          error:
+            "Only enrolled subjects from the current academic term can be fetched.",
           currentTerm: {
             academicYear: currentTerm.academicYear,
             semester: currentSemesterNum,
             semesterLabel: currentTerm.semester,
           },
         },
-        { status: 403 }
+        { status: 403 },
       );
     }
 
@@ -234,7 +272,9 @@ export async function GET(request: NextRequest) {
             Array.isArray(prereqData.subjectIds) &&
             prereqData.subjectIds.length > 0
           ) {
-            prereqData.subjectIds.forEach((id: number) => allPrerequisiteSubjectIds.add(id));
+            prereqData.subjectIds.forEach((id: number) =>
+              allPrerequisiteSubjectIds.add(id),
+            );
           }
         } catch (e) {
           // Skip JSON parsing errors, will handle in second pass
@@ -315,8 +355,7 @@ export async function GET(request: NextRequest) {
     console.error("Error fetching enrolled subjects:", error);
     return NextResponse.json(
       { error: error.message || "Failed to fetch enrolled subjects" },
-      { status: 500 }
+      { status: 500 },
     );
   }
 }
-

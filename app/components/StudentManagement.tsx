@@ -18,6 +18,12 @@ interface StudentManagementProps {
   onViewChange?: (view: string) => void;
 }
 
+interface StudentSubject {
+  curriculumCourseId: number;
+  courseCode: string;
+  descriptiveTitle: string;
+}
+
 interface SectionStudent {
   assignmentId: number;
   studentNumber: string;
@@ -26,6 +32,7 @@ interface SectionStudent {
   academicYear: string;
   semester: string | null;
   assignmentType: string;
+  subjects: StudentSubject[];
   dropStatus?: "active" | "pending_drop" | "dropped";
   pendingDropCount?: number;
   droppedCount?: number;
@@ -345,10 +352,18 @@ const StudentManagement: React.FC<StudentManagementProps> = () => {
     if (!query) return selectedSection.students;
 
     return selectedSection.students.filter((student) => {
+      const matchesSubject = student.subjects.some((subject) => {
+        return (
+          subject.courseCode.toLowerCase().includes(query) ||
+          subject.descriptiveTitle.toLowerCase().includes(query)
+        );
+      });
+
       return (
         student.fullName.toLowerCase().includes(query) ||
         student.studentNumber.toLowerCase().includes(query) ||
-        student.email.toLowerCase().includes(query)
+        student.email.toLowerCase().includes(query) ||
+        matchesSubject
       );
     });
   }, [searchTerm, selectedSection]);
@@ -390,6 +405,16 @@ const StudentManagement: React.FC<StudentManagementProps> = () => {
         "Academic Year":
           student.academicYear || selectedSection.academicYear || "N/A",
         Semester: student.semester || selectedSection.semester || "N/A",
+        Subjects:
+          student.subjects.length > 0
+            ? student.subjects
+                .map((subject) =>
+                  subject.descriptiveTitle
+                    ? `${subject.courseCode} - ${subject.descriptiveTitle}`
+                    : subject.courseCode,
+                )
+                .join(", ")
+            : "No subject assigned",
       }));
 
       const worksheet = XLSX.utils.json_to_sheet(rows);
@@ -404,6 +429,7 @@ const StudentManagement: React.FC<StudentManagementProps> = () => {
         { wch: 18 },
         { wch: 16 },
         { wch: 14 },
+        { wch: 48 },
       ];
 
       const workbook = XLSX.utils.book_new();
@@ -772,7 +798,7 @@ const StudentManagement: React.FC<StudentManagementProps> = () => {
                               setExportError(null);
                             }
                           }}
-                          placeholder='Search by student name, number, or email...'
+                          placeholder='Search by student name, number, email, or subject...'
                           className='w-full pl-9 pr-3 py-2.5 text-sm rounded-xl border border-gray-300 focus:ring-2 focus:ring-blue-500 focus:border-transparent'
                         />
                       </div>
@@ -817,7 +843,7 @@ const StudentManagement: React.FC<StudentManagementProps> = () => {
                   </div>
 
                   <div className='overflow-x-auto'>
-                    <table className='w-full min-w-[720px]'>
+                    <table className='w-full min-w-[980px]'>
                       <thead className='bg-gray-50'>
                         <tr>
                           <th className='px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-500'>
@@ -830,6 +856,9 @@ const StudentManagement: React.FC<StudentManagementProps> = () => {
                             Assignment Type
                           </th>
                           <th className='px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-500'>
+                            Subjects
+                          </th>
+                          <th className='px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-500'>
                             Drop Status
                           </th>
                         </tr>
@@ -838,7 +867,7 @@ const StudentManagement: React.FC<StudentManagementProps> = () => {
                         {filteredStudents.length === 0 ? (
                           <tr>
                             <td
-                              colSpan={4}
+                              colSpan={5}
                               className='px-4 py-10 text-center text-sm text-gray-500'
                             >
                               No students found for your search.
@@ -875,6 +904,32 @@ const StudentManagement: React.FC<StudentManagementProps> = () => {
                                 >
                                   {formatAssignmentType(student.assignmentType)}
                                 </span>
+                              </td>
+                              <td className='px-4 py-4 text-sm text-gray-700'>
+                                {student.subjects.length > 0 ? (
+                                  <div className='flex flex-wrap gap-2'>
+                                    {student.subjects.map((subject) => (
+                                      <span
+                                        key={`${student.assignmentId}-${subject.curriculumCourseId}`}
+                                        className='inline-flex rounded-full px-2.5 py-1 text-xs font-medium'
+                                        style={{
+                                          backgroundColor:
+                                            colors.secondary + "12",
+                                          color: colors.primary,
+                                        }}
+                                        title={subject.descriptiveTitle || undefined}
+                                      >
+                                        {subject.descriptiveTitle
+                                          ? `${subject.courseCode} - ${subject.descriptiveTitle}`
+                                          : subject.courseCode}
+                                      </span>
+                                    ))}
+                                  </div>
+                                ) : (
+                                  <span className='text-xs text-gray-400'>
+                                    No subject assigned
+                                  </span>
+                                )}
                               </td>
                               <td className='px-4 py-4 text-sm text-gray-700'>
                                 <span

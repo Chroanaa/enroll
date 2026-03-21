@@ -1,21 +1,42 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "../../../lib/prisma";
+import {
+  ensureDeanStudentAccess,
+  getSessionScope,
+} from "@/app/lib/accessScope";
 
 const normalizeSemester = (value: string) => {
-  const normalized = String(value || "").trim().toLowerCase();
-  if (normalized === "1" || normalized === "first" || normalized === "first semester") return "first";
-  if (normalized === "2" || normalized === "second" || normalized === "second semester") return "second";
+  const normalized = String(value || "")
+    .trim()
+    .toLowerCase();
+  if (
+    normalized === "1" ||
+    normalized === "first" ||
+    normalized === "first semester"
+  )
+    return "first";
+  if (
+    normalized === "2" ||
+    normalized === "second" ||
+    normalized === "second semester"
+  )
+    return "second";
   if (normalized === "3" || normalized === "summer") return "summer";
   return null;
 };
 
 export async function GET(request: NextRequest) {
   try {
+    const scope = await getSessionScope();
     const { searchParams } = new URL(request.url);
-    const studentNumber = String(searchParams.get("studentNumber") || "").trim();
+    const studentNumber = String(
+      searchParams.get("studentNumber") || "",
+    ).trim();
     const academicYear = String(searchParams.get("academicYear") || "").trim();
     const semesterRaw = String(searchParams.get("semester") || "").trim();
-    const selectedClassScheduleIdRaw = searchParams.get("selectedClassScheduleId");
+    const selectedClassScheduleIdRaw = searchParams.get(
+      "selectedClassScheduleId",
+    );
     const normalizedSemester = normalizeSemester(semesterRaw);
 
     if (!studentNumber || !academicYear || !normalizedSemester) {
@@ -23,6 +44,15 @@ export async function GET(request: NextRequest) {
         { error: "studentNumber, academicYear, and semester are required." },
         { status: 400 },
       );
+    }
+
+    const access = await ensureDeanStudentAccess(scope, {
+      studentNumber,
+      academicYear,
+      semester: normalizedSemester,
+    });
+    if (!access.ok) {
+      return NextResponse.json({ error: access });
     }
 
     const assignment = await prisma.student_section.findUnique({
@@ -75,7 +105,10 @@ export async function GET(request: NextRequest) {
       });
     }
 
-    const selectedClassScheduleId = Number.parseInt(String(selectedClassScheduleIdRaw), 10);
+    const selectedClassScheduleId = Number.parseInt(
+      String(selectedClassScheduleIdRaw),
+      10,
+    );
     if (!Number.isFinite(selectedClassScheduleId)) {
       return NextResponse.json(
         { error: "selectedClassScheduleId must be a valid number." },
@@ -105,6 +138,7 @@ export async function GET(request: NextRequest) {
         cs.end_time
       FROM class_schedule cs
       JOIN sections sec ON sec.id = cs.section_id
+      JOIN program prog ON prog.id = sec.program_id
       LEFT JOIN curriculum_course cc ON cc.id = cs.curriculum_course_id
       LEFT JOIN subject sub ON sub.id = cc.subject_id
       WHERE cs.curriculum_course_id = ${selectedRow.curriculum_course_id}
@@ -113,6 +147,7 @@ export async function GET(request: NextRequest) {
         AND sec.academic_year = ${academicYear}
         AND sec.semester = ${normalizedSemester}
         AND cs.section_id <> ${selectedRow.section_id}
+        AND (${scope?.isDean ? scope.deanDepartmentId : null}::int IS NULL OR prog.department_id = ${scope?.deanDepartmentId ?? null})
       ORDER BY sec.section_name ASC, cs.day_of_week ASC, cs.start_time ASC
     `;
 
@@ -128,7 +163,9 @@ export async function GET(request: NextRequest) {
   } catch (error: any) {
     console.error("Error loading manual subject transfer data:", error);
     return NextResponse.json(
-      { error: error?.message || "Failed to load manual subject transfer data." },
+      {
+        error: error?.message || "Failed to load manual subject transfer data.",
+      },
       { status: 500 },
     );
   }
@@ -136,13 +173,20 @@ export async function GET(request: NextRequest) {
 
 export async function PUT(request: NextRequest) {
   try {
+    const scope = await getSessionScope();
     const body = await request.json();
 
     const studentNumber = String(body?.studentNumber || "").trim();
     const academicYear = String(body?.academicYear || "").trim();
     const normalizedSemester = normalizeSemester(String(body?.semester || ""));
-    const studentSectionSubjectId = Number.parseInt(String(body?.studentSectionSubjectId || ""), 10);
-    const toClassScheduleId = Number.parseInt(String(body?.toClassScheduleId || ""), 10);
+    const studentSectionSubjectId = Number.parseInt(
+      String(body?.studentSectionSubjectId || ""),
+      10,
+    );
+    const toClassScheduleId = Number.parseInt(
+      String(body?.toClassScheduleId || ""),
+      10,
+    );
 
     if (
       !studentNumber ||
@@ -158,6 +202,15 @@ export async function PUT(request: NextRequest) {
         },
         { status: 400 },
       );
+    }
+
+    const access = await ensureDeanStudentAccess(scope, {
+      studentNumber,
+      academicYear,
+      semester: normalizedSemester,
+    });
+    if (!access.ok) {
+      return NextResponse.json({ error: access });
     }
 
     const assignment = await prisma.student_section.findUnique({
@@ -193,7 +246,10 @@ export async function PUT(request: NextRequest) {
 
     if (!current) {
       return NextResponse.json(
-        { error: "Selected student section subject is not valid for this student." },
+        {
+          error:
+            "Selected student section subject is not valid for this student.",
+        },
         { status: 404 },
       );
     }
@@ -215,23 +271,30 @@ export async function PUT(request: NextRequest) {
         cs.curriculum_course_id
       FROM class_schedule cs
       JOIN sections sec ON sec.id = cs.section_id
+      JOIN program prog ON prog.id = sec.program_id
       WHERE cs.id = ${toClassScheduleId}
         AND cs.status = 'active'
         AND sec.status = 'active'
         AND sec.academic_year = ${academicYear}
         AND sec.semester = ${normalizedSemester}
+        AND (${scope?.isDean ? scope.deanDepartmentId : null}::int IS NULL OR prog.department_id = ${scope?.deanDepartmentId ?? null})
       LIMIT 1
     `;
     const target = targetRows[0];
 
     if (!target) {
       return NextResponse.json(
-        { error: "Selected destination schedule was not found or is inactive." },
+        {
+          error: "Selected destination schedule was not found or is inactive.",
+        },
         { status: 404 },
       );
     }
 
-    if (Number(target.curriculum_course_id) !== Number(current.curriculum_course_id)) {
+    if (
+      Number(target.curriculum_course_id) !==
+      Number(current.curriculum_course_id)
+    ) {
       return NextResponse.json(
         { error: "Destination schedule must be the same subject." },
         { status: 400 },
@@ -266,7 +329,10 @@ export async function PUT(request: NextRequest) {
     `;
     if (conflictRows.length > 0) {
       return NextResponse.json(
-        { error: "Destination schedule conflicts with student's existing schedule." },
+        {
+          error:
+            "Destination schedule conflicts with student's existing schedule.",
+        },
         { status: 409 },
       );
     }

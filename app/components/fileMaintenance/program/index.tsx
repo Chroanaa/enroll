@@ -16,11 +16,15 @@ import { getDepartments } from "@/app/utils/departmentUtils";
 import { insertIntoReports } from "@/app/utils/reportsUtils";
 import { useSession } from "next-auth/react";
 import { invalidateRelatedCaches } from "@/app/utils/cache";
+import { ROLES } from "../../../lib/rbac";
 const ProgramManagement: React.FC = () => {
   const [programs, setPrograms] = useState<Program[]>([]);
   const [departments, setDepartments] = useState<Department[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const { data: session } = useSession();
+  const userRole = Number((session?.user as any)?.role) || 0;
+  const isViewOnly =
+    userRole === ROLES.REGISTRAR || userRole === ROLES.FACULTY;
   useEffect(() => {
     const fetchData = async () => {
       try {
@@ -108,6 +112,15 @@ const ProgramManagement: React.FC = () => {
   };
 
   const handleSaveProgram = async (programData: Program) => {
+    if (isViewOnly) {
+      setErrorModal({
+        isOpen: true,
+        message: "View-only access",
+        details: "Your role can review programs but cannot create or update them.",
+      });
+      return;
+    }
+
     try {
       if (editingProgram) {
         const response = await fetch("/api/auth/program", {
@@ -186,6 +199,15 @@ const ProgramManagement: React.FC = () => {
   };
 
   const handleDeleteProgram = (id: number) => {
+    if (isViewOnly) {
+      setErrorModal({
+        isOpen: true,
+        message: "View-only access",
+        details: "Your role can review programs but cannot delete them.",
+      });
+      return;
+    }
+
     const program = programs.find((p) => p.id === id);
     if (program) {
       setDeleteConfirmation({
@@ -197,6 +219,15 @@ const ProgramManagement: React.FC = () => {
   };
 
   const confirmDeleteProgram = async () => {
+    if (isViewOnly) {
+      setDeleteConfirmation({
+        isOpen: false,
+        programId: null,
+        programName: "",
+      });
+      return;
+    }
+
     if (deleteConfirmation.programId) {
       try {
         const response = await fetch("/api/auth/program", {
@@ -259,20 +290,37 @@ const ProgramManagement: React.FC = () => {
               className='text-3xl font-bold tracking-tight'
               style={{ color: colors.primary }}
             >
-              Program Management
+              {isViewOnly ? "Programs" : "Program Management"}
             </h1>
             <p className='text-gray-500 mt-1'>
-              Manage academic programs and their details
+              {isViewOnly
+                ? "Review academic programs and their details."
+                : "Manage academic programs and their details"}
             </p>
           </div>
-          <button
-            onClick={() => setIsAddModalOpen(true)}
-            className='flex items-center gap-2 px-5 py-3 text-white rounded-xl transition-all shadow-lg shadow-blue-900/20 hover:shadow-xl hover:scale-105 active:scale-95'
-            style={{ backgroundColor: colors.secondary }}
-          >
-            <Plus className='w-5 h-5' />
-            <span className='font-medium'>Add Program</span>
-          </button>
+          <div className='flex items-center gap-3'>
+            {isViewOnly ? (
+              <span
+                className='inline-flex items-center rounded-full px-3 py-1 text-xs font-semibold uppercase tracking-[0.14em]'
+                style={{
+                  backgroundColor: colors.neutralLight,
+                  color: colors.neutralDark,
+                }}
+              >
+                View Only
+              </span>
+            ) : null}
+            {!isViewOnly && (
+              <button
+                onClick={() => setIsAddModalOpen(true)}
+                className='flex items-center gap-2 px-5 py-3 text-white rounded-xl transition-all shadow-lg shadow-blue-900/20 hover:shadow-xl hover:scale-105 active:scale-95'
+                style={{ backgroundColor: colors.secondary }}
+              >
+                <Plus className='w-5 h-5' />
+                <span className='font-medium'>Add Program</span>
+              </button>
+            )}
+          </div>
         </div>
 
         {/* Search and Filters */}
@@ -301,8 +349,8 @@ const ProgramManagement: React.FC = () => {
         <div>
           <ProgramTable
             programs={paginatedPrograms}
-            onEdit={setEditingProgram}
-            onDelete={handleDeleteProgram}
+            onEdit={isViewOnly ? undefined : setEditingProgram}
+            onDelete={isViewOnly ? undefined : handleDeleteProgram}
             isLoading={isLoading}
           />
           <Pagination
@@ -317,7 +365,7 @@ const ProgramManagement: React.FC = () => {
         </div>
 
         {/* Add/Edit Program Form */}
-        {(isAddModalOpen || editingProgram) && (
+        {!isViewOnly && (isAddModalOpen || editingProgram) && (
           <ProgramForm
             program={editingProgram}
             onSave={handleSaveProgram}

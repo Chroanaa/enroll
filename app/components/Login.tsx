@@ -5,6 +5,7 @@ import Image from "next/image";
 import { signIn } from "next-auth/react";
 import { useRouter } from "next/navigation";
 import { colors } from "../colors";
+import ForgotPasswordModal from "./ForgotPasswordModal";
 
 // Custom styles for focus states
 const customStyles = `
@@ -24,6 +25,8 @@ const Login: React.FC = () => {
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState("");
+  const [usernameInput, setUsernameInput] = useState("");
+  const [showForgotPassword, setShowForgotPassword] = useState(false);
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -31,7 +34,7 @@ const Login: React.FC = () => {
     setError("");
     const form = e.target as HTMLFormElement;
     const formData = new FormData(form);
-    const username = formData.get("username") as string;
+    const username = usernameInput.trim() || ((formData.get("username") as string) || "");
     const password = formData.get("password") as string;
 
     try {
@@ -261,6 +264,8 @@ const Login: React.FC = () => {
                       name='username'
                       type='text'
                       required
+                      value={usernameInput}
+                      onChange={(e) => setUsernameInput(e.target.value)}
                       className='w-full pl-10 pr-3 py-3 border rounded-lg custom-focus transition-all duration-200'
                       style={{
                         borderColor: colors.tertiary,
@@ -337,6 +342,7 @@ const Login: React.FC = () => {
                     type='button'
                     className='text-sm font-medium transition-colors duration-200'
                     style={{ color: colors.primary }}
+                    onClick={() => setShowForgotPassword(true)}
                     onMouseEnter={(e) =>
                       (e.currentTarget.style.color = colors.secondary)
                     }
@@ -374,6 +380,11 @@ const Login: React.FC = () => {
           </div>
         </div>
       </div>
+      <ForgotPasswordModal
+        isOpen={showForgotPassword}
+        onClose={() => setShowForgotPassword(false)}
+        initialUsername={usernameInput}
+      />
     </div>
   );
 };

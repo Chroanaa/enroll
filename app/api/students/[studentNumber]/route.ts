@@ -1,11 +1,16 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "../../../lib/prisma";
+import {
+  ensureDeanStudentAccess,
+  getSessionScope,
+} from "@/app/lib/accessScope";
 
 export async function GET(
   request: NextRequest,
-  { params }: { params: Promise<{ studentNumber: string }> }
+  { params }: { params: Promise<{ studentNumber: string }> },
 ) {
   try {
+    const scope = await getSessionScope();
     const { studentNumber } = await params;
 
     // Search enrollment table first (ordered by most recent admission date)
@@ -14,27 +19,34 @@ export async function GET(
         student_number: studentNumber,
       },
       orderBy: {
-        admission_date: 'desc',
+        admission_date: "desc",
       },
     });
 
     if (!enrollment) {
-      return NextResponse.json(
-        { error: "Student not found" },
-        { status: 404 }
-      );
+      return NextResponse.json({ error: "Student not found" }, { status: 404 });
+    }
+
+    const access = await ensureDeanStudentAccess(scope, {
+      studentNumber,
+      academicYear: enrollment.academic_year,
+      semester: enrollment.term,
+    });
+
+    if (!access.ok) {
+      return NextResponse.json({ error: access });
     }
 
     // Fetch program data from program table
     let programData = null;
-    
+
     // First, try to find program by ID if course_program is numeric
     if (enrollment.course_program) {
       const courseProgramValue = enrollment.course_program.trim();
       const isNumeric = /^\d+$/.test(courseProgramValue);
-      
+
       let program = null;
-      
+
       if (isNumeric) {
         // If course_program is numeric, treat it as program ID
         // Try with active status first
@@ -44,7 +56,7 @@ export async function GET(
             status: "active",
           },
         });
-        
+
         // If not found with active status, try without status filter
         if (!program) {
           program = await prisma.program.findFirst({
@@ -54,27 +66,21 @@ export async function GET(
           });
         }
       }
-      
+
       // If not found by ID or not numeric, try by name or code
       if (!program) {
         program = await prisma.program.findFirst({
           where: {
-            OR: [
-              { name: courseProgramValue },
-              { code: courseProgramValue },
-            ],
+            OR: [{ name: courseProgramValue }, { code: courseProgramValue }],
             status: "active",
           },
         });
-        
+
         // If not found with active status, try without status filter
         if (!program) {
           program = await prisma.program.findFirst({
             where: {
-              OR: [
-                { name: courseProgramValue },
-                { code: courseProgramValue },
-              ],
+              OR: [{ name: courseProgramValue }, { code: courseProgramValue }],
             },
           });
         }
@@ -91,7 +97,7 @@ export async function GET(
         };
       }
     }
-    
+
     // If still no program found and department exists, try to find program by department_id
     if (!programData && enrollment.department) {
       const program = await prisma.program.findFirst({
@@ -100,7 +106,7 @@ export async function GET(
           status: "active",
         },
       });
-      
+
       // If not found with active status, try without status filter
       if (!program) {
         const programInactive = await prisma.program.findFirst({
@@ -184,8 +190,7 @@ export async function GET(
     console.error("Fetch student error:", error);
     return NextResponse.json(
       { error: "Internal server error" },
-      { status: 500 }
+      { status: 500 },
     );
   }
 }
-

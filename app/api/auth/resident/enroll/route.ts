@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "../../../../lib/prisma";
+import { getSessionScope } from "@/app/lib/accessScope";
 
 interface ResidentEnrollmentData {
   enrollment_id?: number;
@@ -29,19 +30,31 @@ interface ResidentEnrollmentData {
 
 export async function POST(request: NextRequest) {
   try {
+    const scope = await getSessionScope();
+    if (!scope) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
+    if (scope.isDean) {
+      return NextResponse.json(
+        { error: "Forbidden. Dean accounts cannot manage resident enrollment." },
+        { status: 403 },
+      );
+    }
+
     const data: ResidentEnrollmentData = await request.json();
 
     // Validate required fields
     if (!data.student_number) {
       return NextResponse.json(
         { error: "Student number is required" },
-        { status: 400 }
+        { status: 400 },
       );
     }
 
     // Find the enrollment record to update
     let enrollmentToUpdate = null;
-    
+
     if (data.enrollment_id) {
       // Use provided enrollment_id
       enrollmentToUpdate = await prisma.enrollment.findUnique({
@@ -51,14 +64,17 @@ export async function POST(request: NextRequest) {
       // Find most recent enrollment for this student
       enrollmentToUpdate = await prisma.enrollment.findFirst({
         where: { student_number: data.student_number },
-        orderBy: { admission_date: 'desc' },
+        orderBy: { admission_date: "desc" },
       });
     }
 
     if (!enrollmentToUpdate) {
       return NextResponse.json(
-        { error: "Student enrollment not found. Please enroll as a new student first." },
-        { status: 404 }
+        {
+          error:
+            "Student enrollment not found. Please enroll as a new student first.",
+        },
+        { status: 404 },
       );
     }
 
@@ -80,23 +96,27 @@ export async function POST(request: NextRequest) {
       if (selectedMajor) {
         finalMajorId = majorIdNum;
         finalCourseProgram = String(selectedMajor.program_id);
-        
+
         const selectedProgram = await prisma.program.findUnique({
           where: { id: selectedMajor.program_id },
         });
-        
+
         if (selectedProgram && selectedProgram.department_id) {
           finalDepartmentId = selectedProgram.department_id;
         }
       }
-    } else if (data.course_program && data.course_program !== "0" && data.course_program !== "") {
+    } else if (
+      data.course_program &&
+      data.course_program !== "0" &&
+      data.course_program !== ""
+    ) {
       // If program is provided (but no major), get department from program
       const programIdNum = parseInt(data.course_program);
       if (!isNaN(programIdNum)) {
         const selectedProgram = await prisma.program.findUnique({
           where: { id: programIdNum },
         });
-        
+
         if (selectedProgram) {
           finalCourseProgram = data.course_program;
           if (selectedProgram.department_id) {
@@ -111,7 +131,12 @@ export async function POST(request: NextRequest) {
 
     // Auto-increment year level logic:
     // Only increment when: Previous Term = Second Semester AND New Term = First Semester AND Academic Year changes
-    if (data.term && data.academic_year && enrollmentToUpdate.term && enrollmentToUpdate.academic_year) {
+    if (
+      data.term &&
+      data.academic_year &&
+      enrollmentToUpdate.term &&
+      enrollmentToUpdate.academic_year
+    ) {
       const previousTerm = enrollmentToUpdate.term.toLowerCase();
       const newTerm = data.term.toLowerCase();
       const previousAcademicYear = enrollmentToUpdate.academic_year;
@@ -140,22 +165,34 @@ export async function POST(request: NextRequest) {
 
     // Only update fields that are provided in the request
     if (data.term !== undefined) updateData.term = data.term;
-    if (data.academic_year !== undefined) updateData.academic_year = data.academic_year;
-    if (data.contact_number !== undefined) updateData.contact_number = data.contact_number;
-    if (data.email_address !== undefined) updateData.email_address = data.email_address;
-    if (data.complete_address !== undefined) updateData.complete_address = data.complete_address;
-    if (data.emergency_contact_name !== undefined) updateData.emergency_contact_name = data.emergency_contact_name;
-    if (data.emergency_relationship !== undefined) updateData.emergency_relationship = data.emergency_relationship;
-    if (data.emergency_contact_number !== undefined) updateData.emergency_contact_number = data.emergency_contact_number;
+    if (data.academic_year !== undefined)
+      updateData.academic_year = data.academic_year;
+    if (data.contact_number !== undefined)
+      updateData.contact_number = data.contact_number;
+    if (data.email_address !== undefined)
+      updateData.email_address = data.email_address;
+    if (data.complete_address !== undefined)
+      updateData.complete_address = data.complete_address;
+    if (data.emergency_contact_name !== undefined)
+      updateData.emergency_contact_name = data.emergency_contact_name;
+    if (data.emergency_relationship !== undefined)
+      updateData.emergency_relationship = data.emergency_relationship;
+    if (data.emergency_contact_number !== undefined)
+      updateData.emergency_contact_number = data.emergency_contact_number;
     if (data.remarks !== undefined) updateData.remarks = data.remarks;
     // admission_status is always set to "Resident" above, don't allow frontend to override
     if (data.sex !== undefined) updateData.sex = data.sex;
-    if (data.civil_status !== undefined) updateData.civil_status = data.civil_status;
-    if (data.birthdate !== undefined) updateData.birthdate = data.birthdate ? new Date(data.birthdate) : null;
+    if (data.civil_status !== undefined)
+      updateData.civil_status = data.civil_status;
+    if (data.birthdate !== undefined)
+      updateData.birthdate = data.birthdate ? new Date(data.birthdate) : null;
     if (data.birthplace !== undefined) updateData.birthplace = data.birthplace;
-    if (data.last_school_attended !== undefined) updateData.last_school_attended = data.last_school_attended;
-    if (data.previous_school_year !== undefined) updateData.previous_school_year = data.previous_school_year;
-    if (data.program_shs !== undefined) updateData.program_shs = data.program_shs;
+    if (data.last_school_attended !== undefined)
+      updateData.last_school_attended = data.last_school_attended;
+    if (data.previous_school_year !== undefined)
+      updateData.previous_school_year = data.previous_school_year;
+    if (data.program_shs !== undefined)
+      updateData.program_shs = data.program_shs;
 
     // Update program/major/department if changed
     if (data.course_program !== undefined || data.major_id !== undefined) {
@@ -176,17 +213,16 @@ export async function POST(request: NextRequest) {
         data: updatedEnrollment,
         message: "Re-enrollment updated successfully",
       },
-      { status: 200 }
+      { status: 200 },
     );
   } catch (error: any) {
     console.error("Resident enrollment error:", error);
     return NextResponse.json(
-      { 
+      {
         error: error?.message || "Internal server error",
         details: error?.code || error,
       },
-      { status: 500 }
+      { status: 500 },
     );
   }
 }
-

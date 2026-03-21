@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '../../lib/prisma';
 import { Prisma } from '@prisma/client';
+import { getSessionScope } from '@/app/lib/accessScope';
 import { termValidator } from '../../..//app/utils/sectionService';
 import {
   CreateSectionRequest,
@@ -158,6 +159,14 @@ export async function POST(request: NextRequest) {
  */
 export async function GET(request: NextRequest) {
   try {
+    const scope = await getSessionScope();
+    if (scope?.isDean && !scope.deanDepartmentId) {
+      return NextResponse.json(
+        { error: 'Dean account is not linked to a department.' } as ApiError,
+        { status: 403 }
+      );
+    }
+
     const { searchParams } = new URL(request.url);
     const programId = searchParams.get('programId');
     const yearLevel = searchParams.get('yearLevel');
@@ -173,7 +182,7 @@ export async function GET(request: NextRequest) {
     if (semester) where.semester = semester;
     if (status) where.status = status;
 
-    const sections = await prisma.sections.findMany({
+    let sections = await prisma.sections.findMany({
       where,
       orderBy: [
         { academic_year: 'desc' },
@@ -181,6 +190,16 @@ export async function GET(request: NextRequest) {
         { section_name: 'asc' }
       ]
     });
+
+    if (scope?.isDean && scope.deanDepartmentId) {
+      const deanPrograms = await prisma.program.findMany({
+        where: { department_id: scope.deanDepartmentId },
+        select: { id: true },
+      });
+
+      const allowedProgramIds = new Set(deanPrograms.map((program) => program.id));
+      sections = sections.filter((section: any) => allowedProgramIds.has(section.program_id));
+    }
 
     // Get real student counts from student_section (grouped by section_id)
     // This is accurate regardless of the cached sections.student_count value

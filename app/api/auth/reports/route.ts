@@ -1,8 +1,37 @@
 import { prisma } from "../../../lib/prisma";
 import { NextRequest, NextResponse } from "next/server";
+import { getServerSession } from "next-auth";
+import { authOptions } from "../[...nextauth]/authOptions";
+import { ROLES } from "@/app/lib/rbac";
+
+const AUDIT_TRAIL_ALLOWED_ROLES = [ROLES.ADMIN, ROLES.REGISTRAR];
+
+async function requireAuditTrailAccess() {
+  const session = await getServerSession(authOptions);
+  const userRole = Number((session?.user as any)?.role) || 0;
+
+  if (!session) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
+  if (
+    userRole !== AUDIT_TRAIL_ALLOWED_ROLES[0] &&
+    userRole !== AUDIT_TRAIL_ALLOWED_ROLES[1]
+  ) {
+    return NextResponse.json(
+      { error: "Unauthorized to access audit trail." },
+      { status: 403 },
+    );
+  }
+
+  return null;
+}
 
 export async function GET() {
   try {
+    const unauthorized = await requireAuditTrailAccess();
+    if (unauthorized) return unauthorized;
+
     // Fetch reports and users separately, then join them
     const [reports, users] = await Promise.all([
       prisma.reports.findMany({
@@ -60,6 +89,9 @@ export async function POST(request: NextRequest) {
 
 export async function DELETE(request: NextRequest) {
   try {
+    const unauthorized = await requireAuditTrailAccess();
+    if (unauthorized) return unauthorized;
+
     const id = await request.json();
     await prisma.reports.delete({
       where: { id },
