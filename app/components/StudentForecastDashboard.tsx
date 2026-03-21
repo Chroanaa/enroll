@@ -147,9 +147,11 @@ const StudentForecastDashboard: React.FC = () => {
       const forecastData = programData.map((item) => ({
         program: item.program,
         total_students: item.total_students,
-        year: item.academic_year
-          ? parseInt(item.academic_year.split("-")[0])
-          : item.year || new Date().getFullYear(),
+        year:
+          item.year ??
+          (item.academic_year
+            ? parseInt(item.academic_year.split("-")[0])
+            : new Date().getFullYear()),
       }));
 
       const response = await fetch("/api/auth/student/forecast", {
@@ -189,7 +191,11 @@ const StudentForecastDashboard: React.FC = () => {
 
     studentData.programData.forEach((item) => {
       if (!grouped[item.program]) grouped[item.program] = {};
-      const year = item.academic_year || String(item.year);
+      const year =
+        item.year !== undefined
+          ? String(item.year)
+          : item.academic_year || "";
+      if (!year) return;
       grouped[item.program][year] = item.total_students;
       historicalYears.add(year);
     });
@@ -1138,7 +1144,7 @@ const StudentForecastDashboard: React.FC = () => {
                 style={{ color: colors.neutral }}
               >
                 Historical student counts per program across all years, with the
-                predicted count for {predictedYear || "the next academic year"}.
+                predicted count for {predictedYear || "the next year"}.
               </p>
 
               <div className='overflow-x-auto'>
