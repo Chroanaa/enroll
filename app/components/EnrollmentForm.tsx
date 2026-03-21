@@ -1,5 +1,6 @@
 "use client";
-import React, { useMemo } from "react";
+import React, { useEffect, useMemo, useState } from "react";
+import { FileDown } from "lucide-react";
 import { colors } from "../colors";
 import { defaultFormStyles } from "../utils/formStyles";
 import { useEnrollmentForm } from "../hooks/useEnrollmentForm";
@@ -8,10 +9,12 @@ import { ProgressBar } from "./enrollment/ProgressBar";
 import { NavigationButtons } from "./enrollment/NavigationButtons";
 import { FormHeader } from "./enrollment/FormHeader";
 import { EnrollmentPageProps } from "./enrollment/types";
+import StudentInformationFormPDFViewer from "./enrollment/StudentInformationFormPDFViewer";
 import SuccessModal from "./common/SuccessModal";
 import ErrorModal from "./common/ErrorModal";
 
 const EnrollmentForm: React.FC = () => {
+  const [showPDFPreview, setShowPDFPreview] = useState(false);
   const form = useEnrollmentForm();
   const {
     currentPage,
@@ -92,6 +95,55 @@ const EnrollmentForm: React.FC = () => {
   // Get current page component
   const CurrentPageComponent =
     PAGE_COMPONENTS[currentPage] || PAGE_COMPONENTS[1];
+  const savedFormData = form.lastSubmittedData;
+  const selectedProgram = form.filteredCoursePrograms.find(
+    (program) => String(program.id) === String(savedFormData?.course_program),
+  );
+  const selectedDepartment = departments?.find(
+    (department) => department.id === savedFormData?.department,
+  );
+  const selectedMajor = form.majors.find(
+    (major) => major.id === savedFormData?.major_id,
+  );
+  const birthPlace = Array.isArray(savedFormData?.birthplace)
+    ? savedFormData.birthplace.filter(Boolean).join(", ")
+    : "";
+
+  const pdfData = {
+    studentNumber: savedFormData?.student_number || "",
+    admissionDate: form.getTodayDate(),
+    academicYear: savedFormData?.academic_year || "",
+    admissionStatus: savedFormData?.admission_status || "",
+    term: savedFormData?.term || "",
+    requirements: savedFormData?.requirements || [],
+    departmentName: selectedDepartment?.name || "",
+    programName: selectedProgram?.name || "",
+    majorName: selectedMajor?.name || "",
+    familyName: savedFormData?.family_name || "",
+    firstName: savedFormData?.first_name || "",
+    middleName: savedFormData?.middle_name || "",
+    sex: savedFormData?.sex || "",
+    civilStatus: savedFormData?.civil_status || "",
+    birthdate: savedFormData?.birthdate || "",
+    birthPlace,
+    completeAddress: savedFormData?.complete_address || "",
+    contactNumber: savedFormData?.contact_number || "",
+    emailAddress: savedFormData?.email_address || "",
+    emergencyContactName: savedFormData?.emergency_contact_name || "",
+    emergencyRelationship: savedFormData?.emergency_relationship || "",
+    emergencyContactNumber: savedFormData?.emergency_contact_number || "",
+    lastSchoolAttended: savedFormData?.last_school_attended || "",
+    previousSchoolYear: savedFormData?.previous_school_year || "",
+    programShs: savedFormData?.program_shs || "",
+    remarks: savedFormData?.remarks || "",
+    photoUrl: form.lastSubmittedPhotoPreview,
+  };
+
+  useEffect(() => {
+    if (submitSuccess && form.lastSubmittedData) {
+      setShowPDFPreview(true);
+    }
+  }, [submitSuccess, form.lastSubmittedData]);
 
   return (
     <div
@@ -120,6 +172,23 @@ const EnrollmentForm: React.FC = () => {
               <div className='mb-4'>
                 <CurrentPageComponent {...pageProps} />
               </div>
+              {form.lastSubmittedData && (
+                <div className='mb-4 flex justify-end'>
+                  <button
+                    type='button'
+                    onClick={() => setShowPDFPreview(true)}
+                    className='inline-flex items-center gap-2 rounded-full border px-4 py-2 text-sm font-semibold transition-all'
+                    style={{
+                      borderColor: colors.secondary,
+                      color: colors.secondary,
+                      backgroundColor: `${colors.secondary}10`,
+                    }}
+                  >
+                    <FileDown className='h-4 w-4' />
+                    Preview / Download Student Info PDF
+                  </button>
+                </div>
+              )}
 
               <NavigationButtons
                 currentPage={currentPage}
@@ -166,6 +235,13 @@ const EnrollmentForm: React.FC = () => {
         message={validationError.message}
         details='Please review the highlighted fields and correct any errors before proceeding.'
       />
+
+      {showPDFPreview && form.lastSubmittedData && (
+        <StudentInformationFormPDFViewer
+          data={pdfData}
+          onClose={() => setShowPDFPreview(false)}
+        />
+      )}
     </div>
   );
 };

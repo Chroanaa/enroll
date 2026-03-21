@@ -109,6 +109,11 @@ export const useEnrollmentForm = () => {
     message: string;
     details?: string;
   } | null>(null);
+  const [lastSubmittedData, setLastSubmittedData] =
+    useState<EnrollmentFormData | null>(null);
+  const [lastSubmittedPhotoPreview, setLastSubmittedPhotoPreview] = useState<
+    string | null
+  >(null);
   const [formData, setFormData] = useState<EnrollmentFormData>(initialFormData);
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const [validationError, setValidationError] = useState<{
@@ -592,6 +597,8 @@ export const useEnrollmentForm = () => {
     })
       .then((response) => {
         console.log("Enrollment submitted successfully:", response.data);
+        setLastSubmittedData(finalFormData);
+        setLastSubmittedPhotoPreview(photoPreviewRef.current || photoPreview);
         setIsSubmitting(false);
         setSubmitSuccess(true);
         // Reset form after successful submission
@@ -958,6 +965,8 @@ export const useEnrollmentForm = () => {
     isSubmitting,
     submitSuccess,
     submitError,
+    lastSubmittedData,
+    lastSubmittedPhotoPreview,
     fieldErrors,
     validationError,
     setValidationError,
