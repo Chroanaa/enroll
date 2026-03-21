@@ -17,6 +17,7 @@ import {
 } from "lucide-react";
 import { colors } from "../colors";
 import { useSession } from "next-auth/react";
+import PasswordResetRequestQueue from "./PasswordResetRequestQueue";
 
 interface UserAccount {
   id: number;
@@ -532,6 +533,8 @@ export default function AccountManagement() {
       )}
 
       {/* Existing Accounts Table */}
+      <PasswordResetRequestQueue />
+
       <div className='bg-white rounded-lg shadow-sm border border-gray-100 overflow-hidden'>
         <div
           className='px-6 py-4 border-b flex items-center gap-2'

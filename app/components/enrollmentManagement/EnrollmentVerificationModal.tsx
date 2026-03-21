@@ -225,7 +225,8 @@ export default function EnrollmentVerificationModal({
   const [departments, setDepartments] = useState<any[]>([]);
   const [programs, setPrograms] = useState<any[]>([]);
   const [majors, setMajors] = useState<any[]>([]);
-  const [selectedProgramHasMajors, setSelectedProgramHasMajors] = useState(false);
+  const [selectedProgramHasMajors, setSelectedProgramHasMajors] =
+    useState(false);
 
   const currentVerification =
     enrollment.verification_status && enrollment.verification_status.length > 0
@@ -247,7 +248,11 @@ export default function EnrollmentVerificationModal({
 
   const filteredCoursePrograms = useMemo(() => {
     return programs
-      .filter((program) => String(program.status).toLowerCase() === "active" || program.status === 1)
+      .filter(
+        (program) =>
+          String(program.status).toLowerCase() === "active" ||
+          program.status === 1,
+      )
       .map((program) => ({
         id: program.id,
         name: program.name,
@@ -290,7 +295,9 @@ export default function EnrollmentVerificationModal({
         first_name: enrollment.first_name || "",
         middle_name: enrollment.middle_name || "",
         sex: String((enrollment as any).sex || "").toLowerCase(),
-        civil_status: String((enrollment as any).civil_status || "").toLowerCase(),
+        civil_status: String(
+          (enrollment as any).civil_status || "",
+        ).toLowerCase(),
         birthdate: (enrollment as any).birthdate
           ? new Date((enrollment as any).birthdate).toISOString().slice(0, 10)
           : "",
@@ -310,19 +317,28 @@ export default function EnrollmentVerificationModal({
           (enrollment as any).address_detail || parsedAddress.detail || "",
         contact_number: (enrollment as any).contact_number || "",
         email_address: (enrollment as any).email_address || "",
-        emergency_contact_name: (enrollment as any).emergency_contact_name || "",
-        emergency_relationship: (enrollment as any).emergency_relationship || "",
-        emergency_contact_number: (enrollment as any).emergency_contact_number || "",
+        emergency_contact_name:
+          (enrollment as any).emergency_contact_name || "",
+        emergency_relationship:
+          (enrollment as any).emergency_relationship || "",
+        emergency_contact_number:
+          (enrollment as any).emergency_contact_number || "",
         last_school_attended: (enrollment as any).last_school_attended || "",
         previous_school_year: (enrollment as any).previous_school_year || "",
         program_shs: (enrollment as any).program_shs || "",
         remarks: (enrollment as any).remarks || "",
         admission_date: (enrollment as any).admission_date
-          ? new Date((enrollment as any).admission_date).toISOString().slice(0, 10)
+          ? new Date((enrollment as any).admission_date)
+              .toISOString()
+              .slice(0, 10)
           : "",
         admission_status: (enrollment as any).admission_status || "",
         term: String((enrollment as any).term || "").toLowerCase(),
-        course_program: String((enrollment as any).program_id || (enrollment as any).course_program || ""),
+        course_program: String(
+          (enrollment as any).program_id ||
+            (enrollment as any).course_program ||
+            "",
+        ),
         major_id: Number((enrollment as any).major_id || 0),
         year_level: Number((enrollment as any).year_level || 1),
         academic_year: (enrollment as any).academic_year || "",
@@ -578,7 +594,9 @@ export default function EnrollmentVerificationModal({
             <h2 className='text-xl font-bold' style={{ color: colors.primary }}>
               Edit Student Information
             </h2>
-            <p className='text-sm text-gray-600'>{fullName || "Unnamed Student"}</p>
+            <p className='text-sm text-gray-600'>
+              {fullName || "Unnamed Student"}
+            </p>
           </div>
           <button
             onClick={onClose}
@@ -603,11 +621,15 @@ export default function EnrollmentVerificationModal({
             Verification: {verificationStyle.label}
           </span>
           <span className='text-sm text-gray-600'>
-            Verified by: {(enrollment as any).verified_by_name || "Not yet verified"}
+            Verified by:{" "}
+            {(enrollment as any).verified_by_name || "Not yet verified"}
           </span>
         </div>
 
-        <div className='px-6 py-3 border-b bg-white' style={{ borderColor: `${colors.primary}15` }}>
+        <div
+          className='px-6 py-3 border-b bg-white'
+          style={{ borderColor: `${colors.primary}15` }}
+        >
           <div className='flex flex-wrap gap-2'>
             {[1, 2, 3, 4, 5].map((tab) => (
               <button
@@ -615,7 +637,8 @@ export default function EnrollmentVerificationModal({
                 onClick={() => setActiveTab(tab)}
                 className='px-3 py-1.5 rounded-lg text-sm font-semibold border transition-all'
                 style={{
-                  backgroundColor: activeTab === tab ? `${colors.secondary}18` : "white",
+                  backgroundColor:
+                    activeTab === tab ? `${colors.secondary}18` : "white",
                   color: activeTab === tab ? colors.primary : "#6B7280",
                   borderColor:
                     activeTab === tab ? `${colors.secondary}55` : "#E5E7EB",
@@ -678,7 +701,9 @@ export default function EnrollmentVerificationModal({
             rows={2}
             placeholder='Add notes for registrar verification...'
           />
-          {saveMessage && <p className='text-sm text-emerald-600 mt-2'>{saveMessage}</p>}
+          {saveMessage && (
+            <p className='text-sm text-emerald-600 mt-2'>{saveMessage}</p>
+          )}
           {error && <p className='text-sm text-red-600 mt-2'>{error}</p>}
         </div>
 
@@ -687,18 +712,26 @@ export default function EnrollmentVerificationModal({
           style={{ borderColor: `${colors.primary}15` }}
         >
           <button
-            onClick={saveChanges}
+            onClick={() => {
+              void saveChanges();
+            }}
             disabled={saving || !hasChanges}
             onMouseEnter={() => setIsSaveHovered(true)}
             onMouseLeave={() => setIsSaveHovered(false)}
             className='px-4 py-2 rounded-lg text-sm font-semibold border disabled:opacity-60 inline-flex items-center gap-1 transition-colors'
             style={{
-              backgroundColor: isSaveHovered ? colors.primary : colors.secondary,
+              backgroundColor: isSaveHovered
+                ? colors.primary
+                : colors.secondary,
               borderColor: isSaveHovered ? colors.primary : colors.secondary,
               color: "white",
             }}
           >
-            {saving ? <Loader2 className='w-4 h-4 animate-spin' /> : <Save className='w-4 h-4' />}
+            {saving ? (
+              <Loader2 className='w-4 h-4 animate-spin' />
+            ) : (
+              <Save className='w-4 h-4' />
+            )}
             Save Changes
           </button>
           <div className='flex flex-wrap justify-end gap-2'>
@@ -709,7 +742,9 @@ export default function EnrollmentVerificationModal({
             >
               <span className='inline-flex items-center gap-1'>
                 <RotateCcw className='w-4 h-4' />
-                {loadingAction === "needs_revision" ? "Saving..." : "Needs Revision"}
+                {loadingAction === "needs_revision"
+                  ? "Saving..."
+                  : "Needs Revision"}
               </span>
             </button>
             <button

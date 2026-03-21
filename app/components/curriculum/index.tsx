@@ -2,6 +2,7 @@
 import React, { useState, useMemo, useEffect } from "react";
 import { Plus, GraduationCap, FileText, Edit2 } from "lucide-react";
 import { useRouter } from "next/navigation";
+import { useSession } from "next-auth/react";
 import { Curriculum } from "../../types";
 import { colors } from "../../colors";
 import CurriculumTable from "./CurriculumTable";
@@ -12,10 +13,15 @@ import ErrorModal from "../common/ErrorModal";
 import Pagination from "../common/Pagination";
 import { getCurriculums, getCurriculumsFresh } from "@/app/utils/curriculumUtils";
 import TableSkeleton from "../common/TableSkeleton";
+import { ROLES } from "../../lib/rbac";
 const CurriculumManagement: React.FC = () => {
   const router = useRouter();
+  const { data: session } = useSession();
   const [curriculumList, setCurriculumList] = useState<Curriculum[]>([]);
   const [loading, setLoading] = useState(true);
+  const userRole = Number((session?.user as any)?.role) || 0;
+  const isViewOnly =
+    userRole === ROLES.REGISTRAR || userRole === ROLES.FACULTY;
 
   // Function to fetch curriculums
   const fetchCurriculums = async () => {
@@ -130,6 +136,15 @@ const CurriculumManagement: React.FC = () => {
   };
 
   const handleSaveCurriculum = async (curriculumData: Curriculum) => {
+    if (isViewOnly) {
+      setErrorModal({
+        isOpen: true,
+        message: "View-only access",
+        details: "Your role can review curriculum records but cannot create or update them.",
+      });
+      return;
+    }
+
     try {
       if (editingCurriculum) {
         const response = await fetch("/api/auth/curriculum", {
@@ -206,7 +221,7 @@ const CurriculumManagement: React.FC = () => {
   };
 
   // If editing, show only the edit page
-  if (editingCurriculum) {
+  if (editingCurriculum && !isViewOnly) {
     return (
       <EditCurriculumPage
         curriculum={editingCurriculum}
@@ -233,14 +248,26 @@ const CurriculumManagement: React.FC = () => {
               className='text-3xl font-bold tracking-tight'
               style={{ color: colors.primary }}
             >
-              Curriculum Management
+              {isViewOnly ? "Curriculum" : "Curriculum Management"}
             </h1>
             <p className='text-gray-500 mt-1'>
-              Define and maintain academic programs, course offerings, credit
-              units, and prerequisite subjects
+              {isViewOnly
+                ? "Review academic programs, course offerings, credit units, and prerequisite subjects."
+                : "Define and maintain academic programs, course offerings, credit units, and prerequisite subjects"}
             </p>
           </div>
           <div className='flex items-center gap-3'>
+            {isViewOnly && (
+              <span
+                className='inline-flex items-center rounded-full px-3 py-1 text-xs font-semibold uppercase tracking-[0.14em]'
+                style={{
+                  backgroundColor: colors.neutralLight,
+                  color: colors.neutralDark,
+                }}
+              >
+                View Only
+              </span>
+            )}
             <button
               onClick={fetchCurriculumsFresh}
               className='flex items-center gap-2 px-4 py-2 text-gray-600 border border-gray-300 rounded-lg transition-all hover:bg-gray-50'
@@ -251,14 +278,16 @@ const CurriculumManagement: React.FC = () => {
               </svg>
               Refresh
             </button>
-            <button
-              onClick={() => router.push("/curriculum/new")}
-              className='flex items-center gap-2 px-5 py-3 text-white rounded-xl transition-all shadow-lg shadow-blue-900/20 hover:shadow-xl hover:scale-105 active:scale-95'
-              style={{ backgroundColor: colors.secondary }}
-            >
-              <Plus className='w-5 h-5' />
-              <span className='font-medium'>Add Curriculum</span>
-            </button>
+            {!isViewOnly && (
+              <button
+                onClick={() => router.push("/curriculum/new")}
+                className='flex items-center gap-2 px-5 py-3 text-white rounded-xl transition-all shadow-lg shadow-blue-900/20 hover:shadow-xl hover:scale-105 active:scale-95'
+                style={{ backgroundColor: colors.secondary }}
+              >
+                <Plus className='w-5 h-5' />
+                <span className='font-medium'>Add Curriculum</span>
+              </button>
+            )}
           </div>
         </div>
 
@@ -361,16 +390,20 @@ const CurriculumManagement: React.FC = () => {
                   No Curriculum Found
                 </h3>
                 <p className='text-gray-600 mb-4'>
-                  Get started by creating your first curriculum program
+                  {isViewOnly
+                    ? "No curriculum records are available to view yet."
+                    : "Get started by creating your first curriculum program"}
                 </p>
-                <button
-                  onClick={() => router.push("/curriculum/new")}
-                  className='flex items-center gap-2 px-4 py-2 text-white rounded-lg transition-all mx-auto'
-                  style={{ backgroundColor: colors.secondary }}
-                >
-                  <Plus className='w-4 h-4' />
-                  <span>Create Curriculum</span>
-                </button>
+                {!isViewOnly && (
+                  <button
+                    onClick={() => router.push("/curriculum/new")}
+                    className='flex items-center gap-2 px-4 py-2 text-white rounded-lg transition-all mx-auto'
+                    style={{ backgroundColor: colors.secondary }}
+                  >
+                    <Plus className='w-4 h-4' />
+                    <span>Create Curriculum</span>
+                  </button>
+                )}
               </div>
             </div>
           </div>
@@ -422,13 +455,15 @@ const CurriculumManagement: React.FC = () => {
                         <FileText className='w-4 h-4' />
                         View Prospectus
                       </button>
-                      <button
-                        onClick={() => setEditingCurriculum(curriculum)}
-                        className='p-2 rounded-lg hover:bg-gray-100 transition-all text-blue-600'
-                        title='Edit'
-                      >
-                        <Edit2 className='w-4 h-4' />
-                      </button>
+                      {!isViewOnly && (
+                        <button
+                          onClick={() => setEditingCurriculum(curriculum)}
+                          className='p-2 rounded-lg hover:bg-gray-100 transition-all text-blue-600'
+                          title='Edit'
+                        >
+                          <Edit2 className='w-4 h-4' />
+                        </button>
+                      )}
                     </div>
                   </div>
                   <div

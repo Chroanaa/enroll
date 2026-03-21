@@ -4,6 +4,10 @@ import { getServerSession } from "next-auth";
 import { prisma } from "@/app/lib/prisma";
 import { recalculateAssessmentForTerm } from "@/app/lib/recalculateAssessment";
 import { authOptions } from "@/app/api/auth/[...nextauth]/authOptions";
+import {
+  ensureDeanStudentAccess,
+  getSessionScope,
+} from "@/app/lib/accessScope";
 import { insertIntoReports } from "@/app/utils/reportsUtils";
 
 const ROLES = {
@@ -29,7 +33,10 @@ function getSemesterStartDate(
   }
 
   if (semester === 1) {
-    const startMonth = Number.parseInt(settingsMap.semester_start_month || "8", 10);
+    const startMonth = Number.parseInt(
+      settingsMap.semester_start_month || "8",
+      10,
+    );
     const startDay = Number.parseInt(settingsMap.semester_start_day || "1", 10);
     return new Date(academicYearStart, startMonth - 1, startDay);
   }
@@ -104,6 +111,16 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    const scope = await getSessionScope();
+    const access = await ensureDeanStudentAccess(scope, {
+      studentNumber,
+      academicYear,
+      semester: semesterNum,
+    });
+    if (!access.ok) {
+      return NextResponse.json({ error: access });
+    }
+
     const hasDirectDropApproval =
       requesterRoleId === ROLES.ADMIN || requesterRoleId === ROLES.DEAN;
 
@@ -134,13 +151,17 @@ export async function POST(request: NextRequest) {
 
     if (!Array.isArray(subjectRows) || subjectRows.length === 0) {
       return NextResponse.json(
-        { error: "No enrolled subjects found for this student in the selected term." },
+        {
+          error:
+            "No enrolled subjects found for this student in the selected term.",
+        },
         { status: 404 },
       );
     }
 
     const actionableSubjects = subjectRows.filter(
-      (row) => String(row.drop_status || "").toLowerCase() !== "pending_approval",
+      (row) =>
+        String(row.drop_status || "").toLowerCase() !== "pending_approval",
     );
     const pendingSubjects = subjectRows.length - actionableSubjects.length;
 

@@ -6,6 +6,10 @@ import { prisma } from "../../../lib/prisma";
 import { recalculateAssessmentForTerm } from "../../../lib/recalculateAssessment";
 import { insertIntoReports } from "../../../utils/reportsUtils";
 import {
+  ensureDeanStudentAccess,
+  getSessionScope,
+} from "@/app/lib/accessScope";
+import {
   getEnrolledSubjectIdsForTerm,
   getMatchingScheduleIdsForSection,
 } from "../../../utils/studentSectionMatching";
@@ -155,7 +159,9 @@ async function getRoleContext(roleId: number): Promise<RoleContext> {
     select: { role: true },
   });
 
-  const roleName = String(roleRow?.role || "").trim().toLowerCase();
+  const roleName = String(roleRow?.role || "")
+    .trim()
+    .toLowerCase();
 
   return {
     roleId,
@@ -207,13 +213,18 @@ async function getEnrollmentRowForTerm(args: {
   });
 }
 
-async function clearStudentSectionAssignmentForTerm(tx: any, args: {
-  studentNumber: string;
-  academicYear: string;
-  semester: number;
-}) {
+async function clearStudentSectionAssignmentForTerm(
+  tx: any,
+  args: {
+    studentNumber: string;
+    academicYear: string;
+    semester: number;
+  },
+) {
   const aliases = getSemesterAliases(args.semester);
-  const assignmentRows = await tx.$queryRaw<{ id: number; section_id: number }[]>`
+  const assignmentRows = await tx.$queryRaw<
+    { id: number; section_id: number }[]
+  >`
     SELECT id, section_id
     FROM student_section
     WHERE student_number = ${args.studentNumber}
@@ -243,6 +254,7 @@ async function clearStudentSectionAssignmentForTerm(tx: any, args: {
 export async function GET() {
   try {
     const session = await getServerSession(authOptions);
+    const scope = await getSessionScope();
     const userRole = Number((session?.user as any)?.role) || 0;
     const roleContext = await getRoleContext(userRole);
 
@@ -253,7 +265,17 @@ export async function GET() {
       );
     }
 
-    await Promise.all([ensureShiftRequestsTable(), ensureProgramShiftRequestsTable()]);
+    if (scope?.isDean && !scope.deanDepartmentId) {
+      return NextResponse.json(
+        { error: "Dean account is not linked to a department." },
+        { status: 403 },
+      );
+    }
+
+    await Promise.all([
+      ensureShiftRequestsTable(),
+      ensureProgramShiftRequestsTable(),
+    ]);
 
     const [
       subjectOverloads,
@@ -471,6 +493,73 @@ export async function GET() {
       `,
     ]);
 
+    if (scope?.isDean && scope.deanDepartmentId) {
+      const allStudentNumbers = [
+        ...new Set(
+          [
+            ...subjectOverloads.map((item) => item.student_number),
+            ...subjectDrops.map((item) => item.student_number),
+            ...crossEnrollmentRequests.map((item) => item.student_number),
+            ...shiftingRequests.map((item) => item.student_number),
+            ...programShiftRequests.map((item) => item.student_number),
+          ].filter(Boolean),
+        ),
+      ];
+
+      const allowedEnrollments = allStudentNumbers.length
+        ? await prisma.enrollment.findMany({
+            where: {
+              student_number: { in: allStudentNumbers },
+              department: scope.deanDepartmentId,
+            },
+            select: { student_number: true },
+            distinct: ["student_number"],
+          })
+        : [];
+
+      const allowedStudentNumbers = new Set(
+        allowedEnrollments
+          .map((enrollment) => enrollment.student_number)
+          .filter(Boolean),
+      );
+
+      subjectOverloads.splice(
+        0,
+        subjectOverloads.length,
+        ...subjectOverloads.filter((item) =>
+          allowedStudentNumbers.has(item.student_number),
+        ),
+      );
+      subjectDrops.splice(
+        0,
+        subjectDrops.length,
+        ...subjectDrops.filter((item) =>
+          allowedStudentNumbers.has(item.student_number),
+        ),
+      );
+      crossEnrollmentRequests.splice(
+        0,
+        crossEnrollmentRequests.length,
+        ...crossEnrollmentRequests.filter((item) =>
+          allowedStudentNumbers.has(item.student_number),
+        ),
+      );
+      shiftingRequests.splice(
+        0,
+        shiftingRequests.length,
+        ...shiftingRequests.filter((item) =>
+          allowedStudentNumbers.has(item.student_number),
+        ),
+      );
+      programShiftRequests.splice(
+        0,
+        programShiftRequests.length,
+        ...programShiftRequests.filter((item) =>
+          allowedStudentNumbers.has(item.student_number),
+        ),
+      );
+    }
+
     return NextResponse.json({
       success: true,
       data: {
@@ -608,6 +697,7 @@ export async function POST(request: Request) {
     await ensureSubjectDropHistoryAssessmentAdjustedColumn();
 
     const session = await getServerSession(authOptions);
+    const scope = await getSessionScope();
     const userRole = Number((session?.user as any)?.role) || 0;
     const userId = Number((session?.user as any)?.id) || null;
     const userName = String((session?.user as any)?.name || "").trim() || null;
@@ -633,6 +723,15 @@ export async function POST(request: Request) {
           { error: "studentNumber, academicYear, and semester are required." },
           { status: 400 },
         );
+      }
+
+      const access = await ensureDeanStudentAccess(scope, {
+        studentNumber,
+        academicYear,
+        semester,
+      });
+      if (!access.ok) {
+        return NextResponse.json({ error: access });
       }
 
       const updatedRows = await prisma.$executeRaw`
@@ -697,7 +796,18 @@ export async function POST(request: Request) {
         );
       }
 
-      if (String(subject.drop_status || "").toLowerCase() !== "pending_approval") {
+      const access = await ensureDeanStudentAccess(scope, {
+        studentNumber: subject.student_number,
+        academicYear: subject.academic_year,
+        semester: subject.semester,
+      });
+      if (!access.ok) {
+        return NextResponse.json({ error: access });
+      }
+
+      if (
+        String(subject.drop_status || "").toLowerCase() !== "pending_approval"
+      ) {
         return NextResponse.json(
           { error: "This subject drop is no longer pending approval." },
           { status: 409 },
@@ -714,7 +824,9 @@ export async function POST(request: Request) {
       `;
       const pendingDropId = Number(pendingDropRows[0]?.id || 0);
       const isRefundableDrop = Boolean(pendingDropRows[0]?.refundable);
-      const isAssessmentAdjusted = Boolean(pendingDropRows[0]?.assessment_adjusted);
+      const isAssessmentAdjusted = Boolean(
+        pendingDropRows[0]?.assessment_adjusted,
+      );
 
       await prisma.$transaction(async (tx) => {
         const semesterAliases = getSemesterAliases(subject.semester);
@@ -850,9 +962,22 @@ export async function POST(request: Request) {
         );
       }
 
-      if (String(requestRow.status || "").toLowerCase() !== "pending_approval") {
+      const access = await ensureDeanStudentAccess(scope, {
+        studentNumber: requestRow.student_number,
+        academicYear: requestRow.academic_year,
+        semester: requestRow.semester,
+      });
+      if (!access.ok) {
+        return NextResponse.json({ error: access });
+      }
+
+      if (
+        String(requestRow.status || "").toLowerCase() !== "pending_approval"
+      ) {
         return NextResponse.json(
-          { error: "This cross-enrollee request is no longer pending approval." },
+          {
+            error: "This cross-enrollee request is no longer pending approval.",
+          },
           { status: 409 },
         );
       }
@@ -962,9 +1087,22 @@ export async function POST(request: Request) {
         );
       }
 
-      if (String(shiftRequest.status || "").toLowerCase() !== "pending_approval") {
+      const access = await ensureDeanStudentAccess(scope, {
+        studentNumber: shiftRequest.student_number,
+        academicYear: shiftRequest.academic_year,
+        semester: shiftRequest.semester,
+      });
+      if (!access.ok) {
+        return NextResponse.json({ error: access });
+      }
+
+      if (
+        String(shiftRequest.status || "").toLowerCase() !== "pending_approval"
+      ) {
         return NextResponse.json(
-          { error: "This section shift request is no longer pending approval." },
+          {
+            error: "This section shift request is no longer pending approval.",
+          },
           { status: 409 },
         );
       }
@@ -986,7 +1124,9 @@ export async function POST(request: Request) {
         );
       }
 
-      const destinationSection = await prisma.sections.findUnique({ where: { id: shiftRequest.to_section_id } });
+      const destinationSection = await prisma.sections.findUnique({
+        where: { id: shiftRequest.to_section_id },
+      });
       if (!destinationSection || destinationSection.status !== "active") {
         return NextResponse.json(
           { error: "Destination section is invalid or inactive." },
@@ -1103,9 +1243,23 @@ export async function POST(request: Request) {
           { status: 404 },
         );
       }
-      if (String(shiftRequest.status || "").toLowerCase() !== "pending_approval") {
+
+      const access = await ensureDeanStudentAccess(scope, {
+        studentNumber: shiftRequest.student_number,
+        academicYear: shiftRequest.academic_year,
+        semester: Number(shiftRequest.semester),
+      });
+      if (!access.ok) {
+        return NextResponse.json({ error: access });
+      }
+
+      if (
+        String(shiftRequest.status || "").toLowerCase() !== "pending_approval"
+      ) {
         return NextResponse.json(
-          { error: "This program shift request is no longer pending approval." },
+          {
+            error: "This program shift request is no longer pending approval.",
+          },
           { status: 409 },
         );
       }
@@ -1121,7 +1275,17 @@ export async function POST(request: Request) {
         );
       }
 
-      if (shiftRequest.to_major_id !== null && shiftRequest.to_major_id !== undefined) {
+      if (scope?.isDean && toProgram.department_id !== scope.deanDepartmentId) {
+        return NextResponse.json(
+          { error: "Target program is outside your department scope." },
+          { status: 403 },
+        );
+      }
+
+      if (
+        shiftRequest.to_major_id !== null &&
+        shiftRequest.to_major_id !== undefined
+      ) {
         const toMajor = await prisma.major.findFirst({
           where: {
             id: Number(shiftRequest.to_major_id),
@@ -1146,7 +1310,9 @@ export async function POST(request: Request) {
           semester: Number(shiftRequest.semester),
         });
         if (!enrollment) {
-          throw new Error("Enrollment record not found for this student and term.");
+          throw new Error(
+            "Enrollment record not found for this student and term.",
+          );
         }
 
         const enrolledSubjectRows = await tx.$queryRaw<any[]>`
@@ -1232,7 +1398,8 @@ export async function POST(request: Request) {
           data: {
             course_program: String(shiftRequest.to_program_id),
             major_id:
-              shiftRequest.to_major_id === null || shiftRequest.to_major_id === undefined
+              shiftRequest.to_major_id === null ||
+              shiftRequest.to_major_id === undefined
                 ? null
                 : Number(shiftRequest.to_major_id),
             department: toProgram.department_id ?? null,

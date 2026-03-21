@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { Suspense, useState, useEffect, useMemo } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import Navigation from '../../components/Navigation';
 import ConfirmationModal from '../../components/common/ConfirmationModal';
@@ -98,7 +98,7 @@ function StepIndicator({ step, currentStep }: { step: number; currentStep: numbe
   );
 }
 
-export default function IrregularEnrollmentPage() {
+function IrregularEnrollmentPageContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const { programs: programsWithMajors, loading: loadingPrograms } = useProgramsWithMajors();
@@ -1404,5 +1404,26 @@ export default function IrregularEnrollmentPage() {
         />
       )}
     </div>
+  );
+}
+
+function IrregularEnrollmentPageFallback() {
+  return (
+    <div className="min-h-screen flex items-center justify-center bg-gray-50">
+      <div className="flex items-center gap-3 rounded-xl border border-gray-200 bg-white px-4 py-3 shadow-sm">
+        <Loader2 className="w-4 h-4 animate-spin" style={{ color: colors.secondary }} />
+        <span className="text-sm font-medium" style={{ color: colors.primary }}>
+          Loading irregular enrollment...
+        </span>
+      </div>
+    </div>
+  );
+}
+
+export default function IrregularEnrollmentPage() {
+  return (
+    <Suspense fallback={<IrregularEnrollmentPageFallback />}>
+      <IrregularEnrollmentPageContent />
+    </Suspense>
   );
 }

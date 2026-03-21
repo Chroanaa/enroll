@@ -7,8 +7,8 @@ import TableSkeleton from "../../common/TableSkeleton";
 
 interface ProgramTableProps {
   programs: Program[];
-  onEdit: (program: Program) => void;
-  onDelete: (id: number) => void;
+  onEdit?: (program: Program) => void;
+  onDelete?: (id: number) => void;
   isLoading?: boolean;
 }
 
@@ -18,6 +18,8 @@ const ProgramTable: React.FC<ProgramTableProps> = ({
   onDelete,
   isLoading = false,
 }) => {
+  const canManagePrograms = Boolean(onEdit || onDelete);
+
   return (
     <div className='bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden'>
       <div className='overflow-x-auto'>
@@ -44,28 +46,33 @@ const ProgramTable: React.FC<ProgramTableProps> = ({
               <th className='px-6 py-4 text-left text-xs font-bold uppercase tracking-wider text-gray-600'>
                 Status
               </th>
-              <th className='px-6 py-4 text-right text-xs font-bold uppercase tracking-wider text-gray-600'>
-                Actions
-              </th>
+              {canManagePrograms ? (
+                <th className='px-6 py-4 text-right text-xs font-bold uppercase tracking-wider text-gray-600'>
+                  Actions
+                </th>
+              ) : null}
             </tr>
           </thead>
           <tbody className='divide-y divide-gray-100'>
             {isLoading ? (
               <TableSkeleton
                 rows={5}
-                columns={6}
+                columns={canManagePrograms ? 6 : 5}
                 columnConfigs={[
                   { type: "text", width: "w-20" }, // Code
                   { type: "avatar-text" }, // Program
                   { type: "icon-text" }, // Department
                   { type: "text", width: "w-16" }, // Duration
                   { type: "badge" }, // Status
-                  { type: "actions" }, // Actions
+                  ...(canManagePrograms ? [{ type: "actions" as const }] : []),
                 ]}
               />
             ) : programs.length === 0 ? (
               <tr>
-                <td colSpan={6} className='px-6 py-12 text-center text-gray-500'>
+                <td
+                  colSpan={canManagePrograms ? 6 : 5}
+                  className='px-6 py-12 text-center text-gray-500'
+                >
                   <div className='flex flex-col items-center justify-center gap-3'>
                     <div
                       className='p-3 rounded-full'
@@ -160,24 +167,30 @@ const ProgramTable: React.FC<ProgramTableProps> = ({
                           program.status.slice(1)}
                       </span>
                     </td>
-                    <td className='px-6 py-4 whitespace-nowrap text-right text-sm font-medium'>
-                      <div className='flex justify-end gap-2'>
-                        <button
-                          onClick={() => onEdit(program)}
-                          className='p-2 rounded-lg hover:bg-white hover:shadow-sm border border-transparent hover:border-gray-200 transition-all text-blue-600'
-                          title='Edit'
-                        >
-                          <Edit2 className='w-4 h-4' />
-                        </button>
-                        <button
-                          onClick={() => onDelete(program.id)}
-                          className='p-2 rounded-lg hover:bg-white hover:shadow-sm border border-transparent hover:border-gray-200 transition-all text-red-600'
-                          title='Delete'
-                        >
-                          <Trash2 className='w-4 h-4' />
-                        </button>
-                      </div>
-                    </td>
+                    {canManagePrograms ? (
+                      <td className='px-6 py-4 whitespace-nowrap text-right text-sm font-medium'>
+                        <div className='flex justify-end gap-2'>
+                          {onEdit ? (
+                            <button
+                              onClick={() => onEdit(program)}
+                              className='p-2 rounded-lg hover:bg-white hover:shadow-sm border border-transparent hover:border-gray-200 transition-all text-blue-600'
+                              title='Edit'
+                            >
+                              <Edit2 className='w-4 h-4' />
+                            </button>
+                          ) : null}
+                          {onDelete ? (
+                            <button
+                              onClick={() => onDelete(program.id)}
+                              className='p-2 rounded-lg hover:bg-white hover:shadow-sm border border-transparent hover:border-gray-200 transition-all text-red-600'
+                              title='Delete'
+                            >
+                              <Trash2 className='w-4 h-4' />
+                            </button>
+                          ) : null}
+                        </div>
+                      </td>
+                    ) : null}
                   </tr>
                 );
               })

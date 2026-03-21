@@ -3,6 +3,11 @@ import { getServerSession } from "next-auth";
 import { prisma } from "../../../lib/prisma";
 import { authOptions } from "../../auth/[...nextauth]/authOptions";
 import {
+  ensureDeanStudentAccess,
+  getSessionScope,
+  type SessionScope,
+} from "@/app/lib/accessScope";
+import {
   getEnrolledSubjectIdsForTerm,
   getMatchingScheduleIdsForSection,
   normalizeSemesterValue,
@@ -91,7 +96,9 @@ async function getRoleContext(roleId: number): Promise<RoleContext> {
     select: { role: true },
   });
 
-  const roleName = String(roleRow?.role || "").trim().toLowerCase();
+  const roleName = String(roleRow?.role || "")
+    .trim()
+    .toLowerCase();
   return {
     roleId,
     roleName,
@@ -100,11 +107,63 @@ async function getRoleContext(roleId: number): Promise<RoleContext> {
 }
 
 function canSubmitShift(role: RoleContext) {
-  return role.roleId === ROLES.ADMIN || role.roleId === ROLES.REGISTRAR || role.isDean;
+  return (
+    role.roleId === ROLES.ADMIN ||
+    role.roleId === ROLES.REGISTRAR ||
+    role.isDean
+  );
 }
 
 function canAutoApproveShift(role: RoleContext) {
   return role.roleId === ROLES.ADMIN || role.isDean;
+}
+
+async function ensureDeanSectionAccess(
+  scope: SessionScope | null,
+  sectionId: number,
+) {
+  if (!scope?.isDean) {
+    return null;
+  }
+
+  if (!scope.deanDepartmentId) {
+    return NextResponse.json(
+      {
+        error: "FORBIDDEN",
+        message: "Dean account is not linked to a department.",
+      },
+      { status: 403 },
+    );
+  }
+
+  const sectionRows = await prisma.$queryRaw<
+    { department_id: number | null }[]
+  >`
+    SELECT prog.department_id
+    FROM sections sec
+    JOIN program prog ON prog.id = sec.program_id
+    WHERE sec.id = ${sectionId}
+    LIMIT 1
+  `;
+
+  if (!sectionRows[0]) {
+    return NextResponse.json(
+      { error: "NOT_FOUND", message: "Destination section not found." },
+      { status: 404 },
+    );
+  }
+
+  if (sectionRows[0].department_id !== scope.deanDepartmentId) {
+    return NextResponse.json(
+      {
+        error: "FORBIDDEN",
+        message: "Destination section is outside your department scope.",
+      },
+      { status: 403 },
+    );
+  }
+
+  return null;
 }
 
 const parseAcademicYearStart = (academicYear: string): number | null => {
@@ -121,7 +180,10 @@ const getSemesterStartDate = (
   if (startYear === null) return null;
 
   if (semester === "first") {
-    const startMonth = Number.parseInt(settingsMap.semester_start_month || "8", 10);
+    const startMonth = Number.parseInt(
+      settingsMap.semester_start_month || "8",
+      10,
+    );
     const startDay = Number.parseInt(settingsMap.semester_start_day || "1", 10);
     return new Date(startYear, startMonth - 1, startDay);
   }
@@ -156,7 +218,13 @@ async function performShift(args: {
   normalizedSemester: "first" | "second" | "summer";
   overrideCapacity?: boolean;
 }) {
-  const { studentNumber, toSectionId, academicYear, normalizedSemester, overrideCapacity } = args;
+  const {
+    studentNumber,
+    toSectionId,
+    academicYear,
+    normalizedSemester,
+    overrideCapacity,
+  } = args;
 
   const currentAssignment = await prisma.student_section.findUnique({
     where: {
@@ -174,7 +242,8 @@ async function performShift(args: {
       status: 404,
       payload: {
         error: "NOT_FOUND",
-        message: "Student has no section assignment for the selected academic term.",
+        message:
+          "Student has no section assignment for the selected academic term.",
       },
     };
   }
@@ -185,7 +254,8 @@ async function performShift(args: {
       status: 400,
       payload: {
         error: "VALIDATION_ERROR",
-        message: "Student is already assigned to the selected destination section.",
+        message:
+          "Student is already assigned to the selected destination section.",
       },
     };
   }
@@ -198,7 +268,10 @@ async function performShift(args: {
     return {
       ok: false,
       status: 404,
-      payload: { error: "NOT_FOUND", message: "Destination section not found." },
+      payload: {
+        error: "NOT_FOUND",
+        message: "Destination section not found.",
+      },
     };
   }
 
@@ -331,13 +404,25 @@ async function performShift(args: {
 export async function POST(request: NextRequest) {
   try {
     const session = await getServerSession(authOptions);
+    const scope = await getSessionScope();
     const userRole = Number((session?.user as any)?.role) || 0;
     const requesterId = Number((session?.user as any)?.id) || null;
-    const requesterName = String((session?.user as any)?.name || "").trim() || null;
+    const requesterName =
+      String((session?.user as any)?.name || "").trim() || null;
     const roleContext = await getRoleContext(userRole);
 
+    if (!scope) {
+      return NextResponse.json(
+        { error: "UNAUTHORIZED", message: "Unauthorized." },
+        { status: 401 },
+      );
+    }
+
     if (!canSubmitShift(roleContext)) {
-      return NextResponse.json({ error: "UNAUTHORIZED", message: "Unauthorized." }, { status: 403 });
+      return NextResponse.json(
+        { error: "UNAUTHORIZED", message: "Unauthorized." },
+        { status: 403 },
+      );
     }
 
     const body = (await request.json()) as ShiftRequest;
@@ -346,7 +431,12 @@ export async function POST(request: NextRequest) {
       ? normalizeSemesterValue(body.semester)
       : null;
 
-    if (!studentNumber || !body.toSectionId || !body.academicYear || !normalizedSemester) {
+    if (
+      !studentNumber ||
+      !body.toSectionId ||
+      !body.academicYear ||
+      !normalizedSemester
+    ) {
       return NextResponse.json(
         {
           error: "VALIDATION_ERROR",
@@ -357,7 +447,26 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const serverTimeResult = await prisma.$queryRaw<{ now: Date }[]>`SELECT NOW() as now`;
+    const access = await ensureDeanStudentAccess(scope, {
+      studentNumber,
+      academicYear: body.academicYear,
+      semester: normalizedSemester,
+    });
+    if (!access.ok) {
+      return NextResponse.json({ error: "FORBIDDEN", message: access });
+    }
+
+    const sectionAccess = await ensureDeanSectionAccess(
+      scope,
+      body.toSectionId,
+    );
+    if (sectionAccess) {
+      return sectionAccess;
+    }
+
+    const serverTimeResult = await prisma.$queryRaw<
+      { now: Date }[]
+    >`SELECT NOW() as now`;
     const serverTime = new Date(serverTimeResult[0].now);
 
     const settings = await prisma.settings.findMany({
@@ -442,7 +551,8 @@ export async function POST(request: NextRequest) {
         return NextResponse.json(
           {
             error: "DUPLICATE_PENDING_REQUEST",
-            message: "A pending section shift request already exists for this student and term.",
+            message:
+              "A pending section shift request already exists for this student and term.",
           },
           { status: 409 },
         );
@@ -462,7 +572,8 @@ export async function POST(request: NextRequest) {
         return NextResponse.json(
           {
             error: "NOT_FOUND",
-            message: "Student has no section assignment for the selected academic term.",
+            message:
+              "Student has no section assignment for the selected academic term.",
           },
           { status: 404 },
         );
@@ -472,7 +583,8 @@ export async function POST(request: NextRequest) {
         return NextResponse.json(
           {
             error: "VALIDATION_ERROR",
-            message: "Student is already assigned to the selected destination section.",
+            message:
+              "Student is already assigned to the selected destination section.",
           },
           { status: 400 },
         );
@@ -609,7 +721,8 @@ export async function POST(request: NextRequest) {
     return NextResponse.json(
       {
         error: "INTERNAL_ERROR",
-        message: error instanceof Error ? error.message : "Failed to shift student",
+        message:
+          error instanceof Error ? error.message : "Failed to shift student",
       },
       { status: 500 },
     );

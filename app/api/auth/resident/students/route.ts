@@ -2,12 +2,21 @@ import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "../../[...nextauth]/authOptions";
 import { prisma } from "@/app/lib/prisma";
+import { getSessionScope } from "@/app/lib/accessScope";
 
 export async function GET(request: Request) {
   try {
     const session = await getServerSession(authOptions);
+    const scope = await getSessionScope();
     if (!session) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
+    if (scope?.isDean) {
+      return NextResponse.json(
+        { error: "Forbidden. Dean accounts cannot access resident students." },
+        { status: 403 },
+      );
     }
 
     const { searchParams } = new URL(request.url);

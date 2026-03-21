@@ -1,9 +1,46 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/app/lib/prisma";
 import { NextRequest } from "next/server";
+import { getServerSession } from "next-auth";
+import { authOptions } from "../[...nextauth]/authOptions";
+import { ROLES } from "@/app/lib/rbac";
+
+const READ_ALLOWED_ROLES = [
+  ROLES.ADMIN,
+  ROLES.REGISTRAR,
+  ROLES.FACULTY,
+  ROLES.DEAN,
+];
+const WRITE_ALLOWED_ROLES = [ROLES.ADMIN, ROLES.DEAN];
+
+async function requireRole(allowedRoles: number[]) {
+  const session = await getServerSession(authOptions);
+  const userRole = Number((session?.user as any)?.role) || 0;
+
+  if (!session) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
+  if (!allowedRoles.includes(userRole)) {
+    return NextResponse.json(
+      {
+        error:
+          allowedRoles === WRITE_ALLOWED_ROLES
+            ? "View-only access. Only admin and dean can modify curriculum."
+            : "Unauthorized to access curriculum.",
+      },
+      { status: 403 },
+    );
+  }
+
+  return null;
+}
 
 export async function POST(request: NextRequest) {
   try {
+    const unauthorized = await requireRole(WRITE_ALLOWED_ROLES);
+    if (unauthorized) return unauthorized;
+
     const data = await request.json();
     const { id, courses, ...curriculumData } = data;
 
@@ -46,6 +83,9 @@ export async function POST(request: NextRequest) {
 }
 export async function GET() {
   try {
+    const unauthorized = await requireRole(READ_ALLOWED_ROLES);
+    if (unauthorized) return unauthorized;
+
     const curriculums = await prisma.curriculum.findMany({
       include: {
         curriculum_course: true,
@@ -90,6 +130,9 @@ export async function GET() {
 }
 export async function PATCH(nextRequest: NextRequest) {
   try {
+    const unauthorized = await requireRole(WRITE_ALLOWED_ROLES);
+    if (unauthorized) return unauthorized;
+
     const data = await nextRequest.json();
     const { id, courses, ...updateData } = data;
 

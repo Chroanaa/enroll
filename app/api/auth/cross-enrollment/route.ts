@@ -4,6 +4,10 @@ import { authOptions } from "../[...nextauth]/authOptions";
 import { prisma } from "../../../lib/prisma";
 import { recalculateAssessmentForTerm } from "../../../lib/recalculateAssessment";
 import { getAcademicTerm } from "../../../utils/academicTermUtils";
+import {
+  ensureDeanStudentAccess,
+  getSessionScope,
+} from "@/app/lib/accessScope";
 
 const ROLES = {
   ADMIN: 1,
@@ -103,12 +107,22 @@ async function resolveProgramId(courseProgram: string | null | undefined) {
 
 export async function GET(request: NextRequest) {
   try {
-    const session = await getServerSession(authOptions);
-    const userRole = Number((session?.user as any)?.role) || 0;
-    const roleContext = await getRoleContext(userRole);
+    const scope = await getSessionScope();
+    const roleContext = await getRoleContext(scope?.roleId || 0);
+
+    if (!scope) {
+      return NextResponse.json({ error: "Unauthorized." }, { status: 401 });
+    }
 
     if (!canSubmitCrossEnrollment(roleContext)) {
       return NextResponse.json({ error: "Unauthorized." }, { status: 403 });
+    }
+
+    if (scope.isDean && !scope.deanDepartmentId) {
+      return NextResponse.json(
+        { error: "Dean account is not linked to a department." },
+        { status: 403 },
+      );
     }
 
     const searchParams = request.nextUrl.searchParams;
@@ -176,7 +190,7 @@ export async function GET(request: NextRequest) {
       LEFT JOIN program home_program ON home_program.id = cer.home_program_id
       LEFT JOIN program host_program ON host_program.id = cer.host_program_id
       LEFT JOIN LATERAL (
-        SELECT e.first_name, e.middle_name, e.family_name
+        SELECT e.first_name, e.middle_name, e.family_name, e.department
         FROM enrollment e
         WHERE e.student_number = cer.student_number
           AND e.academic_year = cer.academic_year
@@ -192,6 +206,7 @@ export async function GET(request: NextRequest) {
         AND cer.semester = ${semesterNum}
         AND (${studentNumber}::text IS NULL OR cer.student_number = ${studentNumber})
         AND (${status}::text = 'all' OR cer.status = ${status})
+        AND (${scope.isDean ? scope.deanDepartmentId : null}::int IS NULL OR enr.department = ${scope.deanDepartmentId})
       ORDER BY cer.requested_at DESC NULLS LAST, cer.id DESC
     `;
 
@@ -238,19 +253,33 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   try {
     const session = await getServerSession(authOptions);
+    const scope = await getSessionScope();
     const userRole = Number((session?.user as any)?.role) || 0;
     const userId = Number((session?.user as any)?.id) || null;
     const roleContext = await getRoleContext(userRole);
 
+    if (!scope) {
+      return NextResponse.json({ error: "Unauthorized." }, { status: 401 });
+    }
+
     if (!canSubmitCrossEnrollment(roleContext)) {
       return NextResponse.json({ error: "Unauthorized." }, { status: 403 });
+    }
+
+    if (scope.isDean && !scope.deanDepartmentId) {
+      return NextResponse.json(
+        { error: "Dean account is not linked to a department." },
+        { status: 403 },
+      );
     }
 
     const body = await request.json();
     const studentNumber = String(body?.studentNumber || "").trim();
     const hostProgramId = Number(body?.hostProgramId);
     const hostMajorId =
-      body?.hostMajorId === null || body?.hostMajorId === undefined || body?.hostMajorId === ""
+      body?.hostMajorId === null ||
+      body?.hostMajorId === undefined ||
+      body?.hostMajorId === ""
         ? null
         : Number(body.hostMajorId);
     const curriculumCourseId = Number(body?.curriculumCourseId);
@@ -304,6 +333,15 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    const access = await ensureDeanStudentAccess(scope, {
+      studentNumber,
+      academicYear,
+      semester,
+    });
+    if (!access.ok) {
+      return NextResponse.json({ error: access });
+    }
+
     const enrollment = await prisma.enrollment.findFirst({
       where: { student_number: studentNumber },
       orderBy: { id: "desc" },
@@ -311,6 +349,7 @@ export async function POST(request: NextRequest) {
         student_number: true,
         course_program: true,
         major_id: true,
+        department: true,
       },
     });
 
@@ -396,7 +435,9 @@ export async function POST(request: NextRequest) {
 
     if (existingEnrolled.length > 0) {
       return NextResponse.json(
-        { error: "This subject is already in the student's enrolled subjects." },
+        {
+          error: "This subject is already in the student's enrolled subjects.",
+        },
         { status: 409 },
       );
     }
@@ -414,7 +455,10 @@ export async function POST(request: NextRequest) {
 
     if (existingPending.length > 0) {
       return NextResponse.json(
-        { error: "A pending cross-enrollee request already exists for this subject." },
+        {
+          error:
+            "A pending cross-enrollee request already exists for this subject.",
+        },
         { status: 409 },
       );
     }

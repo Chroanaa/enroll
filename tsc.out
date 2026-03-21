@@ -1,0 +1,44 @@
+app/api/auth/assessment/all-summaries/route.ts(134,13): error TS2353: Object literal may only specify known properties, and 'verification_status' does not exist in type 'enrollmentWhereInput'.
+app/api/auth/enroll/[id]/verify/route.ts(65,9): error TS2353: Object literal may only specify known properties, and 'verification_status' does not exist in type 'enrollmentSelect<DefaultArgs>'.
+app/api/auth/enroll/[id]/verify/route.ts(80,9): error TS2353: Object literal may only specify known properties, and 'verification_status' does not exist in type '(Without<enrollmentUpdateInput, enrollmentUncheckedUpdateInput> & enrollmentUncheckedUpdateInput) | (Without<...> & enrollmentUpdateInput)'.
+app/api/auth/enroll/[id]/verify/route.ts(93,85): error TS2339: Property 'verification_status' does not exist on type '{ id: number; status: number; year_level: number; admission_date: Date; admission_status: string; term: string; department: number; course_program: string; major_id: number; photo: string; ... 20 more ...; academic_status: string; }'.
+app/api/auth/enroll/route.ts(256,9): error TS2353: Object literal may only specify known properties, and 'verification_status' does not exist in type '(Without<enrollmentCreateInput, enrollmentUncheckedCreateInput> & enrollmentUncheckedCreateInput) | (Without<...> & enrollmentCreateInput)'.
+app/api/auth/enroll/route.ts(314,43): error TS2339: Property 'verified_by' does not exist on type '{ id: number; status: number; year_level: number; admission_date: Date; admission_status: string; term: string; department: number; course_program: string; major_id: number; photo: string; ... 20 more ...; academic_status: string; }'.
+app/api/auth/enroll/route.ts(360,22): error TS2339: Property 'verified_by' does not exist on type '{ id: number; status: number; year_level: number; admission_date: Date; admission_status: string; term: string; department: number; course_program: string; major_id: number; photo: string; ... 20 more ...; academic_status: string; }'.
+app/api/auth/enroll/route.ts(360,57): error TS2339: Property 'verified_by' does not exist on type '{ id: number; status: number; year_level: number; admission_date: Date; admission_status: string; term: string; department: number; course_program: string; major_id: number; photo: string; ... 20 more ...; academic_status: string; }'.
+app/api/auth/enroll/route.ts(361,44): error TS2339: Property 'verified_by' does not exist on type '{ id: number; status: number; year_level: number; admission_date: Date; admission_status: string; term: string; department: number; course_program: string; major_id: number; photo: string; ... 20 more ...; academic_status: string; }'.
+app/components/enrollmentManagement/EnrollmentVerificationModal.tsx(690,13): error TS2322: Type '(refreshList?: boolean) => Promise<boolean>' is not assignable to type 'MouseEventHandler<HTMLButtonElement>'.
+  Types of parameters 'refreshList' and 'event' are incompatible.
+    Type 'MouseEvent<HTMLButtonElement, MouseEvent>' is not assignable to type 'boolean'.
+app/utils/__tests__/sectionNameGenerator.test.ts(3,1): error TS2582: Cannot find name 'describe'. Do you need to install type definitions for a test runner? Try `npm i --save-dev @types/jest` or `npm i --save-dev @types/mocha`.
+app/utils/__tests__/sectionNameGenerator.test.ts(4,3): error TS2582: Cannot find name 'describe'. Do you need to install type definitions for a test runner? Try `npm i --save-dev @types/jest` or `npm i --save-dev @types/mocha`.
+app/utils/__tests__/sectionNameGenerator.test.ts(5,5): error TS2582: Cannot find name 'it'. Do you need to install type definitions for a test runner? Try `npm i --save-dev @types/jest` or `npm i --save-dev @types/mocha`.
+app/utils/__tests__/sectionNameGenerator.test.ts(7,7): error TS2304: Cannot find name 'expect'.
+app/utils/__tests__/sectionNameGenerator.test.ts(10,5): error TS2582: Cannot find name 'it'. Do you need to install type definitions for a test runner? Try `npm i --save-dev @types/jest` or `npm i --save-dev @types/mocha`.
+app/utils/__tests__/sectionNameGenerator.test.ts(12,7): error TS2304: Cannot find name 'expect'.
+app/utils/__tests__/sectionNameGenerator.test.ts(15,5): error TS2582: Cannot find name 'it'. Do you need to install type definitions for a test runner? Try `npm i --save-dev @types/jest` or `npm i --save-dev @types/mocha`.
+app/utils/__tests__/sectionNameGenerator.test.ts(21,7): error TS2304: Cannot find name 'expect'.
+app/utils/__tests__/sectionNameGenerator.test.ts(22,7): error TS2304: Cannot find name 'expect'.
+app/utils/__tests__/sectionNameGenerator.test.ts(23,7): error TS2304: Cannot find name 'expect'.
+app/utils/__tests__/sectionNameGenerator.test.ts(24,7): error TS2304: Cannot find name 'expect'.
+app/utils/__tests__/sectionNameGenerator.test.ts(27,5): error TS2582: Cannot find name 'it'. Do you need to install type definitions for a test runner? Try `npm i --save-dev @types/jest` or `npm i --save-dev @types/mocha`.
+app/utils/__tests__/sectionNameGenerator.test.ts(32,7): error TS2304: Cannot find name 'expect'.
+app/utils/__tests__/sectionNameGenerator.test.ts(33,7): error TS2304: Cannot find name 'expect'.
+app/utils/__tests__/sectionNameGenerator.test.ts(34,7): error TS2304: Cannot find name 'expect'.
+app/utils/__tests__/sectionNameGenerator.test.ts(38,3): error TS2582: Cannot find name 'describe'. Do you need to install type definitions for a test runner? Try `npm i --save-dev @types/jest` or `npm i --save-dev @types/mocha`.
+app/utils/__tests__/sectionNameGenerator.test.ts(39,5): error TS2582: Cannot find name 'it'. Do you need to install type definitions for a test runner? Try `npm i --save-dev @types/jest` or `npm i --save-dev @types/mocha`.
+app/utils/__tests__/sectionNameGenerator.test.ts(41,7): error TS2304: Cannot find name 'expect'.
+app/utils/__tests__/sectionNameGenerator.test.ts(44,5): error TS2582: Cannot find name 'it'. Do you need to install type definitions for a test runner? Try `npm i --save-dev @types/jest` or `npm i --save-dev @types/mocha`.
+app/utils/__tests__/sectionNameGenerator.test.ts(47,7): error TS2304: Cannot find name 'expect'.
+app/utils/__tests__/sectionNameGenerator.test.ts(50,5): error TS2582: Cannot find name 'it'. Do you need to install type definitions for a test runner? Try `npm i --save-dev @types/jest` or `npm i --save-dev @types/mocha`.
+app/utils/__tests__/sectionNameGenerator.test.ts(52,7): error TS2304: Cannot find name 'expect'.
+app/utils/__tests__/sectionNameGenerator.test.ts(55,5): error TS2582: Cannot find name 'it'. Do you need to install type definitions for a test runner? Try `npm i --save-dev @types/jest` or `npm i --save-dev @types/mocha`.
+app/utils/__tests__/sectionNameGenerator.test.ts(58,7): error TS2304: Cannot find name 'expect'.
+app/utils/__tests__/sectionNameGenerator.test.ts(61,5): error TS2582: Cannot find name 'it'. Do you need to install type definitions for a test runner? Try `npm i --save-dev @types/jest` or `npm i --save-dev @types/mocha`.
+app/utils/__tests__/sectionNameGenerator.test.ts(64,7): error TS2304: Cannot find name 'expect'.
+app/utils/__tests__/sectionNameGenerator.test.ts(67,5): error TS2582: Cannot find name 'it'. Do you need to install type definitions for a test runner? Try `npm i --save-dev @types/jest` or `npm i --save-dev @types/mocha`.
+app/utils/__tests__/sectionNameGenerator.test.ts(73,7): error TS2304: Cannot find name 'expect'.
+app/utils/__tests__/sectionNameGenerator.test.ts(74,7): error TS2304: Cannot find name 'expect'.
+app/utils/__tests__/sectionNameGenerator.test.ts(77,5): error TS2582: Cannot find name 'it'. Do you need to install type definitions for a test runner? Try `npm i --save-dev @types/jest` or `npm i --save-dev @types/mocha`.
+app/utils/__tests__/sectionNameGenerator.test.ts(83,7): error TS2304: Cannot find name 'expect'.
+app/utils/__tests__/sectionNameGenerator.test.ts(84,7): error TS2304: Cannot find name 'expect'.

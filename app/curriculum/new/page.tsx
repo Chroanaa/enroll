@@ -1,14 +1,27 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
+import { useSession } from "next-auth/react";
 import ProtectedRoute from "@/app/components/ProtectedRoute";
 import Navigation from "@/app/components/Navigation";
 import AddCurriculumPage from "@/app/components/curriculum/AddCurriculumPage";
+import { ROLES } from "@/app/lib/rbac";
 
 export default function NewCurriculumPage() {
   const router = useRouter();
+  const { data: session, status } = useSession();
   const [currentView, setCurrentView] = useState("curriculum");
+  const userRole = Number((session?.user as any)?.role) || 0;
+  const canManageCurriculum =
+    userRole === ROLES.ADMIN || userRole === ROLES.DEAN;
+
+  useEffect(() => {
+    if (status === "loading") return;
+    if (!canManageCurriculum) {
+      router.replace("/dashboard?view=curriculum");
+    }
+  }, [canManageCurriculum, router, status]);
 
   const handleViewChange = (view: string) => {
     setCurrentView(view);
@@ -52,12 +65,14 @@ export default function NewCurriculumPage() {
 
   return (
     <ProtectedRoute>
-      <div className="flex h-screen bg-gray-50">
-        <Navigation currentView={currentView} onViewChange={handleViewChange} />
-        <main className="flex-1 overflow-auto">
-          <AddCurriculumPage onSave={handleSave} onCancel={handleCancel} />
-        </main>
-      </div>
+      {canManageCurriculum ? (
+        <div className="flex h-screen bg-gray-50">
+          <Navigation currentView={currentView} onViewChange={handleViewChange} />
+          <main className="flex-1 overflow-auto">
+            <AddCurriculumPage onSave={handleSave} onCancel={handleCancel} />
+          </main>
+        </div>
+      ) : null}
     </ProtectedRoute>
   );
 }

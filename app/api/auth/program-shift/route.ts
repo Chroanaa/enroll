@@ -3,6 +3,11 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "../[...nextauth]/authOptions";
 import { prisma } from "../../../lib/prisma";
 import { getAcademicTerm } from "../../../utils/academicTermUtils";
+import {
+  ensureDeanStudentAccess,
+  getSessionScope,
+} from "@/app/lib/accessScope";
+import { accessSync } from "fs";
 
 const ROLES = {
   ADMIN: 1,
@@ -78,7 +83,9 @@ async function getRoleContext(roleId: number): Promise<RoleContext> {
     select: { role: true },
   });
 
-  const roleName = String(roleRow?.role || "").trim().toLowerCase();
+  const roleName = String(roleRow?.role || "")
+    .trim()
+    .toLowerCase();
 
   return {
     roleId,
@@ -108,7 +115,9 @@ function normalizeSemesterValue(semester: string | number): number | null {
     return semester >= 1 && semester <= 3 ? semester : null;
   }
 
-  const normalized = String(semester || "").trim().toLowerCase();
+  const normalized = String(semester || "")
+    .trim()
+    .toLowerCase();
   if (
     normalized === "1" ||
     normalized === "first" ||
@@ -152,7 +161,10 @@ function getSemesterStartDate(
   if (academicYearStart === null) return null;
 
   if (semester === 1) {
-    const startMonth = Number.parseInt(settingsMap.semester_start_month || "8", 10);
+    const startMonth = Number.parseInt(
+      settingsMap.semester_start_month || "8",
+      10,
+    );
     const startDay = Number.parseInt(settingsMap.semester_start_day || "1", 10);
     return new Date(academicYearStart, startMonth - 1, startDay);
   }
@@ -183,7 +195,8 @@ function getSemesterStartDate(
 function getSemesterAliases(semester: number): string[] {
   if (semester === 1) return ["first", "first semester", "1", "1st semester"];
   if (semester === 2) return ["second", "second semester", "2", "2nd semester"];
-  if (semester === 3) return ["third", "third semester", "3", "3rd semester", "summer"];
+  if (semester === 3)
+    return ["third", "third semester", "3", "3rd semester", "summer"];
   return [];
 }
 
@@ -220,6 +233,7 @@ type EnrollmentRow = {
   id: number;
   course_program: string | null;
   major_id: number | null;
+  department: number | null;
 };
 
 async function getEnrollmentRowForTerm(args: {
@@ -230,7 +244,7 @@ async function getEnrollmentRowForTerm(args: {
   const { studentNumber, academicYear, semester } = args;
   const aliases = getSemesterAliases(semester);
   const rows = await prisma.$queryRaw<EnrollmentRow[]>`
-    SELECT id, course_program, major_id
+    SELECT id, course_program, major_id, department
     FROM enrollment
     WHERE student_number = ${studentNumber}
       AND academic_year = ${academicYear}
@@ -251,21 +265,25 @@ async function getEnrollmentRowForTerm(args: {
       id: true,
       course_program: true,
       major_id: true,
+      department: true,
     },
   });
   return fallback;
 }
 
-async function executeApprovedProgramShift(tx: any, args: {
-  studentNumber: string;
-  academicYear: string;
-  semester: number;
-  toProgramId: number;
-  toMajorId: number | null;
-  approvedBy: number | null;
-  reason: string | null;
-  requestId: number | null;
-}) {
+async function executeApprovedProgramShift(
+  tx: any,
+  args: {
+    studentNumber: string;
+    academicYear: string;
+    semester: number;
+    toProgramId: number;
+    toMajorId: number | null;
+    approvedBy: number | null;
+    reason: string | null;
+    requestId: number | null;
+  },
+) {
   const {
     studentNumber,
     academicYear,
@@ -296,7 +314,9 @@ async function executeApprovedProgramShift(tx: any, args: {
   }
 
   const semesterAliases = getSemesterAliases(semester);
-  const assignmentRows = await tx.$queryRaw<{ id: number; section_id: number }[]>`
+  const assignmentRows = await tx.$queryRaw<
+    { id: number; section_id: number }[]
+  >`
     SELECT id, section_id
     FROM student_section
     WHERE student_number = ${studentNumber}
@@ -423,12 +443,22 @@ async function executeApprovedProgramShift(tx: any, args: {
 
 export async function GET(request: NextRequest) {
   try {
-    const session = await getServerSession(authOptions);
-    const userRole = Number((session?.user as any)?.role) || 0;
-    const roleContext = await getRoleContext(userRole);
+    const scope = await getSessionScope();
+    const roleContext = await getRoleContext(scope?.roleId || 0);
+
+    if (!scope) {
+      return NextResponse.json({ error: "Unauthorized." }, { status: 401 });
+    }
 
     if (!canSubmitProgramShift(roleContext)) {
       return NextResponse.json({ error: "Unauthorized." }, { status: 403 });
+    }
+
+    if (scope.isDean && !scope.deanDepartmentId) {
+      return NextResponse.json(
+        { error: "Dean account is not linked to a department." },
+        { status: 403 },
+      );
     }
 
     await ensureProgramShiftRequestsTable();
@@ -476,7 +506,7 @@ export async function GET(request: NextRequest) {
       LEFT JOIN major from_major ON from_major.id = psr.from_major_id
       LEFT JOIN major to_major ON to_major.id = psr.to_major_id
       LEFT JOIN LATERAL (
-        SELECT e.first_name, e.middle_name, e.family_name
+        SELECT e.first_name, e.middle_name, e.family_name, e.department
         FROM enrollment e
         WHERE e.student_number = psr.student_number
         ORDER BY e.id DESC
@@ -486,6 +516,7 @@ export async function GET(request: NextRequest) {
         AND (${academicYear}::text IS NULL OR psr.academic_year = ${academicYear})
         AND (${semester}::int IS NULL OR psr.semester = ${semester})
         AND (${status}::text = 'all' OR psr.status = ${status})
+        AND (${scope.isDean ? scope.deanDepartmentId : null}::int IS NULL OR enr.department = ${scope.deanDepartmentId})
       ORDER BY psr.requested_at DESC NULLS LAST, psr.id DESC
     `;
 
@@ -534,13 +565,25 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   try {
     const session = await getServerSession(authOptions);
+    const scope = await getSessionScope();
     const userRole = Number((session?.user as any)?.role) || 0;
     const userId = Number((session?.user as any)?.id) || null;
     const userName = String((session?.user as any)?.name || "").trim() || null;
     const roleContext = await getRoleContext(userRole);
 
+    if (!scope) {
+      return NextResponse.json({ error: "Unauthorized." }, { status: 401 });
+    }
+
     if (!canSubmitProgramShift(roleContext)) {
       return NextResponse.json({ error: "Unauthorized." }, { status: 403 });
+    }
+
+    if (scope.isDean && !scope.deanDepartmentId) {
+      return NextResponse.json(
+        { error: "Dean account is not linked to a department." },
+        { status: 403 },
+      );
     }
 
     await ensureProgramShiftRequestsTable();
@@ -551,7 +594,9 @@ export async function POST(request: NextRequest) {
     const semester = normalizeSemesterValue(body?.semester);
     const toProgramId = Number(body?.toProgramId);
     const toMajorId =
-      body?.toMajorId === null || body?.toMajorId === undefined || body?.toMajorId === ""
+      body?.toMajorId === null ||
+      body?.toMajorId === undefined ||
+      body?.toMajorId === ""
         ? null
         : Number(body?.toMajorId);
     const reason = String(body?.reason || "").trim();
@@ -580,12 +625,22 @@ export async function POST(request: NextRequest) {
 
     const targetProgram = await prisma.program.findUnique({
       where: { id: toProgramId },
-      select: { id: true, code: true, name: true },
+      select: { id: true, code: true, name: true, department_id: true },
     });
     if (!targetProgram) {
       return NextResponse.json(
         { error: "Selected target program was not found." },
         { status: 404 },
+      );
+    }
+
+    if (
+      scope.isDean &&
+      targetProgram.department_id !== scope.deanDepartmentId
+    ) {
+      return NextResponse.json(
+        { error: "Target program is outside your department scope." },
+        { status: 403 },
       );
     }
 
@@ -604,12 +659,31 @@ export async function POST(request: NextRequest) {
 
     const currentTerm = await getServerCurrentTerm();
     const currentSemesterNum =
-      currentTerm.semester === "First" ? 1 : currentTerm.semester === "Second" ? 2 : 3;
-    if (academicYear !== currentTerm.academicYear || semester !== currentSemesterNum) {
+      currentTerm.semester === "First"
+        ? 1
+        : currentTerm.semester === "Second"
+          ? 2
+          : 3;
+    if (
+      academicYear !== currentTerm.academicYear ||
+      semester !== currentSemesterNum
+    ) {
       return NextResponse.json(
-        { error: "Program shifting can only be requested for the current academic term." },
+        {
+          error:
+            "Program shifting can only be requested for the current academic term.",
+        },
         { status: 403 },
       );
+    }
+
+    const access = await ensureDeanStudentAccess(scope, {
+      studentNumber,
+      academicYear,
+      semester,
+    });
+    if (!access.ok) {
+      return NextResponse.json({ error: access });
     }
 
     const settings = await prisma.settings.findMany({
@@ -646,7 +720,11 @@ export async function POST(request: NextRequest) {
     `;
     const serverNow = new Date(serverTimeResult[0]?.now || new Date());
 
-    const termStartDate = getSemesterStartDate(academicYear, semester, settingsMap);
+    const termStartDate = getSemesterStartDate(
+      academicYear,
+      semester,
+      settingsMap,
+    );
     if (!termStartDate) {
       return NextResponse.json(
         { error: "Invalid academic year format for shift validation." },
@@ -708,7 +786,10 @@ export async function POST(request: NextRequest) {
     `;
     if (existingPending.length > 0) {
       return NextResponse.json(
-        { error: "A pending program shift request already exists for this student and term." },
+        {
+          error:
+            "A pending program shift request already exists for this student and term.",
+        },
         { status: 409 },
       );
     }
@@ -835,10 +916,18 @@ export async function POST(request: NextRequest) {
 export async function PATCH(request: NextRequest) {
   try {
     const session = await getServerSession(authOptions);
+    const scope = await getSessionScope();
     const userRole = Number((session?.user as any)?.role) || 0;
     const userId = Number((session?.user as any)?.id) || null;
     const userName = String((session?.user as any)?.name || "").trim() || null;
     const roleContext = await getRoleContext(userRole);
+
+    if (!scope) {
+      return NextResponse.json(
+        { error: "Unauthorized to manage program shift approvals." },
+        { status: 401 },
+      );
+    }
 
     if (!canManageProgramShiftApprovals(roleContext)) {
       return NextResponse.json(
@@ -851,13 +940,12 @@ export async function PATCH(request: NextRequest) {
 
     const body = await request.json();
     const requestId = Number(body?.id);
-    const action = String(body?.action || "approve").trim().toLowerCase();
+    const action = String(body?.action || "approve")
+      .trim()
+      .toLowerCase();
 
     if (!Number.isFinite(requestId)) {
-      return NextResponse.json(
-        { error: "id is required." },
-        { status: 400 },
-      );
+      return NextResponse.json({ error: "id is required." }, { status: 400 });
     }
     if (action !== "approve" && action !== "reject") {
       return NextResponse.json(
@@ -880,7 +968,19 @@ export async function PATCH(request: NextRequest) {
         { status: 404 },
       );
     }
-    if (String(shiftRequest.status || "").toLowerCase() !== "pending_approval") {
+
+    const access = await ensureDeanStudentAccess(scope, {
+      studentNumber: shiftRequest.student_number,
+      academicYear: shiftRequest.academic_year,
+      semester: Number(shiftRequest.semester),
+    });
+    if (!access.ok) {
+      return NextResponse.json({ error: access });
+    }
+
+    if (
+      String(shiftRequest.status || "").toLowerCase() !== "pending_approval"
+    ) {
       return NextResponse.json(
         { error: "This program shift request is no longer pending approval." },
         { status: 409 },
@@ -911,7 +1011,8 @@ export async function PATCH(request: NextRequest) {
         semester: Number(shiftRequest.semester),
         toProgramId: Number(shiftRequest.to_program_id),
         toMajorId:
-          shiftRequest.to_major_id === null || shiftRequest.to_major_id === undefined
+          shiftRequest.to_major_id === null ||
+          shiftRequest.to_major_id === undefined
             ? null
             : Number(shiftRequest.to_major_id),
         approvedBy: userId,

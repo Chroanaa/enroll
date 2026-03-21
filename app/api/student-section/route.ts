@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '../../lib/prisma';
+import { getSessionScope } from '@/app/lib/accessScope';
 import {
   capacityValidator,
   termValidator
@@ -253,6 +254,17 @@ export async function POST(request: NextRequest) {
  */
 export async function GET(request: NextRequest) {
   try {
+    const scope = await getSessionScope();
+    if (scope?.isDean && !scope.deanDepartmentId) {
+      return NextResponse.json(
+        {
+          error: 'FORBIDDEN',
+          message: 'Dean account is not linked to a department.',
+        } as ApiError,
+        { status: 403 }
+      );
+    }
+
     const { searchParams } = new URL(request.url);
     const sectionId = searchParams.get('sectionId');
     const academicYear = searchParams.get('academicYear');
@@ -271,10 +283,31 @@ export async function GET(request: NextRequest) {
     }
     if (studentNumber) where.student_number = studentNumber;
 
-    const assignments = await prisma.student_section.findMany({
+    let assignments = await prisma.student_section.findMany({
       where,
       orderBy: { student_number: 'asc' }
     });
+
+    if (scope?.isDean && scope.deanDepartmentId && assignments.length > 0) {
+      const allowedEnrollments = await prisma.enrollment.findMany({
+        where: {
+          student_number: { in: assignments.map((assignment) => assignment.student_number) },
+          department: scope.deanDepartmentId,
+        },
+        select: {
+          student_number: true,
+        },
+        distinct: ['student_number'],
+      });
+
+      const allowedStudentNumbers = new Set(
+        allowedEnrollments.map((enrollment) => enrollment.student_number).filter(Boolean)
+      );
+
+      assignments = assignments.filter((assignment) =>
+        allowedStudentNumbers.has(assignment.student_number)
+      );
+    }
 
     // Get student details from enrollment table
     const studentNumbers = assignments.map(a => a.student_number);

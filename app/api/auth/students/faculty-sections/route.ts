@@ -221,6 +221,8 @@ export async function GET() {
           section_id: { in: sectionIds },
         },
         select: {
+          id: true,
+          faculty_id: true,
           section_id: true,
           curriculum_course_id: true,
         },
@@ -232,6 +234,7 @@ export async function GET() {
         assignments.map((item) => item.student_number).filter(Boolean),
       ),
     ];
+    const assignmentIds = assignments.map((item) => item.id);
 
     const enrollmentRows =
       studentNumbers.length > 0
@@ -280,9 +283,150 @@ export async function GET() {
           .filter((id) => Number.isFinite(id)),
       ),
     ];
+    const scheduleIds = [
+      ...new Set(
+        facultySchedules
+          .map((row) => Number(row.id))
+          .filter((id) => Number.isFinite(id)),
+      ),
+    ];
     const allAcademicYears = [
       ...new Set(assignments.map((row) => row.academic_year).filter(Boolean)),
     ];
+
+    const [curriculumCourseRows, studentSubjectAssignments] = await Promise.all(
+      [
+        allCurriculumCourseIds.length > 0
+          ? prisma.curriculum_course.findMany({
+              where: { id: { in: allCurriculumCourseIds } },
+              select: {
+                id: true,
+                course_code: true,
+                descriptive_title: true,
+              },
+            })
+          : [],
+        assignmentIds.length > 0 && scheduleIds.length > 0
+          ? prisma.student_section_subjects.findMany({
+              where: {
+                student_section_id: { in: assignmentIds },
+                class_schedule_id: { in: scheduleIds },
+              },
+              select: {
+                student_section_id: true,
+                class_schedule_id: true,
+              },
+            })
+          : [],
+      ],
+    );
+
+    const curriculumCourseMap = new Map<
+      number,
+      {
+        id: number;
+        course_code: string | null;
+        descriptive_title: string;
+      }
+    >();
+    for (const row of curriculumCourseRows) {
+      curriculumCourseMap.set(row.id, row);
+    }
+    const scheduleKeyById = new Map<number, string>();
+    const scheduleSubjectById = new Map<
+      number,
+      {
+        curriculumCourseId: number;
+        courseCode: string;
+        descriptiveTitle: string;
+      }
+    >();
+
+    for (const schedule of facultySchedules) {
+      const scheduleId = Number(schedule.id);
+      const facultyId = Number(schedule.faculty_id);
+      const sectionId = Number(schedule.section_id);
+      const curriculumCourseId = Number(schedule.curriculum_course_id);
+
+      if (
+        !Number.isFinite(scheduleId) ||
+        !Number.isFinite(facultyId) ||
+        !Number.isFinite(sectionId) ||
+        !Number.isFinite(curriculumCourseId)
+      ) {
+        continue;
+      }
+
+      const curriculumCourse = curriculumCourseMap.get(curriculumCourseId);
+      scheduleKeyById.set(scheduleId, `${facultyId}|${sectionId}`);
+      scheduleSubjectById.set(scheduleId, {
+        curriculumCourseId,
+        courseCode:
+          curriculumCourse?.course_code || `Course ${curriculumCourseId}`,
+        descriptiveTitle: curriculumCourse?.descriptive_title || "",
+      });
+    }
+
+    const studentSubjectsByFacultySection = new Map<
+      string,
+      Map<
+        number,
+        Map<
+          number,
+          {
+            curriculumCourseId: number;
+            courseCode: string;
+            descriptiveTitle: string;
+          }
+        >
+      >
+    >();
+
+    for (const row of studentSubjectAssignments) {
+      const assignmentId = Number(row.student_section_id);
+      const scheduleId = Number(row.class_schedule_id);
+      const facultySectionKey = scheduleKeyById.get(scheduleId);
+      const subject = scheduleSubjectById.get(scheduleId);
+
+      if (
+        !Number.isFinite(assignmentId) ||
+        !facultySectionKey ||
+        !subject
+      ) {
+        continue;
+      }
+
+      const studentsForFacultySection =
+        studentSubjectsByFacultySection.get(facultySectionKey) ||
+        new Map<
+          number,
+          Map<
+            number,
+            {
+              curriculumCourseId: number;
+              courseCode: string;
+              descriptiveTitle: string;
+            }
+          >
+        >();
+      const subjectsForStudent =
+        studentsForFacultySection.get(assignmentId) ||
+        new Map<
+          number,
+          {
+            curriculumCourseId: number;
+            courseCode: string;
+            descriptiveTitle: string;
+          }
+        >();
+
+      subjectsForStudent.set(subject.curriculumCourseId, subject);
+      studentsForFacultySection.set(assignmentId, subjectsForStudent);
+      studentSubjectsByFacultySection.set(
+        facultySectionKey,
+        studentsForFacultySection,
+      );
+    }
 
     const dropHistoryRows =
       studentNumbers.length > 0 &&
@@ -417,11 +561,41 @@ export async function GET() {
         continue;
       }
 
+      const facultySectionKey = `${row.faculty_id}|${row.section_id}`;
+      const subjectsByStudent =
+        studentSubjectsByFacultySection.get(facultySectionKey);
+      const sectionStudents = (studentsBySection.get(row.section_id) || []).map(
+        (student) => {
+          const assignedSubjects = subjectsByStudent?.get(student.assignmentId);
+          const subjects = assignedSubjects
+            ? Array.from(assignedSubjects.values()).sort(
+                (left, right) =>
+                  left.courseCode.localeCompare(right.courseCode, undefined, {
+                    numeric: true,
+                    sensitivity: "base",
+                  }) ||
+                  left.descriptiveTitle.localeCompare(
+                    right.descriptiveTitle,
+                    undefined,
+                    {
+                      sensitivity: "base",
+                    },
+                  ),
+              )
+            : [];
+
+          return {
+            ...student,
+            subjects,
+          };
+        },
+      );
+
       const facultySections = sectionsByFaculty.get(row.faculty_id) || [];
       facultySections.push({
         ...baseSection,
         classScheduleCount: row._count.id,
-        students: studentsBySection.get(row.section_id) || [],
+        students: sectionStudents,
       });
       sectionsByFaculty.set(row.faculty_id, facultySections);
     }

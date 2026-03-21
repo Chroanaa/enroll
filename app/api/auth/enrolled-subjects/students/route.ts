@@ -1,5 +1,16 @@
 import { NextRequest, NextResponse } from "next/server";
+import { Prisma } from "@prisma/client";
 import { prisma } from "../../../../lib/prisma";
+import { getSessionScope, isRoleAllowed } from "@/app/lib/accessScope";
+import { ROLES } from "@/app/lib/rbac";
+
+const ENROLLED_SUBJECT_STUDENTS_ALLOWED_ROLES = [
+  ROLES.ADMIN,
+  ROLES.REGISTRAR,
+  ROLES.FACULTY,
+  ROLES.DEAN,
+  ROLES.CASHIER,
+];
 
 function getSemesterAliases(semester: number): string[] {
   if (semester === 1) return ["first", "first semester", "1", "1st semester"];
@@ -10,6 +21,22 @@ function getSemesterAliases(semester: number): string[] {
 
 export async function GET(request: NextRequest) {
   try {
+    const scope = await getSessionScope();
+    if (!scope) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
+    if (!isRoleAllowed(scope.roleId, ENROLLED_SUBJECT_STUDENTS_ALLOWED_ROLES)) {
+      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    }
+
+    if (scope.isDean && !scope.deanDepartmentId) {
+      return NextResponse.json(
+        { error: "Dean account is not linked to a department." },
+        { status: 403 },
+      );
+    }
+
     const searchParams = request.nextUrl.searchParams;
     const academicYear = searchParams.get("academicYear");
     const semester = searchParams.get("semester");
@@ -64,20 +91,45 @@ export async function GET(request: NextRequest) {
       ORDER BY no_section_subject_count DESC, es.student_number ASC
     `;
 
-    const filteredRows = noSectionOnly
+    let filteredRows = noSectionOnly
       ? rows.filter((row) => Number(row.no_section_subject_count || 0) > 0)
       : rows;
 
-    const studentNumbers = filteredRows.map((row) => row.student_number).filter(Boolean);
+    const studentNumbers = filteredRows
+      .map((row) => row.student_number)
+      .filter(Boolean);
+
+    if (scope.isDean && scope.deanDepartmentId && studentNumbers.length > 0) {
+      const scopedStudentRows = await prisma.$queryRaw<{ student_number: string }[]>`
+        SELECT DISTINCT student_number
+        FROM enrollment
+        WHERE student_number IN (${Prisma.join(studentNumbers)})
+          AND academic_year = ${academicYear}
+          AND department = ${scope.deanDepartmentId}
+          AND LOWER(COALESCE(term, '')) IN (${Prisma.join(semesterAliases)})
+      `;
+
+      const allowedStudentNumbers = new Set(
+        scopedStudentRows.map((row) => row.student_number),
+      );
+
+      filteredRows = filteredRows.filter((row) =>
+        allowedStudentNumbers.has(row.student_number),
+      );
+    }
+
+    const scopedStudentNumbers = filteredRows
+      .map((row) => row.student_number)
+      .filter(Boolean);
 
     if (!includeDetails) {
       return NextResponse.json({
         success: true,
-        data: studentNumbers,
+        data: scopedStudentNumbers,
       });
     }
 
-    if (studentNumbers.length === 0) {
+    if (scopedStudentNumbers.length === 0) {
       return NextResponse.json({
         success: true,
         data: [],
@@ -85,7 +137,7 @@ export async function GET(request: NextRequest) {
     }
 
     const enrollments = await prisma.enrollment.findMany({
-      where: { student_number: { in: studentNumbers } },
+      where: { student_number: { in: scopedStudentNumbers } },
       select: {
         student_number: true,
         first_name: true,

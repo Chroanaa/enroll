@@ -1,5 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/app/lib/prisma";
+import { getSessionScope, isRoleAllowed, type SessionScope } from "@/app/lib/accessScope";
+import { ROLES } from "@/app/lib/rbac";
+
+const ASSESSMENT_ALLOWED_ROLES = [ROLES.ADMIN, ROLES.CASHIER, ROLES.DEAN];
 
 /**
  * Convert semester value to integer (1 or 2)
@@ -31,9 +35,53 @@ function convertSemesterToInt(semester: string | number): number {
   throw new Error("Invalid semester. Must be 'First', 'Second', 1, or 2");
 }
 
+async function ensureAssessmentStudentAccess(
+  studentNumber: string,
+  scope: SessionScope,
+) {
+  if (!scope.isDean) {
+    return null;
+  }
+
+  if (!scope.deanDepartmentId) {
+    return NextResponse.json(
+      { error: "Dean account is not linked to a department." },
+      { status: 403 },
+    );
+  }
+
+  const enrollment = await prisma.enrollment.findFirst({
+    where: { student_number: studentNumber },
+    select: { department: true },
+    orderBy: { admission_date: "desc" },
+  });
+
+  if (!enrollment) {
+    return NextResponse.json({ error: "Student not found" }, { status: 404 });
+  }
+
+  if (enrollment.department !== scope.deanDepartmentId) {
+    return NextResponse.json(
+      { error: "Forbidden. Student is outside your department scope." },
+      { status: 403 },
+    );
+  }
+
+  return null;
+}
+
 // GET - Fetch assessment for a student and term
 export async function GET(request: NextRequest) {
   try {
+    const scope = await getSessionScope();
+    if (!scope) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
+    if (!isRoleAllowed(scope.roleId, ASSESSMENT_ALLOWED_ROLES)) {
+      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    }
+
     const { searchParams } = new URL(request.url);
     const studentNumber = searchParams.get("studentNumber");
     const academicYear = searchParams.get("academicYear");
@@ -45,6 +93,9 @@ export async function GET(request: NextRequest) {
         { status: 400 }
       );
     }
+
+    const unauthorized = await ensureAssessmentStudentAccess(studentNumber, scope);
+    if (unauthorized) return unauthorized;
 
     // Convert semester string ("First" or "Second") to integer (1 or 2)
     let semesterNum: number;
@@ -99,6 +150,15 @@ export async function GET(request: NextRequest) {
 // POST - Create or update assessment
 export async function POST(request: NextRequest) {
   try {
+    const scope = await getSessionScope();
+    if (!scope) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
+    if (!isRoleAllowed(scope.roleId, ASSESSMENT_ALLOWED_ROLES)) {
+      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    }
+
     const body = await request.json();
     const {
       studentNumber,
@@ -135,6 +195,9 @@ export async function POST(request: NextRequest) {
         { status: 400 }
       );
     }
+
+    const unauthorized = await ensureAssessmentStudentAccess(studentNumber, scope);
+    if (unauthorized) return unauthorized;
 
     // Convert semester to integer (1 or 2)
     let semesterNum: number;
