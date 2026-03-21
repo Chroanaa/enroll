@@ -1,5 +1,5 @@
 import React from "react";
-import { User, CheckCircle2, XCircle, Calendar, BookOpen, Eye, Edit, FileText } from "lucide-react";
+import { User, CheckCircle2, XCircle, Calendar, BookOpen, Eye, FileText } from "lucide-react";
 import { colors } from "../../colors";
 
 interface StudentAssessment {
@@ -220,28 +220,14 @@ const AssessmentStudentList: React.FC<AssessmentStudentListProps> = ({
                             onClick={() => onViewAssessment?.(student.student_number)}
                             className='inline-flex items-center gap-1 px-2 py-1 rounded-md text-[10px] font-medium transition-all border'
                             style={{
-                              backgroundColor: "#3b82f620",
-                              color: "#2563eb",
-                              borderColor: "#3b82f640",
+                              backgroundColor: `${colors.primary}20`,
+                              color: colors.primary,
+                              borderColor: `${colors.primary}40`,
                             }}
                             title='View Assessment'
                           >
                             <Eye className='w-3 h-3' />
                             View
-                          </button>
-                          {/* Edit Button */}
-                          <button
-                            onClick={() => onSelectStudent(student.student_number)}
-                            className='inline-flex items-center gap-1 px-2 py-1 rounded-md text-[10px] font-medium transition-all border'
-                            style={{
-                              backgroundColor: "#f59e0b20",
-                              color: "#d97706",
-                              borderColor: "#f59e0b40",
-                            }}
-                            title='Edit Assessment'
-                          >
-                            <Edit className='w-3 h-3' />
-                            Edit
                           </button>
                         </>
                       ) : (
