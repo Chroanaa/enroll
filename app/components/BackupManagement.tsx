@@ -38,15 +38,25 @@ interface BackupFileSummary {
 
 interface BackupDashboardData {
   storagePath: string;
+  storageMode: "filesystem" | "database";
   backups: BackupFileSummary[];
   settings: BackupSettings;
   tooling: {
     available: boolean;
     pgDumpAvailable: boolean;
     pgRestoreAvailable: boolean;
+    logicalBackupAvailable: boolean;
+    logicalRestoreAvailable: boolean;
+    mode: "native" | "logical";
+    storageMode: "filesystem" | "database";
     message: string;
   };
   nextRunAt: string | null;
+  scheduler: {
+    mode: "persistent-process" | "serverless-best-effort";
+    reliable: boolean;
+    message: string;
+  };
 }
 
 const dayOptions = [
@@ -348,7 +358,7 @@ const BackupManagement: React.FC = () => {
               </div>
             </div>
             <p className='text-sm' style={{ color: colors.neutralDark }}>
-              Backup storage directory:{" "}
+              Backup storage:{" "}
               <span className='font-semibold'>{dashboard?.storagePath}</span>
             </p>
           </div>
@@ -441,8 +451,8 @@ const BackupManagement: React.FC = () => {
                     Automatic Scheduled Backup
                   </h2>
                   <p className='text-sm mt-1' style={{ color: colors.neutral }}>
-                    Configure daily or weekly automatic backups while the server
-                    is running.
+                    Configure daily or weekly automatic backups for the current
+                    runtime.
                   </p>
                 </div>
                 <div
@@ -485,8 +495,9 @@ const BackupManagement: React.FC = () => {
                       className='block text-sm mt-1'
                       style={{ color: colors.neutral }}
                     >
-                      The scheduler checks every minute and runs the next due
-                      backup.
+                      {dashboard?.scheduler?.reliable
+                        ? "The scheduler checks every minute and runs the next due backup."
+                        : "In serverless production, a cron trigger is required for reliable scheduled backups."}
                     </span>
                   </span>
                 </label>
@@ -626,7 +637,8 @@ const BackupManagement: React.FC = () => {
                 />
                 <p className='mt-2 text-sm' style={{ color: colors.neutral }}>
                   Leave this blank if `pg_dump`, `pg_restore`, and `psql` are
-                  already available in PATH.
+                  already available in PATH. Built-in logical backups can still
+                  run when those tools are missing.
                 </p>
               </div>
 
@@ -685,6 +697,18 @@ const BackupManagement: React.FC = () => {
                     style={{ color: colors.neutralDark }}
                   >
                     <p>
+                      Mode:{" "}
+                      {dashboard?.tooling.mode === "logical"
+                        ? "Built-in logical backup"
+                        : "PostgreSQL native tools"}
+                    </p>
+                    <p>
+                      Storage:{" "}
+                      {dashboard?.tooling.storageMode === "database"
+                        ? "Database-backed"
+                        : "Filesystem"}
+                    </p>
+                    <p>
                       pg_dump:{" "}
                       {dashboard?.tooling.pgDumpAvailable
                         ? "Available"
@@ -695,6 +719,12 @@ const BackupManagement: React.FC = () => {
                       {dashboard?.tooling.pgRestoreAvailable
                         ? "Available"
                         : "Missing"}
+                    </p>
+                    <p>
+                      Built-in restore:{" "}
+                      {dashboard?.tooling.logicalRestoreAvailable
+                        ? "Available"
+                        : "Unavailable"}
                     </p>
                   </div>
                 </div>
@@ -714,6 +744,7 @@ const BackupManagement: React.FC = () => {
                   className='space-y-3 text-sm'
                   style={{ color: colors.neutralDark }}
                 >
+                  <p>{dashboard?.scheduler?.message}</p>
                   <p>
                     Last run:{" "}
                     <span className='font-semibold'>
@@ -749,7 +780,7 @@ const BackupManagement: React.FC = () => {
                 <div className='space-y-4'>
                   <input
                     type='file'
-                    accept='.dump,.backup,.sql'
+                    accept='.dump,.backup,.sql,.json'
                     onChange={(event) =>
                       setSelectedRestoreFile(event.target.files?.[0] ?? null)
                     }

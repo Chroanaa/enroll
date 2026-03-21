@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import path from "path";
 
 import { getBackupFileContent } from "@/app/lib/backup";
 
@@ -15,10 +16,14 @@ export async function GET(request: NextRequest) {
 
   try {
     const fileContent = await getBackupFileContent(fileName);
+    const extension = path.extname(fileName).toLowerCase();
+    const contentType =
+      extension === ".json" ? "application/json; charset=utf-8" : "application/octet-stream";
+
     return new NextResponse(fileContent, {
       status: 200,
       headers: {
-        "Content-Type": "application/octet-stream",
+        "Content-Type": contentType,
         "Content-Disposition": `attachment; filename="${encodeURIComponent(fileName)}"`,
       },
     });
