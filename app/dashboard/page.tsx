@@ -29,6 +29,7 @@ import CurriculumManagement from "../components/curriculum";
 import FileMaintenanceManagement from "../components/FileMaintenanceManagement";
 import Settings from "../components/Settings";
 import AccountManagement from "../components/AccountManagement";
+import BackupManagement from "../components/BackupManagement";
 import {
   Approval,
   Building,
@@ -105,6 +106,8 @@ function DashboardContent() {
         return <EnrollmentForm />;
       case "resident-enrollment":
         return <ResidentPortalContent />;
+      case "forecast":
+        return <ForecastingAnalytics />;
       case "forecast-billing":
         return <StudentForecastDashboard />;
       case "assessment":
@@ -173,6 +176,8 @@ function DashboardContent() {
         return <MiscellaneousFees />;
       case "account-management":
         return <AccountManagement />;
+      case "backups":
+        return <BackupManagement />;
       case "settings":
         return <Settings />;
       default:
