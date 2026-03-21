@@ -7,6 +7,15 @@ export const ROLES = {
 } as const;
 
 export type RoleId = (typeof ROLES)[keyof typeof ROLES];
+export type BillingTab = "products" | "enrollments" | "transactions";
+
+const PAYMENT_BILLING_ALLOWED_ROLES = [
+  ROLES.ADMIN,
+  ROLES.CASHIER,
+  ROLES.DEAN,
+];
+
+const BILLING_TABS: BillingTab[] = ["products", "enrollments", "transactions"];
 
 export const VIEW_ROLES: Record<string, number[]> = {
   home: [
@@ -42,7 +51,9 @@ export const VIEW_ROLES: Record<string, number[]> = {
   scheduling: [ROLES.ADMIN, ROLES.REGISTRAR, ROLES.FACULTY, ROLES.DEAN],
   "section-management": [ROLES.ADMIN, ROLES.REGISTRAR, ROLES.DEAN],
   "faculty-subject-management": [ROLES.ADMIN, ROLES.REGISTRAR, ROLES.DEAN],
-  "payment-billing": [ROLES.ADMIN, ROLES.CASHIER, ROLES.DEAN],
+  "payment-billing": PAYMENT_BILLING_ALLOWED_ROLES,
+  "student-payment-checkout": PAYMENT_BILLING_ALLOWED_ROLES,
+  "student-financial-detail": PAYMENT_BILLING_ALLOWED_ROLES,
   refund: [ROLES.ADMIN, ROLES.REGISTRAR, ROLES.CASHIER],
   curriculum: [ROLES.ADMIN, ROLES.REGISTRAR, ROLES.DEAN],
   "curriculum-program": [ROLES.ADMIN, ROLES.REGISTRAR, ROLES.DEAN],
@@ -68,6 +79,12 @@ export const VIEW_ROLES: Record<string, number[]> = {
   settings: [ROLES.ADMIN],
 };
 
+export const BILLING_TAB_ROLES: Record<BillingTab, number[]> = {
+  products: [ROLES.ADMIN, ROLES.CASHIER],
+  enrollments: PAYMENT_BILLING_ALLOWED_ROLES,
+  transactions: PAYMENT_BILLING_ALLOWED_ROLES,
+};
+
 export function isViewAllowed(view: string, role: number): boolean {
   const allowed = VIEW_ROLES[view];
   if (!allowed) {
@@ -75,4 +92,17 @@ export function isViewAllowed(view: string, role: number): boolean {
   }
 
   return allowed.includes(role);
+}
+
+export function isBillingTabAllowed(tab: BillingTab, role: number): boolean {
+  const allowed = BILLING_TAB_ROLES[tab];
+  return allowed.includes(role);
+}
+
+export function getAllowedBillingTabs(role: number): BillingTab[] {
+  return BILLING_TABS.filter((tab) => isBillingTabAllowed(tab, role));
+}
+
+export function getDefaultBillingTab(role: number): BillingTab | null {
+  return getAllowedBillingTabs(role)[0] ?? null;
 }
