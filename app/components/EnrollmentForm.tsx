@@ -95,7 +95,7 @@ const EnrollmentForm: React.FC = () => {
 
   return (
     <div
-      className='p-4 sm:p-6 min-h-screen'
+      className='p-3 sm:p-4 md:p-6 min-h-screen'
       style={{ backgroundColor: colors.paper }}
     >
       <style>{defaultFormStyles}</style>
@@ -104,7 +104,7 @@ const EnrollmentForm: React.FC = () => {
 
         <div className='max-w-7xl mx-auto'>
           <div
-            className='rounded-2xl shadow-2xl p-6'
+            className='rounded-2xl shadow-2xl p-4 sm:p-5 md:p-6'
             style={{
               backgroundColor: "white",
               border: `1px solid ${colors.accent}30`,

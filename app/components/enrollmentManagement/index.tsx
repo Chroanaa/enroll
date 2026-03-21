@@ -6,6 +6,7 @@ import {
   FileSpreadsheet,
   AlertCircle,
   Printer,
+  Loader2,
 } from "lucide-react";
 import { colors } from "../../colors";
 import { getEnrollments } from "@/app/utils/getEnrollments";
@@ -232,6 +233,8 @@ const EnrollmentManagement: React.FC = () => {
   const [isImportModalOpen, setIsImportModalOpen] = useState(false);
   const [isImporting, setIsImporting] = useState(false);
   const [isReportViewerOpen, setIsReportViewerOpen] = useState(false);
+  const [isReportLoading, setIsReportLoading] = useState(false);
+  const [reportEnrollments, setReportEnrollments] = useState<Enrollment[]>([]);
   const [selectedEnrollment, setSelectedEnrollment] = useState<Enrollment | null>(
     null
   );
@@ -348,6 +351,33 @@ const EnrollmentManagement: React.FC = () => {
     }
   };
 
+  const handleOpenReportViewer = async () => {
+    setIsReportLoading(true);
+    try {
+      const response = await fetch("/api/auth/enroll/report-bulk", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ verificationTab }),
+      });
+      const payload = await response.json();
+      if (!response.ok) {
+        throw new Error(payload?.message || "Failed to generate report data.");
+      }
+
+      const rows = Array.isArray(payload?.data) ? payload.data : [];
+      setReportEnrollments(rows as Enrollment[]);
+      setIsReportViewerOpen(true);
+    } catch (error: any) {
+      setErrorModal({
+        isOpen: true,
+        message: "Failed to generate report.",
+        details: error?.message || "Please try again.",
+      });
+    } finally {
+      setIsReportLoading(false);
+    }
+  };
+
   if (loading) {
     return (
       <div
@@ -383,11 +413,16 @@ const EnrollmentManagement: React.FC = () => {
           </div>
           <div className='flex gap-3'>
             <button
-              onClick={() => setIsReportViewerOpen(true)}
+              onClick={handleOpenReportViewer}
+              disabled={isReportLoading}
               className='flex items-center gap-2 px-5 py-3 text-white rounded-xl transition-all shadow-lg shadow-blue-900/20 hover:shadow-xl hover:scale-105 active:scale-95'
               style={{ backgroundColor: colors.primary }}
             >
-              <Printer className='w-5 h-5' />
+              {isReportLoading ? (
+                <Loader2 className='w-5 h-5 animate-spin' />
+              ) : (
+                <Printer className='w-5 h-5' />
+              )}
               <span className='font-medium'>Generate Report</span>
             </button>
             <button
@@ -491,7 +526,7 @@ const EnrollmentManagement: React.FC = () => {
 
         {isReportViewerOpen && (
           <EnrollmentReportViewer
-            enrollments={enrollments}
+            enrollments={reportEnrollments}
             onClose={() => setIsReportViewerOpen(false)}
           />
         )}

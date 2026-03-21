@@ -1,6 +1,6 @@
 "use client";
 import React, { useState, useMemo, useEffect } from "react";
-import { Eye, EyeOff, Plus, Printer, UserPlus } from "lucide-react";
+import { Eye, EyeOff, Loader2, Plus, Printer, UserPlus } from "lucide-react";
 import { Faculty, Department } from "../../../types";
 import { colors } from "../../../colors";
 import ConfirmationModal from "../../common/ConfirmationModal";
@@ -89,6 +89,7 @@ const FacultyManagement: React.FC = () => {
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage, setItemsPerPage] = useState(10);
   const [printDepartmentFilter, setPrintDepartmentFilter] = useState<string>("all");
+  const [isPrintingFacultyReport, setIsPrintingFacultyReport] = useState(false);
 
   const [accountModal, setAccountModal] = useState<{
     isOpen: boolean;
@@ -111,29 +112,45 @@ const FacultyManagement: React.FC = () => {
     [faculty, searchTerm, statusFilter, positionFilter],
   );
 
-  const printableFaculty = useMemo(() => {
-    const rows =
-      printDepartmentFilter === "all"
-        ? faculty
-        : faculty.filter(
-            (f) => Number(f.department_id) === Number(printDepartmentFilter),
-          );
+  const handlePrintFacultyListPDF = async () => {
+    setIsPrintingFacultyReport(true);
+    let printableFaculty: Faculty[] = [];
 
-    return [...rows].sort((a, b) => {
-      const aName = `${a.last_name || ""}, ${a.first_name || ""}`.toLowerCase();
-      const bName = `${b.last_name || ""}, ${b.first_name || ""}`.toLowerCase();
-      return aName.localeCompare(bName);
-    });
-  }, [faculty, printDepartmentFilter]);
+    try {
+      const response = await fetch("/api/auth/faculty/report-bulk", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          departmentId:
+            printDepartmentFilter === "all"
+              ? "all"
+              : Number(printDepartmentFilter),
+          status: "all",
+        }),
+      });
+      const payload = await response.json();
+      if (!response.ok) {
+        throw new Error(payload?.message || "Failed to load faculty report data.");
+      }
 
-  const handlePrintFacultyListPDF = () => {
-    if (printableFaculty.length === 0) {
+      printableFaculty = Array.isArray(payload?.data) ? payload.data : [];
+      if (printableFaculty.length === 0) {
+        setErrorModal({
+          isOpen: true,
+          message: "No faculty records to print for the selected department.",
+          details: "Choose a different department filter and try again.",
+        });
+        return;
+      }
+    } catch (error: any) {
       setErrorModal({
         isOpen: true,
-        message: "No faculty records to print for the selected department.",
-        details: "Choose a different department filter and try again.",
+        message: error?.message || "Failed to load faculty report data.",
+        details: "Please try again.",
       });
       return;
+    } finally {
+      setIsPrintingFacultyReport(false);
     }
 
     const popup = window.open("", "_blank", "width=1100,height=800,scrollbars=yes");
@@ -519,11 +536,18 @@ const FacultyManagement: React.FC = () => {
             </select>
             <button
               onClick={handlePrintFacultyListPDF}
+              disabled={isPrintingFacultyReport}
               className='flex items-center gap-2 px-4 py-2.5 text-white rounded-xl transition-all shadow-lg shadow-blue-900/20 hover:shadow-xl'
               style={{ backgroundColor: colors.primary }}
             >
-              <Printer className='w-4 h-4' />
-              <span className='font-medium'>Print PDF</span>
+              {isPrintingFacultyReport ? (
+                <Loader2 className='w-4 h-4 animate-spin' />
+              ) : (
+                <Printer className='w-4 h-4' />
+              )}
+              <span className='font-medium'>
+                {isPrintingFacultyReport ? "Loading..." : "Print PDF"}
+              </span>
             </button>
             <button
               onClick={() => setIsAddModalOpen(true)}

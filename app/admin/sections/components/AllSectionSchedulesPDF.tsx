@@ -57,15 +57,6 @@ function semLabel(sem: string): string {
   return sem;
 }
 
-function normSem(semester: string): number {
-  const s = semester.trim().toLowerCase();
-  if (s === '1' || s === 'first' || s === 'first semester') return 1;
-  if (s === '2' || s === 'second' || s === 'second semester') return 2;
-  if (s === '3' || s === 'summer') return 3;
-  const p = parseInt(semester, 10);
-  return isNaN(p) ? 1 : p;
-}
-
 function escHtml(s: string | undefined | null): string {
   return String(s ?? '')
     .replace(/&/g, '&amp;')
@@ -262,42 +253,48 @@ export default function AllSectionSchedulesPDF({
 
     async function fetchAllAndRender() {
       try {
-        const curriculumCache = new Map<string, Promise<any[]>>();
+        const dominantAcademicYear =
+          sections.reduce<Record<string, number>>((acc, sec) => {
+            const key = sec.academicYear || '';
+            acc[key] = (acc[key] ?? 0) + 1;
+            return acc;
+          }, {});
+        const dominantSemester =
+          sections.reduce<Record<string, number>>((acc, sec) => {
+            const key = sec.semester || '';
+            acc[key] = (acc[key] ?? 0) + 1;
+            return acc;
+          }, {});
 
-        // Fetch schedules for the already-filtered sections, and reuse curriculum requests.
-        const results = await Promise.all(
-          sections.map(async (sec) => {
-            const semNum = normSem(sec.semester);
-            const curriculumKey = `${sec.programId}-${sec.yearLevel}-${semNum}`;
-            let curriculumPromise = curriculumCache.get(curriculumKey);
+        const selectedAcademicYear =
+          Object.entries(dominantAcademicYear).sort((a, b) => b[1] - a[1])[0]?.[0] || undefined;
+        const selectedSemester =
+          Object.entries(dominantSemester).sort((a, b) => b[1] - a[1])[0]?.[0] || undefined;
 
-            if (!curriculumPromise) {
-              curriculumPromise = fetch(
-                '/api/section-curriculum?programId=' + sec.programId +
-                '&yearLevel=' + sec.yearLevel +
-                '&semester=' + semNum
-              )
-                .then((r) => r.ok ? r.json() : { data: [] })
-                .then((j) => Array.isArray(j.data) ? j.data : [])
-                .catch(() => [] as any[]);
+        const bulkResponse = await fetch('/api/class-schedule/section-bulk', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            sectionIds: sections.map((sec) => sec.id),
+            academicYear: selectedAcademicYear,
+            semester: selectedSemester,
+          }),
+        });
+        const bulkPayload = await bulkResponse.json();
+        if (!bulkResponse.ok) {
+          throw new Error(bulkPayload?.message || 'Failed to fetch section schedules');
+        }
 
-              curriculumCache.set(curriculumKey, curriculumPromise);
-            }
+        const bySection =
+          bulkPayload?.data?.bySection && typeof bulkPayload.data.bySection === 'object'
+            ? bulkPayload.data.bySection
+            : {};
 
-            const [schedules, curriculum] = await Promise.all([
-              fetch(
-                '/api/class-schedule?sectionId=' + sec.id +
-                '&academicYear=' + encodeURIComponent(sec.academicYear) +
-                '&semester=' + encodeURIComponent(sec.semester)
-              )
-                .then((r) => r.ok ? r.json() : { data: [] })
-                .then((j) => Array.isArray(j.data) ? j.data : [])
-                .catch(() => [] as any[]),
-              curriculumPromise,
-            ]);
-            return { sec, schedules, curriculum };
-          })
-        );
+        const results = sections.map((sec) => ({
+          sec,
+          schedules: Array.isArray(bySection[String(sec.id)]) ? bySection[String(sec.id)] : [],
+          curriculum: [] as any[],
+        }));
 
         if (cancelled || popup.closed) {
           if (!cancelled) onClose();
