@@ -1,44 +1,93 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useMemo, useState } from "react";
 import Image from "next/image";
 import { useRouter } from "next/navigation";
 import {
   ArrowRight,
-  Loader2,
-  Users,
-  BookOpen,
+  BarChart3,
   CreditCard,
-  FileText,
+  FolderKanban,
+  Loader2,
+  LucideIcon,
+  Users,
 } from "lucide-react";
 import { colors } from "../colors";
 import { useSession } from "next-auth/react";
 import { isViewAllowed } from "../lib/rbac";
 
-const modules = [
+type HomeModule = {
+  title: string;
+  description: string;
+  icon: LucideIcon;
+  views: string[];
+};
+
+const modules: HomeModule[] = [
   {
-    title: "Student Information",
-    description: "Manage student records",
+    title: "Overview",
+    description: "Open dashboards and reporting tools.",
+    icon: BarChart3,
+    views: [
+      "dashboard",
+      "reports",
+      "forecast-billing",
+      "reports-payments-dashboard",
+      "reports-registration-forms",
+    ],
+  },
+  {
+    title: "Student Services",
+    description: "Access student and enrollment records.",
     icon: Users,
-    view: "enrollment-form",
+    views: [
+      "students",
+      "enrollment-form",
+      "enrollments",
+      "resident-enrollment",
+      "courses",
+    ],
   },
   {
-    title: "Assessment",
-    description: "Track academic records",
-    icon: BookOpen,
-    view: "assessment",
-  },
-  {
-    title: "Billing",
-    description: "Process payments",
+    title: "Transactions",
+    description: "Manage assessment, payment, and workflow actions.",
     icon: CreditCard,
-    view: "payment-billing",
+    views: [
+      "payment-billing",
+      "assessment",
+      "subject-dropping",
+      "student-dropping",
+      "cross-enrollee",
+      "shifting",
+      "program-shifting",
+      "refund",
+    ],
   },
   {
-    title: "Reports",
-    description: "Generate insights",
-    icon: FileText,
-    view: "reports",
+    title: "Management",
+    description: "Go to maintenance, scheduling, and setup tools.",
+    icon: FolderKanban,
+    views: [
+      "section-management",
+      "faculty-subject-management",
+      "curriculum-program",
+      "file-maintenance-approval",
+      "file-maintenance-building",
+      "file-maintenance-section",
+      "file-maintenance-room",
+      "file-maintenance-department",
+      "file-maintenance-major",
+      "file-maintenance-faculty",
+      "file-maintenance-fees",
+      "file-maintenance-discount",
+      "file-maintenance-products",
+      "file-maintenance-schools-programs",
+      "file-maintenance-subject",
+      "miscellaneous-fees",
+      "account-management",
+      "backups",
+      "settings",
+    ],
   },
 ];
 
@@ -48,17 +97,29 @@ const HomePage: React.FC = () => {
   const [loadingView, setLoadingView] = useState<string | null>(null);
   const userRole = Number((session?.user as any)?.role) || 0;
 
-  const visibleModules = modules.filter((item) =>
-    isViewAllowed(item.view, userRole),
+  const visibleModules = useMemo(
+    () =>
+      modules
+        .map((module) => {
+          const targetView = module.views.find((view) =>
+            isViewAllowed(view, userRole),
+          );
+
+          return targetView ? { ...module, targetView } : null;
+        })
+        .filter((module): module is HomeModule & { targetView: string } =>
+          Boolean(module),
+        ),
+    [userRole],
   );
 
-  const navigateToView = (view: string, source: string) => {
+  const navigateToView = (view: string) => {
     if (!isViewAllowed(view, userRole)) {
       return;
     }
 
-    setLoadingView(source);
-    router.push(`/dashboard?view=${view}`);
+    setLoadingView(view);
+    router.push(`/dashboard?view=${encodeURIComponent(view)}`);
   };
 
   return (
@@ -67,7 +128,6 @@ const HomePage: React.FC = () => {
       style={{ backgroundColor: colors.paper }}
     >
       <div className='w-full max-w-5xl px-6 py-16'>
-        {/* Hero Section */}
         <div className='text-center mb-16'>
           <div
             className='mx-auto mb-8 flex h-28 w-28 items-center justify-center rounded-full'
@@ -94,23 +154,23 @@ const HomePage: React.FC = () => {
           </h1>
 
           <p className='text-gray-500 text-base max-w-md mx-auto'>
-            Streamlined enrollment and academic management for Colegio de Sta.
-            Teresa de Avila
+            Quick access to the main modules available for your role.
           </p>
         </div>
 
-        {/* Quick Access Grid */}
         <div className='grid grid-cols-2 md:grid-cols-4 gap-4 mb-16'>
-          {visibleModules.map((item) => {
-            const Icon = item.icon;
+          {visibleModules.map((module) => {
+            const Icon = module.icon;
+            const isLoading = loadingView === module.targetView;
+
             return (
               <div
-                key={item.title}
+                key={module.title}
                 className='group p-5 rounded-2xl bg-white border cursor-pointer transition-all hover:shadow-lg hover:-translate-y-0.5'
                 style={{ borderColor: `${colors.tertiary}25` }}
                 onClick={() => {
                   if (!loadingView) {
-                    navigateToView(item.view, item.title);
+                    navigateToView(module.targetView);
                   }
                 }}
               >
@@ -118,7 +178,7 @@ const HomePage: React.FC = () => {
                   className='w-10 h-10 rounded-xl flex items-center justify-center mb-3 transition-colors'
                   style={{ backgroundColor: `${colors.primary}08` }}
                 >
-                  {loadingView === item.title ? (
+                  {isLoading ? (
                     <Loader2
                       className='w-5 h-5 animate-spin'
                       style={{ color: colors.primary }}
@@ -134,19 +194,16 @@ const HomePage: React.FC = () => {
                   className='font-medium text-sm'
                   style={{ color: colors.primary }}
                 >
-                  {item.title}
+                  {module.title}
                 </p>
                 <p className='text-xs text-gray-400 mt-0.5'>
-                  {loadingView === item.title
-                    ? "Opening module..."
-                    : item.description}
+                  {isLoading ? "Opening module..." : module.description}
                 </p>
               </div>
             );
           })}
         </div>
 
-        {/* CTA Card */}
         <div
           className='rounded-2xl p-8 text-center'
           style={{
@@ -155,7 +212,7 @@ const HomePage: React.FC = () => {
         >
           <p className='text-white/80 text-sm mb-2'>Ready to get started?</p>
           <p className='text-white font-medium text-lg mb-5'>
-            Select a module from the sidebar to begin
+            Select one of the main modules to continue
           </p>
           <div
             className='inline-flex items-center gap-2 px-5 py-2.5 rounded-full text-sm font-medium cursor-pointer'
@@ -165,16 +222,16 @@ const HomePage: React.FC = () => {
             }}
             onClick={() => {
               if (!loadingView) {
-                navigateToView("dashboard", "cta");
+                navigateToView("dashboard");
               }
             }}
           >
             <span>
-              {loadingView === "cta"
+              {loadingView === "dashboard"
                 ? "Opening dashboard..."
-                : "Navigate using the menu"}
+                : "Open dashboard"}
             </span>
-            {loadingView === "cta" ? (
+            {loadingView === "dashboard" ? (
               <Loader2 className='w-4 h-4 animate-spin' />
             ) : (
               <ArrowRight className='w-4 h-4' />
@@ -182,9 +239,8 @@ const HomePage: React.FC = () => {
           </div>
         </div>
 
-        {/* Footer */}
         <p className='text-center text-xs text-gray-400 mt-10'>
-          © {new Date().getFullYear()} Colegio de Sta. Teresa de Avila
+          Copyright {new Date().getFullYear()} Colegio de Sta. Teresa de Avila
         </p>
       </div>
     </div>

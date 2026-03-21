@@ -33,7 +33,6 @@ import { useStudentSearch } from "./paymentBilling/hooks/useStudentSearch";
 import { useFinancialSummary } from "./paymentBilling/hooks/useFinancialSummary";
 import { useTransactions } from "./paymentBilling/hooks/useTransactions";
 import { formatAmount } from "./paymentBilling/utils";
-
 type ActiveTab = "products" | "enrollments" | "transactions";
 const STUDENT_PAYMENT_CART_KEY = "student-payment-cart";
 const STUDENT_PAYMENT_UPDATED_KEY = "student-payment-updated";
@@ -50,10 +49,10 @@ const PaymentBillingManagement: React.FC = () => {
       ) as ActiveTab | null;
       if (pending) return pending;
     }
+
     return "products";
   });
 
-  // Clean up the pending tab key after it has been consumed by the initializer
   useEffect(() => {
     sessionStorage.removeItem("payment-billing-tab");
     // eslint-disable-next-line react-hooks/exhaustive-deps
