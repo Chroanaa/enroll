@@ -54,6 +54,22 @@ export async function GET(request: NextRequest) {
     // Settings are only used if you want manual override capability
     const currentSemester = calculatedTerm.semester;
     const currentAcademicYear = calculatedTerm.academicYear;
+    const sevenDaysAgo = new Date(
+      serverTime.getTime() - 7 * 24 * 60 * 60 * 1000,
+    );
+    const fourteenDaysAgo = new Date(
+      serverTime.getTime() - 14 * 24 * 60 * 60 * 1000,
+    );
+
+    const pendingEnrollmentsWhere = {
+      ...deanFilter,
+      status: 4,
+    };
+
+    const approvedEnrollmentsWhere = {
+      ...deanFilter,
+      status: 1,
+    };
 
     // Get enrollment statistics
     const [
@@ -70,32 +86,14 @@ export async function GET(request: NextRequest) {
       // Total enrollments
       prisma.enrollment.count({ where: deanFilter }),
 
-      // Pending enrollments (status = 0 or null)
-      prisma.enrollment.count({
-        where: {
-          OR: [{ status: 0 }, { status: null }],
-          ...deanFilter,
-        },
-      }),
+      // Pending enrollment rows
+      prisma.enrollment.count({ where: pendingEnrollmentsWhere }),
 
-      // Approved enrollments (status = 1)
-      prisma.enrollment.count({
-        where: { status: 1, ...deanFilter },
-      }),
+      // Approved enrollment rows
+      prisma.enrollment.count({ where: approvedEnrollmentsWhere }),
 
-      // Total students
-      scope.isDean && scope.deanDepartmentId
-        ? prisma.enrollment
-            .findMany({
-              where: {
-                ...deanFilter,
-                student_number: { not: null },
-              },
-              distinct: ["student_number"],
-              select: { student_number: true },
-            })
-            .then((rows) => rows.length)
-        : prisma.students.count(),
+      // Total students = approved students
+      prisma.enrollment.count({ where: approvedEnrollmentsWhere }),
 
       // Total programs
       prisma.program.count({
@@ -118,7 +116,7 @@ export async function GET(request: NextRequest) {
         where: {
           ...deanFilter,
           admission_date: {
-            gte: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000),
+            gte: sevenDaysAgo,
           },
         },
       }),
@@ -164,8 +162,8 @@ export async function GET(request: NextRequest) {
       where: {
         ...deanFilter,
         admission_date: {
-          gte: new Date(Date.now() - 14 * 24 * 60 * 60 * 1000),
-          lt: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000),
+          gte: fourteenDaysAgo,
+          lt: sevenDaysAgo,
         },
       },
     });
@@ -180,10 +178,7 @@ export async function GET(request: NextRequest) {
 
     // Get recent pending enrollments list
     const recentPendingEnrollments = await prisma.enrollment.findMany({
-      where: {
-        OR: [{ status: 0 }, { status: null }],
-        ...deanFilter,
-      },
+      where: pendingEnrollmentsWhere,
       select: {
         id: true,
         family_name: true,
