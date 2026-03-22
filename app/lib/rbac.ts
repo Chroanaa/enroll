@@ -9,11 +9,7 @@ export const ROLES = {
 export type RoleId = (typeof ROLES)[keyof typeof ROLES];
 export type BillingTab = "products" | "enrollments" | "transactions";
 
-const PAYMENT_BILLING_ALLOWED_ROLES = [
-  ROLES.ADMIN,
-  ROLES.CASHIER,
-  ROLES.DEAN,
-];
+const PAYMENT_BILLING_ALLOWED_ROLES = [ROLES.ADMIN, ROLES.CASHIER, ROLES.DEAN];
 
 const BILLING_TABS: BillingTab[] = ["products", "enrollments", "transactions"];
 
