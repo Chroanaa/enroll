@@ -61,24 +61,14 @@ export async function GET(request: NextRequest) {
       serverTime.getTime() - 14 * 24 * 60 * 60 * 1000,
     );
 
-    // Dashboard cards should follow the verification workflow first, while
-    // still supporting older rows that relied only on numeric status values.
     const pendingEnrollmentsWhere = {
       ...deanFilter,
-      OR: [
-        { verification_status: "pending" as const },
-        { verification_status: null, status: 4 },
-        { verification_status: null, status: 0 },
-        { verification_status: null, status: null },
-      ],
+      status: 4,
     };
 
     const approvedEnrollmentsWhere = {
       ...deanFilter,
-      OR: [
-        { verification_status: "approved" as const },
-        { verification_status: null, status: 1 },
-      ],
+      status: 1,
     };
 
     // Get enrollment statistics
@@ -96,28 +86,14 @@ export async function GET(request: NextRequest) {
       // Total enrollments
       prisma.enrollment.count({ where: deanFilter }),
 
-      // Pending verification / pending enrollment rows
+      // Pending enrollment rows
       prisma.enrollment.count({ where: pendingEnrollmentsWhere }),
 
-      // Approved verification rows
+      // Approved enrollment rows
       prisma.enrollment.count({ where: approvedEnrollmentsWhere }),
 
-      // Total students represented in enrollment records
-      prisma.enrollment
-        .findMany({
-          where: {
-            ...deanFilter,
-            student_number: { not: null },
-          },
-          distinct: ["student_number"],
-          select: { student_number: true },
-        })
-        .then(
-          (rows) =>
-            rows.filter(
-              (row) => String(row.student_number || "").trim().length > 0,
-            ).length,
-        ),
+      // Total students = approved students
+      prisma.enrollment.count({ where: approvedEnrollmentsWhere }),
 
       // Total programs
       prisma.program.count({
