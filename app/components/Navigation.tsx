@@ -175,6 +175,7 @@ const Navigation: React.FC<NavigationProps> = ({
         id: "assessment",
         label: "Assessment",
         icon: Calculator,
+        allowedRoles: [ROLES.ADMIN, ROLES.REGISTRAR, ROLES.DEAN],
       },
       {
         id: "subject-dropping",
