@@ -469,15 +469,68 @@ export async function GET(request: NextRequest) {
 
     const dailyIncome = dailyAssessmentIncome + dailyPosIncome;
 
-    const unpaidStudents = dashboardRows
-      .filter((row) => row.remaining_balance > 0.01)
+    // Aggregate per student so each student is counted only once
+    const studentAggMap = new Map<
+      string,
+      {
+        student_number: string;
+        student_name: string;
+        course_program: string | null;
+        academic_year: string;
+        semester: number;
+        payment_mode: string;
+        total_due: number;
+        total_paid: number;
+        remaining_balance: number;
+      }
+    >();
+
+    for (const row of dashboardRows) {
+      const existing = studentAggMap.get(row.student_number);
+      if (existing) {
+        existing.total_due += row.total_due;
+        existing.total_paid += row.total_paid;
+        existing.remaining_balance += row.remaining_balance;
+      } else {
+        studentAggMap.set(row.student_number, {
+          student_number: row.student_number,
+          student_name: row.student_name,
+          course_program: row.course_program,
+          academic_year: row.academic_year,
+          semester: row.semester,
+          payment_mode: row.payment_mode,
+          total_due: row.total_due,
+          total_paid: row.total_paid,
+          remaining_balance: row.remaining_balance,
+        });
+      }
+    }
+
+    const uniqueStudents = Array.from(studentAggMap.values()).map((s) => {
+      let payment_status: "Unpaid" | "Partial" | "Fully Paid" = "Unpaid";
+      if (s.total_due > 0 && s.remaining_balance <= 0.01) {
+        payment_status = "Fully Paid";
+      } else if (s.total_paid > 0) {
+        payment_status = "Partial";
+      }
+      return {
+        ...s,
+        total_due: Math.round(s.total_due * 100) / 100,
+        total_paid: Math.round(s.total_paid * 100) / 100,
+        remaining_balance: Math.round(s.remaining_balance * 100) / 100,
+        payment_status,
+      };
+    });
+
+    const unpaidStudents = uniqueStudents
+      .filter((row) => row.payment_status === "Unpaid")
       .sort((a, b) => b.remaining_balance - a.remaining_balance);
 
-    const fullyPaidStudents = dashboardRows
+    const fullyPaidStudents = uniqueStudents
       .filter((row) => row.payment_status === "Fully Paid")
       .sort((a, b) => b.total_paid - a.total_paid);
 
-    const partialStudentsCount = dashboardRows.filter(
+    const partialStudentsCount = uniqueStudents.filter(
       (row) => row.payment_status === "Partial",
     ).length;
 

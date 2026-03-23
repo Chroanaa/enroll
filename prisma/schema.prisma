@@ -733,3 +733,15 @@ model password_reset_requests {
   resolution      String?   @db.VarChar(50)
   resolution_note String?
 }
+
+model backup_artifacts {
+  id         Int      @id @default(autoincrement())
+  name       String   @unique @db.VarChar(255)
+  format     String   @db.VarChar(50)
+  source     String   @db.VarChar(20)
+  size_bytes Int
+  content    String
+  created_at DateTime @default(now()) @db.Timestamp(6)
+
+  @@index([created_at(sort: Desc)], map: "idx_backup_artifacts_created_at")
+}
