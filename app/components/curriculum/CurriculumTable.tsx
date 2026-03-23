@@ -78,6 +78,8 @@ const CurriculumTable: React.FC<CurriculumTableProps> = ({
   };
 
   const yearLabels = ["FIRST YEAR", "SECOND YEAR", "THIRD YEAR", "FOURTH YEAR"];
+  // Always display a 4-year structure in the curriculum viewer.
+  const yearsToRender = [1, 2, 3, 4];
 
   return (
     <div
@@ -130,6 +132,11 @@ const CurriculumTable: React.FC<CurriculumTableProps> = ({
             }
             #curriculum-print-area * {
               visibility: visible !important;
+            }
+            #curriculum-content-area {
+              max-height: none !important;
+              height: auto !important;
+              overflow: visible !important;
             }
             ::-webkit-scrollbar { 
               display: none !important; 
@@ -234,16 +241,13 @@ const CurriculumTable: React.FC<CurriculumTableProps> = ({
         </div>
 
         {/* Curriculum Content */}
-        <div className='p-8 space-y-6 max-h-[70vh] overflow-y-auto print:max-h-none print:overflow-visible print:p-4 print:space-y-4'>
-          {Object.keys(groupedCourses)
-            .sort((a, b) => Number(a) - Number(b))
-            .map((yearLevel) => {
-              const year = Number(yearLevel);
-              const semesters = groupedCourses[year];
+        <div id="curriculum-content-area" className='p-8 space-y-6 max-h-[70vh] overflow-y-auto print:max-h-none print:overflow-visible print:p-4 print:space-y-4'>
+          {yearsToRender.map((year) => {
+              const semesters = groupedCourses[year] || { 1: [], 2: [] };
               const { sem1, sem2 } = getAlignedCourses(semesters[1], semesters[2]);
 
               return (
-                <div key={year} className='space-y-4 print:space-y-1 print:break-inside-avoid'>
+                <div key={year} className='space-y-4 print:space-y-1'>
                   {/* Year Level Header */}
                   <div 
                     className='text-center py-2 font-bold text-base print:py-1 print:text-sm'
@@ -351,7 +355,20 @@ const CurriculumTable: React.FC<CurriculumTableProps> = ({
                             </tr>
                           </thead>
                           <tbody>
-                            {sem1.map((course, index: number) => {
+                            {sem1.length === 0 ? (
+                              <tr>
+                                <td
+                                  className='border px-2 py-2 text-center text-[10px] italic print:px-1 print:py-0.5'
+                                  colSpan={6}
+                                  style={{
+                                    borderColor: colors.tertiary,
+                                    color: colors.tertiary,
+                                  }}
+                                >
+                                  No subjects listed for this semester
+                                </td>
+                              </tr>
+                            ) : sem1.map((course, index: number) => {
                               if (!course) {
                                 // Empty row for alignment
                                 return (
@@ -579,7 +596,20 @@ const CurriculumTable: React.FC<CurriculumTableProps> = ({
                             </tr>
                           </thead>
                           <tbody>
-                            {sem2.map((course, index: number) => {
+                            {sem2.length === 0 ? (
+                              <tr>
+                                <td
+                                  className='border px-2 py-2 text-center text-[10px] italic print:px-1 print:py-0.5'
+                                  colSpan={6}
+                                  style={{
+                                    borderColor: colors.tertiary,
+                                    color: colors.tertiary,
+                                  }}
+                                >
+                                  No subjects listed for this semester
+                                </td>
+                              </tr>
+                            ) : sem2.map((course, index: number) => {
                               if (!course) {
                                 // Empty row for alignment
                                 return (

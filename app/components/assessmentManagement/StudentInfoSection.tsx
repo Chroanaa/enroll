@@ -8,8 +8,10 @@ interface StudentInfoSectionProps {
   program: string;
   majorName?: string | null;
   yearLevel?: number | null;
+  academicStatus?: string;
   isFetchingStudent: boolean;
   onSelectStudent: () => void;
+  onAcademicStatusChange?: (status: string) => void;
 }
 
 export const StudentInfoSection: React.FC<StudentInfoSectionProps> = ({
@@ -18,8 +20,10 @@ export const StudentInfoSection: React.FC<StudentInfoSectionProps> = ({
   program,
   majorName,
   yearLevel,
+  academicStatus = "",
   isFetchingStudent,
   onSelectStudent,
+  onAcademicStatusChange,
 }) => {
   const hasStudent = studentNumber.trim().length > 0 && studentName.trim().length > 0;
   const [showSuccessAnimation, setShowSuccessAnimation] = useState(false);
@@ -35,12 +39,13 @@ export const StudentInfoSection: React.FC<StudentInfoSectionProps> = ({
     setPrevStudentNumber(studentNumber);
   }, [studentNumber, hasStudent, prevStudentNumber]);
 
+  const fieldBorderColor = showSuccessAnimation ? "#86EFAC" : colors.tertiary + "30";
+  const fieldBackgroundColor = showSuccessAnimation ? "#F0FDF4" : "white";
+
   return (
     <div
-      className={`rounded-2xl shadow-lg p-6 mb-6 transition-all duration-500 ${
-        showSuccessAnimation 
-          ? "ring-2 ring-green-400 ring-offset-2" 
-          : ""
+      className={`rounded-2xl shadow-lg p-4 md:p-4 mb-5 transition-all duration-500 ${
+        showSuccessAnimation ? "ring-2 ring-green-400 ring-offset-2" : ""
       } ${hasStudent ? "animate-in fade-in slide-in-from-bottom-4 duration-500" : "animate-in slide-in-from-bottom-4 duration-500 delay-100"}`}
       style={{
         backgroundColor: showSuccessAnimation ? "#F0FDF4" : "white",
@@ -58,16 +63,10 @@ export const StudentInfoSection: React.FC<StudentInfoSectionProps> = ({
           >
             <User className="w-12 h-12" style={{ color: colors.secondary }} />
           </div>
-          <h3
-            className="text-xl font-bold mb-2"
-            style={{ color: colors.primary }}
-          >
+          <h3 className="text-xl font-bold mb-2" style={{ color: colors.primary }}>
             No student selected
           </h3>
-          <p
-            className="text-sm mb-6 text-center max-w-md"
-            style={{ color: colors.tertiary }}
-          >
+          <p className="text-sm mb-6 text-center max-w-md" style={{ color: colors.tertiary }}>
             Select a student to begin assessment management
           </p>
           <button
@@ -90,16 +89,14 @@ export const StudentInfoSection: React.FC<StudentInfoSectionProps> = ({
       ) : (
         // Student Summary Header
         <>
-          <div className="flex items-center justify-between mb-4">
+          <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between mb-3">
             <div className="flex items-center gap-4">
               <div
                 className={`p-2 rounded-xl shadow-sm transition-all duration-300 ${
                   showSuccessAnimation ? "scale-110" : ""
                 }`}
                 style={{
-                  backgroundColor: showSuccessAnimation 
-                    ? "#DCFCE7" 
-                    : `${colors.secondary}15`,
+                  backgroundColor: showSuccessAnimation ? "#DCFCE7" : `${colors.secondary}15`,
                 }}
               >
                 {showSuccessAnimation ? (
@@ -109,10 +106,7 @@ export const StudentInfoSection: React.FC<StudentInfoSectionProps> = ({
                 )}
               </div>
               <div>
-                <h2
-                  className="text-xl font-bold tracking-tight"
-                  style={{ color: colors.primary }}
-                >
+                <h2 className="text-xl font-bold tracking-tight" style={{ color: colors.primary }}>
                   Student Information
                 </h2>
                 <p
@@ -127,17 +121,17 @@ export const StudentInfoSection: React.FC<StudentInfoSectionProps> = ({
             </div>
             <button
               onClick={onSelectStudent}
-              className="px-4 py-2 rounded-lg font-medium text-sm transition-all duration-200"
+              className="px-4 py-1.5 rounded-lg font-semibold text-sm transition-all duration-200 self-start sm:self-auto"
               style={{
                 color: colors.secondary,
                 border: `1px solid ${colors.secondary}30`,
-                backgroundColor: "transparent",
+                backgroundColor: `${colors.secondary}08`,
               }}
               onMouseEnter={(e) => {
-                e.currentTarget.style.backgroundColor = `${colors.secondary}10`;
+                e.currentTarget.style.backgroundColor = `${colors.secondary}15`;
               }}
               onMouseLeave={(e) => {
-                e.currentTarget.style.backgroundColor = "transparent";
+                e.currentTarget.style.backgroundColor = `${colors.secondary}08`;
               }}
             >
               Change Student
@@ -152,113 +146,102 @@ export const StudentInfoSection: React.FC<StudentInfoSectionProps> = ({
               </span>
             </div>
           ) : (
-            <div className={`grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 transition-all duration-500 ${
-              showSuccessAnimation ? "animate-in fade-in slide-in-from-bottom-2 duration-300" : ""
-            }`}>
+            <div
+              className={`grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-5 gap-2.5 transition-all duration-500 ${
+                showSuccessAnimation ? "animate-in fade-in slide-in-from-bottom-2 duration-300" : ""
+              }`}
+            >
               <div className="group">
-                <label
-                  className="flex items-center gap-2 text-sm font-semibold mb-2 ml-1"
-                  style={{ color: colors.tertiary }}
-                >
-                  <FileText
-                    className="w-4 h-4"
-                    style={{ color: colors.secondary }}
-                  />
+                <label className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wide mb-1.5 ml-1" style={{ color: colors.tertiary }}>
+                  <FileText className="w-4 h-4" style={{ color: colors.secondary }} />
                   Student Number
                 </label>
                 <div
-                  className={`px-4 py-3 rounded-xl border transition-all duration-300 ${
-                    showSuccessAnimation ? "bg-green-50 border-green-200" : "bg-gray-50"
-                  }`}
+                  className="px-4 py-2.5 rounded-xl border transition-all duration-300 min-h-[60px] flex items-center"
                   style={{
-                    borderColor: showSuccessAnimation ? undefined : colors.tertiary + "30",
+                    borderColor: fieldBorderColor,
+                    backgroundColor: fieldBackgroundColor,
                   }}
                 >
-                  <span
-                    className="text-base font-semibold"
-                    style={{ color: colors.primary }}
-                  >
+                  <span className="text-base font-semibold" style={{ color: colors.primary }}>
                     {studentNumber}
                   </span>
                 </div>
               </div>
+
               <div className="group">
-                <label
-                  className="flex items-center gap-2 text-sm font-semibold mb-2 ml-1"
-                  style={{ color: colors.tertiary }}
-                >
+                <label className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wide mb-1.5 ml-1" style={{ color: colors.tertiary }}>
                   <User className="w-4 h-4" style={{ color: colors.secondary }} />
                   Student Name
                 </label>
                 <div
-                  className={`px-4 py-3 rounded-xl border transition-all duration-300 ${
-                    showSuccessAnimation ? "bg-green-50 border-green-200" : "bg-gray-50"
-                  }`}
+                  className="px-4 py-2.5 rounded-xl border transition-all duration-300 min-h-[60px] flex items-center"
                   style={{
-                    borderColor: showSuccessAnimation ? undefined : colors.tertiary + "30",
+                    borderColor: fieldBorderColor,
+                    backgroundColor: fieldBackgroundColor,
                   }}
                 >
-                  <span
-                    className="text-base font-bold"
-                    style={{ color: colors.primary }}
-                  >
+                  <span className="text-base font-bold" style={{ color: colors.primary }}>
                     {studentName}
                   </span>
                 </div>
               </div>
+
               <div className="group">
-                <label
-                  className="flex items-center gap-2 text-sm font-semibold mb-2 ml-1"
-                  style={{ color: colors.tertiary }}
-                >
-                  <GraduationCap
-                    className="w-4 h-4"
-                    style={{ color: colors.secondary }}
-                  />
+                <label className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wide mb-1.5 ml-1" style={{ color: colors.tertiary }}>
+                  <GraduationCap className="w-4 h-4" style={{ color: colors.secondary }} />
                   Program
                 </label>
                 <div
-                  className={`px-4 py-3 rounded-xl border transition-all duration-300 ${
-                    showSuccessAnimation ? "bg-green-50 border-green-200" : "bg-gray-50"
-                  }`}
+                  className="px-4 py-2.5 rounded-xl border transition-all duration-300 min-h-[60px] flex items-center"
                   style={{
-                    borderColor: showSuccessAnimation ? undefined : colors.tertiary + "30",
+                    borderColor: fieldBorderColor,
+                    backgroundColor: fieldBackgroundColor,
                   }}
                 >
-                  <span
-                    className="text-base font-medium"
-                    style={{ color: colors.primary }}
-                  >
+                  <span className="text-base font-medium" style={{ color: colors.primary }}>
                     {program ? `${program}${majorName ? ` - ${majorName}` : ""}` : "N/A"}
                   </span>
                 </div>
               </div>
+
               <div className="group">
-                <label
-                  className="flex items-center gap-2 text-sm font-semibold mb-2 ml-1"
-                  style={{ color: colors.tertiary }}
-                >
-                  <Calendar
-                    className="w-4 h-4"
-                    style={{ color: colors.secondary }}
-                  />
+                <label className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wide mb-1.5 ml-1" style={{ color: colors.tertiary }}>
+                  <Calendar className="w-4 h-4" style={{ color: colors.secondary }} />
                   Year Level
                 </label>
                 <div
-                  className={`px-4 py-3 rounded-xl border transition-all duration-300 ${
-                    showSuccessAnimation ? "bg-green-50 border-green-200" : "bg-gray-50"
-                  }`}
+                  className="px-4 py-2.5 rounded-xl border transition-all duration-300 min-h-[60px] flex items-center"
                   style={{
-                    borderColor: showSuccessAnimation ? undefined : colors.tertiary + "30",
+                    borderColor: fieldBorderColor,
+                    backgroundColor: fieldBackgroundColor,
                   }}
                 >
-                  <span
-                    className="text-base font-medium"
-                    style={{ color: colors.primary }}
-                  >
+                  <span className="text-base font-medium" style={{ color: colors.primary }}>
                     {yearLevel ? `Year ${yearLevel}` : "N/A"}
                   </span>
                 </div>
+              </div>
+
+              <div className="group">
+                <label className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wide mb-1.5 ml-1" style={{ color: colors.tertiary }}>
+                  <GraduationCap className="w-4 h-4" style={{ color: colors.secondary }} />
+                  Academic Status
+                </label>
+                <select
+                  value={academicStatus || ""}
+                  onChange={(event) => onAcademicStatusChange?.(event.target.value)}
+                  className="w-full px-4 py-2.5 rounded-xl border text-base font-medium min-h-[60px] focus:outline-none focus:ring-2 transition-all"
+                  style={{
+                    borderColor: fieldBorderColor,
+                    backgroundColor: fieldBackgroundColor,
+                    color: colors.primary,
+                  }}
+                >
+                  <option value="">Select Status</option>
+                  <option value="regular">Regular</option>
+                  <option value="irregular">Irregular</option>
+                </select>
               </div>
             </div>
           )}
@@ -267,7 +250,3 @@ export const StudentInfoSection: React.FC<StudentInfoSectionProps> = ({
     </div>
   );
 };
-
-
-
-

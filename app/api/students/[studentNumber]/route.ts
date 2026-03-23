@@ -171,6 +171,7 @@ export async function GET(
       year_level: enrollment.year_level,
       term: enrollment.term,
       academic_year: enrollment.academic_year,
+      academic_status: enrollment.academic_status,
       admission_date: enrollment.admission_date,
       admission_status: enrollment.admission_status,
       sex: enrollment.sex,

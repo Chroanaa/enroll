@@ -14,6 +14,7 @@ import {
 import { colors } from "../colors";
 import { useAcademicTerm } from "../hooks/useAcademicTerm";
 import { useProgramsWithMajors } from "../hooks/useProgramsWithMajors";
+import { parseProgramFilter } from "../utils/programUtils";
 import SuccessModal from "./common/SuccessModal";
 import ErrorModal from "./common/ErrorModal";
 import ConfirmationModal from "./common/ConfirmationModal";
@@ -131,6 +132,8 @@ export default function CrossEnrollmentManagement() {
   const [isLoadingStudents, setIsLoadingStudents] = useState(false);
   const [selectedStudent, setSelectedStudent] = useState<StudentDetails | null>(null);
   const [studentSearch, setStudentSearch] = useState("");
+  const [programFilter, setProgramFilter] = useState("");
+  const [yearLevelFilter, setYearLevelFilter] = useState("");
   const [studentCurrentPage, setStudentCurrentPage] = useState(1);
   const [studentItemsPerPage, setStudentItemsPerPage] = useState(10);
   const [hostSelection, setHostSelection] = useState("");
@@ -193,11 +196,28 @@ export default function CrossEnrollmentManagement() {
 
       setIsLoadingStudents(true);
       try {
-        const response = await fetch(
-          `/api/auth/students/search?listAll=true&limit=100&academicYear=${encodeURIComponent(
-            currentTerm.academicYear,
-          )}&semester=${currentTerm.semesterCode}`,
-        );
+        const params = new URLSearchParams({
+          listAll: "true",
+          limit: "100",
+          academicYear: currentTerm.academicYear,
+          semester: currentTerm.semesterCode,
+        });
+
+        if (programFilter) {
+          const { programId, majorId } = parseProgramFilter(programFilter);
+          if (programId) {
+            params.set("programId", String(programId));
+          }
+          if (majorId) {
+            params.set("majorId", String(majorId));
+          }
+        }
+
+        if (yearLevelFilter) {
+          params.set("yearLevel", yearLevelFilter);
+        }
+
+        const response = await fetch(`/api/auth/students/search?${params.toString()}`);
         const result = await response.json();
 
         if (!response.ok) {
@@ -219,7 +239,7 @@ export default function CrossEnrollmentManagement() {
     };
 
     fetchStudents();
-  }, [currentTerm]);
+  }, [currentTerm, programFilter, yearLevelFilter]);
 
   const loadStudentContext = async (studentNumber: string) => {
     setIsLoadingCourses(true);
@@ -641,23 +661,57 @@ export default function CrossEnrollmentManagement() {
                 </p>
               </div>
 
-              <div className="relative w-full max-w-md">
-                <Search
-                  className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2"
-                  style={{ color: colors.tertiary }}
-                />
-                <input
-                  value={studentSearch}
+              <div className="flex w-full max-w-5xl flex-col gap-3 lg:flex-row lg:items-center lg:justify-end">
+                <div className="relative w-full lg:max-w-md">
+                  <Search
+                    className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2"
+                    style={{ color: colors.tertiary }}
+                  />
+                  <input
+                    value={studentSearch}
+                    onChange={(event) => {
+                      setStudentSearch(event.target.value);
+                      setStudentCurrentPage(1);
+                    }}
+                    placeholder="Search student ID, name, or program"
+                    className={`${fieldClassName} py-3 pl-11 pr-4`}
+                    style={{
+                      color: colors.primary,
+                    }}
+                  />
+                </div>
+                <select
+                  value={programFilter}
                   onChange={(event) => {
-                    setStudentSearch(event.target.value);
+                    setProgramFilter(event.target.value);
                     setStudentCurrentPage(1);
                   }}
-                  placeholder="Search student ID, name, or program"
-                  className={`${fieldClassName} py-3 pl-11 pr-4`}
-                  style={{
-                    color: colors.primary,
+                  disabled={programsLoading}
+                  className={`${fieldClassName} py-3 px-3 lg:max-w-sm`}
+                  style={{ color: colors.primary }}
+                >
+                  <option value="">All Programs / Majors</option>
+                  {programs.map((option) => (
+                    <option key={option.value} value={option.value}>
+                      {option.label}
+                    </option>
+                  ))}
+                </select>
+                <select
+                  value={yearLevelFilter}
+                  onChange={(event) => {
+                    setYearLevelFilter(event.target.value);
+                    setStudentCurrentPage(1);
                   }}
-                />
+                  className={`${fieldClassName} py-3 px-3 lg:max-w-[180px]`}
+                  style={{ color: colors.primary }}
+                >
+                  <option value="">All Year Levels</option>
+                  <option value="1">1st Year</option>
+                  <option value="2">2nd Year</option>
+                  <option value="3">3rd Year</option>
+                  <option value="4">4th Year</option>
+                </select>
               </div>
             </div>
 

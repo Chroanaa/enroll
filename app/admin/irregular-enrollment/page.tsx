@@ -25,6 +25,7 @@ interface Student {
   programId: number;
   programCode: string;
   programName: string;
+  yearLevel?: number | null;
   academicStatus: string;
   enrollmentStatus?: number | null;
   paymentStatus?: 'Unpaid' | 'Partial' | 'Fully Paid' | null;
@@ -287,6 +288,10 @@ function IrregularEnrollmentPageContent() {
           programId: Number(studentResult.program?.id || 0),
           programCode: String(studentResult.program?.code || ''),
           programName: String(studentResult.program?.name || ''),
+          yearLevel:
+            studentResult.year_level === null || studentResult.year_level === undefined
+              ? null
+              : Number(studentResult.year_level),
           academicStatus: String(studentResult.academic_status || 'irregular'),
         });
       } catch (error) {
@@ -326,7 +331,7 @@ function IrregularEnrollmentPageContent() {
         academicStatus: studentStatusFilter,
         academicYear,
         semester,
-        limit: query ? '100' : '300',
+        limit: query ? '300' : '5000',
       });
       if (query.length >= 2) {
         params.set('query', query);
@@ -352,34 +357,70 @@ function IrregularEnrollmentPageContent() {
       const enrolledJson = enrolledStudentsRes.ok ? await enrolledStudentsRes.json() : { data: [] };
 
       const queueRows = Array.isArray(enrolledJson?.data) ? enrolledJson.data : [];
-      const queueByStudentNumber = new Map<string, number>();
+      const queueByStudentNumber = new Map<
+        string,
+        {
+          noSectionSubjectCount: number;
+          studentName: string;
+          programCode: string;
+          yearLevel: number | null;
+        }
+      >();
       for (const row of queueRows) {
         const number = String(row?.studentNumber || '').trim();
         if (!number) continue;
         const count = Number(row?.noSectionSubjectCount || 0);
-        queueByStudentNumber.set(number, Number.isFinite(count) ? count : 0);
+        queueByStudentNumber.set(number, {
+          noSectionSubjectCount: Number.isFinite(count) ? count : 0,
+          studentName: String(row?.studentName || '').trim(),
+          programCode: String(row?.programCode || '').trim(),
+          yearLevel: row?.yearLevel === null || row?.yearLevel === undefined ? null : Number(row.yearLevel),
+        });
       }
 
-      const filtered = Array.isArray(studentsJson?.data)
-        ? studentsJson.data
-            .filter(
-              (student: any) =>
-                student?.studentNumber &&
-                queueByStudentNumber.has(String(student.studentNumber)),
-            )
-            .map((student: any) => ({
-              ...student,
-              noSectionSubjectCount:
-                queueByStudentNumber.get(String(student.studentNumber)) || 0,
-            }))
-            .sort(
-              (a: any, b: any) =>
-                Number(b.noSectionSubjectCount || 0) -
-                Number(a.noSectionSubjectCount || 0),
-            )
-        : [];
+      const searchRows = Array.isArray(studentsJson?.data) ? studentsJson.data : [];
+      const searchByStudentNumber = new Map<string, any>();
+      for (const student of searchRows) {
+        const number = String(student?.studentNumber || '').trim();
+        if (!number) continue;
+        searchByStudentNumber.set(number, student);
+      }
 
-      setStudents(filtered);
+      const mergedStudents = Array.from(queueByStudentNumber.entries())
+        .map(([studentNumber, queueInfo]) => {
+          const searchInfo = searchByStudentNumber.get(studentNumber);
+          const fullName = String(searchInfo?.name || queueInfo.studentName || studentNumber).trim();
+          const [lastNamePart = '', firstNamePart = '', middleNamePart = ''] = String(queueInfo.studentName || '')
+            .split(',')
+            .map((part) => part.trim());
+          return {
+            studentId: Number(searchInfo?.studentId || 0),
+            studentNumber,
+            firstName: String(searchInfo?.firstName || firstNamePart || '').trim(),
+            middleName: String(searchInfo?.middleName || middleNamePart || '').trim(),
+            lastName: String(searchInfo?.lastName || lastNamePart || '').trim(),
+            name: fullName,
+            email: String(searchInfo?.email || '').trim(),
+            programId: Number(searchInfo?.programId || 0),
+            programCode: String(searchInfo?.programCode || queueInfo.programCode || '').trim(),
+            programName: String(searchInfo?.programName || '').trim(),
+            yearLevel: searchInfo?.yearLevel ?? queueInfo.yearLevel ?? null,
+            academicStatus: String(searchInfo?.academicStatus || 'irregular'),
+            enrollmentStatus: searchInfo?.enrollmentStatus ?? null,
+            paymentStatus: searchInfo?.paymentStatus ?? null,
+            paymentMode: searchInfo?.paymentMode ?? null,
+            totalDue: searchInfo?.totalDue ?? null,
+            totalPaid: searchInfo?.totalPaid ?? null,
+            noSectionSubjectCount: queueInfo.noSectionSubjectCount,
+          } as Student;
+        })
+        .sort(
+          (a: Student, b: Student) =>
+            Number(b.noSectionSubjectCount || 0) -
+            Number(a.noSectionSubjectCount || 0),
+        );
+
+      setStudents(mergedStudents);
     } catch (e) { console.error(e); } finally {
       setLoadingStudents(false);
       setIsSearchingStudents(false);
@@ -764,6 +805,10 @@ function IrregularEnrollmentPageContent() {
                     <div className="flex items-center gap-2 text-xs px-1" style={{ color: colors.neutral }}>
                       <GraduationCap className="w-3.5 h-3.5 flex-shrink-0" style={{ color: colors.tertiary }} />
                       <span className="truncate">{selectedStudent.programCode} — {selectedStudent.programName || 'N/A'}</span>
+                    </div>
+                    <div className="flex items-center gap-2 text-xs px-1 mt-1" style={{ color: colors.neutral }}>
+                      <Calendar className="w-3.5 h-3.5 flex-shrink-0" style={{ color: colors.tertiary }} />
+                      <span>{selectedStudent.yearLevel ? `Year ${selectedStudent.yearLevel}` : 'Year N/A'}</span>
                     </div>
                   </div>
                 )}
@@ -1186,6 +1231,7 @@ function IrregularEnrollmentPageContent() {
                     <thead><tr style={{ borderBottom: '1px solid rgba(179,116,74,0.1)' }}>
                       <th className="text-left py-3 px-4 text-xs font-semibold uppercase tracking-wide" style={{ color: colors.tertiary }}>Student</th>
                       <th className="text-left py-3 px-4 text-xs font-semibold uppercase tracking-wide" style={{ color: colors.tertiary }}>Program</th>
+                      <th className="text-left py-3 px-4 text-xs font-semibold uppercase tracking-wide" style={{ color: colors.tertiary }}>Year</th>
                       <th className="text-left py-3 px-4 text-xs font-semibold uppercase tracking-wide" style={{ color: colors.tertiary }}>No Section</th>
                       <th className="text-left py-3 px-4 text-xs font-semibold uppercase tracking-wide" style={{ color: colors.tertiary }}>Status</th>
                       <th className="text-left py-3 px-4 text-xs font-semibold uppercase tracking-wide" style={{ color: colors.tertiary }}>Payment</th>
@@ -1201,6 +1247,7 @@ function IrregularEnrollmentPageContent() {
                             </div>
                           </td>
                           <td className="py-3 px-4 text-sm" style={{ color: colors.neutral }}>{student.programCode || '—'}</td>
+                          <td className="py-3 px-4 text-sm" style={{ color: colors.neutral }}>{student.yearLevel ? `Year ${student.yearLevel}` : '—'}</td>
                           <td className="py-3 px-4">
                             <span className="text-xs px-2 py-0.5 rounded-full font-medium" style={{ backgroundColor: 'rgba(59,130,246,0.1)', color: '#1D4ED8' }}>
                               {Number(student.noSectionSubjectCount || 0)} subject{Number(student.noSectionSubjectCount || 0) === 1 ? '' : 's'}

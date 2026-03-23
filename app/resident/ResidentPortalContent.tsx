@@ -1,5 +1,5 @@
 "use client";
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import {
   Calendar,
@@ -21,8 +21,10 @@ import {
 import { colors } from "../colors";
 import SuccessModal from "../components/common/SuccessModal";
 import ErrorModal from "../components/common/ErrorModal";
+import ActiveTermCard from "../components/common/ActiveTermCard";
 import { formatTerm } from "../utils/termUtils";
 import { useAcademicTerm } from "../hooks/useAcademicTerm";
+import { useProgramsWithMajors } from "../hooks/useProgramsWithMajors";
 
 interface ResidentStudent {
   id: number;
@@ -114,6 +116,8 @@ export default function ResidentPortalContent() {
   const [totalCount, setTotalCount] = useState(0);
   const [searchQuery, setSearchQuery] = useState("");
   const [admissionStatusFilter, setAdmissionStatusFilter] = useState("all");
+  const [programMajorFilter, setProgramMajorFilter] = useState("");
+  const [yearLevelFilter, setYearLevelFilter] = useState("");
   const limit = 10;
   
   // Selected student state
@@ -133,6 +137,18 @@ export default function ResidentPortalContent() {
   const { currentTerm, loading: termLoading } = useAcademicTerm({
     autoSync: true,
   });
+  const { programs: programsWithMajors, loading: programsLoading } =
+    useProgramsWithMajors();
+
+  const currentTermLabel = useMemo(() => {
+    if (!currentTerm) return "Loading current term...";
+    return `${currentTerm.semester} Semester, ${currentTerm.academicYear}`;
+  }, [currentTerm]);
+
+  const programMajorOptions = useMemo(
+    () => [...programsWithMajors].sort((a, b) => a.label.localeCompare(b.label)),
+    [programsWithMajors],
+  );
 
   // Form data
   const [enrollmentId, setEnrollmentId] = useState<number | null>(null);
@@ -163,8 +179,22 @@ export default function ResidentPortalContent() {
   const fetchResidentStudents = async () => {
     setIsLoadingList(true);
     try {
+      const params = new URLSearchParams({
+        page: String(currentPage),
+        limit: String(limit),
+        search: searchQuery,
+        admissionStatus: admissionStatusFilter,
+      });
+
+      if (programMajorFilter) {
+        const [programId, majorId] = programMajorFilter.split("-");
+        if (programId) params.append("programId", programId);
+        if (majorId) params.append("majorId", majorId);
+      }
+      if (yearLevelFilter) params.append("yearLevel", yearLevelFilter);
+
       const response = await fetch(
-        `/api/auth/resident/students?page=${currentPage}&limit=${limit}&search=${searchQuery}&admissionStatus=${admissionStatusFilter}`
+        `/api/auth/resident/students?${params.toString()}`,
       );
       if (response.ok) {
         const data = await response.json();
@@ -186,7 +216,14 @@ export default function ResidentPortalContent() {
     if (!studentData) {
       fetchResidentStudents();
     }
-  }, [currentPage, searchQuery, admissionStatusFilter, studentData]);
+  }, [
+    currentPage,
+    searchQuery,
+    admissionStatusFilter,
+    programMajorFilter,
+    yearLevelFilter,
+    studentData,
+  ]);
 
   const handleSearchStudent = async (studentNum?: string) => {
     const studentNumberToSearch = studentNum || inputStudentNumber.trim();
@@ -409,6 +446,7 @@ export default function ResidentPortalContent() {
                 Manage re-enrollment for continuing students
               </p>
             </div>
+            <ActiveTermCard value={currentTermLabel} />
           </div>
         </div>
 
@@ -469,7 +507,7 @@ export default function ResidentPortalContent() {
 
             {/* Search Bar */}
             <div className='p-6 border-b border-gray-100'>
-              <div className='flex gap-3 items-center'>
+              <div className='flex gap-3 items-center mb-4'>
                 <div className='flex-1 relative'>
                   <div className='absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none'>
                     <Search
@@ -508,6 +546,110 @@ export default function ResidentPortalContent() {
                   }}
                 >
                   Total: {totalCount} Students
+                </div>
+              </div>
+
+              <div className='grid grid-cols-1 md:grid-cols-3 gap-3'>
+                <div className='relative'>
+                  <select
+                    value={programMajorFilter}
+                    onChange={(e) => {
+                      setProgramMajorFilter(e.target.value);
+                      setCurrentPage(1);
+                    }}
+                    disabled={programsLoading}
+                    className='w-full px-4 py-3 rounded-xl border transition-all focus:outline-none focus:ring-4 appearance-none cursor-pointer bg-white disabled:opacity-60'
+                    style={{
+                      borderColor: colors.tertiary + "30",
+                      color: colors.primary,
+                    }}
+                    onFocus={(e) => {
+                      e.currentTarget.style.borderColor = colors.secondary;
+                      e.currentTarget.style.boxShadow = `0 0 0 4px ${colors.secondary}10`;
+                    }}
+                    onBlur={(e) => {
+                      e.currentTarget.style.borderColor = colors.tertiary + "30";
+                      e.currentTarget.style.boxShadow = "none";
+                    }}
+                  >
+                    <option value=''>All Programs / Majors</option>
+                    {programMajorOptions.map((programOption) => (
+                      <option
+                        key={programOption.value}
+                        value={programOption.value}
+                      >
+                        {programOption.label}
+                      </option>
+                    ))}
+                  </select>
+                  <div className='absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none text-gray-400'>
+                    <ChevronRight size={16} className='rotate-90' />
+                  </div>
+                </div>
+
+                <div className='relative'>
+                  <select
+                    value={admissionStatusFilter}
+                    onChange={(e) => {
+                      setAdmissionStatusFilter(e.target.value);
+                      setCurrentPage(1);
+                    }}
+                    className='w-full px-4 py-3 rounded-xl border transition-all focus:outline-none focus:ring-4 appearance-none cursor-pointer bg-white'
+                    style={{
+                      borderColor: colors.tertiary + "30",
+                      color: colors.primary,
+                    }}
+                    onFocus={(e) => {
+                      e.currentTarget.style.borderColor = colors.secondary;
+                      e.currentTarget.style.boxShadow = `0 0 0 4px ${colors.secondary}10`;
+                    }}
+                    onBlur={(e) => {
+                      e.currentTarget.style.borderColor = colors.tertiary + "30";
+                      e.currentTarget.style.boxShadow = "none";
+                    }}
+                  >
+                    <option value='all'>All Admission Status</option>
+                    <option value='new'>New</option>
+                    <option value='transferee'>Transferee</option>
+                    <option value='resident'>Resident</option>
+                    <option value='returnee'>Returnee</option>
+                  </select>
+                  <div className='absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none text-gray-400'>
+                    <ChevronRight size={16} className='rotate-90' />
+                  </div>
+                </div>
+
+                <div className='relative'>
+                  <select
+                    value={yearLevelFilter}
+                    onChange={(e) => {
+                      setYearLevelFilter(e.target.value);
+                      setCurrentPage(1);
+                    }}
+                    className='w-full px-4 py-3 rounded-xl border transition-all focus:outline-none focus:ring-4 appearance-none cursor-pointer bg-white'
+                    style={{
+                      borderColor: colors.tertiary + "30",
+                      color: colors.primary,
+                    }}
+                    onFocus={(e) => {
+                      e.currentTarget.style.borderColor = colors.secondary;
+                      e.currentTarget.style.boxShadow = `0 0 0 4px ${colors.secondary}10`;
+                    }}
+                    onBlur={(e) => {
+                      e.currentTarget.style.borderColor = colors.tertiary + "30";
+                      e.currentTarget.style.boxShadow = "none";
+                    }}
+                  >
+                    <option value=''>All Year Levels</option>
+                    <option value='1'>1st Year</option>
+                    <option value='2'>2nd Year</option>
+                    <option value='3'>3rd Year</option>
+                    <option value='4'>4th Year</option>
+                    <option value='5'>5th Year</option>
+                  </select>
+                  <div className='absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none text-gray-400'>
+                    <ChevronRight size={16} className='rotate-90' />
+                  </div>
                 </div>
               </div>
             </div>

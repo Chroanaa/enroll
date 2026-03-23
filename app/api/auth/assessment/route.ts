@@ -35,6 +35,16 @@ function convertSemesterToInt(semester: string | number): number {
   throw new Error("Invalid semester. Must be 'First', 'Second', 1, or 2");
 }
 
+function getSemesterTermVariants(semesterNum: number): string[] {
+  if (semesterNum === 1) {
+    return ["First Semester", "1st Semester", "first", "1"];
+  }
+  if (semesterNum === 2) {
+    return ["Second Semester", "2nd Semester", "second", "2"];
+  }
+  return [];
+}
+
 async function ensureAssessmentStudentAccess(
   studentNumber: string,
   scope: SessionScope,
@@ -186,6 +196,7 @@ export async function POST(request: NextRequest) {
       // Status
       mode, // 'draft' | 'finalize'
       userId, // For audit trail
+      academicStatus, // 'regular' | 'irregular'
     } = body;
 
     // Validation
@@ -228,6 +239,18 @@ export async function POST(request: NextRequest) {
         { error: "Missing required financial fields" },
         { status: 400 }
       );
+    }
+
+    let normalizedAcademicStatus: "regular" | "irregular" | null = null;
+    if (academicStatus !== undefined && academicStatus !== null && String(academicStatus).trim() !== "") {
+      const status = String(academicStatus).trim().toLowerCase();
+      if (status !== "regular" && status !== "irregular") {
+        return NextResponse.json(
+          { error: "Invalid academicStatus. Must be 'regular' or 'irregular'" },
+          { status: 400 }
+        );
+      }
+      normalizedAcademicStatus = status as "regular" | "irregular";
     }
 
     // Validate payment mode specific fields
@@ -407,6 +430,39 @@ export async function POST(request: NextRequest) {
         await tx.payment_schedule.deleteMany({
           where: { assessment_id: assessment.id },
         });
+      }
+
+      // Keep enrollment academic status in sync with assessment selection
+      if (normalizedAcademicStatus) {
+        const termVariants = getSemesterTermVariants(semesterNum);
+        const enrollmentUpdate = await tx.enrollment.updateMany({
+          where: {
+            student_number: studentNumber,
+            academic_year: academicYear,
+            term: {
+              in: termVariants,
+            },
+          },
+          data: {
+            academic_status: normalizedAcademicStatus,
+          },
+        });
+
+        // Fallback: if term-specific row is missing, update latest enrollment row for this student
+        if (enrollmentUpdate.count === 0) {
+          const latestEnrollment = await tx.enrollment.findFirst({
+            where: { student_number: studentNumber },
+            orderBy: { admission_date: "desc" },
+            select: { id: true },
+          });
+
+          if (latestEnrollment) {
+            await tx.enrollment.update({
+              where: { id: latestEnrollment.id },
+              data: { academic_status: normalizedAcademicStatus },
+            });
+          }
+        }
       }
 
       // Create audit trail entry

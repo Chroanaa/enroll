@@ -4,6 +4,7 @@ import { NextRequest } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "../[...nextauth]/authOptions";
 import { ROLES } from "@/app/lib/rbac";
+import { getSessionScope } from "@/app/lib/accessScope";
 
 const READ_ALLOWED_ROLES = [
   ROLES.ADMIN,
@@ -36,6 +37,73 @@ async function requireRole(allowedRoles: number[]) {
   return null;
 }
 
+async function resolveProgramByIdentifier(identifier: unknown) {
+  const raw = String(identifier || "").trim();
+  if (!raw) {
+    return null;
+  }
+
+  const parsedId = Number.parseInt(raw, 10);
+  const numericId = Number.isNaN(parsedId) ? null : parsedId;
+
+  return prisma.program.findFirst({
+    where: {
+      OR: [
+        { code: raw },
+        ...(numericId !== null ? [{ id: numericId }] : []),
+      ],
+    },
+    select: {
+      id: true,
+      code: true,
+      name: true,
+      department_id: true,
+    },
+  });
+}
+
+async function ensureDeanCurriculumWriteAccess(programIdentifier: unknown) {
+  const scope = await getSessionScope();
+  if (!scope) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
+  if (!scope.isDean) {
+    return null;
+  }
+
+  if (!scope.deanDepartmentId) {
+    return NextResponse.json(
+      { error: "Dean account is not linked to a department." },
+      { status: 403 },
+    );
+  }
+
+  const program = await resolveProgramByIdentifier(programIdentifier);
+  if (!program) {
+    return NextResponse.json(
+      { error: "Program not found for this curriculum." },
+      { status: 400 },
+    );
+  }
+
+  if (!program.department_id) {
+    return NextResponse.json(
+      { error: "Selected program is not linked to any department." },
+      { status: 400 },
+    );
+  }
+
+  if (program.department_id !== scope.deanDepartmentId) {
+    return NextResponse.json(
+      { error: "Forbidden. You can only edit curriculum for your department." },
+      { status: 403 },
+    );
+  }
+
+  return null;
+}
+
 export async function POST(request: NextRequest) {
   try {
     const unauthorized = await requireRole(WRITE_ALLOWED_ROLES);
@@ -43,6 +111,11 @@ export async function POST(request: NextRequest) {
 
     const data = await request.json();
     const { id, courses, ...curriculumData } = data;
+
+    const deanScopeError = await ensureDeanCurriculumWriteAccess(
+      curriculumData.program_code,
+    );
+    if (deanScopeError) return deanScopeError;
 
     const newCurriculum = await prisma.curriculum.create({
       data: {
@@ -92,8 +165,53 @@ export async function GET() {
       },
     });
 
+    const curriculumProgramKeys = [
+      ...new Set(curriculums.map((curriculum) => curriculum.program_code).filter(Boolean)),
+    ];
+    const numericProgramIds = curriculumProgramKeys
+      .map((value) => Number.parseInt(String(value), 10))
+      .filter((value) => !Number.isNaN(value));
+    const stringProgramCodes = curriculumProgramKeys.filter((value) =>
+      Number.isNaN(Number.parseInt(String(value), 10)),
+    ) as string[];
+
+    const programRows =
+      curriculumProgramKeys.length > 0
+        ? await prisma.program.findMany({
+            where: {
+              OR: [
+                numericProgramIds.length > 0 ? { id: { in: numericProgramIds } } : undefined,
+                stringProgramCodes.length > 0 ? { code: { in: stringProgramCodes } } : undefined,
+              ].filter(Boolean) as any[],
+            },
+            select: {
+              id: true,
+              code: true,
+              department_id: true,
+            },
+          })
+        : [];
+
+    const programByKey = new Map<string, { id: number; department_id: number | null }>();
+    for (const program of programRows) {
+      programByKey.set(String(program.id), {
+        id: program.id,
+        department_id: program.department_id ?? null,
+      });
+      programByKey.set(program.code, {
+        id: program.id,
+        department_id: program.department_id ?? null,
+      });
+    }
+
     // Transform the data to match the frontend Curriculum interface
     const transformedCurriculums = curriculums.map((curriculum) => ({
+      ...(programByKey.get(String(curriculum.program_code))
+        ? {
+            department_id:
+              programByKey.get(String(curriculum.program_code))?.department_id ?? null,
+          }
+        : { department_id: null }),
       id: curriculum.id,
       program_name: curriculum.program_name,
       program_code: curriculum.program_code,
@@ -115,7 +233,10 @@ export async function GET() {
         prerequisite: course.prerequisite,
         year_level: course.year_level,
         semester: course.semester,
-        fixedAmount: course.fixedAmount ? Number(course.fixedAmount) : undefined,
+        fixedAmount:
+          course.fixedAmount !== undefined && course.fixedAmount !== null
+            ? Number(course.fixedAmount)
+            : undefined,
       })),
     }));
 
@@ -135,10 +256,23 @@ export async function PATCH(nextRequest: NextRequest) {
 
     const data = await nextRequest.json();
     const { id, courses, ...updateData } = data;
+    const curriculumId = Number(id);
+
+    const existingCurriculum = await prisma.curriculum.findUnique({
+      where: { id: curriculumId },
+      select: { id: true, program_code: true },
+    });
+
+    if (!existingCurriculum) {
+      return NextResponse.json({ error: "Curriculum not found." }, { status: 404 });
+    }
+
+    const targetProgramCode = updateData.program_code || existingCurriculum.program_code;
+    const deanScopeError = await ensureDeanCurriculumWriteAccess(targetProgramCode);
+    if (deanScopeError) return deanScopeError;
 
     // Smart update: preserve existing curriculum_course IDs so that
     // enrolled_subjects.curriculum_course_id references remain valid.
-    const curriculumId = Number(id);
 
     // Fetch existing DB course IDs for this curriculum
     const existingCourses = await prisma.curriculum_course.findMany({
@@ -239,7 +373,10 @@ export async function PATCH(nextRequest: NextRequest) {
         prerequisite: course.prerequisite,
         year_level: course.year_level,
         semester: course.semester,
-        fixedAmount: course.fixedAmount ? Number(course.fixedAmount) : undefined,
+        fixedAmount:
+          course.fixedAmount !== undefined && course.fixedAmount !== null
+            ? Number(course.fixedAmount)
+            : undefined,
       })),
     };
 

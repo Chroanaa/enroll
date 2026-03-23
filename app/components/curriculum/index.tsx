@@ -20,8 +20,22 @@ const CurriculumManagement: React.FC = () => {
   const [curriculumList, setCurriculumList] = useState<Curriculum[]>([]);
   const [loading, setLoading] = useState(true);
   const userRole = Number((session?.user as any)?.role) || 0;
+  const isDean = userRole === ROLES.DEAN;
+  const deanDepartmentId = Number((session?.user as any)?.departmentId) || null;
   const isViewOnly =
     userRole === ROLES.REGISTRAR || userRole === ROLES.FACULTY;
+
+  const canEditCurriculum = (curriculum: Curriculum) => {
+    if (userRole === ROLES.ADMIN) {
+      return true;
+    }
+
+    if (isDean && deanDepartmentId) {
+      return Number((curriculum as any).department_id) === deanDepartmentId;
+    }
+
+    return false;
+  };
 
   // Function to fetch curriculums
   const fetchCurriculums = async () => {
@@ -455,7 +469,7 @@ const CurriculumManagement: React.FC = () => {
                         <FileText className='w-4 h-4' />
                         View Prospectus
                       </button>
-                      {!isViewOnly && (
+                      {!isViewOnly && canEditCurriculum(curriculum) && (
                         <button
                           onClick={() => setEditingCurriculum(curriculum)}
                           className='p-2 rounded-lg hover:bg-gray-100 transition-all text-blue-600'

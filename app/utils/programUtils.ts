@@ -7,6 +7,7 @@ export interface ProgramWithMajor {
   label: string;
   programId: number;
   programCode: string;
+  programName: string;
   majorId: number | null;
   majorName: string | null;
 }
@@ -65,12 +66,10 @@ export function parseProgramFilter(filterValue: string): {
  */
 export function formatProgramDisplay(
   programCode: string,
+  programName: string,
   majorName: string | null
 ): string {
-  if (!majorName) {
-    return `${programCode} - no major`;
-  }
-  return `${programCode} - ${majorName}`;
+  return `${programCode} - ${majorName || programName}`;
 }
 
 /**
@@ -124,29 +123,29 @@ export async function getProgramsWithMajorsFromDB(prisma: any): Promise<ProgramW
   programs.forEach((program) => {
     const programMajors = majorsByProgram[program.id] || [];
 
-    if (programMajors.length === 0) {
-      // Program with no majors
+    // Always include a no-major option for each program.
+    result.push({
+      value: `${program.id}`,
+      label: formatProgramDisplay(program.code, program.name, null),
+      programId: program.id,
+      programCode: program.code,
+      programName: program.name,
+      majorId: null,
+      majorName: null,
+    });
+
+    // Program with majors - create an entry for each major
+    programMajors.forEach((major) => {
       result.push({
-        value: `${program.id}`,
-        label: formatProgramDisplay(program.code, null),
+        value: `${program.id}-${major.id}`,
+        label: formatProgramDisplay(program.code, program.name, major.name),
         programId: program.id,
         programCode: program.code,
-        majorId: null,
-        majorName: null,
+        programName: program.name,
+        majorId: major.id,
+        majorName: major.name,
       });
-    } else {
-      // Program with majors - create an entry for each major
-      programMajors.forEach((major) => {
-        result.push({
-          value: `${program.id}-${major.id}`,
-          label: formatProgramDisplay(program.code, major.name),
-          programId: program.id,
-          programCode: program.code,
-          majorId: major.id,
-          majorName: major.name,
-        });
-      });
-    }
+    });
   });
 
   return result;

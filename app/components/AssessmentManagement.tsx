@@ -54,6 +54,7 @@ const AssessmentManagement: React.FC = () => {
   const [majorId, setMajorId] = useState<number | null>(null);
   const [majorName, setMajorName] = useState<string | null>(null);
   const [yearLevel, setYearLevel] = useState<number | null>(null);
+  const [academicStatus, setAcademicStatus] = useState<string>("");
   const [studentNumber, setStudentNumber] = useState("");
   const [tuitionPerUnit, setTuitionPerUnit] = useState("570");
   const [totalUnits, setTotalUnits] = useState(0); // Regular units only (excludes fixed amount subjects)
@@ -272,6 +273,7 @@ const AssessmentManagement: React.FC = () => {
     setPersistedDiscountAmount(null);
     setPersistedDiscountId(null);
     setEnrollmentData(null);
+    setAcademicStatus("");
     // Reset assessment-saved flags so the form is unlocked for the new student
     setIsAssessmentSaved(false);
     setIsSavingAssessment(false);
@@ -340,6 +342,7 @@ const AssessmentManagement: React.FC = () => {
         } else {
           setYearLevel(1); // Default to year 1 if not set
         }
+        setAcademicStatus((data.academic_status || "").toLowerCase());
 
         // Store enrollment data for discount eligibility
         setEnrollmentData({
@@ -380,6 +383,7 @@ const AssessmentManagement: React.FC = () => {
         setMajorId(null);
         setMajorName(null);
         setYearLevel(null);
+        setAcademicStatus("");
         setEnrolledSubjects([]);
         setDroppedSubjects([]);
         setTotalUnits(0);
@@ -397,6 +401,7 @@ const AssessmentManagement: React.FC = () => {
       setMajorId(null);
       setMajorName(null);
       setYearLevel(null);
+      setAcademicStatus("");
       setEnrolledSubjects([]);
       setDroppedSubjects([]);
       setTotalUnits(0);
@@ -864,6 +869,7 @@ const AssessmentManagement: React.FC = () => {
       setMajorId(null);
       setMajorName(null);
       setYearLevel(null);
+      setAcademicStatus("");
       setEnrolledSubjects([]);
       setTotalUnits(0);
       setFixedAmountTotal(0);
@@ -1443,6 +1449,7 @@ const AssessmentManagement: React.FC = () => {
           studentNumber: studentNumber.trim(),
           academicYear: currentTerm.academicYear,
           semester: semesterNum,
+          academicStatus: academicStatus || null,
           grossTuition: tuition,
           discountId: selectedDiscount?.id || null,
           discountPercent: selectedDiscount ? Number(selectedDiscount.percentage) : null,
@@ -1801,8 +1808,10 @@ const AssessmentManagement: React.FC = () => {
           program={program}
           majorName={majorName}
           yearLevel={yearLevel}
+          academicStatus={academicStatus}
           isFetchingStudent={isFetchingStudent}
           onSelectStudent={() => setIsStudentSearchModalOpen(true)}
+          onAcademicStatusChange={setAcademicStatus}
         />
 
         {/* Tabbed Content Section */}

@@ -40,6 +40,8 @@ export async function GET(request: NextRequest) {
     const searchParams = request.nextUrl.searchParams;
     const academicYear = searchParams.get("academicYear");
     const semester = searchParams.get("semester");
+    const programIdFilter = searchParams.get("programId");
+    const yearLevelFilter = searchParams.get("yearLevel");
     const includeDetails = searchParams.get("includeDetails") === "true";
     const noSectionOnly = searchParams.get("noSectionOnly") === "true";
 
@@ -136,16 +138,59 @@ export async function GET(request: NextRequest) {
       });
     }
 
+    const enrollmentWhere: any = {
+      student_number: { in: scopedStudentNumbers },
+      academic_year: academicYear,
+      term: { in: semesterAliases },
+      verification_status: "approved",
+    };
+
+    if (programIdFilter) {
+      const [programPart, majorPart] = String(programIdFilter).split("-");
+      if (programPart) {
+        const parsedProgramId = Number.parseInt(programPart, 10);
+        let resolvedProgramCode: string | null = null;
+        if (!Number.isNaN(parsedProgramId)) {
+          const programRow = await prisma.program.findUnique({
+            where: { id: parsedProgramId },
+            select: { code: true },
+          });
+          resolvedProgramCode = programRow?.code || null;
+        }
+
+        enrollmentWhere.OR = resolvedProgramCode
+          ? [{ course_program: programPart }, { course_program: resolvedProgramCode }]
+          : [{ course_program: programPart }];
+      }
+
+      const parsedMajorId = majorPart ? Number.parseInt(majorPart, 10) : null;
+      if (parsedMajorId !== null && !Number.isNaN(parsedMajorId)) {
+        enrollmentWhere.major_id = parsedMajorId;
+      } else if (!majorPart && programPart) {
+        // Program-only filter should include students without a declared major.
+        enrollmentWhere.major_id = null;
+      }
+    }
+
+    const parsedYearLevel = yearLevelFilter
+      ? Number.parseInt(String(yearLevelFilter), 10)
+      : null;
+    if (parsedYearLevel !== null && !Number.isNaN(parsedYearLevel)) {
+      enrollmentWhere.year_level = parsedYearLevel;
+    }
+
     const enrollments = await prisma.enrollment.findMany({
-      where: { student_number: { in: scopedStudentNumbers } },
+      where: enrollmentWhere,
       select: {
         student_number: true,
         first_name: true,
         middle_name: true,
         family_name: true,
         course_program: true,
+        major_id: true,
         year_level: true,
       },
+      distinct: ["student_number"],
       orderBy: [{ family_name: "asc" }, { first_name: "asc" }],
     });
 
@@ -179,6 +224,26 @@ export async function GET(request: NextRequest) {
       programByKey.set(program.code, program.code);
     }
 
+    const majorIds = [
+      ...new Set(
+        enrollments
+          .map((e) => e.major_id)
+          .filter((majorId): majorId is number => majorId !== null && majorId !== undefined),
+      ),
+    ];
+
+    const majorRows =
+      majorIds.length > 0
+        ? await prisma.major.findMany({
+            where: { id: { in: majorIds } },
+            select: { id: true, name: true },
+          })
+        : [];
+
+    const majorById = new Map<number, string>(
+      majorRows.map((major) => [major.id, major.name]),
+    );
+
     const payload = enrollments.map((enrollment) => {
       const studentName = [
         enrollment.family_name,
@@ -187,14 +252,28 @@ export async function GET(request: NextRequest) {
       ]
         .filter(Boolean)
         .join(", ");
-      const programCode =
+      const programCodeBase =
         programByKey.get(String(enrollment.course_program || "")) ||
         String(enrollment.course_program || "N/A");
+      const majorName =
+        enrollment.major_id !== null && enrollment.major_id !== undefined
+          ? majorById.get(enrollment.major_id) || null
+          : null;
+      const programCode = majorName
+        ? `${programCodeBase} - ${majorName}`
+        : programCodeBase;
+
+      const parsedProgramId = Number.parseInt(
+        String(enrollment.course_program || ""),
+        10,
+      );
 
       return {
         studentNumber: enrollment.student_number,
         studentName: studentName || enrollment.student_number,
         programCode,
+        programId: Number.isNaN(parsedProgramId) ? null : parsedProgramId,
+        majorId: enrollment.major_id ?? null,
         yearLevel: enrollment.year_level ?? null,
         enrolledSubjectCount: Number(
           filteredRows.find((row) => row.student_number === enrollment.student_number)
