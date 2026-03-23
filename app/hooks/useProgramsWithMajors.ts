@@ -5,6 +5,7 @@ export interface ProgramWithMajor {
   label: string;
   programId: number;
   programCode: string;
+  programName: string;
   majorId: number | null;
   majorName: string | null;
 }

@@ -14,6 +14,7 @@ import {
 } from "lucide-react";
 import { colors } from "../colors";
 import { useAcademicTerm } from "../hooks/useAcademicTerm";
+import { useProgramsWithMajors } from "../hooks/useProgramsWithMajors";
 import SuccessModal from "./common/SuccessModal";
 import ErrorModal from "./common/ErrorModal";
 import ConfirmationModal from "./common/ConfirmationModal";
@@ -86,7 +87,11 @@ export default function ProgramShiftingManagement() {
   const canApprove = roleId === 1 || roleId === 5;
 
   const { currentTerm, loading: termLoading } = useAcademicTerm();
+  const { programs: programMajorOptions, loading: programMajorOptionsLoading } =
+    useProgramsWithMajors();
   const [studentSearch, setStudentSearch] = useState("");
+  const [programFilter, setProgramFilter] = useState("");
+  const [yearLevelFilter, setYearLevelFilter] = useState("");
   const [students, setStudents] = useState<StudentListItem[]>([]);
   const [selectedStudent, setSelectedStudent] = useState<StudentListItem | null>(null);
   const [selectedStudentProgramId, setSelectedStudentProgramId] = useState<number | null>(null);
@@ -159,7 +164,7 @@ export default function ProgramShiftingManagement() {
       const response = await fetch(
         `/api/auth/enrolled-subjects/students?academicYear=${encodeURIComponent(
           currentTerm.academicYear,
-        )}&semester=${semesterNum}&includeDetails=true`,
+        )}&semester=${semesterNum}&includeDetails=true${programFilter ? `&programId=${encodeURIComponent(programFilter)}` : ""}${yearLevelFilter ? `&yearLevel=${encodeURIComponent(yearLevelFilter)}` : ""}`,
       );
       const result = await response.json();
       if (!response.ok) throw new Error(result.error || "Failed to load students.");
@@ -246,11 +251,11 @@ export default function ProgramShiftingManagement() {
     loadStudents();
     loadPrograms();
     loadRequests();
-  }, [currentTerm, semesterNum]);
+  }, [currentTerm, semesterNum, programFilter, yearLevelFilter]);
 
   useEffect(() => {
     setStudentPage(1);
-  }, [studentSearch, students.length, studentItemsPerPage]);
+  }, [studentSearch, students.length, studentItemsPerPage, programFilter, yearLevelFilter]);
 
   useEffect(() => {
     setToMajorId(null);
@@ -385,20 +390,48 @@ export default function ProgramShiftingManagement() {
                   Select a student, then choose the target program/major.
                 </p>
               </div>
-              <div className="relative w-full max-w-md">
-                <Search className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2" style={{ color: colors.neutral }} />
-                <input
-                  type="text"
-                  value={studentSearch}
-                  onChange={(event) => setStudentSearch(event.target.value)}
-                  placeholder="Search by student ID, name, or program"
-                  className="h-11 w-full rounded-xl pl-11 pr-4 text-sm outline-none transition"
-                  style={{
-                    border: `1px solid ${colors.neutralBorder}`,
-                    backgroundColor: "white",
-                    color: colors.primary,
-                  }}
-                />
+              <div className="flex w-full max-w-4xl flex-col gap-3 lg:flex-row lg:items-center lg:justify-end">
+                <div className="relative w-full lg:max-w-md">
+                  <Search className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2" style={{ color: colors.neutral }} />
+                  <input
+                    type="text"
+                    value={studentSearch}
+                    onChange={(event) => setStudentSearch(event.target.value)}
+                    placeholder="Search by student ID, name, or program"
+                    className="h-11 w-full rounded-xl pl-11 pr-4 text-sm outline-none transition"
+                    style={{
+                      border: `1px solid ${colors.neutralBorder}`,
+                      backgroundColor: "white",
+                      color: colors.primary,
+                    }}
+                  />
+                </div>
+                <select
+                  value={programFilter}
+                  onChange={(event) => setProgramFilter(event.target.value)}
+                  disabled={programMajorOptionsLoading}
+                  className="h-11 w-full rounded-xl px-3 text-sm outline-none lg:max-w-sm"
+                  style={{ border: `1px solid ${colors.neutralBorder}`, backgroundColor: "white", color: colors.primary }}
+                >
+                  <option value="">All Programs / Majors</option>
+                  {programMajorOptions.map((option) => (
+                    <option key={option.value} value={option.value}>
+                      {option.label}
+                    </option>
+                  ))}
+                </select>
+                <select
+                  value={yearLevelFilter}
+                  onChange={(event) => setYearLevelFilter(event.target.value)}
+                  className="h-11 w-full rounded-xl px-3 text-sm outline-none lg:max-w-[180px]"
+                  style={{ border: `1px solid ${colors.neutralBorder}`, backgroundColor: "white", color: colors.primary }}
+                >
+                  <option value="">All Year Levels</option>
+                  <option value="1">1st Year</option>
+                  <option value="2">2nd Year</option>
+                  <option value="3">3rd Year</option>
+                  <option value="4">4th Year</option>
+                </select>
               </div>
             </div>
 

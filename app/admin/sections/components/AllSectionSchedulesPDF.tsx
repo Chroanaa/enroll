@@ -262,7 +262,7 @@ export default function AllSectionSchedulesPDF({
         const dominantSemester =
           sections.reduce<Record<string, number>>((acc, sec) => {
             const key = sec.semester || '';
-            acc[key] = (acc[key] ?? 0) + 1;
+              acc[key] = (acc[key] ?? 0) + 1;
             return acc;
           }, {});
 

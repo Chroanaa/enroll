@@ -6,6 +6,7 @@ import { ROLES } from "@/app/lib/rbac";
 const ASSESSMENT_SUMMARY_ALLOWED_ROLES = [
   ROLES.ADMIN,
   ROLES.CASHIER,
+  ROLES.REGISTRAR,
   ROLES.DEAN,
 ];
 

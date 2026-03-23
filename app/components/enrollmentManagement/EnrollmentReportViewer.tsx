@@ -64,13 +64,15 @@ function formatEnrollmentDate(value: string | Date | null | undefined) {
 function formatProgramMajor(enrollment: Record<string, any>) {
   const programCode =
     enrollment.program_code || enrollment.course_program || "N/A";
+  const programName =
+    enrollment.program_name || enrollment.course_program || "Program";
   const majorName = enrollment.major_name || null;
 
   if (programCode === "N/A") {
     return "N/A";
   }
 
-  return formatProgramDisplay(programCode, majorName);
+  return formatProgramDisplay(programCode, programName, majorName);
 }
 
 export default function EnrollmentReportViewer({

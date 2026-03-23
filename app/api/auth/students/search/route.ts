@@ -18,8 +18,9 @@ const STUDENT_SEARCH_ALLOWED_ROLES = [
  * Query params:
  * - query: string (search term)
  * - academicStatus: 'all' | 'regular' | 'irregular' (default: 'all')
- * - programId: number (filter by program)
+ * - programId: number | "number-number" (filter by program or program-major)
  * - majorId: number (filter by major)
+ * - yearLevel: number (filter by year level)
  * - limit: number (default: 20)
  */
 export async function GET(request: NextRequest) {
@@ -45,9 +46,10 @@ export async function GET(request: NextRequest) {
     const academicStatus = searchParams.get("academicStatus") || "all";
     const programId = searchParams.get("programId");
     const majorId = searchParams.get("majorId");
+    const yearLevel = searchParams.get("yearLevel");
     const listAll = searchParams.get("listAll") === "true";
     const requestedLimit = parseInt(searchParams.get("limit") || "20");
-    const limitCap = listAll ? 500 : 50;
+    const limitCap = listAll ? 5000 : 200;
     const limit = Math.min(requestedLimit, limitCap);
 
     // If not listing all and query is too short, return empty
@@ -92,9 +94,43 @@ export async function GET(request: NextRequest) {
 
       // Filter by major (takes precedence over program)
       if (majorId) {
-        whereConditions.push({ major_id: parseInt(majorId) });
+        whereConditions.push({ major_id: parseInt(majorId, 10) });
       } else if (programId) {
-        whereConditions.push({ course_program: programId });
+        const [programPart, majorPart] = String(programId).split("-");
+        if (programPart) {
+          const parsedProgramId = parseInt(programPart, 10);
+          let programCode: string | null = null;
+          if (!Number.isNaN(parsedProgramId)) {
+            const program = await prisma.program.findUnique({
+              where: { id: parsedProgramId },
+              select: { code: true },
+            });
+            programCode = program?.code || null;
+          }
+
+          whereConditions.push(
+            programCode
+              ? {
+                  OR: [
+                    { course_program: programPart },
+                    { course_program: programCode },
+                  ],
+                }
+              : { course_program: programPart },
+          );
+        }
+
+        const parsedMajor = majorPart ? parseInt(majorPart, 10) : NaN;
+        if (!Number.isNaN(parsedMajor)) {
+          whereConditions.push({ major_id: parsedMajor });
+        }
+      }
+
+      if (yearLevel) {
+        const parsedYearLevel = parseInt(yearLevel, 10);
+        if (!Number.isNaN(parsedYearLevel)) {
+          whereConditions.push({ year_level: parsedYearLevel });
+        }
       }
 
       if (scope.isDean && scope.deanDepartmentId) {

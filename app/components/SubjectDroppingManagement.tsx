@@ -5,7 +5,6 @@ import {
   AlertCircle,
   ArrowLeft,
   BookOpen,
-  Calendar,
   CheckCircle2,
   Clock3,
   GraduationCap,
@@ -17,10 +16,12 @@ import {
 } from "lucide-react";
 import { colors } from "../colors";
 import { useAcademicTerm } from "../hooks/useAcademicTerm";
+import { useProgramsWithMajors } from "../hooks/useProgramsWithMajors";
 import SuccessModal from "./common/SuccessModal";
 import ErrorModal from "./common/ErrorModal";
 import ConfirmationModal from "./common/ConfirmationModal";
 import Pagination from "./common/Pagination";
+import ActiveTermCard from "./common/ActiveTermCard";
 import type { EnrolledSubject } from "./assessmentManagement/types";
 
 interface StudentListItem {
@@ -93,7 +94,10 @@ const ProfileField: React.FC<{
 
 const SubjectDroppingManagement: React.FC = () => {
   const { currentTerm, loading: termLoading } = useAcademicTerm();
+  const { programs, loading: programsLoading } = useProgramsWithMajors();
   const [studentSearch, setStudentSearch] = useState("");
+  const [programFilter, setProgramFilter] = useState("");
+  const [yearLevelFilter, setYearLevelFilter] = useState("");
   const [students, setStudents] = useState<StudentListItem[]>([]);
   const [isLoadingStudents, setIsLoadingStudents] = useState(false);
   const [isFetchingStudent, setIsFetchingStudent] = useState(false);
@@ -191,6 +195,12 @@ const SubjectDroppingManagement: React.FC = () => {
           semester: semesterNum,
           includeNotAssessed: "true",
         });
+        if (programFilter) {
+          params.set("programId", programFilter);
+        }
+        if (yearLevelFilter) {
+          params.set("yearLevel", yearLevelFilter);
+        }
 
         const [summaryResponse, enrolledStudentsResponse] = await Promise.all([
           fetch(`/api/auth/assessment/all-summaries?${params.toString()}`),
@@ -260,11 +270,11 @@ const SubjectDroppingManagement: React.FC = () => {
     };
 
     fetchStudents();
-  }, [currentTerm]);
+  }, [currentTerm, programFilter, yearLevelFilter]);
 
   useEffect(() => {
     setStudentCurrentPage(1);
-  }, [studentSearch, students.length]);
+  }, [studentSearch, students.length, programFilter, yearLevelFilter]);
 
   useEffect(() => {
     setSubjectCurrentPage(1);
@@ -438,31 +448,7 @@ const SubjectDroppingManagement: React.FC = () => {
             </p>
           </div>
 
-          <div
-            className="inline-flex items-center gap-3 rounded-xl px-4 py-3"
-            style={cardStyle}
-          >
-            <div
-              className="flex h-10 w-10 items-center justify-center rounded-xl"
-              style={{
-                backgroundColor: `${colors.secondary}12`,
-                color: colors.secondary,
-              }}
-            >
-              <Calendar className="h-5 w-5" />
-            </div>
-            <div>
-              <p
-                className="text-[11px] font-semibold uppercase tracking-[0.18em]"
-                style={{ color: colors.neutral }}
-              >
-                Active Term
-              </p>
-              <p className="text-sm font-semibold" style={{ color: colors.primary }}>
-                {currentTermLabel}
-              </p>
-            </div>
-          </div>
+          <ActiveTermCard value={currentTermLabel} />
         </header>
 
         {!isStudentSelected && (
@@ -486,31 +472,67 @@ const SubjectDroppingManagement: React.FC = () => {
                 </p>
               </div>
 
-              <div className="relative w-full max-w-md">
-                <Search
-                  className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2"
-                  style={{ color: colors.neutral }}
-                />
-                <input
-                  type="text"
-                  value={studentSearch}
-                  onChange={(event) => setStudentSearch(event.target.value)}
-                  placeholder="Search by student ID, name, or program"
-                  className="h-11 w-full rounded-xl pl-11 pr-4 text-sm outline-none transition"
+              <div className="flex w-full max-w-4xl flex-col gap-3 lg:flex-row lg:items-center lg:justify-end">
+                <div className="relative w-full lg:max-w-md">
+                  <Search
+                    className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2"
+                    style={{ color: colors.neutral }}
+                  />
+                  <input
+                    type="text"
+                    value={studentSearch}
+                    onChange={(event) => setStudentSearch(event.target.value)}
+                    placeholder="Search by student ID, name, or program"
+                    className="h-11 w-full rounded-xl pl-11 pr-4 text-sm outline-none transition"
+                    style={{
+                      border: `1px solid ${colors.neutralBorder}`,
+                      backgroundColor: "white",
+                      color: colors.primary,
+                    }}
+                    onFocus={(event) => {
+                      event.currentTarget.style.borderColor = colors.secondary;
+                      event.currentTarget.style.boxShadow = `0 0 0 3px ${colors.accent}22`;
+                    }}
+                    onBlur={(event) => {
+                      event.currentTarget.style.borderColor = colors.neutralBorder;
+                      event.currentTarget.style.boxShadow = "none";
+                    }}
+                  />
+                </div>
+                <select
+                  value={programFilter}
+                  onChange={(event) => setProgramFilter(event.target.value)}
+                  disabled={programsLoading}
+                  className="h-11 w-full rounded-xl px-3 text-sm outline-none lg:max-w-sm"
                   style={{
                     border: `1px solid ${colors.neutralBorder}`,
                     backgroundColor: "white",
                     color: colors.primary,
                   }}
-                  onFocus={(event) => {
-                    event.currentTarget.style.borderColor = colors.secondary;
-                    event.currentTarget.style.boxShadow = `0 0 0 3px ${colors.accent}22`;
+                >
+                  <option value="">All Programs / Majors</option>
+                  {programs.map((option) => (
+                    <option key={option.value} value={option.value}>
+                      {option.label}
+                    </option>
+                  ))}
+                </select>
+                <select
+                  value={yearLevelFilter}
+                  onChange={(event) => setYearLevelFilter(event.target.value)}
+                  className="h-11 w-full rounded-xl px-3 text-sm outline-none lg:max-w-[180px]"
+                  style={{
+                    border: `1px solid ${colors.neutralBorder}`,
+                    backgroundColor: "white",
+                    color: colors.primary,
                   }}
-                  onBlur={(event) => {
-                    event.currentTarget.style.borderColor = colors.neutralBorder;
-                    event.currentTarget.style.boxShadow = "none";
-                  }}
-                />
+                >
+                  <option value="">All Year Levels</option>
+                  <option value="1">1st Year</option>
+                  <option value="2">2nd Year</option>
+                  <option value="3">3rd Year</option>
+                  <option value="4">4th Year</option>
+                </select>
               </div>
             </div>
 

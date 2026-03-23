@@ -240,6 +240,7 @@ export interface Curriculum {
   id: number;
   program_name: string;
   program_code: string;
+  department_id?: number | null;
   major?: string;
   effective_year: string;
   total_units: number;
