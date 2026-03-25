@@ -38,11 +38,6 @@ export function StudentAssignment({
   const [overrideCapacity, setOverrideCapacity] = useState(false);
   const [showAssigned, setShowAssigned] = useState(false);
 
-  // Warning modal: shown when any selected student has no payment/assessment
-  const [noPaymentWarning, setNoPaymentWarning] = useState<{ open: boolean; names: string[] }>({
-    open: false,
-    names: []
-  });
   const [assignConfirmOpen, setAssignConfirmOpen] = useState(false);
   const [assignSuccess, setAssignSuccess] = useState<{ open: boolean; message: string }>({
     open: false,
@@ -135,7 +130,13 @@ export function StudentAssignment({
   };
 
   const handleSelectAll = () => {
-    const selectableStudents = filteredStudents.filter(s => !s.isAssigned);
+    const selectableStudents = filteredStudents.filter(
+      (s) =>
+        !s.isAssigned &&
+        s.hasEnrolledSubjects &&
+        s.hasAssessment &&
+        s.hasPaid
+    );
     if (selectedStudents.size === selectableStudents.length && selectableStudents.length > 0) {
       setSelectedStudents(new Set());
     } else {
@@ -163,24 +164,25 @@ export function StudentAssignment({
     }
   };
 
-  const executeAssignStudents = async (skipPaymentWarning = false) => {
+  const executeAssignStudents = async () => {
     if (selectedStudents.size === 0) {
       setError('Select at least one student');
       return;
     }
 
-    // Check if any selected student has no assessment/payment
-    const noPaymentStudents = students.filter(
-      s => selectedStudents.has(s.studentNumber) && !s.hasAssessment
+    const blockedStudents = students.filter(
+      s =>
+        selectedStudents.has(s.studentNumber) &&
+        (!s.hasAssessment || !s.hasPaid)
     );
-    if (noPaymentStudents.length > 0 && !skipPaymentWarning) {
-      setNoPaymentWarning({
-        open: true,
-        names: noPaymentStudents.map(s => `${s.firstName} ${s.lastName} (${s.studentNumber})`)
-      });
+    if (blockedStudents.length > 0) {
+      setError(
+        `Only students with finalized assessment and recorded payment can be assigned. Blocked: ${blockedStudents
+          .map((s) => `${s.firstName} ${s.lastName} (${s.studentNumber})`)
+          .join(', ')}`
+      );
       return;
     }
-    setNoPaymentWarning({ open: false, names: [] });
 
     setLoading(true);
     setError(null);
@@ -463,10 +465,26 @@ export function StudentAssignment({
                         type="checkbox"
                         checked={
                           selectedStudents.size > 0 &&
-                          selectedStudents.size === filteredStudents.filter(s => !s.isAssigned).length
+                          selectedStudents.size ===
+                            filteredStudents.filter(
+                              (s) =>
+                                !s.isAssigned &&
+                                s.hasEnrolledSubjects &&
+                                s.hasAssessment &&
+                                s.hasPaid
+                            ).length
                         }
                         onChange={handleSelectAll}
-                        disabled={!canAssignMore || filteredStudents.filter(s => !s.isAssigned).length === 0}
+                        disabled={
+                          !canAssignMore ||
+                          filteredStudents.filter(
+                            (s) =>
+                              !s.isAssigned &&
+                              s.hasEnrolledSubjects &&
+                              s.hasAssessment &&
+                              s.hasPaid
+                          ).length === 0
+                        }
                         className="w-3.5 h-3.5 rounded border-gray-300 cursor-pointer"
                         style={{ accentColor: colors.secondary }}
                       />
@@ -508,6 +526,8 @@ export function StudentAssignment({
                   ) : (
                     filteredStudents.map((student) => {
                       const alreadyAssigned = !!student.isAssigned;
+                      const lacksPaymentEligibility =
+                        !student.hasAssessment || !student.hasPaid;
                       return (
                         <tr
                           key={student.studentId}
@@ -524,6 +544,7 @@ export function StudentAssignment({
                               disabled={
                                 alreadyAssigned ||
                                 !student.hasEnrolledSubjects ||
+                                lacksPaymentEligibility ||
                                 (!canAssignMore && !selectedStudents.has(student.studentNumber))
                               }
                               className="w-3.5 h-3.5 rounded border-gray-300 cursor-pointer"
@@ -559,7 +580,7 @@ export function StudentAssignment({
                                 </span>
                               </div>
                             ) : (
-                              <span className="text-[10px] text-gray-400 italic">No assessment</span>
+                              <span className="text-[10px] text-red-500 italic font-medium">No assessment</span>
                             )}
                           </td>
                           {/* Enrolled Subjects Count */}
@@ -591,6 +612,14 @@ export function StudentAssignment({
                             ) : !student.hasEnrolledSubjects ? (
                               <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium bg-red-100 text-red-600">
                                 Cannot assign
+                              </span>
+                            ) : !student.hasAssessment ? (
+                              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium bg-red-100 text-red-600">
+                                No assessment
+                              </span>
+                            ) : !student.hasPaid ? (
+                              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium bg-amber-100 text-amber-700">
+                                Unpaid
                               </span>
                             ) : (
                               <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium bg-green-50 text-green-700">
@@ -700,18 +729,6 @@ export function StudentAssignment({
             </div>
           )}
         </div>
-
-        {/* No-payment warning modal */}
-        <ConfirmationModal
-          isOpen={noPaymentWarning.open}
-          onClose={() => setNoPaymentWarning({ open: false, names: [] })}
-          onConfirm={() => executeAssignStudents(true)}
-          variant="warning"
-          title="Students Without Payment"
-          message={`The following student${noPaymentWarning.names.length > 1 ? 's have' : ' has'} no assessment/payment on record. You can still assign them, but please verify their payment status.\n\n${noPaymentWarning.names.map(n => `- ${n}`).join('\n')}`}
-          confirmText="Assign Anyway"
-          cancelText="Cancel"
-        />
 
         <ConfirmationModal
           isOpen={assignConfirmOpen}
