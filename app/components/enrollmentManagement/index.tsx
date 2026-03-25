@@ -22,6 +22,7 @@ import EnrollmentTable from "./EnrollmentTable";
 import Pagination from "../common/Pagination";
 import EnrollmentReportViewer from "./EnrollmentReportViewer";
 import EnrollmentVerificationModal from "./EnrollmentVerificationModal";
+import { useProgramsWithMajors } from "@/app/hooks/useProgramsWithMajors";
 
 // --- Internal Import Modal Component ---
 interface ImportModalProps {
@@ -228,7 +229,9 @@ const EnrollmentManagement: React.FC = () => {
   const [statusFilter, setStatusFilter] = useState<"all" | 1 | 2 | 3 | 4>(
     "all"
   );
-  const [courseFilter, setCourseFilter] = useState<string>("all");
+  const [programMajorFilter, setProgramMajorFilter] = useState<string>("all");
+  const { programs: programMajorOptions, loading: programsLoading } =
+    useProgramsWithMajors();
 
   // Modal States
   const [isImportModalOpen, setIsImportModalOpen] = useState(false);
@@ -285,8 +288,13 @@ const EnrollmentManagement: React.FC = () => {
 
   const filteredEnrollments = useMemo(
     () =>
-      filterEnrollments(enrollments, searchTerm, statusFilter, courseFilter),
-    [enrollments, searchTerm, statusFilter, courseFilter]
+      filterEnrollments(
+        enrollments,
+        searchTerm,
+        statusFilter,
+        programMajorFilter
+      ),
+    [enrollments, searchTerm, statusFilter, programMajorFilter]
   );
 
   const tabFilteredEnrollments = useMemo(() => {
@@ -307,7 +315,21 @@ const EnrollmentManagement: React.FC = () => {
 
   useEffect(() => {
     setCurrentPage(1);
-  }, [searchTerm, statusFilter, courseFilter, verificationTab]);
+  }, [searchTerm, statusFilter, programMajorFilter, verificationTab]);
+
+  const programMajorFilterOptions = useMemo(
+    () => [
+      {
+        value: "all",
+        label: programsLoading ? "Loading Programs / Majors..." : "All Programs / Majors",
+      },
+      ...programMajorOptions.map((option) => ({
+        value: option.value,
+        label: option.label,
+      })),
+    ],
+    [programMajorOptions, programsLoading]
+  );
 
   const handlePageChange = (page: number) => {
     setCurrentPage(page);
@@ -468,6 +490,12 @@ const EnrollmentManagement: React.FC = () => {
                 ),
               options: [...ENROLLMENT_STATUS_OPTIONS],
               placeholder: "All Status",
+            },
+            {
+              value: programMajorFilter,
+              onChange: (value) => setProgramMajorFilter(String(value)),
+              options: programMajorFilterOptions,
+              placeholder: "All Programs / Majors",
             },
           ]}
         />

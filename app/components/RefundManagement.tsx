@@ -4,6 +4,10 @@ import React, { useEffect, useMemo, useState } from "react";
 import { Search, RotateCw, PhilippinePeso } from "lucide-react";
 import { colors } from "../colors";
 import ConfirmationModal from "./common/ConfirmationModal";
+import {
+  printRefundReceipt,
+  type RefundReceiptDetail,
+} from "./printRefundReceipt";
 
 interface RefundRow {
   id: number;
@@ -29,6 +33,14 @@ interface RefundRow {
   lab_amount?: number | null;
   effective_discount_percent?: number | null;
   refund_amount?: number | null;
+}
+
+interface RefundResponse {
+  success?: boolean;
+  error?: string;
+  data?: {
+    receipt?: RefundReceiptDetail;
+  };
 }
 
 const RefundManagement: React.FC = () => {
@@ -133,9 +145,12 @@ const RefundManagement: React.FC = () => {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ id }),
       });
-      const json = await res.json();
+      const json: RefundResponse = await res.json();
       if (!res.ok) {
         throw new Error(json?.error || "Failed to process refund.");
+      }
+      if (json.data?.receipt) {
+        printRefundReceipt(json.data.receipt);
       }
       await fetchRows();
     } catch (error) {

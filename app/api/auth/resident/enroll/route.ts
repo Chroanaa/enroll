@@ -128,6 +128,8 @@ export async function POST(request: NextRequest) {
 
     // Auto-set admission_status to "Resident" for all re-enrollments
     updateData.admission_status = "Resident";
+    // Re-enrollment should bring the student's enrollment back into the pending queue.
+    updateData.status = 4;
 
     // Auto-increment year level logic:
     // Only increment when: Previous Term = Second Semester AND New Term = First Semester AND Academic Year changes

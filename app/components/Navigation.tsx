@@ -291,6 +291,11 @@ const Navigation: React.FC<NavigationProps> = ({
             label: "Section Shift Reports",
             icon: CalendarClock,
           },
+          {
+            id: "reports-refund",
+            label: "Refund Reports",
+            icon: DollarSign,
+          },
         ],
       },
     ],

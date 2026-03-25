@@ -5,10 +5,15 @@ import {
   Calendar,
   Edit2,
   UserPlus,
+  FileWarning,
 } from "lucide-react";
 import { colors } from "../../colors";
 import { Enrollment } from "../../types";
-import { getStatusColor, getStatusLabel } from "./utils";
+import {
+  getMissingEnrollmentRequirements,
+  getStatusColor,
+  getStatusLabel,
+} from "./utils";
 
 interface EnrollmentTableProps {
   enrollments: Enrollment[];
@@ -83,10 +88,17 @@ const EnrollmentTable: React.FC<EnrollmentTableProps> = ({
             ) : (
               enrollments.map((enrollment) => {
                 const statusStyles = getStatusColor(enrollment.status);
+                const missingRequirements = getMissingEnrollmentRequirements(
+                  (enrollment as any).requirements,
+                );
+                const hasMissingRequirements = missingRequirements.length > 0;
                 return (
                   <tr
                     key={enrollment.id}
                     className='group hover:bg-gray-50/50 transition-colors'
+                    style={{
+                      backgroundColor: hasMissingRequirements ? "#FFF9ED" : undefined,
+                    }}
                   >
                     <td className='px-6 py-4 whitespace-nowrap'>
                       <span className='text-sm font-mono text-gray-700'>
@@ -137,6 +149,23 @@ const EnrollmentTable: React.FC<EnrollmentTableProps> = ({
                             {enrollment.first_name} {enrollment.middle_name}{" "}
                             {enrollment.family_name}
                           </div>
+                          {hasMissingRequirements && (
+                            <div className='mt-1 flex items-center gap-2'>
+                              <span
+                                className='inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[11px] font-semibold'
+                                style={{
+                                  backgroundColor: "#FEF3C7",
+                                  color: "#92400E",
+                                  borderColor: "#FDE68A",
+                                }}
+                                title={missingRequirements.join(", ")}
+                              >
+                                <FileWarning className='h-3 w-3' />
+                                Missing {missingRequirements.length} doc
+                                {missingRequirements.length > 1 ? "s" : ""}
+                              </span>
+                            </div>
+                          )}
                         </div>
                       </div>
                     </td>
@@ -210,9 +239,20 @@ const EnrollmentTable: React.FC<EnrollmentTableProps> = ({
                       </span>
                     </td>
                     <td className='px-6 py-4 whitespace-nowrap'>
-                      <span className='text-sm text-gray-600'>
-                        {(enrollment as any).verified_by_name || "N/A"}
-                      </span>
+                      <div className='space-y-1'>
+                        <span className='text-sm text-gray-600'>
+                          {(enrollment as any).verified_by_name || "N/A"}
+                        </span>
+                        {hasMissingRequirements && (
+                          <p
+                            className='text-xs font-medium'
+                            style={{ color: "#B45309" }}
+                            title={missingRequirements.join(", ")}
+                          >
+                            Follow up required
+                          </p>
+                        )}
+                      </div>
                     </td>
                     <td className='px-6 py-4 whitespace-nowrap text-right text-sm font-medium'>
                       <div className='flex justify-end gap-2'>
