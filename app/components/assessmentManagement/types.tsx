@@ -20,6 +20,8 @@ export interface EnrolledSubject {
   subject_id?: number;
   status?: string;
   drop_status?: string;
+  latest_drop_history_status?: string | null;
+  latest_drop_reason?: string | null;
   course_code: string;
   descriptive_title: string;
   units_lec?: number;

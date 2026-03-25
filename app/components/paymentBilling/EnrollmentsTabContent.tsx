@@ -12,6 +12,7 @@ import {
 } from "lucide-react";
 import { colors } from "../../colors";
 import { CartStudent } from "./StudentPaymentCheckoutModal";
+import { useProgramsWithMajors } from "../../hooks/useProgramsWithMajors";
 
 export interface StudentSummary {
   assessment_id: number;
@@ -63,9 +64,18 @@ export const EnrollmentsTabContent: React.FC<EnrollmentsTabContentProps> = ({
   const [allStudents, setAllStudents] = useState<StudentSummary[]>([]);
   const [isLoadingStudents, setIsLoadingStudents] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
+  const [programMajorFilter, setProgramMajorFilter] = useState("");
+  const [yearLevelFilter, setYearLevelFilter] = useState("");
   const [statusFilter, setStatusFilter] = useState<
     "all" | "Unpaid" | "Partial" | "Fully Paid"
   >("all");
+  const { programs: programsWithMajors, loading: programsLoading } =
+    useProgramsWithMajors();
+
+  const sortedProgramOptions = useMemo(
+    () => [...programsWithMajors].sort((a, b) => a.label.localeCompare(b.label)),
+    [programsWithMajors],
+  );
 
   const fetchAllStudents = async () => {
     setIsLoadingStudents(true);
@@ -74,6 +84,8 @@ export const EnrollmentsTabContent: React.FC<EnrollmentsTabContentProps> = ({
       if (academicYearSearch) params.set("academicYear", academicYearSearch);
       if (semesterSearch) params.set("semester", String(semesterSearch));
       if (searchTerm) params.set("search", searchTerm);
+      if (programMajorFilter) params.set("programId", programMajorFilter);
+      if (yearLevelFilter) params.set("yearLevel", yearLevelFilter);
 
       const response = await fetch(
         `/api/auth/assessment/all-summaries?${params.toString()}`,
@@ -95,7 +107,7 @@ export const EnrollmentsTabContent: React.FC<EnrollmentsTabContentProps> = ({
       fetchAllStudents();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [academicYearSearch, semesterSearch]);
+  }, [academicYearSearch, semesterSearch, programMajorFilter, yearLevelFilter]);
 
   useEffect(() => {
     if (academicYearSearch) {
@@ -164,7 +176,7 @@ export const EnrollmentsTabContent: React.FC<EnrollmentsTabContentProps> = ({
               />
             </button>
           </div>
-          <div className='grid grid-cols-1 md:grid-cols-4 gap-3'>
+          <div className='grid grid-cols-1 md:grid-cols-2 xl:grid-cols-6 gap-3'>
             <div>
               <input
                 type='text'
@@ -199,6 +211,35 @@ export const EnrollmentsTabContent: React.FC<EnrollmentsTabContentProps> = ({
               >
                 <option value={1}>1st Semester</option>
                 <option value={2}>2nd Semester</option>
+              </select>
+            </div>
+            <div>
+              <select
+                value={programMajorFilter}
+                onChange={(e) => setProgramMajorFilter(e.target.value)}
+                className='w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm disabled:bg-gray-100 disabled:text-gray-500'
+                disabled={programsLoading}
+              >
+                <option value=''>All Programs / Majors</option>
+                {sortedProgramOptions.map((option) => (
+                  <option key={option.value} value={option.value}>
+                    {option.label}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <select
+                value={yearLevelFilter}
+                onChange={(e) => setYearLevelFilter(e.target.value)}
+                className='w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm'
+              >
+                <option value=''>All Year Levels</option>
+                <option value='1'>1st Year</option>
+                <option value='2'>2nd Year</option>
+                <option value='3'>3rd Year</option>
+                <option value='4'>4th Year</option>
+                <option value='5'>5th Year</option>
               </select>
             </div>
             <div className='flex gap-2'>

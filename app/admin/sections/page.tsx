@@ -7,7 +7,7 @@ import { SectionList } from '../../components/sections/SectionList';
 import { StudentAssignment } from '../../components/sections/StudentAssignment';
 import { activateSection, lockSection, unlockSection } from '../../utils/sectionApi';
 import { colors } from '../../colors';
-import { Lock, Unlock, CheckCircle, BookOpen, Printer, Loader2, Users } from 'lucide-react';
+import { Lock, Unlock, CheckCircle, BookOpen, Printer, Loader2, RefreshCw, Users } from 'lucide-react';
 import SearchFilters from '../../components/common/SearchFilters';
 import ConfirmationModal from '../../components/common/ConfirmationModal';
 import SuccessModal from '../../components/common/SuccessModal';
@@ -203,6 +203,10 @@ export default function SectionsPage() {
     setIsStudentAssignmentOpen(true);
   };
 
+  const handleRefreshSections = () => {
+    setRefreshKey((prev) => prev + 1);
+  };
+
   // Show confirmation modal for activate
   const handleActivate = (section: SectionResponse) => {
     setConfirmModal({
@@ -331,6 +335,14 @@ export default function SectionsPage() {
             </p>
           </div>
           <div className="flex items-center gap-3">
+            <button
+              onClick={handleRefreshSections}
+              className="flex items-center gap-2 px-5 py-3 rounded-lg font-medium text-sm transition-colors border border-gray-200 bg-white text-gray-700 hover:bg-gray-50"
+              title="Refresh section list"
+            >
+              <RefreshCw className="w-4 h-4" />
+              Refresh
+            </button>
             <button
               onClick={handlePrintAll}
               disabled={loadingPdf || filteredSectionsForPrint.length === 0}

@@ -155,6 +155,8 @@ const PaymentBillingManagement: React.FC = () => {
     return () => window.removeEventListener("storage", handleStorage);
   }, []);
 
+  const [isRefreshingCurrentTab, setIsRefreshingCurrentTab] = useState(false);
+
   const fetchData = async () => {
     setIsLoading(true);
     try {
@@ -173,6 +175,25 @@ const PaymentBillingManagement: React.FC = () => {
       });
     } finally {
       setIsLoading(false);
+    }
+  };
+
+  const handleRefreshCurrentTab = async () => {
+    setIsRefreshingCurrentTab(true);
+    try {
+      if (activeTab === "products") {
+        await fetchData();
+        return;
+      }
+
+      if (activeTab === "enrollments") {
+        setStudentPaymentRefreshSignal(Date.now());
+        return;
+      }
+
+      await transactionsHook.fetchOrders();
+    } finally {
+      setIsRefreshingCurrentTab(false);
     }
   };
 
@@ -399,6 +420,8 @@ const PaymentBillingManagement: React.FC = () => {
         <PaymentBillingHeader
           activeTab={activeTab}
           onTabChange={setActiveTab}
+          onRefresh={handleRefreshCurrentTab}
+          isRefreshing={isRefreshingCurrentTab}
         />
 
         {/* Products Tab Content */}

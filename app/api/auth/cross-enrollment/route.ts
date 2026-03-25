@@ -128,8 +128,16 @@ export async function GET(request: NextRequest) {
     const searchParams = request.nextUrl.searchParams;
     const studentNumber = searchParams.get("studentNumber");
     const status = searchParams.get("status") || "pending_approval";
+    const academicYearParam = searchParams.get("academicYear");
+    const semesterParam = searchParams.get("semester");
     const currentTerm = await getServerCurrentTerm();
-    const semesterNum = currentTerm.semester === "First" ? 1 : 2;
+    const semesterNum =
+      semesterParam === "1" || semesterParam === "2"
+        ? Number(semesterParam)
+        : currentTerm.semester === "First"
+          ? 1
+          : 2;
+    const academicYear = academicYearParam || currentTerm.academicYear;
     const firstSemesterAliases = getSemesterAliases(1);
     const secondSemesterAliases = getSemesterAliases(2);
 
@@ -179,8 +187,12 @@ export async function GET(request: NextRequest) {
         COALESCE(cc.descriptive_title, sub.name) AS descriptive_title,
         home_program.name AS home_program_name,
         home_program.code AS home_program_code,
+        home_major.name AS home_major_name,
         host_program.name AS host_program_name,
         host_program.code AS host_program_code,
+        host_major.name AS host_major_name,
+        dept.id AS department_id,
+        dept.name AS department_name,
         CONCAT_WS(', ', enr.family_name, enr.first_name, enr.middle_name) AS student_name,
         enr.first_name,
         enr.family_name AS last_name
@@ -188,7 +200,9 @@ export async function GET(request: NextRequest) {
       LEFT JOIN curriculum_course cc ON cc.id = cer.curriculum_course_id
       LEFT JOIN subject sub ON sub.id = cer.subject_id
       LEFT JOIN program home_program ON home_program.id = cer.home_program_id
+      LEFT JOIN major home_major ON home_major.id = cer.home_major_id
       LEFT JOIN program host_program ON host_program.id = cer.host_program_id
+      LEFT JOIN major host_major ON host_major.id = cer.host_major_id
       LEFT JOIN LATERAL (
         SELECT e.first_name, e.middle_name, e.family_name, e.department
         FROM enrollment e
@@ -202,7 +216,8 @@ export async function GET(request: NextRequest) {
         ORDER BY e.id DESC
         LIMIT 1
       ) enr ON TRUE
-      WHERE cer.academic_year = ${currentTerm.academicYear}
+      LEFT JOIN department dept ON dept.id = enr.department
+      WHERE cer.academic_year = ${academicYear}
         AND cer.semester = ${semesterNum}
         AND (${studentNumber}::text IS NULL OR cer.student_number = ${studentNumber})
         AND (${status}::text = 'all' OR cer.status = ${status})
@@ -221,10 +236,14 @@ export async function GET(request: NextRequest) {
         homeProgramId: item.home_program_id,
         homeProgramName: item.home_program_name,
         homeProgramCode: item.home_program_code,
+        homeMajorName: item.home_major_name,
         hostProgramId: item.host_program_id,
         hostProgramName: item.host_program_name,
         hostProgramCode: item.host_program_code,
+        hostMajorName: item.host_major_name,
         hostMajorId: item.host_major_id,
+        departmentId: item.department_id,
+        departmentName: item.department_name,
         curriculumCourseId: item.curriculum_course_id,
         subjectId: item.subject_id,
         academicYear: item.academic_year,

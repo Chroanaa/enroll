@@ -7,6 +7,7 @@ import {
   AlertCircle,
   Printer,
   Loader2,
+  RefreshCw,
 } from "lucide-react";
 import { colors } from "../../colors";
 import { getEnrollments } from "@/app/utils/getEnrollments";
@@ -21,6 +22,7 @@ import EnrollmentTable from "./EnrollmentTable";
 import Pagination from "../common/Pagination";
 import EnrollmentReportViewer from "./EnrollmentReportViewer";
 import EnrollmentVerificationModal from "./EnrollmentVerificationModal";
+import { useProgramsWithMajors } from "@/app/hooks/useProgramsWithMajors";
 
 // --- Internal Import Modal Component ---
 interface ImportModalProps {
@@ -227,7 +229,9 @@ const EnrollmentManagement: React.FC = () => {
   const [statusFilter, setStatusFilter] = useState<"all" | 1 | 2 | 3 | 4>(
     "all"
   );
-  const [courseFilter, setCourseFilter] = useState<string>("all");
+  const [programMajorFilter, setProgramMajorFilter] = useState<string>("all");
+  const { programs: programMajorOptions, loading: programsLoading } =
+    useProgramsWithMajors();
 
   // Modal States
   const [isImportModalOpen, setIsImportModalOpen] = useState(false);
@@ -284,8 +288,13 @@ const EnrollmentManagement: React.FC = () => {
 
   const filteredEnrollments = useMemo(
     () =>
-      filterEnrollments(enrollments, searchTerm, statusFilter, courseFilter),
-    [enrollments, searchTerm, statusFilter, courseFilter]
+      filterEnrollments(
+        enrollments,
+        searchTerm,
+        statusFilter,
+        programMajorFilter
+      ),
+    [enrollments, searchTerm, statusFilter, programMajorFilter]
   );
 
   const tabFilteredEnrollments = useMemo(() => {
@@ -306,7 +315,21 @@ const EnrollmentManagement: React.FC = () => {
 
   useEffect(() => {
     setCurrentPage(1);
-  }, [searchTerm, statusFilter, courseFilter, verificationTab]);
+  }, [searchTerm, statusFilter, programMajorFilter, verificationTab]);
+
+  const programMajorFilterOptions = useMemo(
+    () => [
+      {
+        value: "all",
+        label: programsLoading ? "Loading Programs / Majors..." : "All Programs / Majors",
+      },
+      ...programMajorOptions.map((option) => ({
+        value: option.value,
+        label: option.label,
+      })),
+    ],
+    [programMajorOptions, programsLoading]
+  );
 
   const handlePageChange = (page: number) => {
     setCurrentPage(page);
@@ -378,6 +401,11 @@ const EnrollmentManagement: React.FC = () => {
     }
   };
 
+  const handleRefreshEnrollments = async () => {
+    setLoading(true);
+    await fetchEnrollments();
+  };
+
   if (loading) {
     return (
       <div
@@ -412,6 +440,15 @@ const EnrollmentManagement: React.FC = () => {
             </p>
           </div>
           <div className='flex gap-3'>
+            <button
+              onClick={handleRefreshEnrollments}
+              disabled={loading}
+              className='flex items-center gap-2 px-5 py-3 rounded-xl border border-gray-300 text-gray-700 transition-all hover:bg-gray-50 disabled:opacity-60 disabled:cursor-not-allowed'
+              title='Refresh enrollment list'
+            >
+              <RefreshCw className={`w-5 h-5 ${loading ? "animate-spin" : ""}`} />
+              <span className='font-medium'>Refresh</span>
+            </button>
             <button
               onClick={handleOpenReportViewer}
               disabled={isReportLoading}
@@ -453,6 +490,12 @@ const EnrollmentManagement: React.FC = () => {
                 ),
               options: [...ENROLLMENT_STATUS_OPTIONS],
               placeholder: "All Status",
+            },
+            {
+              value: programMajorFilter,
+              onChange: (value) => setProgramMajorFilter(String(value)),
+              options: programMajorFilterOptions,
+              placeholder: "All Programs / Majors",
             },
           ]}
         />

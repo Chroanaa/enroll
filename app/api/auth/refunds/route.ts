@@ -330,6 +330,26 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Refund record context not found." }, { status: 404 });
     }
 
+    const latestEnrollment = await prisma.enrollment.findFirst({
+      where: { student_number: existing.student_number },
+      orderBy: { id: "desc" },
+      select: {
+        first_name: true,
+        middle_name: true,
+        family_name: true,
+      },
+    });
+
+    const studentName = latestEnrollment
+      ? [
+          latestEnrollment.family_name,
+          latestEnrollment.first_name,
+          latestEnrollment.middle_name,
+        ]
+          .filter((value) => String(value || "").trim().length > 0)
+          .join(", ")
+      : existing.student_number;
+
     const fixedAmount = Number(refundRow.fixed_amount || 0);
     const unitsLec = Number(refundRow.units_lec || 0);
     const unitsLab = Number(refundRow.units_lab || 0);
@@ -344,7 +364,9 @@ export async function POST(request: NextRequest) {
     const lectureAfterDiscount = roundToTwo(lectureBase * (1 - discountPercent / 100));
     const refundAmount = fixedAmount > 0 ? roundToTwo(fixedAmount) : roundToTwo(lectureAfterDiscount + labAmount);
 
-    await prisma.$transaction(async (tx) => {
+    const processedAt = new Date();
+
+    const receipt = await prisma.$transaction(async (tx) => {
       await tx.subject_drop_history.update({
         where: { id },
         data: { refundable: false },
@@ -478,6 +500,30 @@ export async function POST(request: NextRequest) {
             ${refundReferenceNo}
           )
         `;
+
+        return {
+          subjectDropHistoryId: id,
+          studentNumber: String(refundRow.student_number),
+          studentName,
+          academicYear: String(refundRow.academic_year),
+          semester: Number(refundRow.semester),
+          courseCode: existing.course_code || null,
+          descriptiveTitle: existing.descriptive_title || null,
+          refundAmount,
+          payoutAmount: refundPayoutAmount,
+          adjustmentAmount: roundToTwo(
+            Math.max(0, refundAmount - refundPayoutAmount),
+          ),
+          totalDueBefore: totalDue,
+          totalDueAfter: currentDueForMode,
+          totalPaidBefore,
+          totalPaidAfter,
+          paymentMode: assessment.payment_mode || null,
+          dropReason: existing.drop_reason || null,
+          processedByName,
+          processedAt: processedAt.toISOString(),
+          referenceNo: refundReferenceNo || `ADJ-SDH-${id}`,
+        };
       } else {
         await tx.$executeRaw`
           INSERT INTO refund_transactions (
@@ -526,6 +572,28 @@ export async function POST(request: NextRequest) {
             ${null}
           )
         `;
+
+        return {
+          subjectDropHistoryId: id,
+          studentNumber: String(refundRow.student_number),
+          studentName,
+          academicYear: String(refundRow.academic_year),
+          semester: Number(refundRow.semester),
+          courseCode: existing.course_code || null,
+          descriptiveTitle: existing.descriptive_title || null,
+          refundAmount,
+          payoutAmount: 0,
+          adjustmentAmount: 0,
+          totalDueBefore: null,
+          totalDueAfter: null,
+          totalPaidBefore: null,
+          totalPaidAfter: null,
+          paymentMode: null,
+          dropReason: existing.drop_reason || null,
+          processedByName,
+          processedAt: processedAt.toISOString(),
+          referenceNo: `ADJ-SDH-${id}`,
+        };
       }
     });
 
@@ -538,7 +606,11 @@ export async function POST(request: NextRequest) {
     }
 
     return NextResponse.json(
-      { success: true, message: "Refund processed successfully." },
+      {
+        success: true,
+        message: "Refund processed successfully.",
+        data: { receipt },
+      },
       { status: 200 },
     );
   } catch (error: any) {

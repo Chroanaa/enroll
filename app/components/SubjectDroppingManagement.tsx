@@ -180,6 +180,15 @@ const SubjectDroppingManagement: React.FC = () => {
     ).length;
   }, [enrolledSubjects]);
 
+  const rejectedDropCount = useMemo(() => {
+    return enrolledSubjects.filter(
+      (subject) =>
+        String(subject.latest_drop_history_status || "").toLowerCase() ===
+          "rejected" &&
+        String(subject.drop_status || "").toLowerCase() !== "pending_approval",
+    ).length;
+  }, [enrolledSubjects]);
+
   useEffect(() => {
     const fetchStudents = async () => {
       if (!currentTerm) {
@@ -272,6 +281,7 @@ const SubjectDroppingManagement: React.FC = () => {
     fetchStudents();
   }, [currentTerm, programFilter, yearLevelFilter]);
 
+
   useEffect(() => {
     setStudentCurrentPage(1);
   }, [studentSearch, students.length, programFilter, yearLevelFilter]);
@@ -279,6 +289,7 @@ const SubjectDroppingManagement: React.FC = () => {
   useEffect(() => {
     setSubjectCurrentPage(1);
   }, [student?.studentNumber, enrolledSubjects.length]);
+
 
   const fetchEnrolledSubjects = async (studentNumber: string) => {
     if (!currentTerm) {
@@ -450,7 +461,6 @@ const SubjectDroppingManagement: React.FC = () => {
 
           <ActiveTermCard value={currentTermLabel} />
         </header>
-
         {!isStudentSelected && (
           <section className="overflow-hidden rounded-2xl" style={cardStyle}>
             <div
@@ -822,6 +832,18 @@ const SubjectDroppingManagement: React.FC = () => {
                         {pendingDropCount} pending approval
                       </div>
                     )}
+                    {rejectedDropCount > 0 && (
+                      <div
+                        className="inline-flex items-center gap-2 rounded-full px-4 py-2 text-sm font-semibold"
+                        style={{
+                          backgroundColor: `${colors.danger}14`,
+                          color: colors.danger,
+                        }}
+                      >
+                        <AlertCircle className="h-4 w-4" />
+                        {rejectedDropCount} rejected
+                      </div>
+                    )}
                   </div>
                 </div>
 
@@ -849,6 +871,35 @@ const SubjectDroppingManagement: React.FC = () => {
                       <p className="mt-1 text-sm leading-6" style={mutedTextStyle}>
                         Requests already submitted for approval are locked until
                         an authorized reviewer completes the process.
+                      </p>
+                    </div>
+                  </div>
+                )}
+
+                {rejectedDropCount > 0 && (
+                  <div
+                    className="mx-6 mt-4 flex items-start gap-3 rounded-xl px-4 py-4"
+                    style={{
+                      backgroundColor: `${colors.danger}10`,
+                      border: `1px solid ${colors.danger}33`,
+                    }}
+                  >
+                    <div
+                      className="flex h-10 w-10 items-center justify-center rounded-xl"
+                      style={{
+                        backgroundColor: `${colors.danger}18`,
+                        color: colors.danger,
+                      }}
+                    >
+                      <AlertCircle className="h-5 w-5" />
+                    </div>
+                    <div>
+                      <p className="text-sm font-semibold" style={{ color: colors.primary }}>
+                        Rejected request detected
+                      </p>
+                      <p className="mt-1 text-sm leading-6" style={mutedTextStyle}>
+                        Rejected subject drops are shown below. You can submit a new
+                        request again for those subjects if needed.
                       </p>
                     </div>
                   </div>
@@ -946,6 +997,11 @@ const SubjectDroppingManagement: React.FC = () => {
                             const isPendingApproval =
                               String(subject.drop_status || "").toLowerCase() ===
                               "pending_approval";
+                            const isRejected =
+                              String(
+                                subject.latest_drop_history_status || "",
+                              ).toLowerCase() === "rejected" &&
+                              !isPendingApproval;
                             const totalUnits =
                               subject.units_total ??
                               (Number(subject.units_lec || 0) +
@@ -958,6 +1014,8 @@ const SubjectDroppingManagement: React.FC = () => {
                                   borderBottom: `1px solid ${colors.neutralBorder}`,
                                   backgroundColor: isPendingApproval
                                     ? `${colors.warning}08`
+                                    : isRejected
+                                      ? `${colors.danger}08`
                                     : "transparent",
                                 }}
                               >
@@ -986,6 +1044,28 @@ const SubjectDroppingManagement: React.FC = () => {
                                         <Clock3 className="h-3.5 w-3.5" />
                                         Pending Approval
                                       </span>
+                                    )}
+                                    {isRejected && (
+                                      <div className="flex flex-col gap-2">
+                                        <span
+                                          className="inline-flex w-fit items-center gap-2 rounded-full px-3 py-1 text-xs font-semibold"
+                                          style={{
+                                            backgroundColor: `${colors.danger}16`,
+                                            color: colors.danger,
+                                          }}
+                                        >
+                                          <AlertCircle className="h-3.5 w-3.5" />
+                                          Rejected
+                                        </span>
+                                        {subject.latest_drop_reason ? (
+                                          <span
+                                            className="text-xs"
+                                            style={{ color: colors.tertiary }}
+                                          >
+                                            Reason: {subject.latest_drop_reason}
+                                          </span>
+                                        ) : null}
+                                      </div>
                                     )}
                                   </div>
                                 </td>
@@ -1020,6 +1100,11 @@ const SubjectDroppingManagement: React.FC = () => {
                                             color: colors.neutral,
                                             cursor: "not-allowed",
                                           }
+                                        : isRejected
+                                          ? {
+                                              backgroundColor: `${colors.danger}12`,
+                                              color: colors.danger,
+                                            }
                                         : {
                                             backgroundColor: `${colors.danger}12`,
                                             color: colors.danger,
@@ -1042,6 +1127,11 @@ const SubjectDroppingManagement: React.FC = () => {
                                       <>
                                         <CheckCircle2 className="h-4 w-4" />
                                         Submitted
+                                      </>
+                                    ) : isRejected ? (
+                                      <>
+                                        <Trash2 className="h-4 w-4" />
+                                        Re-submit
                                       </>
                                     ) : (
                                       <>
@@ -1174,3 +1264,13 @@ const SubjectDroppingManagement: React.FC = () => {
 };
 
 export default SubjectDroppingManagement;
+
+
+
+
+
+
+
+
+
+

@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useEffect, useMemo, useState } from "react";
-import { AlertCircle, RefreshCw } from "lucide-react";
+import { AlertCircle, RefreshCw, Search } from "lucide-react";
 import { colors } from "../../../colors";
 import ConfirmationModal from "../../common/ConfirmationModal";
 import SuccessModal from "../../common/SuccessModal";
@@ -21,7 +21,7 @@ interface SubjectOverloadApproval {
 }
 
 interface SubjectDropApproval {
-  id: number;
+  id: string | number;
   studentNumber: string;
   studentName: string;
   firstName?: string;
@@ -33,6 +33,8 @@ interface SubjectDropApproval {
   status: string;
   requestedAt?: string | null;
   reason?: string | null;
+  isStudentDrop?: boolean;
+  subjectCount?: number;
   subjects?: ApprovalSubjectItem[];
 }
 
@@ -130,7 +132,13 @@ type ApprovalFilter = "all" | "overload" | "drop" | "cross" | "shift" | "program
 
 type ApprovalRow = {
   key: string;
-  type: "overload" | "drop" | "cross" | "shift" | "program-shift";
+  type:
+    | "overload"
+    | "drop"
+    | "student-drop"
+    | "cross"
+    | "shift"
+    | "program-shift";
   approvalId: string | number;
   studentNumber: string;
   studentName: string;
@@ -147,6 +155,8 @@ type ApprovalRow = {
   contextLine?: string;
 };
 
+type ConfirmationAction = "approve" | "reject";
+
 const cardStyle: React.CSSProperties = {
   backgroundColor: "white",
   border: `1px solid ${colors.neutralBorder}`,
@@ -158,11 +168,14 @@ export default function ApprovalManagement() {
   const [isSubmitting, setIsSubmitting] = useState("");
   const [error, setError] = useState("");
   const [filter, setFilter] = useState<ApprovalFilter>("all");
+  const [studentSearch, setStudentSearch] = useState("");
   const [successModal, setSuccessModal] = useState({
     isOpen: false,
     message: "",
   });
   const [confirmation, setConfirmation] = useState<ApprovalRow | null>(null);
+  const [confirmationAction, setConfirmationAction] =
+    useState<ConfirmationAction>("approve");
   const [errorModal, setErrorModal] = useState({
     isOpen: false,
     message: "",
@@ -251,8 +264,8 @@ export default function ApprovalManagement() {
     }));
 
     const dropRows = subjectDrops.map<ApprovalRow>((item) => ({
-      key: `drop-${item.id}`,
-      type: "drop",
+      key: `${item.isStudentDrop ? "student-drop" : "drop"}-${item.id}`,
+      type: item.isStudentDrop ? "student-drop" : "drop",
       approvalId: item.id,
       studentNumber: item.studentNumber,
       studentName: item.studentName,
@@ -260,8 +273,12 @@ export default function ApprovalManagement() {
       lastName: item.lastName,
       academicYear: item.academicYear,
       semester: item.semester,
-      detailsPrimary: item.courseCode,
-      detailsSecondary: item.descriptiveTitle,
+      detailsPrimary: item.isStudentDrop
+        ? "Student Drop Request"
+        : item.courseCode,
+      detailsSecondary: item.isStudentDrop
+        ? `${item.subjectCount || item.subjects?.length || 0} subjects queued for dropping`
+        : item.descriptiveTitle,
       termLabel: `A.Y. ${item.academicYear} • Sem ${item.semester}`,
       statusLabel: "Pending Approval",
       reason: item.reason,
@@ -328,53 +345,73 @@ export default function ApprovalManagement() {
   }, [crossEnrollmentRequests, programShiftRequests, shiftingRequests, subjectDrops, subjectOverloads]);
 
   const filteredRows = useMemo(() => {
+    let rows = approvalRows;
+
     if (filter === "overload") {
-      return approvalRows.filter((row) => row.type === "overload");
+      rows = rows.filter((row) => row.type === "overload");
+    } else if (filter === "drop") {
+      rows = rows.filter(
+        (row) => row.type === "drop" || row.type === "student-drop",
+      );
+    } else if (filter === "cross") {
+      rows = rows.filter((row) => row.type === "cross");
+    } else if (filter === "shift") {
+      rows = rows.filter((row) => row.type === "shift");
+    } else if (filter === "program-shift") {
+      rows = rows.filter((row) => row.type === "program-shift");
     }
 
-    if (filter === "drop") {
-      return approvalRows.filter((row) => row.type === "drop");
+    const searchValue = studentSearch.trim().toLowerCase();
+    if (searchValue) {
+      rows = rows.filter((row) => {
+        const studentName = String(row.studentName || "").toLowerCase();
+        const studentNumber = String(row.studentNumber || "").toLowerCase();
+        return (
+          studentName.includes(searchValue) ||
+          studentNumber.includes(searchValue)
+        );
+      });
     }
 
-    if (filter === "cross") {
-      return approvalRows.filter((row) => row.type === "cross");
-    }
-    if (filter === "shift") {
-      return approvalRows.filter((row) => row.type === "shift");
-    }
-    if (filter === "program-shift") {
-      return approvalRows.filter((row) => row.type === "program-shift");
-    }
-
-    return approvalRows;
-  }, [approvalRows, filter]);
+    return rows;
+  }, [approvalRows, filter, studentSearch]);
 
   const handleApprove = async (row: ApprovalRow) => {
     setIsSubmitting(row.key);
 
     try {
-      const payload =
-        row.type === "overload"
-          ? {
-              type: "overload",
-              studentNumber: row.studentNumber,
-              academicYear: row.academicYear,
-              semester: row.semester,
-            }
-          : row.type === "shift"
-            ? {
-                type: "section_shift",
-                id: row.approvalId,
-              }
-            : row.type === "program-shift"
-              ? {
-                  type: "program_shift",
-                  id: row.approvalId,
-                }
-            : {
-              type: row.type === "drop" ? "drop" : "cross_enrollment",
-              id: row.approvalId,
-            };
+      let payload: Record<string, string | number>;
+
+      if (row.type === "overload") {
+        payload = {
+          type: "overload",
+          studentNumber: row.studentNumber,
+          academicYear: row.academicYear,
+          semester: row.semester,
+        };
+      } else if (row.type === "shift") {
+        payload = {
+          type: "section_shift",
+          id: row.approvalId,
+        };
+      } else if (row.type === "program-shift") {
+        payload = {
+          type: "program_shift",
+          id: row.approvalId,
+        };
+      } else if (row.type === "student-drop") {
+        payload = {
+          type: "student_drop",
+          studentNumber: row.studentNumber,
+          academicYear: row.academicYear,
+          semester: row.semester,
+        };
+      } else {
+        payload = {
+          type: row.type === "drop" ? "drop" : "cross_enrollment",
+          id: row.approvalId,
+        };
+      }
 
       const response = await fetch("/api/auth/approvals", {
         method: "POST",
@@ -401,6 +438,80 @@ export default function ApprovalManagement() {
           approvalError instanceof Error
             ? approvalError.message
             : "Failed to approve request.",
+        details: "",
+      });
+    } finally {
+      setIsSubmitting("");
+    }
+  };
+
+  const handleReject = async (row: ApprovalRow) => {
+    setIsSubmitting(row.key);
+
+    try {
+      let payload: Record<string, string | number>;
+
+      if (row.type === "overload") {
+        payload = {
+          type: "reject_overload",
+          studentNumber: row.studentNumber,
+          academicYear: row.academicYear,
+          semester: row.semester,
+        };
+      } else if (row.type === "student-drop") {
+        payload = {
+          type: "reject_student_drop",
+          studentNumber: row.studentNumber,
+          academicYear: row.academicYear,
+          semester: row.semester,
+        };
+      } else if (row.type === "drop") {
+        payload = {
+          type: "reject_drop",
+          id: row.approvalId,
+        };
+      } else if (row.type === "cross") {
+        payload = {
+          type: "reject_cross_enrollment",
+          id: row.approvalId,
+        };
+      } else if (row.type === "shift") {
+        payload = {
+          type: "reject_section_shift",
+          id: row.approvalId,
+        };
+      } else {
+        payload = {
+          type: "reject_program_shift",
+          id: row.approvalId,
+        };
+      }
+
+      const response = await fetch("/api/auth/approvals", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(payload),
+      });
+      const result = await response.json();
+
+      if (!response.ok || !result.success) {
+        throw new Error(result.error || "Failed to reject request.");
+      }
+
+      setSuccessModal({
+        isOpen: true,
+        message: result.message || "Request rejected successfully.",
+      });
+      await fetchApprovals();
+    } catch (rejectError) {
+      setErrorModal({
+        isOpen: true,
+        message:
+          rejectError instanceof Error
+            ? rejectError.message
+            : "Failed to reject request.",
         details: "",
       });
     } finally {
@@ -438,7 +549,7 @@ export default function ApprovalManagement() {
     }));
 
     return (
-      <div className="grid gap-4 lg:grid-cols-2 text-sm" style={{ color: colors.primary }}>
+      <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.2fr)] text-sm" style={{ color: colors.primary }}>
         <div
           className="rounded-xl border p-4 space-y-4"
           style={{
@@ -459,7 +570,8 @@ export default function ApprovalManagement() {
             <p className="mt-1 font-semibold">
               {confirmation.type === "overload"
                 ? "Subject Addition Beyond 27 Units"
-                : confirmation.type === "drop"
+                : confirmation.type === "drop" ||
+                    confirmation.type === "student-drop"
                   ? "Subject Drop Approval"
                   : confirmation.type === "cross"
                     ? "Cross-Enrollee Approval"
@@ -554,7 +666,8 @@ export default function ApprovalManagement() {
               Reason
             </p>
             <p className="mt-2 leading-6" style={{ color: colors.primary }}>
-              {confirmation.type === "drop"
+              {confirmation.type === "drop" ||
+                confirmation.type === "student-drop"
                 ? confirmation.reason?.trim() || "No drop reason was provided."
                 : confirmation.type === "cross"
                   ? confirmation.reason?.trim() ||
@@ -573,8 +686,11 @@ export default function ApprovalManagement() {
               className="text-[11px] font-bold uppercase tracking-[0.18em]"
               style={{ color: colors.tertiary }}
             >
-              {confirmation.type === "drop"
-                ? "Subject To Delete"
+              {confirmation.type === "drop" ||
+                confirmation.type === "student-drop"
+                ? confirmation.type === "student-drop"
+                  ? "Subjects To Drop"
+                  : "Subject To Delete"
                 : confirmation.type === "cross"
                   ? "Subject To Add"
                 : confirmation.type === "shift"
@@ -589,7 +705,7 @@ export default function ApprovalManagement() {
                 No subject details were found for this request.
               </p>
             ) : (
-              <div className="mt-3 space-y-2">
+              <div className="mt-3 max-h-[360px] space-y-2 overflow-y-auto pr-2">
                 {subjectItems.map((subject, index) => (
                   <div
                     key={`${subject.courseCode}-${index}`}
@@ -755,32 +871,60 @@ export default function ApprovalManagement() {
               </p>
             </div>
 
-            <div className="w-full max-w-[220px]">
-              <select
-                value={filter}
-                onChange={(event) => setFilter(event.target.value as ApprovalFilter)}
-                className="w-full rounded-xl px-3 py-2.5 text-sm outline-none transition"
-                style={{
-                  backgroundColor: "white",
-                  border: `1px solid ${colors.neutralBorder}`,
-                  color: colors.primary,
-                }}
-                onFocus={(event) => {
-                  event.currentTarget.style.borderColor = colors.secondary;
-                  event.currentTarget.style.boxShadow = `0 0 0 3px ${colors.secondary}15`;
-                }}
-                onBlur={(event) => {
-                  event.currentTarget.style.borderColor = colors.neutralBorder;
-                  event.currentTarget.style.boxShadow = "none";
-                }}
-              >
-                <option value="all">All Requests</option>
-                <option value="overload">Beyond 27 Units</option>
-                <option value="drop">Subject Drops</option>
-                <option value="cross">Cross Enrollee</option>
-                <option value="shift">Section Shift</option>
-                <option value="program-shift">Program Shift</option>
-              </select>
+            <div className="flex w-full flex-col gap-3 lg:w-auto lg:flex-row lg:items-center">
+              <div className="relative w-full lg:w-[320px]">
+                <Search
+                  className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2"
+                  style={{ color: colors.tertiary }}
+                />
+                <input
+                  type="text"
+                  value={studentSearch}
+                  onChange={(event) => setStudentSearch(event.target.value)}
+                  placeholder="Search student name or number..."
+                  className="w-full rounded-xl py-2.5 pl-10 pr-3 text-sm outline-none transition"
+                  style={{
+                    backgroundColor: "white",
+                    border: `1px solid ${colors.neutralBorder}`,
+                    color: colors.primary,
+                  }}
+                  onFocus={(event) => {
+                    event.currentTarget.style.borderColor = colors.secondary;
+                    event.currentTarget.style.boxShadow = `0 0 0 3px ${colors.secondary}15`;
+                  }}
+                  onBlur={(event) => {
+                    event.currentTarget.style.borderColor = colors.neutralBorder;
+                    event.currentTarget.style.boxShadow = "none";
+                  }}
+                />
+              </div>
+              <div className="w-full lg:w-[220px]">
+                <select
+                  value={filter}
+                  onChange={(event) => setFilter(event.target.value as ApprovalFilter)}
+                  className="w-full rounded-xl px-3 py-2.5 text-sm outline-none transition"
+                  style={{
+                    backgroundColor: "white",
+                    border: `1px solid ${colors.neutralBorder}`,
+                    color: colors.primary,
+                  }}
+                  onFocus={(event) => {
+                    event.currentTarget.style.borderColor = colors.secondary;
+                    event.currentTarget.style.boxShadow = `0 0 0 3px ${colors.secondary}15`;
+                  }}
+                  onBlur={(event) => {
+                    event.currentTarget.style.borderColor = colors.neutralBorder;
+                    event.currentTarget.style.boxShadow = "none";
+                  }}
+                >
+                  <option value="all">All Requests</option>
+                  <option value="overload">Beyond 27 Units</option>
+                  <option value="drop">Subject Drops</option>
+                  <option value="cross">Cross Enrollee</option>
+                  <option value="shift">Section Shift</option>
+                  <option value="program-shift">Program Shift</option>
+                </select>
+              </div>
             </div>
           </div>
 
@@ -855,7 +999,7 @@ export default function ApprovalManagement() {
                             backgroundColor:
                               item.type === "overload"
                                 ? `${colors.warning}15`
-                                : item.type === "drop"
+                                : item.type === "drop" || item.type === "student-drop"
                                   ? `${colors.secondary}15`
                                   : item.type === "program-shift"
                                     ? `${colors.primary}15`
@@ -863,7 +1007,7 @@ export default function ApprovalManagement() {
                             color:
                               item.type === "overload"
                                 ? colors.warning
-                                : item.type === "drop"
+                                : item.type === "drop" || item.type === "student-drop"
                                   ? colors.secondary
                                   : item.type === "program-shift"
                                     ? colors.primary
@@ -872,7 +1016,9 @@ export default function ApprovalManagement() {
                         >
                           {item.type === "overload"
                               ? "Overload"
-                              : item.type === "drop"
+                              : item.type === "student-drop"
+                                ? "Student Drop"
+                                : item.type === "drop"
                                 ? "Drop"
                                 : item.type === "cross"
                                   ? "Cross Enrollee"
@@ -913,15 +1059,36 @@ export default function ApprovalManagement() {
                         </span>
                       </td>
                       <td className="px-4 py-3 text-center">
-                        <button
-                          type="button"
-                          onClick={() => setConfirmation(item)}
-                          disabled={isSubmitting === item.key}
-                          className="rounded-lg px-3 py-2 text-xs font-semibold text-white transition-all disabled:cursor-not-allowed disabled:opacity-60"
-                          style={{ backgroundColor: colors.secondary }}
-                        >
-                          {isSubmitting === item.key ? "Approving..." : "Approve"}
-                        </button>
+                        <div className="flex items-center justify-center gap-2">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setConfirmation(item);
+                              setConfirmationAction("reject");
+                            }}
+                            disabled={isSubmitting === item.key}
+                            className="rounded-lg px-3 py-2 text-xs font-semibold text-white transition-all disabled:cursor-not-allowed disabled:opacity-60"
+                            style={{ backgroundColor: colors.danger }}
+                          >
+                            {isSubmitting === item.key && confirmationAction === "reject"
+                              ? "Rejecting..."
+                              : "Reject"}
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setConfirmation(item);
+                              setConfirmationAction("approve");
+                            }}
+                            disabled={isSubmitting === item.key}
+                            className="rounded-lg px-3 py-2 text-xs font-semibold text-white transition-all disabled:cursor-not-allowed disabled:opacity-60"
+                            style={{ backgroundColor: colors.secondary }}
+                          >
+                            {isSubmitting === item.key && confirmationAction === "approve"
+                              ? "Approving..."
+                              : "Approve"}
+                          </button>
+                        </div>
                       </td>
                     </tr>
                   ))}
@@ -933,19 +1100,33 @@ export default function ApprovalManagement() {
 
         <ConfirmationModal
           isOpen={Boolean(confirmation)}
-          onClose={() => setConfirmation(null)}
+          onClose={() => {
+            setConfirmation(null);
+            setConfirmationAction("approve");
+          }}
           onConfirm={() => {
             if (confirmation) {
-              handleApprove(confirmation).finally(() => {
+              const action =
+                confirmationAction === "reject" ? handleReject : handleApprove;
+              action(confirmation).finally(() => {
                 setConfirmation(null);
+                setConfirmationAction("approve");
               });
             }
           }}
-          title="Approve Request"
-          description="Review the request details before completing approval."
-          confirmText="Approve Request"
+          title={
+            confirmationAction === "reject" ? "Reject Request" : "Approve Request"
+          }
+          description={
+            confirmationAction === "reject"
+              ? "Review the request details before rejecting this overload request."
+              : "Review the request details before completing approval."
+          }
+          confirmText={
+            confirmationAction === "reject" ? "Reject Request" : "Approve Request"
+          }
           cancelText="Cancel"
-          variant="info"
+          variant={confirmationAction === "reject" ? "danger" : "info"}
           isLoading={Boolean(confirmation) && isSubmitting === confirmation?.key}
           customContent={renderConfirmationContent()}
         />

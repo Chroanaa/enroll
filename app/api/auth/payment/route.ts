@@ -47,6 +47,25 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    const pendingOverloadCount = await prisma.enrolled_subjects.count({
+      where: {
+        student_number: assessment.student_number,
+        academic_year: assessment.academic_year,
+        semester: assessment.semester,
+        status: "pending_approval",
+      },
+    });
+
+    if (pendingOverloadCount > 0) {
+      return NextResponse.json(
+        {
+          error:
+            "Payment cannot be recorded because this student's enrolled subjects are still pending overload approval.",
+        },
+        { status: 409 },
+      );
+    }
+
     // Use transaction to ensure data integrity
     const result = await prisma.$transaction(async (tx) => {
       // Create payment record

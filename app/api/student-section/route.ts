@@ -23,6 +23,12 @@ const normalizeSemesterValue = (value: string) => {
   return null;
 };
 
+const semesterLabelToNumber = (semester: 'first' | 'second' | 'summer') => {
+  if (semester === 'first') return 1;
+  if (semester === 'second') return 2;
+  return 3;
+};
+
 /**
  * POST /api/student-section/bulk
  * Bulk assign students to a section
@@ -132,6 +138,42 @@ export async function POST(request: NextRequest) {
           failed.push({
             studentNumber,
             reason: 'Student already assigned for this term'
+          });
+          continue;
+        }
+
+        const assessmentSemester = semesterLabelToNumber(
+          normalizedSemester as 'first' | 'second' | 'summer'
+        );
+
+        const finalizedAssessment = await prisma.student_assessment.findFirst({
+          where: {
+            student_number: studentNumber,
+            academic_year: body.academicYear,
+            semester: assessmentSemester,
+            status: 'finalized',
+          },
+          select: { id: true },
+        });
+
+        if (!finalizedAssessment) {
+          failed.push({
+            studentNumber,
+            reason: 'Student must have a finalized assessment before section assignment',
+          });
+          continue;
+        }
+
+        const paymentCount = await prisma.student_payment.count({
+          where: {
+            assessment_id: finalizedAssessment.id,
+          },
+        });
+
+        if (paymentCount === 0) {
+          failed.push({
+            studentNumber,
+            reason: 'Student must have a recorded payment before section assignment',
           });
           continue;
         }
