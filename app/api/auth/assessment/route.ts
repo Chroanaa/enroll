@@ -279,6 +279,27 @@ export async function POST(request: NextRequest) {
       }
     }
 
+    if (mode === "finalize") {
+      const pendingOverloadCount = await prisma.enrolled_subjects.count({
+        where: {
+          student_number: studentNumber,
+          academic_year: academicYear,
+          semester: semesterNum,
+          status: "pending_approval",
+        },
+      });
+
+      if (pendingOverloadCount > 0) {
+        return NextResponse.json(
+          {
+            error:
+              "This assessment cannot be finalized because the enrolled subjects are still pending overload approval.",
+          },
+          { status: 409 },
+        );
+      }
+    }
+
     // Use transaction to ensure data integrity
     // Add timeout to prevent P2028 errors (default is 5 seconds, increase to 10 seconds)
     let isUpdate = false;

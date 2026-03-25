@@ -131,7 +131,7 @@ const ConfirmationModal: React.FC<ConfirmationModalProps> = ({
       onClick={onClose}
     >
       <div
-        className='rounded-2xl shadow-2xl w-full max-w-md max-h-[90vh] overflow-hidden flex flex-col animate-in fade-in zoom-in duration-200'
+        className='rounded-2xl shadow-2xl w-full max-w-4xl max-h-[90vh] overflow-hidden flex flex-col animate-in fade-in zoom-in duration-200'
         style={{
           backgroundColor: "white",
         }}

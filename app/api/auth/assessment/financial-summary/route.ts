@@ -48,6 +48,26 @@ export async function GET(request: NextRequest) {
       );
     }
 
+    const pendingOverloadCount = await prisma.enrolled_subjects.count({
+      where: {
+        student_number: studentNumber,
+        academic_year: academicYear,
+        semester: semesterNum,
+        status: "pending_approval",
+      },
+    });
+
+    if (pendingOverloadCount > 0) {
+      return NextResponse.json(
+        {
+          error: "Overload approval pending",
+          message:
+            "This student's assessment cannot be used for payment yet because the enrolled subjects are still pending overload approval.",
+        },
+        { status: 409 },
+      );
+    }
+
     // Fetch finalized assessment record
     const assessment = await prisma.student_assessment.findFirst({
       where: {

@@ -8,6 +8,30 @@ import {
   getSessionScope,
 } from "@/app/lib/accessScope";
 
+const ENROLLED_SUBJECTS_STATUS_CONSTRAINT_SQL = `
+DO $$
+BEGIN
+  IF EXISTS (
+    SELECT 1
+    FROM pg_constraint
+    WHERE conname = 'enrolled_subjects_status_check'
+  ) THEN
+    ALTER TABLE enrolled_subjects
+    DROP CONSTRAINT enrolled_subjects_status_check;
+  END IF;
+
+  ALTER TABLE enrolled_subjects
+  ADD CONSTRAINT enrolled_subjects_status_check
+  CHECK (status IN ('enrolled', 'pending_approval'));
+EXCEPTION
+  WHEN duplicate_object THEN NULL;
+END $$;
+`;
+
+async function ensureEnrolledSubjectsStatusConstraint() {
+  await prisma.$executeRawUnsafe(ENROLLED_SUBJECTS_STATUS_CONSTRAINT_SQL);
+}
+
 /**
  * POST /api/auth/enrolled-subjects
  * Save or update enrolled subjects for a student
@@ -16,6 +40,8 @@ import {
  */
 export async function POST(request: NextRequest) {
   try {
+    await ensureEnrolledSubjectsStatusConstraint();
+
     const data = await request.json();
     const { studentNumber, programId, academicYear, semester, subjects } = data;
 
@@ -88,10 +114,10 @@ export async function POST(request: NextRequest) {
     }, 0);
 
     // Determine status based on total units and user role
-    // If total units > 27 and user is not admin, set status to "pending"
+    // If total units > 27 and user is not admin, set status to "pending_approval"
     // Otherwise, set status to "enrolled"
     const enrollmentStatus =
-      totalUnits > 27 && !isAdmin ? "pending" : "enrolled";
+      totalUnits > 27 && !isAdmin ? "pending_approval" : "enrolled";
 
     // Insert enrolled subjects (either new term or updated term)
     if (subjects.length > 0) {
@@ -137,7 +163,7 @@ export async function POST(request: NextRequest) {
     }
 
     const statusMessage =
-      enrollmentStatus === "pending"
+      enrollmentStatus === "pending_approval"
         ? " Subjects are pending approval due to exceeding 27 units. Admin approval is required."
         : "";
 
@@ -238,6 +264,8 @@ export async function GET(request: NextRequest) {
         es.units_total,
         es.status,
         es.drop_status,
+        latest_drop.status                         AS latest_drop_history_status,
+        latest_drop.drop_reason                    AS latest_drop_reason,
         es.enrolled_at,
         es.updated_at,
         COALESCE(cc.course_code, s.code)             AS course_code,
@@ -252,6 +280,15 @@ export async function GET(request: NextRequest) {
       FROM enrolled_subjects es
       LEFT JOIN curriculum_course cc ON es.curriculum_course_id = cc.id
       LEFT JOIN subject s ON es.subject_id = s.id
+      LEFT JOIN LATERAL (
+        SELECT
+          sdh.status,
+          sdh.drop_reason
+        FROM subject_drop_history sdh
+        WHERE sdh.enrolled_subject_id = es.id
+        ORDER BY sdh.dropped_at DESC, sdh.id DESC
+        LIMIT 1
+      ) latest_drop ON TRUE
       WHERE es.student_number = ${studentNumber}
         AND es.academic_year = ${academicYear}
         AND es.semester = ${semesterNum}
@@ -333,6 +370,8 @@ export async function GET(request: NextRequest) {
         subject_id: es.subject_id,
         status: es.status,
         drop_status: es.drop_status,
+        latest_drop_history_status: es.latest_drop_history_status,
+        latest_drop_reason: es.latest_drop_reason,
         course_code: es.course_code,
         descriptive_title: es.descriptive_title,
         units_lec: es.units_lec || 0,

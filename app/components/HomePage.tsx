@@ -34,6 +34,7 @@ const modules: HomeModule[] = [
       "forecast-billing",
       "reports-payments-dashboard",
       "reports-registration-forms",
+      "reports-subject-dropping",
     ],
   },
   {

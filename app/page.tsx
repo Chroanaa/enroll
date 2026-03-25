@@ -18,6 +18,10 @@ import ProgramShiftingManagement from "./components/ProgramShiftingManagement";
 import ReportManagement from "./components/ReportManagement";
 import PaymentsDashboard from "./components/reports/PaymentsDashboard";
 import RegistrationFormPrintReports from "./components/reports/RegistrationFormPrintReports";
+import SubjectDropReports from "./components/reports/SubjectDropReports";
+import CrossEnrollmentReports from "./components/reports/CrossEnrollmentReports";
+import ProgramShiftingReports from "./components/reports/ProgramShiftingReports";
+import SectionShiftingReports from "./components/reports/SectionShiftingReports";
 import SchedulingManagement from "./components/SchedulingManagement";
 import PaymentBillingManagement from "./components/PaymentBillingManagement";
 import RefundManagement from "./components/RefundManagement";
@@ -107,6 +111,14 @@ function App() {
         return <PaymentsDashboard />;
       case "reports-registration-forms":
         return <RegistrationFormPrintReports />;
+      case "reports-subject-dropping":
+        return <SubjectDropReports />;
+      case "reports-cross-enrollment":
+        return <CrossEnrollmentReports />;
+      case "reports-program-shifting":
+        return <ProgramShiftingReports />;
+      case "reports-section-shifting":
+        return <SectionShiftingReports />;
       case "scheduling":
         return <SchedulingManagement />;
       case "section-management":

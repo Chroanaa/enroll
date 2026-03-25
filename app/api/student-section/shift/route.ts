@@ -401,6 +401,162 @@ async function performShift(args: {
   };
 }
 
+export async function GET(request: NextRequest) {
+  try {
+    const scope = await getSessionScope();
+    const roleContext = await getRoleContext(scope?.roleId || 0);
+
+    if (!scope) {
+      return NextResponse.json(
+        { error: "UNAUTHORIZED", message: "Unauthorized." },
+        { status: 401 },
+      );
+    }
+
+    if (!canSubmitShift(roleContext)) {
+      return NextResponse.json(
+        { error: "UNAUTHORIZED", message: "Unauthorized." },
+        { status: 403 },
+      );
+    }
+
+    if (scope.isDean && !scope.deanDepartmentId) {
+      return NextResponse.json(
+        {
+          error: "FORBIDDEN",
+          message: "Dean account is not linked to a department.",
+        },
+        { status: 403 },
+      );
+    }
+
+    await ensureShiftRequestsTable();
+
+    const searchParams = request.nextUrl.searchParams;
+    const studentNumber = searchParams.get("studentNumber");
+    const academicYear = searchParams.get("academicYear");
+    const semester = searchParams.get("semester");
+    const normalizedSemester = semester
+      ? normalizeSemesterValue(semester)
+      : null;
+    const status = searchParams.get("status") || "all";
+
+    const requests = await prisma.$queryRaw<any[]>`
+      SELECT
+        ssr.id,
+        ssr.student_number,
+        ssr.from_section_id,
+        ssr.to_section_id,
+        ssr.academic_year,
+        ssr.semester,
+        ssr.reason,
+        ssr.status,
+        ssr.requested_by,
+        ssr.requested_by_role,
+        ssr.requested_by_name,
+        ssr.approved_by,
+        ssr.approved_by_role,
+        ssr.approved_by_name,
+        ssr.executed_by,
+        ssr.executed_by_role,
+        ssr.executed_by_name,
+        ssr.requested_at,
+        ssr.approved_at,
+        ssr.executed_at,
+        from_sec.section_name AS from_section_name,
+        to_sec.section_name AS to_section_name,
+        prog.id AS program_id,
+        prog.code AS program_code,
+        prog.name AS program_name,
+        dept.id AS department_id,
+        dept.name AS department_name,
+        enr.major_id,
+        major.name AS major_name,
+        enr.year_level,
+        enr.first_name,
+        enr.family_name AS last_name,
+        CONCAT_WS(', ', enr.family_name, enr.first_name, enr.middle_name) AS student_name
+      FROM student_section_shift_requests ssr
+      LEFT JOIN sections from_sec ON from_sec.id = ssr.from_section_id
+      LEFT JOIN sections to_sec ON to_sec.id = ssr.to_section_id
+      LEFT JOIN program prog ON prog.id = COALESCE(to_sec.program_id, from_sec.program_id)
+      LEFT JOIN department dept ON dept.id = prog.department_id
+      LEFT JOIN LATERAL (
+        SELECT
+          e.first_name,
+          e.middle_name,
+          e.family_name,
+          e.major_id,
+          e.year_level,
+          e.department
+        FROM enrollment e
+        WHERE e.student_number = ssr.student_number
+          AND (${academicYear}::text IS NULL OR e.academic_year = ${academicYear})
+        ORDER BY e.id DESC
+        LIMIT 1
+      ) enr ON TRUE
+      LEFT JOIN major major ON major.id = enr.major_id
+      WHERE (${studentNumber}::text IS NULL OR ssr.student_number = ${studentNumber})
+        AND (${academicYear}::text IS NULL OR ssr.academic_year = ${academicYear})
+        AND (${normalizedSemester}::text IS NULL OR ssr.semester = ${normalizedSemester})
+        AND (${status}::text = 'all' OR ssr.status = ${status})
+        AND (${scope.isDean ? scope.deanDepartmentId : null}::int IS NULL OR COALESCE(enr.department, dept.id) = ${scope.deanDepartmentId})
+      ORDER BY ssr.requested_at DESC NULLS LAST, ssr.id DESC
+    `;
+
+    return NextResponse.json({
+      success: true,
+      data: requests.map((item) => ({
+        id: item.id,
+        studentNumber: item.student_number,
+        studentName: item.student_name || item.student_number,
+        firstName: item.first_name || "",
+        lastName: item.last_name || "",
+        academicYear: item.academic_year,
+        semester: item.semester,
+        fromSectionId: item.from_section_id,
+        toSectionId: item.to_section_id,
+        fromSectionName: item.from_section_name,
+        toSectionName: item.to_section_name,
+        programId: item.program_id,
+        programCode: item.program_code,
+        programName: item.program_name,
+        departmentId: item.department_id,
+        departmentName: item.department_name,
+        majorId: item.major_id,
+        majorName: item.major_name,
+        yearLevel: item.year_level,
+        status: item.status,
+        reason: item.reason,
+        requestedBy: item.requested_by,
+        requestedByRole: item.requested_by_role,
+        requestedByName: item.requested_by_name,
+        approvedBy: item.approved_by,
+        approvedByRole: item.approved_by_role,
+        approvedByName: item.approved_by_name,
+        executedBy: item.executed_by,
+        executedByRole: item.executed_by_role,
+        executedByName: item.executed_by_name,
+        requestedAt: item.requested_at,
+        approvedAt: item.approved_at,
+        executedAt: item.executed_at,
+      })),
+    });
+  } catch (error) {
+    console.error("Error fetching section shift requests:", error);
+    return NextResponse.json(
+      {
+        error: "INTERNAL_ERROR",
+        message:
+          error instanceof Error
+            ? error.message
+            : "Failed to fetch section shift requests",
+      },
+      { status: 500 },
+    );
+  }
+}
+
 export async function POST(request: NextRequest) {
   try {
     const session = await getServerSession(authOptions);

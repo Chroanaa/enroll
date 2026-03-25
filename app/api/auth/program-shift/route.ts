@@ -495,8 +495,11 @@ export async function GET(request: NextRequest) {
         from_program.name AS from_program_name,
         to_program.code AS to_program_code,
         to_program.name AS to_program_name,
+        COALESCE(enr.department, to_program.department_id) AS department_id,
+        dept.name AS department_name,
         from_major.name AS from_major_name,
         to_major.name AS to_major_name,
+        enr.year_level,
         enr.first_name,
         enr.family_name AS last_name,
         CONCAT_WS(', ', enr.family_name, enr.first_name, enr.middle_name) AS student_name
@@ -506,12 +509,13 @@ export async function GET(request: NextRequest) {
       LEFT JOIN major from_major ON from_major.id = psr.from_major_id
       LEFT JOIN major to_major ON to_major.id = psr.to_major_id
       LEFT JOIN LATERAL (
-        SELECT e.first_name, e.middle_name, e.family_name, e.department
+        SELECT e.first_name, e.middle_name, e.family_name, e.department, e.year_level
         FROM enrollment e
         WHERE e.student_number = psr.student_number
         ORDER BY e.id DESC
         LIMIT 1
       ) enr ON TRUE
+      LEFT JOIN department dept ON dept.id = COALESCE(enr.department, to_program.department_id)
       WHERE (${studentNumber}::text IS NULL OR psr.student_number = ${studentNumber})
         AND (${academicYear}::text IS NULL OR psr.academic_year = ${academicYear})
         AND (${semester}::int IS NULL OR psr.semester = ${semester})
@@ -538,6 +542,9 @@ export async function GET(request: NextRequest) {
         toProgramId: item.to_program_id,
         toProgramCode: item.to_program_code,
         toProgramName: item.to_program_name,
+        departmentId: item.department_id,
+        departmentName: item.department_name,
+        yearLevel: item.year_level,
         toMajorId: item.to_major_id,
         toMajorName: item.to_major_name,
         reason: item.reason,

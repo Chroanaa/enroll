@@ -180,6 +180,20 @@ interface ApprovalSubjectItem {
   units_total: number | null;
 }
 
+type PendingStudentDropGroup = {
+  student_number: string;
+  academic_year: string;
+  semester: number;
+  pending_subject_count: number;
+  total_subject_count: number;
+  first_name: string | null;
+  last_name: string | null;
+  student_name: string | null;
+  updated_at: Date | string | null;
+  drop_reason: string | null;
+  subjects: ApprovalSubjectItem[] | null;
+};
+
 async function getEnrollmentRowForTerm(args: {
   studentNumber: string;
   academicYear: string;
@@ -279,6 +293,7 @@ export async function GET() {
 
     const [
       subjectOverloads,
+      groupedStudentDrops,
       subjectDrops,
       crossEnrollmentRequests,
       shiftingRequests,
@@ -321,9 +336,79 @@ export async function GET() {
         ) enr ON TRUE
         LEFT JOIN curriculum_course cc ON cc.id = es.curriculum_course_id
         LEFT JOIN subject sub ON sub.id = es.subject_id
-        WHERE es.status = 'pending'
+        WHERE es.status = 'pending_approval'
         GROUP BY es.student_number, es.academic_year, es.semester, enr.family_name, enr.first_name, enr.middle_name
         ORDER BY es.academic_year DESC, es.semester DESC, es.student_number ASC
+      `,
+      prisma.$queryRaw<PendingStudentDropGroup[]>`
+        SELECT
+          es.student_number,
+          es.academic_year,
+          es.semester,
+          COUNT(*)::int AS pending_subject_count,
+          totals.total_subject_count::int,
+          enr.first_name,
+          enr.family_name AS last_name,
+          CONCAT_WS(', ', enr.family_name, enr.first_name, enr.middle_name) AS student_name,
+          MAX(es.updated_at) AS updated_at,
+          MAX(NULLIF(TRIM(COALESCE(sdh.drop_reason, '')), '')) AS drop_reason,
+          COALESCE(
+            JSON_AGG(
+              JSON_BUILD_OBJECT(
+                'course_code', COALESCE(cc.course_code, sub.code),
+                'descriptive_title', COALESCE(cc.descriptive_title, sub.name),
+                'units_total', es.units_total
+              )
+              ORDER BY COALESCE(cc.course_code, sub.code)
+            ),
+            '[]'::json
+          ) AS subjects
+        FROM enrolled_subjects es
+        INNER JOIN LATERAL (
+          SELECT COUNT(*)::int AS total_subject_count
+          FROM enrolled_subjects es_all
+          WHERE es_all.student_number = es.student_number
+            AND es_all.academic_year = es.academic_year
+            AND es_all.semester = es.semester
+            AND LOWER(COALESCE(es_all.status, '')) = 'enrolled'
+        ) totals ON TRUE
+        LEFT JOIN curriculum_course cc ON cc.id = es.curriculum_course_id
+        LEFT JOIN subject sub ON sub.id = es.subject_id
+        LEFT JOIN LATERAL (
+          SELECT e.first_name, e.middle_name, e.family_name
+          FROM enrollment e
+          WHERE e.student_number = es.student_number
+            AND e.academic_year = es.academic_year
+            AND (
+              (es.semester = 1 AND e.term IN ('First Semester', '1st Semester', 'first', '1'))
+              OR
+              (es.semester = 2 AND e.term IN ('Second Semester', '2nd Semester', 'second', '2'))
+              OR
+              (es.semester = 3 AND e.term IN ('Third Semester', '3rd Semester', 'third', '3', 'summer'))
+            )
+          ORDER BY e.id DESC
+          LIMIT 1
+        ) enr ON TRUE
+        LEFT JOIN LATERAL (
+          SELECT drop_reason
+          FROM subject_drop_history
+          WHERE enrolled_subject_id = es.id
+            AND status = 'pending_approval'
+          ORDER BY dropped_at DESC, id DESC
+          LIMIT 1
+        ) sdh ON TRUE
+        WHERE es.drop_status = 'pending_approval'
+        GROUP BY
+          es.student_number,
+          es.academic_year,
+          es.semester,
+          totals.total_subject_count,
+          enr.family_name,
+          enr.first_name,
+          enr.middle_name
+        HAVING COUNT(*) = totals.total_subject_count
+          AND totals.total_subject_count > 1
+        ORDER BY MAX(es.updated_at) DESC NULLS LAST, es.student_number ASC
       `,
       prisma.$queryRaw<any[]>`
         SELECT
@@ -537,6 +622,13 @@ export async function GET() {
           allowedStudentNumbers.has(item.student_number),
         ),
       );
+      groupedStudentDrops.splice(
+        0,
+        groupedStudentDrops.length,
+        ...groupedStudentDrops.filter((item) =>
+          allowedStudentNumbers.has(item.student_number),
+        ),
+      );
       crossEnrollmentRequests.splice(
         0,
         crossEnrollmentRequests.length,
@@ -575,27 +667,57 @@ export async function GET() {
           status: "pending",
           subjects: Array.isArray(item.subjects) ? item.subjects : [],
         })),
-        subjectDrops: subjectDrops.map((item) => ({
-          id: item.id,
-          studentNumber: item.student_number,
-          studentName: item.student_name || item.student_number,
-          firstName: item.first_name || "",
-          lastName: item.last_name || "",
-          academicYear: item.academic_year,
-          semester: item.semester,
-          courseCode: item.course_code,
-          descriptiveTitle: item.descriptive_title,
-          status: item.drop_status,
-          requestedAt: item.updated_at,
-          reason: item.drop_reason,
-          subjects: [
-            {
+        subjectDrops: [
+          ...groupedStudentDrops.map((item) => ({
+            id: `student-drop-${item.student_number}-${item.academic_year}-${item.semester}`,
+            studentNumber: item.student_number,
+            studentName: item.student_name || item.student_number,
+            firstName: item.first_name || "",
+            lastName: item.last_name || "",
+            academicYear: item.academic_year,
+            semester: item.semester,
+            courseCode: "Student Drop Request",
+            descriptiveTitle: `${item.pending_subject_count} subjects queued for dropping`,
+            status: "pending_approval",
+            requestedAt: item.updated_at,
+            reason: item.drop_reason,
+            isStudentDrop: true,
+            subjectCount: item.pending_subject_count,
+            subjects: Array.isArray(item.subjects) ? item.subjects : [],
+          })),
+          ...subjectDrops
+            .filter((item) => {
+              return !groupedStudentDrops.some(
+                (group) =>
+                  group.student_number === item.student_number &&
+                  group.academic_year === item.academic_year &&
+                  group.semester === item.semester,
+              );
+            })
+            .map((item) => ({
+              id: item.id,
+              studentNumber: item.student_number,
+              studentName: item.student_name || item.student_number,
+              firstName: item.first_name || "",
+              lastName: item.last_name || "",
+              academicYear: item.academic_year,
+              semester: item.semester,
               courseCode: item.course_code,
               descriptiveTitle: item.descriptive_title,
-              unitsTotal: null,
-            },
-          ],
-        })),
+              status: item.drop_status,
+              requestedAt: item.updated_at,
+              reason: item.drop_reason,
+              isStudentDrop: false,
+              subjectCount: 1,
+              subjects: [
+                {
+                  courseCode: item.course_code,
+                  descriptiveTitle: item.descriptive_title,
+                  unitsTotal: null,
+                },
+              ],
+            })),
+        ],
         crossEnrollmentRequests: crossEnrollmentRequests.map((item) => ({
           id: item.id,
           studentNumber: item.student_number,
@@ -740,7 +862,7 @@ export async function POST(request: Request) {
         WHERE student_number = ${studentNumber}
           AND academic_year = ${academicYear}
           AND semester = ${semester}
-          AND status = 'pending'
+          AND status = 'pending_approval'
       `;
 
       if (!updatedRows) {
@@ -761,6 +883,56 @@ export async function POST(request: Request) {
       return NextResponse.json({
         success: true,
         message: "Overload request approved successfully.",
+      });
+    }
+
+    if (actionType === "reject_overload") {
+      const studentNumber = String(body?.studentNumber || "");
+      const academicYear = String(body?.academicYear || "");
+      const semester = Number(body?.semester);
+
+      if (!studentNumber || !academicYear || !Number.isFinite(semester)) {
+        return NextResponse.json(
+          { error: "studentNumber, academicYear, and semester are required." },
+          { status: 400 },
+        );
+      }
+
+      const access = await ensureDeanStudentAccess(scope, {
+        studentNumber,
+        academicYear,
+        semester,
+      });
+      if (!access.ok) {
+        return NextResponse.json({ error: access });
+      }
+
+      const deletedRows = await prisma.$executeRaw`
+        DELETE FROM enrolled_subjects
+        WHERE student_number = ${studentNumber}
+          AND academic_year = ${academicYear}
+          AND semester = ${semester}
+          AND status = 'pending_approval'
+      `;
+
+      if (!deletedRows) {
+        return NextResponse.json(
+          { error: "No pending overload request was found." },
+          { status: 404 },
+        );
+      }
+
+      if (userId) {
+        await insertIntoReports({
+          action: `Rejected overload enrollment request for ${studentNumber} (${academicYear} Sem ${semester}) by ${session?.user?.name}`,
+          user_id: userId,
+          created_at: new Date(),
+        });
+      }
+
+      return NextResponse.json({
+        success: true,
+        message: "Overload request rejected successfully.",
       });
     }
 
@@ -926,6 +1098,327 @@ export async function POST(request: Request) {
       });
     }
 
+    if (actionType === "student_drop") {
+      const studentNumber = String(body?.studentNumber || "");
+      const academicYear = String(body?.academicYear || "");
+      const semester = Number(body?.semester);
+
+      if (!studentNumber || !academicYear || !Number.isFinite(semester)) {
+        return NextResponse.json(
+          { error: "studentNumber, academicYear, and semester are required." },
+          { status: 400 },
+        );
+      }
+
+      const access = await ensureDeanStudentAccess(scope, {
+        studentNumber,
+        academicYear,
+        semester,
+      });
+      if (!access.ok) {
+        return NextResponse.json({ error: access });
+      }
+
+      const pendingSubjects = await prisma.$queryRaw<any[]>`
+        SELECT
+          es.id,
+          es.curriculum_course_id,
+          es.drop_status
+        FROM enrolled_subjects es
+        WHERE es.student_number = ${studentNumber}
+          AND es.academic_year = ${academicYear}
+          AND es.semester = ${semester}
+          AND es.drop_status = 'pending_approval'
+        ORDER BY es.id ASC
+      `;
+
+      if (!pendingSubjects.length) {
+        return NextResponse.json(
+          { error: "No pending student drop request was found." },
+          { status: 404 },
+        );
+      }
+
+      const enrolledSubjectIds = pendingSubjects
+        .map((subject) => Number(subject.id))
+        .filter((id) => Number.isFinite(id));
+      const curriculumCourseIds = pendingSubjects
+        .map((subject) => Number(subject.curriculum_course_id))
+        .filter((id) => Number.isFinite(id));
+
+      const pendingDropRows = enrolledSubjectIds.length
+        ? await prisma.$queryRaw<any[]>`
+            SELECT
+              id,
+              refundable,
+              COALESCE(assessment_adjusted, false) AS assessment_adjusted
+            FROM subject_drop_history
+            WHERE enrolled_subject_id IN (${Prisma.join(enrolledSubjectIds)})
+              AND status = 'pending_approval'
+          `
+        : [];
+
+      const hasRefundableDrop = pendingDropRows.some((row) =>
+        Boolean(row.refundable),
+      );
+      const hasUnadjustedDrop = pendingDropRows.some(
+        (row) => !Boolean(row.assessment_adjusted),
+      );
+
+      await prisma.$transaction(async (tx) => {
+        const semesterAliases = getSemesterAliases(semester);
+
+        await tx.$executeRaw`
+          UPDATE subject_drop_history
+          SET status = 'dropped'
+          WHERE enrolled_subject_id IN (${Prisma.join(enrolledSubjectIds)})
+            AND status = 'pending_approval'
+        `;
+
+        await tx.$executeRaw`
+          DELETE FROM enrolled_subjects
+          WHERE id IN (${Prisma.join(enrolledSubjectIds)})
+        `;
+
+        if (curriculumCourseIds.length > 0) {
+          await tx.$executeRaw`
+            DELETE FROM student_section_subjects sss
+            USING student_section ss, class_schedule cs
+            WHERE sss.student_section_id = ss.id
+              AND sss.class_schedule_id = cs.id
+              AND ss.student_number = ${studentNumber}
+              AND ss.academic_year = ${academicYear}
+              AND LOWER(COALESCE(ss.semester, '')) IN (${Prisma.join(semesterAliases)})
+              AND cs.curriculum_course_id IN (${Prisma.join(curriculumCourseIds)})
+          `;
+        }
+
+        if (hasRefundableDrop && hasUnadjustedDrop) {
+          await recalculateAssessmentForTerm(
+            tx,
+            studentNumber,
+            academicYear,
+            semester,
+          );
+
+          if (pendingDropRows.length > 0) {
+            const pendingDropIds = pendingDropRows
+              .map((row) => Number(row.id))
+              .filter((id) => Number.isFinite(id));
+
+            if (pendingDropIds.length > 0) {
+              await tx.$executeRaw`
+                UPDATE subject_drop_history
+                SET assessment_adjusted = true
+                WHERE id IN (${Prisma.join(pendingDropIds)})
+              `;
+            }
+          }
+        }
+
+        const remainingRows = await tx.$queryRaw<{ count: bigint }[]>`
+          SELECT COUNT(*)::bigint AS count
+          FROM enrolled_subjects
+          WHERE student_number = ${studentNumber}
+            AND academic_year = ${academicYear}
+            AND semester = ${semester}
+        `;
+
+        const remainingCount = Number(remainingRows[0]?.count || 0);
+
+        if (remainingCount === 0) {
+          await tx.$executeRaw`
+            DELETE FROM student_section_subjects sss
+            USING student_section ss
+            WHERE sss.student_section_id = ss.id
+              AND ss.student_number = ${studentNumber}
+              AND ss.academic_year = ${academicYear}
+              AND LOWER(COALESCE(ss.semester, '')) IN (${Prisma.join(semesterAliases)})
+          `;
+
+          await tx.$executeRaw`
+            UPDATE enrollment
+            SET status = 3
+            WHERE student_number = ${studentNumber}
+              AND academic_year = ${academicYear}
+              AND (
+                LOWER(COALESCE(term, '')) = CASE
+                  WHEN ${semester} = 1 THEN 'first'
+                  WHEN ${semester} = 2 THEN 'second'
+                  ELSE 'third'
+                END
+                OR LOWER(COALESCE(term, '')) = CASE
+                  WHEN ${semester} = 1 THEN 'first semester'
+                  WHEN ${semester} = 2 THEN 'second semester'
+                  ELSE 'third semester'
+                END
+                OR (${semester} = 3 AND LOWER(COALESCE(term, '')) = 'summer')
+              )
+          `;
+        }
+      });
+
+      if (userId) {
+        await insertIntoReports({
+          action: `Approved student drop request for ${studentNumber} (${academicYear} Sem ${semester}) by ${session?.user?.name}`,
+          user_id: userId,
+          created_at: new Date(),
+        });
+      }
+
+      return NextResponse.json({
+        success: true,
+        message: "Student drop request approved successfully.",
+      });
+    }
+
+    if (actionType === "reject_drop") {
+      const enrolledSubjectId = Number(body?.id);
+
+      if (!Number.isFinite(enrolledSubjectId)) {
+        return NextResponse.json(
+          { error: "id is required for drop rejection." },
+          { status: 400 },
+        );
+      }
+
+      const subjectRows = await prisma.$queryRaw<any[]>`
+        SELECT
+          id,
+          student_number,
+          academic_year,
+          semester,
+          drop_status
+        FROM enrolled_subjects
+        WHERE id = ${enrolledSubjectId}
+        LIMIT 1
+      `;
+
+      const subject = subjectRows[0];
+      if (!subject) {
+        return NextResponse.json(
+          { error: "Pending subject drop not found." },
+          { status: 404 },
+        );
+      }
+
+      const access = await ensureDeanStudentAccess(scope, {
+        studentNumber: subject.student_number,
+        academicYear: subject.academic_year,
+        semester: subject.semester,
+      });
+      if (!access.ok) {
+        return NextResponse.json({ error: access });
+      }
+
+      if (String(subject.drop_status || "").toLowerCase() !== "pending_approval") {
+        return NextResponse.json(
+          { error: "This subject drop is no longer pending approval." },
+          { status: 409 },
+        );
+      }
+
+      await prisma.$transaction(async (tx) => {
+        await tx.$executeRaw`
+          UPDATE enrolled_subjects
+          SET drop_status = 'none',
+              updated_at = NOW()
+          WHERE id = ${enrolledSubjectId}
+        `;
+
+        await tx.$executeRaw`
+          UPDATE subject_drop_history
+          SET status = 'rejected'
+          WHERE enrolled_subject_id = ${enrolledSubjectId}
+            AND status = 'pending_approval'
+        `;
+      });
+
+      if (userId) {
+        await insertIntoReports({
+          action: `Rejected subject drop request for ${subject.student_number} (${subject.academic_year} Sem ${subject.semester}) by ${session?.user?.name}`,
+          user_id: userId,
+          created_at: new Date(),
+        });
+      }
+
+      return NextResponse.json({
+        success: true,
+        message: "Subject drop request rejected successfully.",
+      });
+    }
+
+    if (actionType === "reject_student_drop") {
+      const studentNumber = String(body?.studentNumber || "");
+      const academicYear = String(body?.academicYear || "");
+      const semester = Number(body?.semester);
+
+      if (!studentNumber || !academicYear || !Number.isFinite(semester)) {
+        return NextResponse.json(
+          { error: "studentNumber, academicYear, and semester are required." },
+          { status: 400 },
+        );
+      }
+
+      const access = await ensureDeanStudentAccess(scope, {
+        studentNumber,
+        academicYear,
+        semester,
+      });
+      if (!access.ok) {
+        return NextResponse.json({ error: access });
+      }
+
+      const pendingSubjects = await prisma.$queryRaw<any[]>`
+        SELECT id
+        FROM enrolled_subjects
+        WHERE student_number = ${studentNumber}
+          AND academic_year = ${academicYear}
+          AND semester = ${semester}
+          AND drop_status = 'pending_approval'
+      `;
+
+      if (!pendingSubjects.length) {
+        return NextResponse.json(
+          { error: "No pending student drop request was found." },
+          { status: 404 },
+        );
+      }
+
+      const enrolledSubjectIds = pendingSubjects
+        .map((subject) => Number(subject.id))
+        .filter((id) => Number.isFinite(id));
+
+      await prisma.$transaction(async (tx) => {
+        await tx.$executeRaw`
+          UPDATE enrolled_subjects
+          SET drop_status = 'none',
+              updated_at = NOW()
+          WHERE id IN (${Prisma.join(enrolledSubjectIds)})
+        `;
+
+        await tx.$executeRaw`
+          UPDATE subject_drop_history
+          SET status = 'rejected'
+          WHERE enrolled_subject_id IN (${Prisma.join(enrolledSubjectIds)})
+            AND status = 'pending_approval'
+        `;
+      });
+
+      if (userId) {
+        await insertIntoReports({
+          action: `Rejected student drop request for ${studentNumber} (${academicYear} Sem ${semester}) by ${session?.user?.name}`,
+          user_id: userId,
+          created_at: new Date(),
+        });
+      }
+
+      return NextResponse.json({
+        success: true,
+        message: "Student drop request rejected successfully.",
+      });
+    }
+
     if (actionType === "cross_enrollment") {
       const requestId = Number(body?.id);
 
@@ -1058,6 +1551,69 @@ export async function POST(request: Request) {
       return NextResponse.json({
         success: true,
         message: "Cross-enrollee request approved successfully.",
+      });
+    }
+
+    if (actionType === "reject_cross_enrollment") {
+      const requestId = Number(body?.id);
+
+      if (!Number.isFinite(requestId)) {
+        return NextResponse.json(
+          { error: "id is required for cross-enrollee rejection." },
+          { status: 400 },
+        );
+      }
+
+      const requestRows = await prisma.$queryRaw<any[]>`
+        SELECT id, student_number, academic_year, semester, status
+        FROM student_cross_enrollment_requests
+        WHERE id = ${requestId}
+        LIMIT 1
+      `;
+
+      const requestRow = requestRows[0];
+      if (!requestRow) {
+        return NextResponse.json(
+          { error: "Pending cross-enrollee request not found." },
+          { status: 404 },
+        );
+      }
+
+      const access = await ensureDeanStudentAccess(scope, {
+        studentNumber: requestRow.student_number,
+        academicYear: requestRow.academic_year,
+        semester: requestRow.semester,
+      });
+      if (!access.ok) {
+        return NextResponse.json({ error: access });
+      }
+
+      if (String(requestRow.status || "").toLowerCase() !== "pending_approval") {
+        return NextResponse.json(
+          { error: "This cross-enrollee request is no longer pending approval." },
+          { status: 409 },
+        );
+      }
+
+      await prisma.$executeRaw`
+        UPDATE student_cross_enrollment_requests
+        SET status = 'rejected',
+            approved_by = ${userId},
+            approved_at = NOW()
+        WHERE id = ${requestId}
+      `;
+
+      if (userId) {
+        await insertIntoReports({
+          action: `Rejected cross-enrollee request for ${requestRow.student_number} (${requestRow.academic_year} Sem ${requestRow.semester}) by ${session?.user?.name}`,
+          user_id: userId,
+          created_at: new Date(),
+        });
+      }
+
+      return NextResponse.json({
+        success: true,
+        message: "Cross-enrollee request rejected successfully.",
       });
     }
 
@@ -1215,6 +1771,72 @@ export async function POST(request: Request) {
       return NextResponse.json({
         success: true,
         message: "Section shift request approved successfully.",
+      });
+    }
+
+    if (actionType === "reject_section_shift") {
+      await ensureShiftRequestsTable();
+
+      const requestId = Number(body?.id);
+      if (!Number.isFinite(requestId)) {
+        return NextResponse.json(
+          { error: "id is required for section shift rejection." },
+          { status: 400 },
+        );
+      }
+
+      const requestRows = await prisma.$queryRaw<any[]>`
+        SELECT *
+        FROM student_section_shift_requests
+        WHERE id = ${requestId}
+        LIMIT 1
+      `;
+
+      const shiftRequest = requestRows[0];
+      if (!shiftRequest) {
+        return NextResponse.json(
+          { error: "Pending section shift request not found." },
+          { status: 404 },
+        );
+      }
+
+      const access = await ensureDeanStudentAccess(scope, {
+        studentNumber: shiftRequest.student_number,
+        academicYear: shiftRequest.academic_year,
+        semester: shiftRequest.semester,
+      });
+      if (!access.ok) {
+        return NextResponse.json({ error: access });
+      }
+
+      if (String(shiftRequest.status || "").toLowerCase() !== "pending_approval") {
+        return NextResponse.json(
+          { error: "This section shift request is no longer pending approval." },
+          { status: 409 },
+        );
+      }
+
+      await prisma.$executeRaw`
+        UPDATE student_section_shift_requests
+        SET status = 'rejected',
+            approved_by = ${userId},
+            approved_by_role = ${roleContext.roleId || null},
+            approved_by_name = ${userName},
+            approved_at = NOW()
+        WHERE id = ${requestId}
+      `;
+
+      if (userId) {
+        await insertIntoReports({
+          action: `Rejected section shift request for ${shiftRequest.student_number} (${shiftRequest.academic_year} ${shiftRequest.semester}) by ${session?.user?.name}`,
+          user_id: userId,
+          created_at: new Date(),
+        });
+      }
+
+      return NextResponse.json({
+        success: true,
+        message: "Section shift request rejected successfully.",
       });
     }
 
@@ -1442,6 +2064,72 @@ export async function POST(request: Request) {
       return NextResponse.json({
         success: true,
         message: "Program shift request approved successfully.",
+      });
+    }
+
+    if (actionType === "reject_program_shift") {
+      await ensureProgramShiftRequestsTable();
+
+      const requestId = Number(body?.id);
+      if (!Number.isFinite(requestId)) {
+        return NextResponse.json(
+          { error: "id is required for program shift rejection." },
+          { status: 400 },
+        );
+      }
+
+      const requestRows = await prisma.$queryRaw<any[]>`
+        SELECT *
+        FROM student_program_shift_requests
+        WHERE id = ${requestId}
+        LIMIT 1
+      `;
+
+      const shiftRequest = requestRows[0];
+      if (!shiftRequest) {
+        return NextResponse.json(
+          { error: "Pending program shift request not found." },
+          { status: 404 },
+        );
+      }
+
+      const access = await ensureDeanStudentAccess(scope, {
+        studentNumber: shiftRequest.student_number,
+        academicYear: shiftRequest.academic_year,
+        semester: Number(shiftRequest.semester),
+      });
+      if (!access.ok) {
+        return NextResponse.json({ error: access });
+      }
+
+      if (String(shiftRequest.status || "").toLowerCase() !== "pending_approval") {
+        return NextResponse.json(
+          { error: "This program shift request is no longer pending approval." },
+          { status: 409 },
+        );
+      }
+
+      await prisma.$executeRaw`
+        UPDATE student_program_shift_requests
+        SET status = 'rejected',
+            approved_by = ${userId},
+            approved_by_role = ${roleContext.roleId || null},
+            approved_by_name = ${userName},
+            approved_at = NOW()
+        WHERE id = ${requestId}
+      `;
+
+      if (userId) {
+        await insertIntoReports({
+          action: `Rejected program shift request for ${shiftRequest.student_number} (${shiftRequest.academic_year} Sem ${shiftRequest.semester}) by ${session?.user?.name}`,
+          user_id: userId,
+          created_at: new Date(),
+        });
+      }
+
+      return NextResponse.json({
+        success: true,
+        message: "Program shift request rejected successfully.",
       });
     }
 
