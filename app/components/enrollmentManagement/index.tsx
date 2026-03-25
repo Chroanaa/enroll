@@ -7,6 +7,7 @@ import {
   AlertCircle,
   Printer,
   Loader2,
+  RefreshCw,
 } from "lucide-react";
 import { colors } from "../../colors";
 import { getEnrollments } from "@/app/utils/getEnrollments";
@@ -378,6 +379,11 @@ const EnrollmentManagement: React.FC = () => {
     }
   };
 
+  const handleRefreshEnrollments = async () => {
+    setLoading(true);
+    await fetchEnrollments();
+  };
+
   if (loading) {
     return (
       <div
@@ -412,6 +418,15 @@ const EnrollmentManagement: React.FC = () => {
             </p>
           </div>
           <div className='flex gap-3'>
+            <button
+              onClick={handleRefreshEnrollments}
+              disabled={loading}
+              className='flex items-center gap-2 px-5 py-3 rounded-xl border border-gray-300 text-gray-700 transition-all hover:bg-gray-50 disabled:opacity-60 disabled:cursor-not-allowed'
+              title='Refresh enrollment list'
+            >
+              <RefreshCw className={`w-5 h-5 ${loading ? "animate-spin" : ""}`} />
+              <span className='font-medium'>Refresh</span>
+            </button>
             <button
               onClick={handleOpenReportViewer}
               disabled={isReportLoading}

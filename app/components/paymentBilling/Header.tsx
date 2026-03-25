@@ -1,5 +1,5 @@
 import React from "react";
-import { Package, Users, FileText } from "lucide-react";
+import { Package, Users, FileText, RefreshCw } from "lucide-react";
 import { colors } from "../../colors";
 
 type ActiveTab = "products" | "enrollments" | "transactions";
@@ -7,25 +7,40 @@ type ActiveTab = "products" | "enrollments" | "transactions";
 interface PaymentBillingHeaderProps {
   activeTab: ActiveTab;
   onTabChange: (tab: ActiveTab) => void;
+  onRefresh: () => void;
+  isRefreshing?: boolean;
 }
 
 export const PaymentBillingHeader: React.FC<PaymentBillingHeaderProps> = ({
   activeTab,
   onTabChange,
+  onRefresh,
+  isRefreshing = false,
 }) => {
   return (
     <>
       {/* Header */}
-      <div className='mb-6'>
-        <h1
-          className='text-2xl font-bold mb-2'
-          style={{ color: colors.primary }}
+      <div className='mb-6 flex flex-col gap-4 md:flex-row md:items-center md:justify-between'>
+        <div>
+          <h1
+            className='text-2xl font-bold mb-2'
+            style={{ color: colors.primary }}
+          >
+            Point of Sale System
+          </h1>
+          <p style={{ color: colors.primary }}>
+            Process product sales and enrollment payments
+          </p>
+        </div>
+        <button
+          onClick={onRefresh}
+          disabled={isRefreshing}
+          className='inline-flex items-center gap-2 self-start rounded-lg border border-gray-200 bg-white px-4 py-2 text-sm font-medium text-gray-700 transition-all hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-60'
+          title='Refresh current payment table'
         >
-          Point of Sale System
-        </h1>
-        <p style={{ color: colors.primary }}>
-          Process product sales and enrollment payments
-        </p>
+          <RefreshCw className={`h-4 w-4 ${isRefreshing ? "animate-spin" : ""}`} />
+          Refresh
+        </button>
       </div>
 
       {/* Tab Navigation */}

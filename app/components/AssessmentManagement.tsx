@@ -1,7 +1,7 @@
 "use client";
 import React, { useState, useEffect, useMemo, useCallback, useRef } from "react";
 import { useSearchParams } from "next/navigation";
-import { CheckCircle2, GraduationCap, List, UserPlus } from "lucide-react";
+import { CheckCircle2, GraduationCap, List, RefreshCw, UserPlus } from "lucide-react";
 import { colors } from "../colors";
 import { defaultFormStyles } from "../utils/formStyles";
 import { useAcademicTerm } from "../hooks/useAcademicTerm";
@@ -1222,6 +1222,11 @@ const AssessmentManagement: React.FC = () => {
     }
   };
 
+  const handleRefreshStudents = async () => {
+    lastFetchParamsRef.current = "";
+    await fetchStudents();
+  };
+
   // Fetch students when filters change.
   // Also sets filter defaults from currentTerm on first load.
   // Merged into one effect to avoid a double-fetch when currentTerm first arrives.
@@ -1646,22 +1651,34 @@ const AssessmentManagement: React.FC = () => {
             <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-4">
               <div className="flex items-center justify-between mb-3">
                 <h3 className="text-sm font-bold text-gray-800">Filter Students</h3>
-                <button
-                  onClick={() => {
-                    setSearchQuery("");
-                    setFilterProgram("");
-                    setFilterYearLevel("");
-                    setFilterAssessmentStatus("");
-                    if (currentTerm) {
-                      setFilterAcademicYear(currentTerm.academicYear);
-                      setFilterSemester(currentTerm.semester === "First" ? "1" : "2");
-                    }
-                  }}
-                  className="px-3 py-1 text-xs font-medium rounded-lg transition-all hover:bg-gray-100"
-                  style={{ color: colors.secondary }}
-                >
-                  Clear Filters
-                </button>
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={handleRefreshStudents}
+                    disabled={loadingStudents}
+                    className="inline-flex items-center gap-1.5 px-3 py-1 text-xs font-medium rounded-lg border border-gray-200 transition-all hover:bg-gray-100 disabled:opacity-60 disabled:cursor-not-allowed"
+                    style={{ color: colors.primary }}
+                    title="Refresh student list"
+                  >
+                    <RefreshCw className={`w-3.5 h-3.5 ${loadingStudents ? "animate-spin" : ""}`} />
+                    Refresh
+                  </button>
+                  <button
+                    onClick={() => {
+                      setSearchQuery("");
+                      setFilterProgram("");
+                      setFilterYearLevel("");
+                      setFilterAssessmentStatus("");
+                      if (currentTerm) {
+                        setFilterAcademicYear(currentTerm.academicYear);
+                        setFilterSemester(currentTerm.semester === "First" ? "1" : "2");
+                      }
+                    }}
+                    className="px-3 py-1 text-xs font-medium rounded-lg transition-all hover:bg-gray-100"
+                    style={{ color: colors.secondary }}
+                  >
+                    Clear Filters
+                  </button>
+                </div>
               </div>
               
               {/* Compact Single Row Layout */}
