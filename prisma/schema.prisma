@@ -388,7 +388,6 @@ model order_header {
   id               Int       @id @default(autoincrement())
   order_date       DateTime  @db.Date
   order_amount     Decimal?  @db.Decimal(10, 2)
-  billing_id       Int?
   ar_number        String?   @db.VarChar(255)
   isvoided         Int?
   voided_header_id Int?
@@ -397,6 +396,7 @@ model order_header {
   student_number   String?   @db.VarChar(20)
   or_number        String?   @db.VarChar(255)
   user_id          Int?
+  billing_id       Int?
 }
 
 model payment_details {

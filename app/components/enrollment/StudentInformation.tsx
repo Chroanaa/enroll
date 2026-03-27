@@ -13,6 +13,9 @@ const StudentInformation: React.FC<EnrollmentPageProps> = ({
   fieldErrors = {},
   duplicateError,
   isCheckingDuplicate,
+  studentIdLoadError,
+  isRetryingStudentId,
+  retryStudentId,
 }) => {
   // Disable all non-name fields when duplicate is detected or still checking
   const isFormDisabled = !!duplicateError || !!isCheckingDuplicate;
@@ -293,6 +296,27 @@ const StudentInformation: React.FC<EnrollmentPageProps> = ({
             }}
             placeholder='Auto-generated (YY-00001)'
           />
+          {studentIdLoadError && (
+            <div className='mt-3 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3'>
+              <p className='text-sm font-medium text-amber-800'>
+                {studentIdLoadError}
+              </p>
+              <div className='mt-2 flex items-center gap-3'>
+                <button
+                  type='button'
+                  onClick={() => retryStudentId?.()}
+                  disabled={isRetryingStudentId}
+                  className='rounded-lg px-3 py-1.5 text-sm font-semibold text-white transition-colors disabled:cursor-not-allowed disabled:opacity-60'
+                  style={{ backgroundColor: colors.secondary }}
+                >
+                  {isRetryingStudentId ? "Retrying..." : "Retry Student ID"}
+                </button>
+                <p className='text-xs text-amber-700'>
+                  The student number will also retry automatically when the connection is restored.
+                </p>
+              </div>
+            </div>
+          )}
         </div>
 
         {/* Duplicate Warning Banner */}

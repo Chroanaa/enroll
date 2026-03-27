@@ -68,6 +68,13 @@ const EnrollmentForm: React.FC = () => {
       fieldErrors: fieldErrors,
       duplicateError: duplicateError,
       isCheckingDuplicate: isCheckingDuplicate,
+      isLoadingPrograms: form.isLoadingPrograms,
+      programLoadError: form.programLoadError,
+      isRetryingPrograms: form.isRetryingPrograms,
+      retryPrograms: form.retryPrograms,
+      studentIdLoadError: form.studentIdLoadError,
+      isRetryingStudentId: form.isRetryingStudentId,
+      retryStudentId: form.retryStudentId,
     }),
     [
       form.formData,
@@ -89,6 +96,13 @@ const EnrollmentForm: React.FC = () => {
       fieldErrors,
       duplicateError,
       isCheckingDuplicate,
+      form.isLoadingPrograms,
+      form.programLoadError,
+      form.isRetryingPrograms,
+      form.retryPrograms,
+      form.studentIdLoadError,
+      form.isRetryingStudentId,
+      form.retryStudentId,
     ],
   );
 

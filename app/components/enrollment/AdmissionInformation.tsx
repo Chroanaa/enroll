@@ -29,11 +29,17 @@ const AdmissionInformation: React.FC<EnrollmentPageProps> = ({
   handlePhotoError,
   getTodayDate,
   fieldErrors = {},
+  isLoadingPrograms = false,
+  programLoadError = null,
+  isRetryingPrograms = false,
+  retryPrograms,
 }) => {
   formData.admission_date = getTodayDate?.() || "";
   
   // Get current academic term from context
-  const { currentTerm, storedSettings } = useAcademicTermContext();
+  const { currentTerm, storedSettings, error, refresh, loading } =
+    useAcademicTermContext();
+  const academicTermUnavailable = !storedSettings && !currentTerm;
   
   // Debug logging
   React.useEffect(() => {
@@ -138,6 +144,47 @@ const AdmissionInformation: React.FC<EnrollmentPageProps> = ({
           </p>
         </div>
 
+        {error && (
+          <div
+            className='mb-6 rounded-xl border px-4 py-3'
+            style={{
+              borderColor: academicTermUnavailable ? "#f59e0b55" : "#93c5fd",
+              backgroundColor: academicTermUnavailable ? "#fffbeb" : "#eff6ff",
+            }}
+          >
+            <p
+              className='text-sm font-medium'
+              style={{
+                color: academicTermUnavailable ? "#92400e" : "#1d4ed8",
+              }}
+            >
+              {error}
+            </p>
+            <div className='mt-2 flex items-center gap-3'>
+              <button
+                type='button'
+                onClick={() => refresh()}
+                disabled={loading}
+                className='rounded-lg px-3 py-1.5 text-sm font-semibold transition-colors disabled:cursor-not-allowed disabled:opacity-60'
+                style={{
+                  backgroundColor: colors.secondary,
+                  color: "white",
+                }}
+              >
+                {loading ? "Retrying..." : "Retry Academic Term"}
+              </button>
+              <p
+                className='text-xs'
+                style={{
+                  color: academicTermUnavailable ? "#b45309" : "#1d4ed8",
+                }}
+              >
+                The term will also refresh automatically when the connection is restored.
+              </p>
+            </div>
+          </div>
+        )}
+
         <div className='grid grid-cols-1 lg:grid-cols-3 gap-6'>
           {/* Left Column - Form Fields */}
           <div className='lg:col-span-2 space-y-4'>
@@ -222,11 +269,14 @@ const AdmissionInformation: React.FC<EnrollmentPageProps> = ({
                   name='course_program'
                   data-field='course_program'
                   value={formData.course_program}
+                  disabled={
+                    isLoadingPrograms || filteredCoursePrograms?.length === 0
+                  }
                   onChange={(e) => {
                     const programId = Number(e.target.value);
                     handleProgramChange?.(programId);
                   }}
-                  className={`${inputClasses} appearance-none cursor-pointer ${fieldErrors.course_program ? "border-red-500" : ""}`}
+                  className={`${inputClasses} appearance-none ${isLoadingPrograms || filteredCoursePrograms?.length === 0 ? "cursor-not-allowed opacity-70" : "cursor-pointer"} ${fieldErrors.course_program ? "border-red-500" : ""}`}
                   style={{
                     borderColor: fieldErrors.course_program
                       ? "#ef4444"
@@ -246,7 +296,13 @@ const AdmissionInformation: React.FC<EnrollmentPageProps> = ({
                     e.currentTarget.style.boxShadow = "none";
                   }}
                 >
-                  <option value=''>Select Program</option>
+                  <option value=''>
+                    {isLoadingPrograms
+                      ? "Loading programs..."
+                      : filteredCoursePrograms?.length
+                        ? "Select Program"
+                        : "Programs unavailable"}
+                  </option>
                   {filteredCoursePrograms?.map((program) => (
                     <option key={program.id} value={String(program.id)}>
                       {program.name}
@@ -275,6 +331,37 @@ const AdmissionInformation: React.FC<EnrollmentPageProps> = ({
                 <p className='text-red-500 text-xs mt-1 ml-1'>
                   {fieldErrors.course_program}
                 </p>
+              )}
+              {programLoadError && (
+                <div
+                  className='mt-3 rounded-xl border px-4 py-3'
+                  style={{
+                    borderColor: "#f59e0b55",
+                    backgroundColor: "#fffbeb",
+                  }}
+                >
+                  <p className='text-sm font-medium text-amber-800'>
+                    {programLoadError}
+                  </p>
+                  <div className='mt-2 flex items-center gap-3'>
+                    <button
+                      type='button'
+                      onClick={() => retryPrograms?.()}
+                      disabled={isRetryingPrograms}
+                      className='rounded-lg px-3 py-1.5 text-sm font-semibold transition-colors disabled:cursor-not-allowed disabled:opacity-60'
+                      style={{
+                        backgroundColor: colors.secondary,
+                        color: "white",
+                      }}
+                    >
+                      {isRetryingPrograms ? "Retrying..." : "Retry Programs"}
+                    </button>
+                    <p className='text-xs text-amber-700'>
+                      The list will also refresh automatically when the
+                      connection is restored.
+                    </p>
+                  </div>
+                </div>
               )}
             </div>
 
