@@ -163,6 +163,11 @@ interface PetitionApprovalGroup {
   students: PetitionSubjectApproval[];
 }
 
+type PetitionConflictInfo = {
+  message: string;
+  lines: string[];
+};
+
 type ApprovalFilter =
   | "all"
   | "overload"
@@ -239,6 +244,24 @@ export default function ApprovalManagement() {
   const [expandedPetitionGroups, setExpandedPetitionGroups] = useState<
     Record<string, boolean>
   >({});
+  const [petitionConflictByRequestId, setPetitionConflictByRequestId] =
+    useState<Record<number, PetitionConflictInfo>>({});
+
+  const extractConflictLines = (
+    details: any,
+    fallbackCourseCode: string,
+  ): string[] => {
+    if (!Array.isArray(details?.conflicts)) return [];
+    return details.conflicts.slice(0, 6).map((item: any) => {
+      const candidate = `${item?.candidateCourseCode || fallbackCourseCode} ${item?.candidateDay || ""} ${item?.candidateStart || ""}-${item?.candidateEnd || ""}`
+        .replace(/\s+/g, " ")
+        .trim();
+      const existing = `${item?.studentCourseCode || "existing"} ${item?.studentDay || ""} ${item?.studentStart || ""}-${item?.studentEnd || ""}`
+        .replace(/\s+/g, " ")
+        .trim();
+      return `${candidate} vs ${existing}`;
+    });
+  };
 
   const fetchApprovals = async () => {
     setIsLoading(true);
@@ -278,6 +301,24 @@ export default function ApprovalManagement() {
   useEffect(() => {
     fetchApprovals();
   }, []);
+
+  useEffect(() => {
+    const activeIds = new Set(
+      petitionSubjectRequests
+        .map((item) => Number(item.id))
+        .filter((value) => Number.isFinite(value)),
+    );
+    setPetitionConflictByRequestId((prev) => {
+      const next: Record<number, PetitionConflictInfo> = {};
+      Object.entries(prev).forEach(([key, value]) => {
+        const id = Number(key);
+        if (activeIds.has(id)) {
+          next[id] = value;
+        }
+      });
+      return next;
+    });
+  }, [petitionSubjectRequests]);
 
   const totalPendingItems = useMemo(
     () =>
@@ -540,6 +581,17 @@ export default function ApprovalManagement() {
         throw new Error("No petition student requests found in this group.");
       }
 
+      const approvedStudents: PetitionSubjectApproval[] = [];
+      const conflictedStudents: Array<{
+        student: PetitionSubjectApproval;
+        error: string;
+        details: string[];
+      }> = [];
+      const failedStudents: Array<{
+        student: PetitionSubjectApproval;
+        error: string;
+      }> = [];
+
       for (const student of approveTargets) {
         const response = await fetch("/api/auth/approvals", {
           method: "POST",
@@ -552,22 +604,100 @@ export default function ApprovalManagement() {
             override_minimum: overrideMinimum,
           }),
         });
-        const result = await response.json();
-        if (!response.ok || !result.success) {
-          throw new Error(
-            result.error ||
+        const result = await response.json().catch(() => ({}));
+        if (response.ok && result?.success) {
+          approvedStudents.push(student);
+          continue;
+        }
+
+        const isConflict = response.status === 409;
+        const conflictDetails = extractConflictLines(result?.details, group.courseCode);
+
+        if (isConflict) {
+          conflictedStudents.push({
+            student,
+            error:
+              result?.error ||
+              `Schedule conflict for ${student.studentName || student.studentNumber}.`,
+            details: conflictDetails,
+          });
+        } else {
+          failedStudents.push({
+            student,
+            error:
+              result?.error ||
               `Failed to approve petition request for ${student.studentNumber}.`,
-          );
+          });
         }
       }
 
-      setSuccessModal({
+      if (approvedStudents.length > 0) {
+        setPetitionConflictByRequestId((prev) => {
+          const next = { ...prev };
+          approvedStudents.forEach((student) => {
+            delete next[Number(student.id)];
+          });
+          return next;
+        });
+        await fetchApprovals();
+      }
+
+      if (conflictedStudents.length > 0) {
+        setPetitionConflictByRequestId((prev) => {
+          const next = { ...prev };
+          conflictedStudents.forEach((item) => {
+            const requestId = Number(item.student.id);
+            if (!Number.isFinite(requestId)) return;
+            next[requestId] = {
+              message: item.error,
+              lines: item.details,
+            };
+          });
+          return next;
+        });
+      }
+
+      if (conflictedStudents.length === 0 && failedStudents.length === 0) {
+        setSuccessModal({
+          isOpen: true,
+          message: overrideMinimum
+            ? `Approved all ${approvedStudents.length} petition request(s) for ${group.courseCode} with minimum override.`
+            : `Approved all ${approvedStudents.length} petition request(s) for ${group.courseCode}.`,
+        });
+        return;
+      }
+
+      const summaryParts: string[] = [];
+      if (approvedStudents.length > 0) {
+        summaryParts.push(`${approvedStudents.length} approved`);
+      }
+      if (conflictedStudents.length > 0) {
+        summaryParts.push(`${conflictedStudents.length} conflict`);
+      }
+      if (failedStudents.length > 0) {
+        summaryParts.push(`${failedStudents.length} failed`);
+      }
+
+      const conflictLine = conflictedStudents
+        .slice(0, 6)
+        .map((item) => {
+          const studentLabel = `${item.student.studentName || "Student"} (${item.student.studentNumber})`;
+          return item.details.length > 0
+            ? `${studentLabel}: ${item.details.join(" | ")}`
+            : `${studentLabel}: ${item.error}`;
+        })
+        .join(" || ");
+
+      const failedLine = failedStudents
+        .slice(0, 4)
+        .map((item) => `${item.student.studentName || "Student"} (${item.student.studentNumber}): ${item.error}`)
+        .join(" || ");
+
+      setErrorModal({
         isOpen: true,
-        message: overrideMinimum
-          ? `Approved all ${approveTargets.length} petition request(s) for ${group.courseCode} with minimum override.`
-          : `Approved all ${approveTargets.length} petition request(s) for ${group.courseCode}.`,
+        message: `Petition batch finished for ${group.courseCode}: ${summaryParts.join(", ")}. Reject conflicted students, then approve again.`,
+        details: [conflictLine, failedLine].filter(Boolean).join(" || "),
       });
-      await fetchApprovals();
     } catch (approvalError) {
       setErrorModal({
         isOpen: true,
@@ -634,6 +764,28 @@ export default function ApprovalManagement() {
       const result = await response.json();
 
       if (!response.ok || !result.success) {
+        if (row.type === "petition" && response.status === 409) {
+          const conflictLines = extractConflictLines(result?.details, row.detailsPrimary);
+          if (Number.isFinite(Number(row.approvalId))) {
+            setPetitionConflictByRequestId((prev) => ({
+              ...prev,
+              [Number(row.approvalId)]: {
+                message:
+                  result.error ||
+                  "Schedule conflict while approving petition subject.",
+                lines: conflictLines,
+              },
+            }));
+          }
+          setErrorModal({
+            isOpen: true,
+            message:
+              result.error ||
+              "Cannot approve petition because the subject schedule conflicts with the student's current classes.",
+            details: conflictLines.join(" || "),
+          });
+          return;
+        }
         throw new Error(result.error || "Failed to approve request.");
       }
 
@@ -641,6 +793,13 @@ export default function ApprovalManagement() {
         isOpen: true,
         message: result.message || "Approval completed successfully.",
       });
+      if (row.type === "petition" && Number.isFinite(Number(row.approvalId))) {
+        setPetitionConflictByRequestId((prev) => {
+          const next = { ...prev };
+          delete next[Number(row.approvalId)];
+          return next;
+        });
+      }
       await fetchApprovals();
     } catch (approvalError) {
       setErrorModal({
@@ -720,6 +879,13 @@ export default function ApprovalManagement() {
         isOpen: true,
         message: result.message || "Request rejected successfully.",
       });
+      if (row.type === "petition" && Number.isFinite(Number(row.approvalId))) {
+        setPetitionConflictByRequestId((prev) => {
+          const next = { ...prev };
+          delete next[Number(row.approvalId)];
+          return next;
+        });
+      }
       await fetchApprovals();
     } catch (rejectError) {
       setErrorModal({
@@ -1204,6 +1370,9 @@ export default function ApprovalManagement() {
                         group.petitionType === "last_semester"
                           ? "Last semester subject"
                           : "Currently not open";
+                      const groupConflictCount = group.students.filter((student) =>
+                        Boolean(petitionConflictByRequestId[Number(student.id)]),
+                      ).length;
                       return (
                         <React.Fragment key={`petition-group-${group.key}`}>
                           <tr
@@ -1244,6 +1413,20 @@ export default function ApprovalManagement() {
                               >
                                 {group.students.length} students
                               </span>
+                              {groupConflictCount > 0 ? (
+                                <div className="mt-1.5">
+                                  <span
+                                    className="rounded-full px-2.5 py-1 text-[10px] font-bold uppercase tracking-wide"
+                                    style={{
+                                      backgroundColor: `${colors.danger}18`,
+                                      color: colors.danger,
+                                    }}
+                                  >
+                                    {groupConflictCount} conflict
+                                    {groupConflictCount > 1 ? "s" : ""}
+                                  </span>
+                                </div>
+                              ) : null}
                             </td>
                             <td className="px-4 py-3 text-sm" style={{ color: colors.primary }}>
                               {`A.Y. ${group.academicYear} • Sem ${group.semester}`}
@@ -1322,6 +1505,8 @@ export default function ApprovalManagement() {
                                       ? `Petition type: Last semester subject • Units: ${student.unitsTotal || 0}`
                                       : `Petition type: Currently not open • Units: ${student.unitsTotal || 0}`,
                                 };
+                                const conflictInfo =
+                                  petitionConflictByRequestId[Number(student.id)];
                                 return (
                                   <tr
                                     key={`petition-student-${student.id}`}
@@ -1346,6 +1531,24 @@ export default function ApprovalManagement() {
                                       ) : (
                                         <span style={{ color: colors.tertiary }}>No reason provided</span>
                                       )}
+                                      {conflictInfo ? (
+                                        <div className="mt-2 space-y-1">
+                                          <span
+                                            className="rounded-full px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide"
+                                            style={{
+                                              backgroundColor: `${colors.danger}18`,
+                                              color: colors.danger,
+                                            }}
+                                          >
+                                            Conflict
+                                          </span>
+                                          <div className="text-[11px] leading-5" style={{ color: colors.danger }}>
+                                            {conflictInfo.lines.length > 0
+                                              ? conflictInfo.lines.join(" | ")
+                                              : conflictInfo.message}
+                                          </div>
+                                        </div>
+                                      ) : null}
                                     </td>
                                     <td className="px-4 py-3 text-sm" style={{ color: colors.primary }}>
                                       {`A.Y. ${student.academicYear} • Sem ${student.semester}`}

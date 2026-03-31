@@ -249,6 +249,192 @@ type PendingStudentDropGroup = {
   subjects: ApprovalSubjectItem[] | null;
 };
 
+type TimedScheduleRow = {
+  class_schedule_id: number;
+  section_id: number | null;
+  section_name: string | null;
+  course_code: string | null;
+  descriptive_title: string | null;
+  day_of_week: string | null;
+  start_time: Date | string | null;
+  end_time: Date | string | null;
+  units_lec: number | null;
+  units_lab: number | null;
+};
+
+type PetitionScheduleConflictDetail = {
+  candidateClassScheduleId: number;
+  candidateSectionId: number | null;
+  candidateSectionName: string | null;
+  candidateCourseCode: string | null;
+  candidateDay: string | null;
+  candidateStart: string | null;
+  candidateEnd: string | null;
+  studentClassScheduleId: number;
+  studentSectionName: string | null;
+  studentCourseCode: string | null;
+  studentDay: string | null;
+  studentStart: string | null;
+  studentEnd: string | null;
+};
+
+function toMinutesFromDateLike(value: Date | string | null): number {
+  if (!value) return 0;
+  const dateValue = value instanceof Date ? value : new Date(value);
+  if (Number.isNaN(dateValue.getTime())) return 0;
+  return dateValue.getHours() * 60 + dateValue.getMinutes();
+}
+
+function normalizeDay(value: string | null | undefined): string {
+  return String(value || "").trim().toLowerCase();
+}
+
+function toTimeLabel(value: Date | string | null): string | null {
+  if (!value) return null;
+  const dateValue = value instanceof Date ? value : new Date(value);
+  if (Number.isNaN(dateValue.getTime())) return null;
+  const hh = String(dateValue.getHours()).padStart(2, "0");
+  const mm = String(dateValue.getMinutes()).padStart(2, "0");
+  return `${hh}:${mm}`;
+}
+
+async function analyzePetitionApprovalSchedule(
+  args: {
+    studentNumber: string;
+    academicYear: string;
+    semester: number;
+    curriculumCourseId: number;
+  },
+) {
+  const semesterAliases = getSemesterAliases(args.semester);
+  const sem1 = semesterAliases[0] || "";
+  const sem2 = semesterAliases[1] || sem1;
+  const sem3 = semesterAliases[2] || sem1;
+  const sem4 = semesterAliases[3] || sem1;
+  const sem5 = semesterAliases[4] || sem4;
+
+  const studentSchedules = await prisma.$queryRaw<TimedScheduleRow[]>`
+    SELECT
+      cs.id AS class_schedule_id,
+      cs.section_id,
+      sec.section_name,
+      COALESCE(cc.course_code, sub.code) AS course_code,
+      COALESCE(cc.descriptive_title, sub.name) AS descriptive_title,
+      cs.day_of_week,
+      cs.start_time,
+      cs.end_time,
+      COALESCE(cc.units_lec, sub.units_lec, 0) AS units_lec,
+      COALESCE(cc.units_lab, sub.units_lab, 0) AS units_lab
+    FROM student_section ss
+    JOIN student_section_subjects sss ON sss.student_section_id = ss.id
+    JOIN class_schedule cs ON cs.id = sss.class_schedule_id
+    LEFT JOIN sections sec ON sec.id = cs.section_id
+    LEFT JOIN curriculum_course cc ON cc.id = cs.curriculum_course_id
+    LEFT JOIN subject sub ON sub.id = cc.subject_id
+    WHERE ss.student_number = ${args.studentNumber}
+      AND ss.academic_year = ${args.academicYear}
+      AND LOWER(COALESCE(ss.semester, '')) IN (${sem1}, ${sem2}, ${sem3}, ${sem4}, ${sem5})
+      AND cs.status = 'active'
+    ORDER BY cs.day_of_week ASC, cs.start_time ASC
+  `;
+
+  const petitionSchedules = await prisma.$queryRaw<TimedScheduleRow[]>`
+    SELECT
+      cs.id AS class_schedule_id,
+      cs.section_id,
+      sec.section_name,
+      COALESCE(cc.course_code, sub.code) AS course_code,
+      COALESCE(cc.descriptive_title, sub.name) AS descriptive_title,
+      cs.day_of_week,
+      cs.start_time,
+      cs.end_time,
+      COALESCE(cc.units_lec, sub.units_lec, 0) AS units_lec,
+      COALESCE(cc.units_lab, sub.units_lab, 0) AS units_lab
+    FROM class_schedule cs
+    LEFT JOIN sections sec ON sec.id = cs.section_id
+    LEFT JOIN curriculum_course cc ON cc.id = cs.curriculum_course_id
+    LEFT JOIN subject sub ON sub.id = cc.subject_id
+    WHERE cs.curriculum_course_id = ${args.curriculumCourseId}
+      AND cs.academic_year = ${args.academicYear}
+      AND LOWER(COALESCE(cs.semester, '')) IN (${sem1}, ${sem2}, ${sem3}, ${sem4}, ${sem5})
+      AND cs.status = 'active'
+    ORDER BY sec.section_name ASC, cs.day_of_week ASC, cs.start_time ASC
+  `;
+
+  if (petitionSchedules.length === 0) {
+    return {
+      studentSchedules,
+      petitionSchedules,
+      allSectionsConflicted: false,
+      hasConflictFreeSection: false,
+      conflictDetails: [] as PetitionScheduleConflictDetail[],
+    };
+  }
+
+  const schedulesBySection = new Map<string, TimedScheduleRow[]>();
+  for (const row of petitionSchedules) {
+    const key = String(row.section_id || `no-section-${row.class_schedule_id}`);
+    if (!schedulesBySection.has(key)) schedulesBySection.set(key, []);
+    schedulesBySection.get(key)!.push(row);
+  }
+
+  const conflictDetails: PetitionScheduleConflictDetail[] = [];
+  let hasConflictFreeSection = false;
+
+  for (const [, sectionRows] of schedulesBySection.entries()) {
+    let sectionHasConflict = false;
+
+    for (const candidate of sectionRows) {
+      const candidateDay = normalizeDay(candidate.day_of_week);
+      const candidateStart = toMinutesFromDateLike(candidate.start_time);
+      const candidateEnd = toMinutesFromDateLike(candidate.end_time);
+      if (!candidateDay || candidateEnd <= candidateStart) continue;
+
+      for (const existing of studentSchedules) {
+        const existingDay = normalizeDay(existing.day_of_week);
+        if (candidateDay !== existingDay) continue;
+        const existingStart = toMinutesFromDateLike(existing.start_time);
+        const existingEnd = toMinutesFromDateLike(existing.end_time);
+        if (existingEnd <= existingStart) continue;
+
+        const hasOverlap =
+          candidateStart < existingEnd && candidateEnd > existingStart;
+        if (!hasOverlap) continue;
+
+        sectionHasConflict = true;
+        conflictDetails.push({
+          candidateClassScheduleId: Number(candidate.class_schedule_id),
+          candidateSectionId: candidate.section_id,
+          candidateSectionName: candidate.section_name,
+          candidateCourseCode: candidate.course_code,
+          candidateDay: candidate.day_of_week,
+          candidateStart: toTimeLabel(candidate.start_time),
+          candidateEnd: toTimeLabel(candidate.end_time),
+          studentClassScheduleId: Number(existing.class_schedule_id),
+          studentSectionName: existing.section_name,
+          studentCourseCode: existing.course_code,
+          studentDay: existing.day_of_week,
+          studentStart: toTimeLabel(existing.start_time),
+          studentEnd: toTimeLabel(existing.end_time),
+        });
+      }
+    }
+
+    if (!sectionHasConflict) {
+      hasConflictFreeSection = true;
+      break;
+    }
+  }
+
+  return {
+    studentSchedules,
+    petitionSchedules,
+    allSectionsConflicted: !hasConflictFreeSection,
+    hasConflictFreeSection,
+    conflictDetails,
+  };
+}
+
 async function getEnrollmentRowForTerm(args: {
   studentNumber: string;
   academicYear: string;
@@ -2326,6 +2512,99 @@ export async function POST(request: Request) {
         return NextResponse.json(
           {
             error: `Petition requires at least ${minimumStudentsRequired} students for the same subject. Current demand is ${demandCount}.`,
+          },
+          { status: 409 },
+        );
+      }
+
+      const scheduleCheck = await analyzePetitionApprovalSchedule({
+        studentNumber: String(requestRow.student_number),
+        academicYear: String(requestRow.academic_year),
+        semester: Number(requestRow.semester),
+        curriculumCourseId: Number(requestRow.curriculum_course_id),
+      });
+
+      const hasPetitionSectionSchedule = scheduleCheck.petitionSchedules.some(
+        (row) =>
+          String(row.section_name || "")
+            .trim()
+            .toUpperCase()
+            .startsWith("PET-"),
+      );
+
+      if (!hasPetitionSectionSchedule) {
+        return NextResponse.json(
+          {
+            error:
+              "Cannot approve petition yet: create the petition section schedule first (PET- section), then approve students.",
+            details: {
+              studentNumber: requestRow.student_number,
+              curriculumCourseId: requestRow.curriculum_course_id,
+              petitionClassSchedules: scheduleCheck.petitionSchedules.map((row) => ({
+                classScheduleId: row.class_schedule_id,
+                sectionId: row.section_id,
+                sectionName: row.section_name,
+                courseCode: row.course_code,
+                descriptiveTitle: row.descriptive_title,
+                dayOfWeek: row.day_of_week,
+                startTime: toTimeLabel(row.start_time),
+                endTime: toTimeLabel(row.end_time),
+                unitsLec: Number(row.units_lec || 0),
+                unitsLab: Number(row.units_lab || 0),
+              })),
+            },
+          },
+          { status: 409 },
+        );
+      }
+
+      if (
+        scheduleCheck.petitionSchedules.length > 0 &&
+        scheduleCheck.allSectionsConflicted
+      ) {
+        const conflictPreview = scheduleCheck.conflictDetails
+          .slice(0, 4)
+          .map(
+            (item) =>
+              `${item.candidateCourseCode || "Subject"} ${item.candidateDay || ""} ${item.candidateStart || ""}-${item.candidateEnd || ""} conflicts with ${item.studentCourseCode || "existing class"} ${item.studentDay || ""} ${item.studentStart || ""}-${item.studentEnd || ""}`,
+          )
+          .join("; ");
+
+        return NextResponse.json(
+          {
+            error:
+              conflictPreview.length > 0
+                ? `Cannot approve petition: all available section schedules conflict with this student's current classes. ${conflictPreview}`
+                : "Cannot approve petition: all available section schedules conflict with this student's current classes.",
+            details: {
+              studentNumber: requestRow.student_number,
+              curriculumCourseId: requestRow.curriculum_course_id,
+              studentClassSchedules: scheduleCheck.studentSchedules.map((row) => ({
+                classScheduleId: row.class_schedule_id,
+                sectionId: row.section_id,
+                sectionName: row.section_name,
+                courseCode: row.course_code,
+                descriptiveTitle: row.descriptive_title,
+                dayOfWeek: row.day_of_week,
+                startTime: toTimeLabel(row.start_time),
+                endTime: toTimeLabel(row.end_time),
+                unitsLec: Number(row.units_lec || 0),
+                unitsLab: Number(row.units_lab || 0),
+              })),
+              petitionClassSchedules: scheduleCheck.petitionSchedules.map((row) => ({
+                classScheduleId: row.class_schedule_id,
+                sectionId: row.section_id,
+                sectionName: row.section_name,
+                courseCode: row.course_code,
+                descriptiveTitle: row.descriptive_title,
+                dayOfWeek: row.day_of_week,
+                startTime: toTimeLabel(row.start_time),
+                endTime: toTimeLabel(row.end_time),
+                unitsLec: Number(row.units_lec || 0),
+                unitsLab: Number(row.units_lab || 0),
+              })),
+              conflicts: scheduleCheck.conflictDetails,
+            },
           },
           { status: 409 },
         );

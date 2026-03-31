@@ -93,6 +93,11 @@ interface PetitionEnrollmentRow {
   lastName: string;
   name: string;
   email: string;
+  programId?: number | null;
+  programCode?: string;
+  programName?: string;
+  majorId?: number | null;
+  majorName?: string;
   programLabel: string;
   yearLevel: number | null;
   academicStatus: string;
@@ -436,6 +441,15 @@ function IrregularEnrollmentPageContent() {
   }, [isPetitionEnrollmentMode, prefillCurriculumCourseId, academicYear, semester]);
 
   const handleSelectPetitionStudent = (row: PetitionEnrollmentRow) => {
+    const programCode = String(row.programCode || '').trim();
+    const programName = String(row.programName || '').trim();
+    const majorName = String(row.majorName || '').trim();
+    const fallbackLabel = String(row.programLabel || '').trim();
+    const displayCode = programCode || fallbackLabel;
+    const displayName = majorName
+      ? [programName || programCode, majorName].filter(Boolean).join(' - ')
+      : (programName || fallbackLabel);
+
     applyStudentSelection({
       studentId: 0,
       studentNumber: row.studentNumber,
@@ -444,9 +458,9 @@ function IrregularEnrollmentPageContent() {
       lastName: row.lastName,
       name: row.name || row.studentNumber,
       email: row.email,
-      programId: 0,
-      programCode: row.programLabel || '',
-      programName: row.programLabel || '',
+      programId: Number(row.programId || 0),
+      programCode: displayCode || 'N/A',
+      programName: displayName || 'N/A',
       yearLevel: row.yearLevel,
       academicStatus: row.academicStatus || 'irregular',
       enrollmentStatus: null,
@@ -1031,7 +1045,9 @@ function IrregularEnrollmentPageContent() {
                                 <div className="text-sm font-medium" style={{ color: colors.primary }}>{row.name || row.studentNumber}</div>
                                 <div className="text-xs" style={{ color: colors.neutral }}>{row.studentNumber}</div>
                               </td>
-                              <td className="py-3 px-4 text-sm" style={{ color: colors.neutral }}>{row.programLabel || '—'}</td>
+                              <td className="py-3 px-4 text-sm" style={{ color: colors.neutral }}>
+                                {row.programLabel || row.programCode || row.programName || '—'}
+                              </td>
                               <td className="py-3 px-4 text-sm" style={{ color: colors.neutral }}>{row.yearLevel ? `Year ${row.yearLevel}` : '—'}</td>
                               <td className="py-3 px-4">
                                 <span className="text-xs px-2 py-0.5 rounded-full font-medium" style={{ backgroundColor: row.academicStatus === 'irregular' ? 'rgba(245,158,11,0.1)' : 'rgba(16,185,129,0.1)', color: row.academicStatus === 'irregular' ? '#D97706' : '#059669' }}>

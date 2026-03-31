@@ -41,6 +41,11 @@ export async function GET(request: NextRequest) {
         family_name: string | null;
         email_address: string | null;
         course_program: string | null;
+        major_id: number | null;
+        program_id: number | null;
+        program_code: string | null;
+        program_name: string | null;
+        major_name: string | null;
         year_level: number | null;
         academic_status: string | null;
         has_assignment: boolean;
@@ -49,10 +54,16 @@ export async function GET(request: NextRequest) {
       WITH approved AS (
         SELECT DISTINCT psr.student_number
         FROM student_petition_subject_requests psr
+        INNER JOIN enrolled_subjects es
+          ON es.student_number = psr.student_number
+         AND es.curriculum_course_id = psr.curriculum_course_id
+         AND es.academic_year = psr.academic_year
+         AND es.semester = psr.semester
         WHERE psr.curriculum_course_id = ${curriculumCourseId}
           AND psr.academic_year = ${academicYear}
           AND psr.semester = ${semester}
           AND LOWER(COALESCE(psr.status, '')) = 'approved'
+          AND LOWER(COALESCE(es.drop_status, 'none')) NOT IN ('pending_approval', 'dropped')
       ),
       latest_enrollment AS (
         SELECT DISTINCT ON (e.student_number)
@@ -62,6 +73,7 @@ export async function GET(request: NextRequest) {
           e.family_name,
           e.email_address,
           e.course_program,
+          e.major_id,
           e.year_level,
           e.academic_status
         FROM enrollment e
@@ -90,11 +102,22 @@ export async function GET(request: NextRequest) {
         le.family_name,
         le.email_address,
         le.course_program,
+        le.major_id,
+        prog.id AS program_id,
+        prog.code AS program_code,
+        prog.name AS program_name,
+        maj.name AS major_name,
         le.year_level,
         le.academic_status,
         CASE WHEN a.student_number IS NULL THEN FALSE ELSE TRUE END AS has_assignment
       FROM approved ap
       LEFT JOIN latest_enrollment le ON le.student_number = ap.student_number
+      LEFT JOIN program prog ON (
+        (COALESCE(le.course_program, '') ~ '^[0-9]+$' AND prog.id = le.course_program::int)
+        OR LOWER(COALESCE(prog.code, '')) = LOWER(COALESCE(le.course_program, ''))
+        OR LOWER(COALESCE(prog.name, '')) = LOWER(COALESCE(le.course_program, ''))
+      )
+      LEFT JOIN major maj ON maj.id = le.major_id
       LEFT JOIN assigned a ON a.student_number = ap.student_number
       ORDER BY ap.student_number ASC
     `;
@@ -106,6 +129,13 @@ export async function GET(request: NextRequest) {
         const middleName = String(row.middle_name || "").trim();
         const lastName = String(row.family_name || "").trim();
         const name = [firstName, middleName, lastName].filter(Boolean).join(" ").trim();
+        const programCode = String(row.program_code || "").trim();
+        const programName = String(row.program_name || "").trim();
+        const majorName = String(row.major_name || "").trim();
+        const fallbackProgram = String(row.course_program || "").trim();
+        const programLabel = majorName
+          ? [programCode || programName || fallbackProgram, majorName].filter(Boolean).join(" - ")
+          : programCode || programName || fallbackProgram;
         return {
           studentNumber: String(row.student_number || ""),
           firstName,
@@ -113,7 +143,18 @@ export async function GET(request: NextRequest) {
           lastName,
           name: name || String(row.student_number || ""),
           email: String(row.email_address || "").trim(),
-          programLabel: String(row.course_program || "").trim(),
+          programId:
+            row.program_id === null || row.program_id === undefined
+              ? null
+              : Number(row.program_id),
+          programCode,
+          programName,
+          majorId:
+            row.major_id === null || row.major_id === undefined
+              ? null
+              : Number(row.major_id),
+          majorName,
+          programLabel,
           yearLevel: row.year_level === null ? null : Number(row.year_level),
           academicStatus: String(row.academic_status || "irregular"),
           hasAssignment: Boolean(row.has_assignment),

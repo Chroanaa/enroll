@@ -15,7 +15,12 @@ type PetitionQueueItem = {
   yearLevel: number;
   academicYear: string;
   semester: number;
+  requestedStudents?: number;
   approvedStudents: number;
+  pendingStudents?: number;
+  petitionSectionCount?: number;
+  petitionScheduleCount?: number;
+  hasPetitionSchedule?: boolean;
   unassignedStudents: number;
 };
 
@@ -34,6 +39,9 @@ export default function PetitionSchedulingQueue({
   onOpenScheduleBuilder,
   refreshToken = 0,
 }: PetitionSchedulingQueueProps) {
+  const [queueTab, setQueueTab] = useState<"needs_schedule" | "scheduled">(
+    "needs_schedule",
+  );
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState("");
   const [actionError, setActionError] = useState("");
@@ -80,6 +88,29 @@ export default function PetitionSchedulingQueue({
     [items],
   );
 
+  const needsScheduleCount = useMemo(
+    () => items.filter((item) => !item.hasPetitionSchedule).length,
+    [items],
+  );
+
+  const scheduledCount = useMemo(
+    () => items.filter((item) => item.hasPetitionSchedule).length,
+    [items],
+  );
+
+  const visibleItems = useMemo(() => {
+    if (queueTab === "needs_schedule") {
+      return items.filter((item) => !item.hasPetitionSchedule);
+    }
+    return items.filter((item) => item.hasPetitionSchedule);
+  }, [items, queueTab]);
+
+  useEffect(() => {
+    if (queueTab === "needs_schedule" && needsScheduleCount === 0 && scheduledCount > 0) {
+      setQueueTab("scheduled");
+    }
+  }, [queueTab, needsScheduleCount, scheduledCount]);
+
   return (
     <section
       className="rounded-xl border bg-white p-4 md:p-5"
@@ -97,10 +128,14 @@ export default function PetitionSchedulingQueue({
             Petition Scheduling Queue
           </p>
           <h3 className="mt-1 text-lg font-semibold" style={{ color: colors.primary }}>
-            Approved Petition Subjects Without Section
+            {queueTab === "needs_schedule"
+              ? "Petition Subjects Waiting For Scheduling"
+              : "Petition Subjects With Schedule"}
           </h3>
           <p className="mt-1 text-sm leading-6" style={{ color: colors.neutral }}>
-            These petition subjects are approved but still need section scheduling and student assignment.
+            {queueTab === "needs_schedule"
+              ? "These petition subjects have student demand and still need section scheduling and student assignment."
+              : "These petition subjects already have class schedules and are ready for enrollment assignment."}
           </p>
         </div>
         <div
@@ -116,6 +151,35 @@ export default function PetitionSchedulingQueue({
       </div>
 
       <div className="mt-4 overflow-x-auto rounded-xl border" style={{ borderColor: colors.neutralBorder }}>
+        <div className="flex items-center justify-between px-4 py-3 border-b" style={{ borderColor: colors.neutralBorder, backgroundColor: `${colors.paper}` }}>
+          <div className="inline-flex rounded-lg border p-1" style={{ borderColor: colors.neutralBorder, backgroundColor: "white" }}>
+            <button
+              type="button"
+              onClick={() => setQueueTab("needs_schedule")}
+              className="rounded-md px-3 py-1.5 text-xs font-semibold transition"
+              style={{
+                backgroundColor: queueTab === "needs_schedule" ? colors.secondary : "transparent",
+                color: queueTab === "needs_schedule" ? "white" : colors.neutralDark,
+              }}
+            >
+              Need Schedule ({needsScheduleCount})
+            </button>
+            <button
+              type="button"
+              onClick={() => setQueueTab("scheduled")}
+              className="rounded-md px-3 py-1.5 text-xs font-semibold transition"
+              style={{
+                backgroundColor: queueTab === "scheduled" ? colors.info : "transparent",
+                color: queueTab === "scheduled" ? "white" : colors.neutralDark,
+              }}
+            >
+              With Schedule ({scheduledCount})
+            </button>
+          </div>
+          <span className="text-xs font-semibold" style={{ color: colors.neutral }}>
+            {visibleItems.length} subject{visibleItems.length === 1 ? "" : "s"}
+          </span>
+        </div>
         {actionError ? (
           <div className="px-4 py-3 text-sm" style={{ color: colors.warning, backgroundColor: `${colors.warning}12` }}>
             {actionError}
@@ -134,7 +198,7 @@ export default function PetitionSchedulingQueue({
                 Year
               </th>
               <th className="px-4 py-3 text-left text-[11px] font-medium uppercase tracking-[0.16em]" style={{ color: colors.neutral }}>
-                Approved
+                Requests
               </th>
               <th className="px-4 py-3 text-left text-[11px] font-medium uppercase tracking-[0.16em]" style={{ color: colors.neutral }}>
                 No Section
@@ -160,17 +224,19 @@ export default function PetitionSchedulingQueue({
                   {error}
                 </td>
               </tr>
-            ) : items.length === 0 ? (
+            ) : visibleItems.length === 0 ? (
               <tr>
                 <td colSpan={6} className="px-4 py-10 text-center text-sm" style={{ color: colors.tertiary }}>
                   <span className="inline-flex items-center gap-2">
                     <BookOpen className="h-4 w-4" />
-                    No approved petition subject is waiting for section scheduling.
+                    {queueTab === "needs_schedule"
+                      ? "No petition subjects currently need schedule creation."
+                      : "No petition subjects with existing schedule for this term."}
                   </span>
                 </td>
               </tr>
             ) : (
-              items.map((item) => (
+              visibleItems.map((item) => (
                 <tr key={`petition-schedule-${item.curriculumCourseId}`} className="border-t" style={{ borderColor: colors.neutralBorder }}>
                   <td className="px-4 py-3 text-sm font-semibold" style={{ color: colors.primary }}>
                     {item.courseCode}
@@ -182,7 +248,10 @@ export default function PetitionSchedulingQueue({
                     {item.yearLevel > 0 ? `Year ${item.yearLevel}` : "N/A"}
                   </td>
                   <td className="px-4 py-3 text-sm" style={{ color: colors.neutralDark }}>
-                    {item.approvedStudents}
+                    <span>{item.requestedStudents ?? item.approvedStudents}</span>
+                    <span className="ml-2 text-xs" style={{ color: colors.neutral }}>
+                      ({item.approvedStudents} approved, {item.pendingStudents ?? 0} pending)
+                    </span>
                   </td>
                   <td className="px-4 py-3 text-sm font-semibold" style={{ color: colors.warning }}>
                     {item.unassignedStudents}
@@ -208,7 +277,7 @@ export default function PetitionSchedulingQueue({
                         }}
                         disabled={schedulingKey === item.curriculumCourseId}
                         className="rounded-lg px-3 py-2 text-xs font-semibold text-white transition disabled:cursor-wait disabled:opacity-70"
-                        style={{ backgroundColor: colors.secondary }}
+                        style={{ backgroundColor: item.hasPetitionSchedule ? colors.info : colors.secondary }}
                       >
                         {schedulingKey === item.curriculumCourseId ? (
                           <span className="inline-flex items-center gap-1">
@@ -216,21 +285,25 @@ export default function PetitionSchedulingQueue({
                             Opening...
                           </span>
                         ) : (
-                          "Create Section & Schedule"
+                          item.hasPetitionSchedule
+                            ? "Open Section Schedule"
+                            : "Create Section & Schedule"
                         )}
                       </button>
-                      <button
-                        type="button"
-                        onClick={() => onOpenManualEnrollment(item)}
-                        className="rounded-lg border px-3 py-2 text-xs font-semibold transition"
-                        style={{
-                          color: colors.primary,
-                          borderColor: colors.neutralBorder,
-                          backgroundColor: "white",
-                        }}
-                      >
-                        Manual Enrollment
-                      </button>
+                      {item.hasPetitionSchedule ? (
+                        <button
+                          type="button"
+                          onClick={() => onOpenManualEnrollment(item)}
+                          className="rounded-lg border px-3 py-2 text-xs font-semibold transition"
+                          style={{
+                            color: colors.primary,
+                            borderColor: colors.neutralBorder,
+                            backgroundColor: "white",
+                          }}
+                        >
+                          Manual Enrollment
+                        </button>
+                      ) : null}
                     </div>
                   </td>
                 </tr>
