@@ -2263,6 +2263,7 @@ export async function POST(request: Request) {
 
     if (actionType === "petition_subject") {
       const requestId = Number(body?.id);
+      const overrideMinimum = Boolean(body?.override_minimum);
       if (!Number.isFinite(requestId)) {
         return NextResponse.json(
           { error: "id is required for petition subject approval." },
@@ -2321,7 +2322,7 @@ export async function POST(request: Request) {
       `;
       const demandCount = Number(demandRows[0]?.demand_count || 0);
 
-      if (demandCount < minimumStudentsRequired) {
+      if (demandCount < minimumStudentsRequired && !overrideMinimum) {
         return NextResponse.json(
           {
             error: `Petition requires at least ${minimumStudentsRequired} students for the same subject. Current demand is ${demandCount}.`,
@@ -2390,7 +2391,9 @@ export async function POST(request: Request) {
 
       if (userId) {
         await insertIntoReports({
-          action: `Approved petition subject request for ${requestRow.student_number} (${requestRow.academic_year} Sem ${requestRow.semester}) by ${session?.user?.name}`,
+          action: overrideMinimum
+            ? `Approved petition subject request with minimum override for ${requestRow.student_number} (${requestRow.academic_year} Sem ${requestRow.semester}) by ${session?.user?.name}`
+            : `Approved petition subject request for ${requestRow.student_number} (${requestRow.academic_year} Sem ${requestRow.semester}) by ${session?.user?.name}`,
           user_id: userId,
           created_at: new Date(),
         });

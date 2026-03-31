@@ -152,6 +152,17 @@ interface PetitionSubjectApproval {
   subjects?: ApprovalSubjectItem[];
 }
 
+interface PetitionApprovalGroup {
+  key: string;
+  courseCode: string;
+  descriptiveTitle: string;
+  academicYear: string;
+  semester: number;
+  petitionType: string | null | undefined;
+  unitsTotal: number | null | undefined;
+  students: PetitionSubjectApproval[];
+}
+
 type ApprovalFilter =
   | "all"
   | "overload"
@@ -225,6 +236,9 @@ export default function ApprovalManagement() {
   const [petitionSubjectRequests, setPetitionSubjectRequests] = useState<
     PetitionSubjectApproval[]
   >([]);
+  const [expandedPetitionGroups, setExpandedPetitionGroups] = useState<
+    Record<string, boolean>
+  >({});
 
   const fetchApprovals = async () => {
     setIsLoading(true);
@@ -452,6 +466,121 @@ export default function ApprovalManagement() {
 
     return rows;
   }, [approvalRows, filter, studentSearch]);
+
+  const petitionGroupedRows = useMemo(() => {
+    const searchValue = studentSearch.trim().toLowerCase();
+    const grouped = new Map<string, PetitionApprovalGroup>();
+
+    for (const item of petitionSubjectRequests) {
+      const groupKey = `${item.curriculumCourseId}-${item.academicYear}-${item.semester}`;
+      const existing = grouped.get(groupKey);
+      if (!existing) {
+        grouped.set(groupKey, {
+          key: groupKey,
+          courseCode: item.courseCode,
+          descriptiveTitle: item.descriptiveTitle,
+          academicYear: item.academicYear,
+          semester: item.semester,
+          petitionType: item.petitionType,
+          unitsTotal: item.unitsTotal,
+          students: [item],
+        });
+      } else {
+        existing.students.push(item);
+      }
+    }
+
+    let rows = Array.from(grouped.values()).sort((a, b) => {
+      if (a.academicYear !== b.academicYear) {
+        return b.academicYear.localeCompare(a.academicYear);
+      }
+      if (a.semester !== b.semester) {
+        return b.semester - a.semester;
+      }
+      return a.courseCode.localeCompare(b.courseCode);
+    });
+
+    if (searchValue) {
+      rows = rows.filter((group) => {
+        const subjectMatch =
+          String(group.courseCode || "")
+            .toLowerCase()
+            .includes(searchValue) ||
+          String(group.descriptiveTitle || "")
+            .toLowerCase()
+            .includes(searchValue);
+        const studentMatch = group.students.some((student) => {
+          const name = String(student.studentName || "").toLowerCase();
+          const number = String(student.studentNumber || "").toLowerCase();
+          return name.includes(searchValue) || number.includes(searchValue);
+        });
+        return subjectMatch || studentMatch;
+      });
+    }
+
+    return rows;
+  }, [petitionSubjectRequests, studentSearch]);
+
+  const handleApprovePetitionGroup = async (
+    group: PetitionApprovalGroup,
+    options?: { overrideMinimum?: boolean },
+  ) => {
+    const overrideMinimum = Boolean(options?.overrideMinimum);
+    const groupSubmittingKey = overrideMinimum
+      ? `petition-group-approve-override-${group.key}`
+      : `petition-group-approve-${group.key}`;
+    setIsSubmitting(groupSubmittingKey);
+
+    try {
+      const approveTargets = group.students.filter((student) =>
+        Number.isFinite(Number(student.id)),
+      );
+
+      if (approveTargets.length === 0) {
+        throw new Error("No petition student requests found in this group.");
+      }
+
+      for (const student of approveTargets) {
+        const response = await fetch("/api/auth/approvals", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            type: "petition_subject",
+            id: student.id,
+            override_minimum: overrideMinimum,
+          }),
+        });
+        const result = await response.json();
+        if (!response.ok || !result.success) {
+          throw new Error(
+            result.error ||
+              `Failed to approve petition request for ${student.studentNumber}.`,
+          );
+        }
+      }
+
+      setSuccessModal({
+        isOpen: true,
+        message: overrideMinimum
+          ? `Approved all ${approveTargets.length} petition request(s) for ${group.courseCode} with minimum override.`
+          : `Approved all ${approveTargets.length} petition request(s) for ${group.courseCode}.`,
+      });
+      await fetchApprovals();
+    } catch (approvalError) {
+      setErrorModal({
+        isOpen: true,
+        message:
+          approvalError instanceof Error
+            ? approvalError.message
+            : "Failed to approve petition subject group.",
+        details: "",
+      });
+    } finally {
+      setIsSubmitting("");
+    }
+  };
 
   const handleApprove = async (row: ApprovalRow) => {
     setIsSubmitting(row.key);
@@ -943,7 +1072,10 @@ export default function ApprovalManagement() {
               Petition Subjects
             </p>
             <p className="mt-2 text-3xl font-bold" style={{ color: colors.primary }}>
-              {petitionSubjectRequests.length}
+              {petitionGroupedRows.length}
+            </p>
+            <p className="mt-1 text-xs" style={{ color: colors.neutral }}>
+              {petitionSubjectRequests.length} student requests
             </p>
           </div>
         </div>
@@ -1035,6 +1167,234 @@ export default function ApprovalManagement() {
             <div className="py-12 text-sm" style={{ color: colors.tertiary }}>
               Loading approval items...
             </div>
+          ) : filter === "petition" ? (
+            petitionGroupedRows.length === 0 ? (
+              <div className="py-12 text-center text-sm" style={{ color: colors.tertiary }}>
+                No petition subject records found for the selected filter.
+              </div>
+            ) : (
+              <div
+                className="mt-6 overflow-x-auto rounded-xl border"
+                style={{ borderColor: `${colors.accent}20` }}
+              >
+                <table className="min-w-full border-collapse">
+                  <thead>
+                    <tr style={{ backgroundColor: `${colors.accent}08` }}>
+                      <th className="px-4 py-3 text-left text-xs font-bold uppercase tracking-wide" style={{ color: colors.primary }}>
+                        Type
+                      </th>
+                      <th className="px-4 py-3 text-left text-xs font-bold uppercase tracking-wide" style={{ color: colors.primary }}>
+                        Subject
+                      </th>
+                      <th className="px-4 py-3 text-left text-xs font-bold uppercase tracking-wide" style={{ color: colors.primary }}>
+                        Requests
+                      </th>
+                      <th className="px-4 py-3 text-left text-xs font-bold uppercase tracking-wide" style={{ color: colors.primary }}>
+                        Term
+                      </th>
+                      <th className="px-4 py-3 text-center text-xs font-bold uppercase tracking-wide" style={{ color: colors.primary }}>
+                        Student List
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {petitionGroupedRows.map((group, index) => {
+                      const isExpanded = Boolean(expandedPetitionGroups[group.key]);
+                      const petitionTypeLabel =
+                        group.petitionType === "last_semester"
+                          ? "Last semester subject"
+                          : "Currently not open";
+                      return (
+                        <React.Fragment key={`petition-group-${group.key}`}>
+                          <tr
+                            className="border-t"
+                            style={{
+                              borderColor: `${colors.accent}15`,
+                              backgroundColor:
+                                index % 2 === 0 ? "white" : `${colors.paper}40`,
+                            }}
+                          >
+                            <td className="px-4 py-3 text-sm">
+                              <span
+                                className="rounded-full px-2.5 py-1 text-[10px] font-bold uppercase tracking-wide"
+                                style={{
+                                  backgroundColor: `${colors.secondary}15`,
+                                  color: colors.secondary,
+                                }}
+                              >
+                                Petition Subject
+                              </span>
+                            </td>
+                            <td className="px-4 py-3 text-sm" style={{ color: colors.primary }}>
+                              <div className="font-semibold">{group.courseCode}</div>
+                              <div className="text-xs" style={{ color: colors.tertiary }}>
+                                {group.descriptiveTitle}
+                              </div>
+                              <div className="mt-1 text-[11px]" style={{ color: colors.neutral }}>
+                                Petition type: {petitionTypeLabel} • Units: {group.unitsTotal || 0}
+                              </div>
+                            </td>
+                            <td className="px-4 py-3 text-sm" style={{ color: colors.primary }}>
+                              <span
+                                className="rounded-full px-2.5 py-1 text-[10px] font-bold uppercase tracking-wide"
+                                style={{
+                                  backgroundColor: `${colors.info}15`,
+                                  color: colors.info,
+                                }}
+                              >
+                                {group.students.length} students
+                              </span>
+                            </td>
+                            <td className="px-4 py-3 text-sm" style={{ color: colors.primary }}>
+                              {`A.Y. ${group.academicYear} • Sem ${group.semester}`}
+                            </td>
+                            <td className="px-4 py-3 text-center">
+                              <div className="flex items-center justify-center gap-2">
+                                <button
+                                  type="button"
+                                  onClick={() => handleApprovePetitionGroup(group)}
+                                  disabled={
+                                    isSubmitting === `petition-group-approve-${group.key}` ||
+                                    isSubmitting === `petition-group-approve-override-${group.key}`
+                                  }
+                                  className="rounded-lg px-3 py-2 text-xs font-semibold text-white transition-all disabled:cursor-not-allowed disabled:opacity-60"
+                                  style={{ backgroundColor: colors.secondary }}
+                                >
+                                  {isSubmitting === `petition-group-approve-${group.key}`
+                                    ? "Approving All..."
+                                    : "Approve All"}
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() =>
+                                    handleApprovePetitionGroup(group, {
+                                      overrideMinimum: true,
+                                    })
+                                  }
+                                  disabled={
+                                    isSubmitting === `petition-group-approve-${group.key}` ||
+                                    isSubmitting === `petition-group-approve-override-${group.key}`
+                                  }
+                                  className="rounded-lg px-3 py-2 text-xs font-semibold text-white transition-all disabled:cursor-not-allowed disabled:opacity-60"
+                                  style={{ backgroundColor: colors.warning }}
+                                >
+                                  {isSubmitting ===
+                                  `petition-group-approve-override-${group.key}`
+                                    ? "Overriding..."
+                                    : "Override Min"}
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() =>
+                                    setExpandedPetitionGroups((prev) => ({
+                                      ...prev,
+                                      [group.key]: !prev[group.key],
+                                    }))
+                                  }
+                                  className="rounded-lg px-3 py-2 text-xs font-semibold text-white transition-all"
+                                  style={{ backgroundColor: colors.info }}
+                                >
+                                  {isExpanded ? "Hide Students" : "Show Students"}
+                                </button>
+                              </div>
+                            </td>
+                          </tr>
+                          {isExpanded
+                            ? group.students.map((student) => {
+                                const studentRow: ApprovalRow = {
+                                  key: `petition-${student.id}`,
+                                  type: "petition",
+                                  approvalId: student.id,
+                                  studentNumber: student.studentNumber,
+                                  studentName: student.studentName,
+                                  firstName: student.firstName,
+                                  lastName: student.lastName,
+                                  academicYear: student.academicYear,
+                                  semester: student.semester,
+                                  detailsPrimary: student.courseCode,
+                                  detailsSecondary: student.descriptiveTitle,
+                                  termLabel: `A.Y. ${student.academicYear} • Sem ${student.semester}`,
+                                  statusLabel: "Pending Approval",
+                                  reason: student.reason,
+                                  subjects: student.subjects || [],
+                                  contextLine:
+                                    student.petitionType === "last_semester"
+                                      ? `Petition type: Last semester subject • Units: ${student.unitsTotal || 0}`
+                                      : `Petition type: Currently not open • Units: ${student.unitsTotal || 0}`,
+                                };
+                                return (
+                                  <tr
+                                    key={`petition-student-${student.id}`}
+                                    className="border-t"
+                                    style={{
+                                      borderColor: `${colors.accent}15`,
+                                      backgroundColor: `${colors.info}06`,
+                                    }}
+                                  >
+                                    <td className="px-4 py-3 text-xs font-semibold" style={{ color: colors.info }}>
+                                      Student
+                                    </td>
+                                    <td className="px-4 py-3 text-sm" style={{ color: colors.primary }}>
+                                      <div className="font-semibold">{student.studentName}</div>
+                                      <div className="text-xs" style={{ color: colors.tertiary }}>
+                                        {student.studentNumber}
+                                      </div>
+                                    </td>
+                                    <td className="px-4 py-3 text-sm" style={{ color: colors.primary }}>
+                                      {student.reason ? (
+                                        <span style={{ color: colors.neutral }}>{student.reason}</span>
+                                      ) : (
+                                        <span style={{ color: colors.tertiary }}>No reason provided</span>
+                                      )}
+                                    </td>
+                                    <td className="px-4 py-3 text-sm" style={{ color: colors.primary }}>
+                                      {`A.Y. ${student.academicYear} • Sem ${student.semester}`}
+                                    </td>
+                                    <td className="px-4 py-3 text-center">
+                                      <div className="flex items-center justify-center gap-2">
+                                        <button
+                                          type="button"
+                                          onClick={() => {
+                                            setConfirmation(studentRow);
+                                            setConfirmationAction("reject");
+                                          }}
+                                          disabled={isSubmitting === studentRow.key}
+                                          className="rounded-lg px-3 py-2 text-xs font-semibold text-white transition-all disabled:cursor-not-allowed disabled:opacity-60"
+                                          style={{ backgroundColor: colors.danger }}
+                                        >
+                                          {isSubmitting === studentRow.key &&
+                                          confirmationAction === "reject"
+                                            ? "Rejecting..."
+                                            : "Reject"}
+                                        </button>
+                                        <button
+                                          type="button"
+                                          onClick={() => {
+                                            setConfirmation(studentRow);
+                                            setConfirmationAction("approve");
+                                          }}
+                                          disabled={isSubmitting === studentRow.key}
+                                          className="rounded-lg px-3 py-2 text-xs font-semibold text-white transition-all disabled:cursor-not-allowed disabled:opacity-60"
+                                          style={{ backgroundColor: colors.secondary }}
+                                        >
+                                          {isSubmitting === studentRow.key &&
+                                          confirmationAction === "approve"
+                                            ? "Approving..."
+                                            : "Approve"}
+                                        </button>
+                                      </div>
+                                    </td>
+                                  </tr>
+                                );
+                              })
+                            : null}
+                        </React.Fragment>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            )
           ) : filteredRows.length === 0 ? (
             <div className="py-12 text-center text-sm" style={{ color: colors.tertiary }}>
               No approval records found for the selected filter.

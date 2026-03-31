@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useEffect, useMemo } from 'react';
-import { useRouter, useParams } from 'next/navigation';
+import { useRouter, useParams, useSearchParams } from 'next/navigation';
 import {
   createClassSchedule,
   getClassSchedules,
@@ -61,7 +61,9 @@ const formatMinutesAsHours = (minutes: number): string => {
 export default function BuildSchedulePage() {
   const router = useRouter();
   const params = useParams();
+  const searchParams = useSearchParams();
   const sectionId = parseInt(params.id as string);
+  const petitionCurriculumCourseId = Number(searchParams.get('curriculumCourseId') || '');
 
   // Handle navigation view changes with Next.js routing
   const handleViewChange = (view: string) => {
@@ -77,6 +79,7 @@ export default function BuildSchedulePage() {
   const [error, setError] = useState<string | null>(null);
   const [schedules, setSchedules] = useState<any[]>([]);
   const [curriculum, setCurriculum] = useState<any[]>([]);
+  const [petitionCurriculumHydrated, setPetitionCurriculumHydrated] = useState<number | null>(null);
   const [faculty, setFaculty] = useState<any[]>([]);
   const [rooms, setRooms] = useState<any[]>([]);
   
@@ -208,6 +211,7 @@ export default function BuildSchedulePage() {
   const [editFacultySearchQuery, setEditFacultySearchQuery] = useState('');
   const [editFacultySearchModal, setEditFacultySearchModal] = useState(false);
   const [selectedEditFacultyDisplay, setSelectedEditFacultyDisplay] = useState('');
+  const isPetitionScheduleMode = Number.isFinite(petitionCurriculumCourseId) && petitionCurriculumCourseId > 0;
 
   // Edit modal conflict checking state
   const [editOccupiedSlots, setEditOccupiedSlots] = useState<any[]>([]);
@@ -223,6 +227,27 @@ export default function BuildSchedulePage() {
       f.last_name.toLowerCase().includes(query)
     );
   }, [faculty, editFacultySearchQuery]);
+
+  const visibleCurriculum = useMemo(() => {
+    if (!isPetitionScheduleMode) return curriculum;
+    return curriculum.filter((course) => Number(course.id) === petitionCurriculumCourseId);
+  }, [curriculum, isPetitionScheduleMode, petitionCurriculumCourseId]);
+
+  const visibleCurriculumIds = useMemo(
+    () => new Set(visibleCurriculum.map((course) => Number(course.id))),
+    [visibleCurriculum],
+  );
+
+  const visibleScheduledCount = useMemo(() => {
+    const scheduled = new Set<number>();
+    schedules.forEach((schedule) => {
+      const curriculumCourseId = Number(schedule.curriculumCourseId);
+      if (visibleCurriculumIds.has(curriculumCourseId)) {
+        scheduled.add(curriculumCourseId);
+      }
+    });
+    return scheduled.size;
+  }, [schedules, visibleCurriculumIds]);
 
   // Check for conflicts in edit modal (excludes the schedule being edited)
   const editConflicts = useMemo(() => {
@@ -536,6 +561,68 @@ export default function BuildSchedulePage() {
     setIncludeIrregularStudents(false);
     setError(null);
   };
+
+  useEffect(() => {
+    const loadMissingPetitionCourse = async () => {
+      if (!Number.isFinite(petitionCurriculumCourseId) || petitionCurriculumCourseId <= 0) return;
+      if (loadingCurriculum) return;
+
+      const alreadyPresent = curriculum.some((course) => course.id === petitionCurriculumCourseId);
+      if (alreadyPresent) {
+        setPetitionCurriculumHydrated(petitionCurriculumCourseId);
+        return;
+      }
+      if (petitionCurriculumHydrated === petitionCurriculumCourseId) return;
+
+      try {
+        const response = await fetch(
+          `/api/auth/section/curriculum-course/${petitionCurriculumCourseId}`,
+        );
+        const result = await response.json();
+        if (!response.ok || !result?.success || !result?.data) {
+          throw new Error(result?.error || "Failed to load petition subject details.");
+        }
+
+        setCurriculum((prev) => {
+          if (prev.some((course) => course.id === petitionCurriculumCourseId)) {
+            return prev;
+          }
+          return [...prev, result.data];
+        });
+      } catch (err) {
+        console.error("Failed to hydrate petition curriculum subject:", err);
+      } finally {
+        setPetitionCurriculumHydrated(petitionCurriculumCourseId);
+      }
+    };
+
+    loadMissingPetitionCourse();
+  }, [petitionCurriculumCourseId, loadingCurriculum, curriculum, petitionCurriculumHydrated]);
+
+  useEffect(() => {
+    if (!Number.isFinite(petitionCurriculumCourseId) || petitionCurriculumCourseId <= 0) return;
+    if (selectedCourse) return;
+    if (loadingCurriculum || loadingSchedules) return;
+    if (!curriculum.length) return;
+
+    const requestedCourse = curriculum.find((course) => course.id === petitionCurriculumCourseId);
+    if (!requestedCourse) return;
+
+    const alreadyScheduled = schedules.some(
+      (schedule) => schedule.curriculumCourseId === petitionCurriculumCourseId,
+    );
+    if (alreadyScheduled) return;
+
+    handleCourseSelect(requestedCourse);
+    setActiveTab('schedule');
+  }, [
+    petitionCurriculumCourseId,
+    selectedCourse,
+    loadingCurriculum,
+    loadingSchedules,
+    curriculum,
+    schedules,
+  ]);
 
   const handleInputChange = (name: string, value: string) => {
     // When lecture day changes, auto-populate the lab day too
@@ -1289,8 +1376,8 @@ export default function BuildSchedulePage() {
               >
                 <div className="text-[10px] font-medium uppercase tracking-wide" style={{ color: colors.tertiary }}>Completion</div>
                 <div className="text-2xl font-bold" style={{ color: colors.secondary }}>
-                  {curriculum.length > 0
-                    ? Math.round((new Set(schedules.map(s => s.curriculumCourseId)).size / curriculum.length) * 100)
+                  {visibleCurriculum.length > 0
+                    ? Math.round((visibleScheduledCount / visibleCurriculum.length) * 100)
                     : 0}%
                 </div>
               </div>
@@ -1372,11 +1459,11 @@ export default function BuildSchedulePage() {
                 <div className="flex items-center gap-2">
                   <GraduationCap className="w-4 h-4" style={{ color: colors.secondary }} />
                   <h2 className="text-sm font-semibold" style={{ color: colors.primary }}>
-                    Curriculum Subjects ({curriculum.length})
+                    {isPetitionScheduleMode ? "Petition Subject" : "Curriculum Subjects"} ({visibleCurriculum.length})
                   </h2>
                 </div>
                 <div className="text-xs" style={{ color: colors.neutral }}>
-                  Click a subject to schedule
+                  {isPetitionScheduleMode ? "Petition subject to schedule" : "Click a subject to schedule"}
                 </div>
               </div>
               {loadingCurriculum ? (
@@ -1386,16 +1473,18 @@ export default function BuildSchedulePage() {
                     Loading curriculum...
                   </p>
                 </div>
-              ) : curriculum.length === 0 ? (
+              ) : visibleCurriculum.length === 0 ? (
                 <div className="text-center py-8">
                   <BookOpen className="w-10 h-10 mx-auto mb-2" style={{ color: colors.neutral }} />
                   <p className="text-sm" style={{ color: colors.neutral }}>
-                    No curriculum courses found for this program, year level, and semester.
+                    {isPetitionScheduleMode
+                      ? "Petition subject could not be loaded for this section."
+                      : "No curriculum courses found for this program, year level, and semester."}
                   </p>
                 </div>
               ) : (
                 <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3">
-                  {curriculum.map((course) => {
+                  {visibleCurriculum.map((course) => {
                     const isScheduled = schedules.some(s => s.curriculumCourseId === course.id);
                     const isSelected = selectedCourse?.id === course.id;
                     

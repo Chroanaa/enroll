@@ -9,6 +9,7 @@ import { activateSection, lockSection, unlockSection } from '../../utils/section
 import { colors } from '../../colors';
 import { Lock, Unlock, CheckCircle, BookOpen, Printer, Loader2, RefreshCw, Users } from 'lucide-react';
 import SearchFilters from '../../components/common/SearchFilters';
+import PetitionSchedulingQueue from '../../components/sections/PetitionSchedulingQueue';
 import ConfirmationModal from '../../components/common/ConfirmationModal';
 import SuccessModal from '../../components/common/SuccessModal';
 import ErrorModal from '../../components/common/ErrorModal';
@@ -17,6 +18,21 @@ import AllSectionClasslistsPDF, { SectionForClasslistPDF } from './components/Al
 import { useAcademicTermContext } from '../../contexts/AcademicTermContext';
 import { getPrintAllSectionScheduleFilter } from '../../utils/academicTermUtils';
 import { primeScheduleResources } from '../../utils/scheduleResourceCache';
+
+type PetitionQueueItem = {
+  curriculumCourseId: number;
+  subjectId: number | null;
+  programId: number | null;
+  programCode: string | null;
+  programName: string | null;
+  courseCode: string;
+  descriptiveTitle: string;
+  yearLevel: number;
+  academicYear: string;
+  semester: number;
+  approvedStudents: number;
+  unassignedStudents: number;
+};
 
 export default function SectionsPage() {
   const router = useRouter();
@@ -28,10 +44,12 @@ export default function SectionsPage() {
   const [refreshKey, setRefreshKey] = useState(0);
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState<'all' | 'draft' | 'active' | 'locked' | 'closed'>('all');
+  const [activePanel, setActivePanel] = useState<'sections' | 'petition'>('sections');
   const [academicYearFilter, setAcademicYearFilter] = useState(printAllFilter.academicYear);
   const [semesterFilter, setSemesterFilter] = useState<'first' | 'second' | 'summer'>(printAllFilter.semester);
   const [isLoading, setIsLoading] = useState(false);
   const [loadingManualEnrollment, setLoadingManualEnrollment] = useState(false);
+  const [petitionQueueRefreshKey, setPetitionQueueRefreshKey] = useState(0);
 
   // Bulk schedule PDF state
   const [showBulkPDF, setShowBulkPDF] = useState(false);
@@ -186,12 +204,41 @@ export default function SectionsPage() {
     primeScheduleResources();
   };
 
-  const handleManualEnrollment = () => {
+  const handleManualEnrollment = (item?: PetitionQueueItem) => {
     setLoadingManualEnrollment(true);
-    router.prefetch('/admin/irregular-enrollment');
+    const targetUrl = item?.curriculumCourseId
+      ? `/admin/irregular-enrollment?petitionMode=1&academicYear=${encodeURIComponent(item.academicYear)}&semester=${encodeURIComponent(item.semester === 1 ? "first" : item.semester === 2 ? "second" : "summer")}&curriculumCourseId=${item.curriculumCourseId}`
+      : '/admin/irregular-enrollment';
+    router.prefetch(targetUrl);
     startTransition(() => {
-      router.push('/admin/irregular-enrollment');
+      router.push(targetUrl);
     });
+  };
+
+  const handleOpenPetitionScheduleBuilder = async (item: PetitionQueueItem) => {
+    const response = await fetch('/api/auth/section/petition-create-section', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        curriculumCourseId: item.curriculumCourseId,
+        programId: item.programId,
+        yearLevel: item.yearLevel,
+        semester: item.semester,
+        academicYear: item.academicYear,
+        courseCode: item.courseCode,
+      }),
+    });
+
+    const result = await response.json().catch(() => ({}));
+    if (!response.ok || !result?.success || !result?.data?.sectionId) {
+      throw new Error(result?.error || 'Failed to create/open section for petition subject.');
+    }
+
+    const sectionId = Number(result.data.sectionId);
+    router.prefetch(`/admin/sections/schedule/${sectionId}`);
+    router.push(
+      `/admin/sections/schedule/${sectionId}?curriculumCourseId=${item.curriculumCourseId}`,
+    );
   };
 
   const handlePrefetchManualEnrollment = () => {
@@ -204,6 +251,10 @@ export default function SectionsPage() {
   };
 
   const handleRefreshSections = () => {
+    if (activePanel === 'petition') {
+      setPetitionQueueRefreshKey((prev) => prev + 1);
+      return;
+    }
     setRefreshKey((prev) => prev + 1);
   };
 
@@ -343,38 +394,42 @@ export default function SectionsPage() {
               <RefreshCw className="w-4 h-4" />
               Refresh
             </button>
+            {activePanel === 'sections' ? (
+              <>
+                <button
+                  onClick={handlePrintAll}
+                  disabled={loadingPdf || filteredSectionsForPrint.length === 0}
+                  className="flex items-center gap-2 px-5 py-3 rounded-lg font-medium text-sm transition-colors hover:shadow-md disabled:opacity-50 disabled:cursor-not-allowed"
+                  style={{ backgroundColor: colors.primary, color: 'white' }}
+                  onMouseEnter={(e) => { if (!loadingPdf) e.currentTarget.style.backgroundColor = colors.secondary; }}
+                  onMouseLeave={(e) => { if (!loadingPdf) e.currentTarget.style.backgroundColor = colors.primary; }}
+                >
+                  {loadingPdf ? (
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                  ) : (
+                    <Printer className="w-4 h-4" />
+                  )}
+                  {loadingPdf ? 'Loading...' : 'Print All Schedules'}
+                </button>
+                <button
+                  onClick={handlePrintClasslists}
+                  disabled={loadingClasslistPdf || filteredSectionsForPrint.length === 0}
+                  className="flex items-center gap-2 px-5 py-3 rounded-lg font-medium text-sm transition-colors hover:shadow-md disabled:opacity-50 disabled:cursor-not-allowed"
+                  style={{ backgroundColor: colors.info, color: 'white' }}
+                  onMouseEnter={(e) => { if (!loadingClasslistPdf) e.currentTarget.style.backgroundColor = colors.primary; }}
+                  onMouseLeave={(e) => { if (!loadingClasslistPdf) e.currentTarget.style.backgroundColor = colors.info; }}
+                >
+                  {loadingClasslistPdf ? (
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                  ) : (
+                    <Users className="w-4 h-4" />
+                  )}
+                  {loadingClasslistPdf ? 'Loading...' : 'Print Classlist'}
+                </button>
+              </>
+            ) : null}
             <button
-              onClick={handlePrintAll}
-              disabled={loadingPdf || filteredSectionsForPrint.length === 0}
-              className="flex items-center gap-2 px-5 py-3 rounded-lg font-medium text-sm transition-colors hover:shadow-md disabled:opacity-50 disabled:cursor-not-allowed"
-              style={{ backgroundColor: colors.primary, color: 'white' }}
-              onMouseEnter={(e) => { if (!loadingPdf) e.currentTarget.style.backgroundColor = colors.secondary; }}
-              onMouseLeave={(e) => { if (!loadingPdf) e.currentTarget.style.backgroundColor = colors.primary; }}
-            >
-              {loadingPdf ? (
-                <Loader2 className="w-4 h-4 animate-spin" />
-              ) : (
-                <Printer className="w-4 h-4" />
-              )}
-              {loadingPdf ? 'Loading...' : 'Print All Schedules'}
-            </button>
-            <button
-              onClick={handlePrintClasslists}
-              disabled={loadingClasslistPdf || filteredSectionsForPrint.length === 0}
-              className="flex items-center gap-2 px-5 py-3 rounded-lg font-medium text-sm transition-colors hover:shadow-md disabled:opacity-50 disabled:cursor-not-allowed"
-              style={{ backgroundColor: colors.info, color: 'white' }}
-              onMouseEnter={(e) => { if (!loadingClasslistPdf) e.currentTarget.style.backgroundColor = colors.primary; }}
-              onMouseLeave={(e) => { if (!loadingClasslistPdf) e.currentTarget.style.backgroundColor = colors.info; }}
-            >
-              {loadingClasslistPdf ? (
-                <Loader2 className="w-4 h-4 animate-spin" />
-              ) : (
-                <Users className="w-4 h-4" />
-              )}
-              {loadingClasslistPdf ? 'Loading...' : 'Print Classlist'}
-            </button>
-            <button
-              onClick={handleManualEnrollment}
+              onClick={() => handleManualEnrollment()}
               onFocus={handlePrefetchManualEnrollment}
               disabled={loadingManualEnrollment}
               className="flex items-center gap-2 px-6 py-3 text-white rounded-lg font-medium text-sm transition-colors hover:shadow-md disabled:opacity-70 disabled:cursor-wait"
@@ -397,63 +452,132 @@ export default function SectionsPage() {
           </div>
         </div>
 
-        {/* Search and Filters */}
-        <SearchFilters
-          searchTerm={searchTerm}
-          onSearchChange={setSearchTerm}
-          searchPlaceholder="Search sections..."
-          filters={[
-            {
-              value: academicYearFilter,
-              onChange: (value) => setAcademicYearFilter(String(value)),
-              options: [
-                { value: printAllFilter.academicYear, label: printAllFilter.academicYear },
-              ],
-              placeholder: 'Academic Year',
-            },
-            {
-              value: semesterFilter,
-              onChange: (value) => setSemesterFilter(value as 'first' | 'second' | 'summer'),
-              options: [
-                { value: 'second', label: 'Second Semester' },
-                { value: 'first', label: 'First Semester' },
-                { value: 'summer', label: 'Summer' },
-              ],
-              placeholder: 'Semester',
-            },
-            {
-              value: statusFilter,
-              onChange: (value) =>
-                setStatusFilter(value as 'all' | 'draft' | 'active' | 'locked' | 'closed'),
-              options: [
-                { value: 'all', label: 'All Status' },
-                { value: 'draft', label: 'Draft' },
-                { value: 'active', label: 'Active' },
-                { value: 'locked', label: 'Locked' },
-                { value: 'closed', label: 'Closed' },
-              ],
-              placeholder: 'All Status',
-            },
-          ]}
-        />
-
-        {/* Section List */}
-        <div key={refreshKey}>
-          <SectionList
-            searchTerm={searchTerm}
-            statusFilter={statusFilter}
-            academicYearFilter={academicYearFilter}
-            semesterFilter={semesterFilter}
-            onFilteredSectionsChange={setFilteredSectionsForPrint}
-            onPrefetchSchedule={handlePrefetchSchedule}
-            onCreateSchedule={handleCreateSchedule}
-            onViewSchedule={handleViewSchedule}
-            onAssignStudents={handleAssignStudents}
-            onActivate={handleActivate}
-            onLock={handleLock}
-            onUnlock={handleUnlock}
-          />
+        <div className="inline-flex rounded-xl border bg-white p-1" style={{ borderColor: colors.neutralBorder }}>
+          <button
+            type="button"
+            onClick={() => setActivePanel('sections')}
+            className="rounded-lg px-4 py-2 text-sm font-semibold transition"
+            style={{
+              backgroundColor: activePanel === 'sections' ? colors.primary : 'transparent',
+              color: activePanel === 'sections' ? 'white' : colors.neutralDark,
+            }}
+          >
+            Sections
+          </button>
+          <button
+            type="button"
+            onClick={() => setActivePanel('petition')}
+            className="rounded-lg px-4 py-2 text-sm font-semibold transition"
+            style={{
+              backgroundColor: activePanel === 'petition' ? colors.primary : 'transparent',
+              color: activePanel === 'petition' ? 'white' : colors.neutralDark,
+            }}
+          >
+            Petition Queue
+          </button>
         </div>
+
+        {/* Search and Filters */}
+        {activePanel === 'sections' ? (
+          <>
+            <SearchFilters
+              searchTerm={searchTerm}
+              onSearchChange={setSearchTerm}
+              searchPlaceholder="Search sections..."
+              filters={[
+                {
+                  value: academicYearFilter,
+                  onChange: (value) => setAcademicYearFilter(String(value)),
+                  options: [
+                    { value: printAllFilter.academicYear, label: printAllFilter.academicYear },
+                  ],
+                  placeholder: 'Academic Year',
+                },
+                {
+                  value: semesterFilter,
+                  onChange: (value) => setSemesterFilter(value as 'first' | 'second' | 'summer'),
+                  options: [
+                    { value: 'second', label: 'Second Semester' },
+                    { value: 'first', label: 'First Semester' },
+                    { value: 'summer', label: 'Summer' },
+                  ],
+                  placeholder: 'Semester',
+                },
+                {
+                  value: statusFilter,
+                  onChange: (value) =>
+                    setStatusFilter(value as 'all' | 'draft' | 'active' | 'locked' | 'closed'),
+                  options: [
+                    { value: 'all', label: 'All Status' },
+                    { value: 'draft', label: 'Draft' },
+                    { value: 'active', label: 'Active' },
+                    { value: 'locked', label: 'Locked' },
+                    { value: 'closed', label: 'Closed' },
+                  ],
+                  placeholder: 'All Status',
+                },
+              ]}
+            />
+
+            <div key={refreshKey}>
+              <SectionList
+                searchTerm={searchTerm}
+                statusFilter={statusFilter}
+                academicYearFilter={academicYearFilter}
+                semesterFilter={semesterFilter}
+                onFilteredSectionsChange={setFilteredSectionsForPrint}
+                onPrefetchSchedule={handlePrefetchSchedule}
+                onCreateSchedule={handleCreateSchedule}
+                onViewSchedule={handleViewSchedule}
+                onAssignStudents={handleAssignStudents}
+                onActivate={handleActivate}
+                onLock={handleLock}
+                onUnlock={handleUnlock}
+              />
+            </div>
+          </>
+        ) : (
+          <>
+            <div className="bg-white p-4 rounded-2xl shadow-sm border border-gray-100 flex flex-col md:flex-row gap-4 md:items-center md:justify-between">
+              <p className="text-sm" style={{ color: colors.neutral }}>
+                Filter petition queue by term.
+              </p>
+              <div className="flex items-center gap-3">
+                <div className="flex items-center gap-2 px-3 py-2.5 border border-gray-200 rounded-xl bg-gray-50/50">
+                  <select
+                    value={academicYearFilter}
+                    onChange={(e) => setAcademicYearFilter(e.target.value)}
+                    className="bg-transparent border-none text-sm font-medium focus:ring-0 cursor-pointer"
+                    style={{ outline: "none", color: "#6B5B4F" }}
+                  >
+                    <option value={printAllFilter.academicYear}>{printAllFilter.academicYear}</option>
+                  </select>
+                </div>
+                <div className="flex items-center gap-2 px-3 py-2.5 border border-gray-200 rounded-xl bg-gray-50/50">
+                  <select
+                    value={semesterFilter}
+                    onChange={(e) => setSemesterFilter(e.target.value as 'first' | 'second' | 'summer')}
+                    className="bg-transparent border-none text-sm font-medium focus:ring-0 cursor-pointer"
+                    style={{ outline: "none", color: "#6B5B4F" }}
+                  >
+                    <option value="second">Second Semester</option>
+                    <option value="first">First Semester</option>
+                    <option value="summer">Summer</option>
+                  </select>
+                </div>
+              </div>
+            </div>
+
+            <PetitionSchedulingQueue
+              key={petitionQueueRefreshKey}
+              academicYear={academicYearFilter}
+              semester={semesterFilter}
+              refreshToken={petitionQueueRefreshKey}
+              onOpenManualEnrollment={handleManualEnrollment}
+              onOpenScheduleBuilder={handleOpenPetitionScheduleBuilder}
+            />
+          </>
+        )}
 
         {/* Modals */}
         <StudentAssignment

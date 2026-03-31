@@ -250,11 +250,18 @@ const Settings: React.FC = () => {
       ];
 
       for (const setting of settingsToSave) {
-        await fetch("/api/auth/settings", {
+        const response = await fetch("/api/auth/settings", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify(setting),
         });
+
+        if (!response.ok) {
+          const errorPayload = await response.json().catch(() => ({}));
+          throw new Error(
+            errorPayload?.error || `Failed to save setting: ${setting.key}`,
+          );
+        }
       }
 
       setMessage({ type: "success", text: "Settings saved successfully!" });
@@ -1248,14 +1255,14 @@ const Settings: React.FC = () => {
                       className='text-sm mb-3'
                       style={{ color: colors.neutral }}
                     >
-                      Minimum number of students requesting the same petition
-                      subject before approval is allowed.
+                      Override the default minimum (15). This is the required
+                      number of students requesting the same petition subject
+                      before approval is allowed.
                     </p>
                     <div className='flex items-center gap-3'>
                       <input
                         type='number'
                         min='1'
-                        max='100'
                         value={settings.petitionMinStudentsRequired}
                         onChange={(e) =>
                           setSettings({

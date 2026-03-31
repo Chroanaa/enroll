@@ -378,6 +378,7 @@ export async function GET(request: NextRequest) {
     const sectionId = searchParams.get('sectionId');
     const facultyId = searchParams.get('facultyId');
     const curriculumCourseId = searchParams.get('curriculumCourseId');
+    const matchByCourseCode = searchParams.get('matchByCourseCode');
     const academicYear = searchParams.get('academicYear');
     const semester = searchParams.get('semester');
     const status = searchParams.get('status');
@@ -386,7 +387,44 @@ export async function GET(request: NextRequest) {
 
     if (sectionId) where.section_id = parseInt(sectionId);
     if (facultyId) where.faculty_id = parseInt(facultyId);
-    if (curriculumCourseId) where.curriculum_course_id = parseInt(curriculumCourseId);
+    if (curriculumCourseId) {
+      const parsedCurriculumCourseId = parseInt(curriculumCourseId);
+      if (matchByCourseCode === '1') {
+        const sourceCourse = await prisma.curriculum_course.findUnique({
+          where: { id: parsedCurriculumCourseId },
+          select: { course_code: true, subject_id: true },
+        });
+
+        if (sourceCourse) {
+          const relatedCourses = await prisma.curriculum_course.findMany({
+            where: sourceCourse.subject_id
+              ? {
+                  OR: [
+                    { subject_id: sourceCourse.subject_id },
+                    sourceCourse.course_code
+                      ? { course_code: { equals: sourceCourse.course_code, mode: 'insensitive' } }
+                      : undefined,
+                  ].filter(Boolean) as any,
+                }
+              : sourceCourse.course_code
+                ? { course_code: { equals: sourceCourse.course_code, mode: 'insensitive' } }
+                : { id: parsedCurriculumCourseId },
+            select: { id: true },
+          });
+          const relatedIds = relatedCourses
+            .map((course) => Number(course.id))
+            .filter((id) => Number.isFinite(id));
+
+          where.curriculum_course_id = {
+            in: relatedIds.length > 0 ? relatedIds : [parsedCurriculumCourseId],
+          };
+        } else {
+          where.curriculum_course_id = parsedCurriculumCourseId;
+        }
+      } else {
+        where.curriculum_course_id = parsedCurriculumCourseId;
+      }
+    }
     if (academicYear) where.academic_year = academicYear;
     if (semester) where.semester = semester;
     if (status) where.status = status;
