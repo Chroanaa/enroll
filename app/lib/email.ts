@@ -14,8 +14,8 @@ type MailConfig = {
 type VerifiedEmailArgs = {
   to: string;
   studentName: string;
-  studentNumber?: string | null;
-  paymentUrl?: string | null;
+    studentNumber?: string | null;
+  assessmentUrl?: string | null;
 };
 
 let transporterPromise: Promise<nodemailer.Transporter> | null = null;
@@ -87,7 +87,7 @@ export async function sendEnrollmentVerifiedEmail({
   to,
   studentName,
   studentNumber,
-  paymentUrl,
+  assessmentUrl,
 }: VerifiedEmailArgs) {
   const trimmedTo = String(to || "").trim();
   if (!trimmedTo) {
@@ -97,21 +97,21 @@ export async function sendEnrollmentVerifiedEmail({
   const { transporter, config } = await getTransporter();
   const safeName = escapeHtml(studentName || "Student");
   const safeStudentNumber = escapeHtml(studentNumber || "N/A");
-  const safePaymentUrl = paymentUrl ? escapeHtml(paymentUrl) : null;
+  const safeAssessmentUrl = assessmentUrl ? escapeHtml(assessmentUrl) : null;
   const primary = colors.primary;
   const secondary = colors.secondary;
 
-  const subject = "Enrollment verified: you may proceed to payment";
+  const subject = "Enrollment verified: you may proceed to assessment";
   const textLines = [
     `Hello ${studentName || "Student"},`,
     "",
     "Your enrollment information has been verified successfully.",
     "Your record has already been reviewed by the registrar.",
-    "You may now proceed to the payment step based on your school's payment process.",
+    "You may now proceed to the assessment step.",
     studentNumber ? `Student Number: ${studentNumber}` : null,
-    paymentUrl ? `Payment Link: ${paymentUrl}` : null,
+    assessmentUrl ? `Assessment Link: ${assessmentUrl}` : null,
     "",
-    "If you have questions, please contact the registrar or cashier's office.",
+    "If you have questions, please contact the registrar's office.",
   ].filter(Boolean);
 
   const html = `
@@ -129,18 +129,18 @@ export async function sendEnrollmentVerifiedEmail({
           Your record has already been reviewed by the <strong>registrar</strong>.
         </p>
         <p style="margin:0 0 16px;font-size:15px;line-height:1.7;color:${primary};">
-          You may now proceed to the <strong>payment</strong> step based on your school's payment process.
+          You may now proceed to the <strong>assessment</strong> step.
         </p>
         <div style="margin:24px 0;padding:16px;border-radius:12px;background:${secondary}12;border:1px solid ${secondary}66;">
           <p style="margin:0 0 8px;font-size:14px;color:${primary};"><strong>Student Number:</strong> ${safeStudentNumber}</p>
           ${
-            safePaymentUrl
-              ? `<p style="margin:0;font-size:14px;"><a href="${safePaymentUrl}" style="display:inline-block;background:${secondary};color:#ffffff;text-decoration:none;padding:8px 12px;border-radius:8px;font-weight:600;">Proceed to payment</a></p>`
-              : `<p style="margin:0;font-size:14px;color:${primary};">Please continue with payment using the normal school process.</p>`
+            safeAssessmentUrl
+              ? `<p style="margin:0;font-size:14px;"><a href="${safeAssessmentUrl}" style="display:inline-block;background:${secondary};color:#ffffff;text-decoration:none;padding:8px 12px;border-radius:8px;font-weight:600;">Proceed to assessment</a></p>`
+              : `<p style="margin:0;font-size:14px;color:${primary};">Please continue with assessment using the normal school process.</p>`
           }
         </div>
         <p style="margin:0;font-size:14px;line-height:1.7;color:${primary}CC;">
-          If you have questions, please contact the registrar or cashier's office.
+          If you have questions, please contact the registrar's office.
         </p>
         </div>
       </div>

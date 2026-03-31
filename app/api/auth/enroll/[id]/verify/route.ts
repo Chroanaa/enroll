@@ -92,7 +92,10 @@ export async function PATCH(
       Boolean(existing.email_address);
 
     if (shouldSendApprovalEmail) {
-      const paymentUrl = process.env.ENROLLMENT_PAYMENT_URL?.trim() || null;
+      const assessmentUrl =
+        process.env.ENROLLMENT_ASSESSMENT_URL?.trim() ||
+        process.env.ENROLLMENT_PAYMENT_URL?.trim() ||
+        null;
 
       try {
         await sendEnrollmentVerifiedEmail({
@@ -101,7 +104,7 @@ export async function PATCH(
             `${existing.first_name || ""} ${existing.family_name || ""}`.trim() ||
             "Student",
           studentNumber: existing.student_number,
-          paymentUrl,
+          assessmentUrl,
         });
       } catch (emailError) {
         console.error("Failed to send enrollment verification email:", emailError);

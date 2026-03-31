@@ -33,6 +33,7 @@ interface SemesterThresholdSettings {
   subjectDropRefundableDays: number;
   sectionShiftingAllowedDays: number;
   programShiftingAllowedDays: number;
+  petitionMinStudentsRequired: number;
   semesterStartMonth: number;
   semesterStartDay: number;
   secondSemesterStartMonth: number;
@@ -70,6 +71,7 @@ const Settings: React.FC = () => {
     subjectDropRefundableDays: 15,
     sectionShiftingAllowedDays: 15,
     programShiftingAllowedDays: 15,
+    petitionMinStudentsRequired: 15,
     semesterStartMonth: 8, // August
     semesterStartDay: 1,
     secondSemesterStartMonth: 1, // January
@@ -136,6 +138,9 @@ const Settings: React.FC = () => {
           ),
           programShiftingAllowedDays: parseInt(
             settingsMap["program_shifting_allowed_days"] || "15",
+          ),
+          petitionMinStudentsRequired: parseInt(
+            settingsMap["petition_min_students_required"] || "15",
           ),
           semesterStartMonth: parseInt(
             settingsMap["semester_start_month"] || "8",
@@ -204,6 +209,12 @@ const Settings: React.FC = () => {
           value: settings.programShiftingAllowedDays.toString(),
           description:
             "Number of days from semester start when program shifting is allowed",
+        },
+        {
+          key: "petition_min_students_required",
+          value: settings.petitionMinStudentsRequired.toString(),
+          description:
+            "Minimum number of students required for approving a petition subject request for the same subject",
         },
         {
           key: "semester_start_month",
@@ -1212,6 +1223,59 @@ const Settings: React.FC = () => {
                         style={{ color: colors.neutral }}
                       >
                         days from semester start
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <div
+                className='p-4 rounded-xl border'
+                style={{
+                  borderColor: colors.warning + "30",
+                  backgroundColor: colors.warning + "08",
+                }}
+              >
+                <div className='flex items-start justify-between gap-4'>
+                  <div className='flex-1'>
+                    <label
+                      className='block font-semibold mb-1'
+                      style={{ color: colors.primary }}
+                    >
+                      Petition Subject Minimum Students
+                    </label>
+                    <p
+                      className='text-sm mb-3'
+                      style={{ color: colors.neutral }}
+                    >
+                      Minimum number of students requesting the same petition
+                      subject before approval is allowed.
+                    </p>
+                    <div className='flex items-center gap-3'>
+                      <input
+                        type='number'
+                        min='1'
+                        max='100'
+                        value={settings.petitionMinStudentsRequired}
+                        onChange={(e) =>
+                          setSettings({
+                            ...settings,
+                            petitionMinStudentsRequired:
+                              parseInt(e.target.value) || 1,
+                          })
+                        }
+                        className='w-24 px-4 py-2.5 rounded-lg border focus:outline-none focus:ring-2 text-center'
+                        style={{
+                          borderColor: colors.neutralBorder,
+                          backgroundColor: "white",
+                          color: colors.neutralDark,
+                        }}
+                      />
+                      <span
+                        className='text-sm font-medium'
+                        style={{ color: colors.neutral }}
+                      >
+                        students required
                       </span>
                     </div>
                   </div>

@@ -17,6 +17,7 @@ import {
 const ROLES = {
   ADMIN: 1,
 } as const;
+const DEFAULT_MIN_PETITION_STUDENTS = 15;
 
 type RoleContext = {
   roleId: number;
@@ -86,6 +87,29 @@ const PROGRAM_SHIFT_REQUESTS_TABLE_SQL = `
   )
 `;
 
+const PETITION_SUBJECT_REQUESTS_TABLE_SQL = `
+  CREATE TABLE IF NOT EXISTS student_petition_subject_requests (
+    id SERIAL PRIMARY KEY,
+    student_number VARCHAR(20) NOT NULL,
+    home_program_id INT NULL,
+    home_major_id INT NULL,
+    curriculum_course_id INT NOT NULL,
+    subject_id INT NULL,
+    academic_year VARCHAR(20) NOT NULL,
+    semester INT NOT NULL,
+    requested_subject_semester INT NULL,
+    requested_subject_year_level INT NULL,
+    units_total INT NOT NULL DEFAULT 0,
+    reason TEXT NULL,
+    petition_type VARCHAR(30) NOT NULL DEFAULT 'not_open',
+    status VARCHAR(30) NOT NULL DEFAULT 'pending_approval',
+    requested_by INT NULL,
+    approved_by INT NULL,
+    requested_at TIMESTAMP(6) NOT NULL DEFAULT NOW(),
+    approved_at TIMESTAMP(6) NULL
+  )
+`;
+
 async function ensureShiftRequestsTable() {
   await prisma.$executeRawUnsafe(SHIFT_REQUESTS_TABLE_SQL);
   await prisma.$executeRawUnsafe(
@@ -139,10 +163,41 @@ async function ensureProgramShiftRequestsTable() {
   );
 }
 
+async function ensurePetitionSubjectRequestsTable() {
+  await prisma.$executeRawUnsafe(PETITION_SUBJECT_REQUESTS_TABLE_SQL);
+  await prisma.$executeRawUnsafe(
+    "ALTER TABLE student_petition_subject_requests ADD COLUMN IF NOT EXISTS requested_subject_semester INT NULL",
+  );
+  await prisma.$executeRawUnsafe(
+    "ALTER TABLE student_petition_subject_requests ADD COLUMN IF NOT EXISTS requested_subject_year_level INT NULL",
+  );
+  await prisma.$executeRawUnsafe(
+    "ALTER TABLE student_petition_subject_requests ADD COLUMN IF NOT EXISTS petition_type VARCHAR(30) NOT NULL DEFAULT 'not_open'",
+  );
+}
+
 async function ensureSubjectDropHistoryAssessmentAdjustedColumn() {
   await prisma.$executeRawUnsafe(
     "ALTER TABLE subject_drop_history ADD COLUMN IF NOT EXISTS assessment_adjusted BOOLEAN NOT NULL DEFAULT false",
   );
+}
+
+function termLabelFromSemester(semester: number): string {
+  if (semester === 1) return "First Semester";
+  if (semester === 2) return "Second Semester";
+  return "Third Semester";
+}
+
+async function getMinimumPetitionStudents(): Promise<number> {
+  const setting = await prisma.settings.findUnique({
+    where: { key: "petition_min_students_required" },
+    select: { value: true },
+  });
+  const parsed = Number.parseInt(String(setting?.value || ""), 10);
+  if (!Number.isFinite(parsed) || parsed <= 0) {
+    return DEFAULT_MIN_PETITION_STUDENTS;
+  }
+  return parsed;
 }
 
 async function getRoleContext(roleId: number): Promise<RoleContext> {
@@ -289,6 +344,7 @@ export async function GET() {
     await Promise.all([
       ensureShiftRequestsTable(),
       ensureProgramShiftRequestsTable(),
+      ensurePetitionSubjectRequestsTable(),
     ]);
 
     const [
@@ -298,6 +354,7 @@ export async function GET() {
       crossEnrollmentRequests,
       shiftingRequests,
       programShiftRequests,
+      petitionSubjectRequests,
     ] = await Promise.all([
       prisma.$queryRaw<any[]>`
         SELECT
@@ -576,6 +633,40 @@ export async function GET() {
         WHERE psr.status = 'pending_approval'
         ORDER BY psr.requested_at DESC NULLS LAST, psr.id DESC
       `,
+      prisma.$queryRaw<any[]>`
+        SELECT
+          psr.id,
+          psr.student_number,
+          psr.academic_year,
+          psr.semester,
+          psr.curriculum_course_id,
+          psr.subject_id,
+          psr.requested_subject_semester,
+          psr.requested_subject_year_level,
+          psr.units_total,
+          psr.reason,
+          psr.petition_type,
+          psr.status,
+          psr.requested_at,
+          psr.approved_at,
+          enr.first_name,
+          enr.family_name AS last_name,
+          CONCAT_WS(', ', enr.family_name, enr.first_name, enr.middle_name) AS student_name,
+          COALESCE(cc.course_code, sub.code) AS course_code,
+          COALESCE(cc.descriptive_title, sub.name) AS descriptive_title
+        FROM student_petition_subject_requests psr
+        LEFT JOIN curriculum_course cc ON cc.id = psr.curriculum_course_id
+        LEFT JOIN subject sub ON sub.id = psr.subject_id
+        LEFT JOIN LATERAL (
+          SELECT e.first_name, e.middle_name, e.family_name
+          FROM enrollment e
+          WHERE e.student_number = psr.student_number
+          ORDER BY e.id DESC
+          LIMIT 1
+        ) enr ON TRUE
+        WHERE psr.status = 'pending_approval'
+        ORDER BY psr.requested_at DESC NULLS LAST, psr.id DESC
+      `,
     ]);
 
     if (scope?.isDean && scope.deanDepartmentId) {
@@ -587,6 +678,7 @@ export async function GET() {
             ...crossEnrollmentRequests.map((item) => item.student_number),
             ...shiftingRequests.map((item) => item.student_number),
             ...programShiftRequests.map((item) => item.student_number),
+            ...petitionSubjectRequests.map((item) => item.student_number),
           ].filter(Boolean),
         ),
       ];
@@ -647,6 +739,13 @@ export async function GET() {
         0,
         programShiftRequests.length,
         ...programShiftRequests.filter((item) =>
+          allowedStudentNumbers.has(item.student_number),
+        ),
+      );
+      petitionSubjectRequests.splice(
+        0,
+        petitionSubjectRequests.length,
+        ...petitionSubjectRequests.filter((item) =>
           allowedStudentNumbers.has(item.student_number),
         ),
       );
@@ -803,6 +902,34 @@ export async function GET() {
           executedAt: item.executed_at,
           subjects: [],
         })),
+        petitionSubjectRequests: petitionSubjectRequests.map((item) => ({
+          id: item.id,
+          studentNumber: item.student_number,
+          studentName: item.student_name || item.student_number,
+          firstName: item.first_name || "",
+          lastName: item.last_name || "",
+          academicYear: item.academic_year,
+          semester: item.semester,
+          curriculumCourseId: item.curriculum_course_id,
+          subjectId: item.subject_id,
+          requestedSubjectSemester: item.requested_subject_semester,
+          requestedSubjectYearLevel: item.requested_subject_year_level,
+          courseCode: item.course_code,
+          descriptiveTitle: item.descriptive_title,
+          unitsTotal: item.units_total,
+          petitionType: item.petition_type,
+          status: item.status,
+          requestedAt: item.requested_at,
+          approvedAt: item.approved_at,
+          reason: item.reason,
+          subjects: [
+            {
+              courseCode: item.course_code,
+              descriptiveTitle: item.descriptive_title,
+              unitsTotal: item.units_total,
+            },
+          ],
+        })),
       },
     });
   } catch (error: any) {
@@ -817,6 +944,7 @@ export async function GET() {
 export async function POST(request: Request) {
   try {
     await ensureSubjectDropHistoryAssessmentAdjustedColumn();
+    await ensurePetitionSubjectRequestsTable();
 
     const session = await getServerSession(authOptions);
     const scope = await getSessionScope();
@@ -1424,7 +1552,7 @@ export async function POST(request: Request) {
 
       if (!Number.isFinite(requestId)) {
         return NextResponse.json(
-          { error: "id is required for cross-enrollee approval." },
+          { error: "id is required for inter-program subject approval." },
           { status: 400 },
         );
       }
@@ -1450,7 +1578,7 @@ export async function POST(request: Request) {
 
       if (!requestRow) {
         return NextResponse.json(
-          { error: "Pending cross-enrollee request not found." },
+          { error: "Pending inter-program subject request not found." },
           { status: 404 },
         );
       }
@@ -1469,7 +1597,7 @@ export async function POST(request: Request) {
       ) {
         return NextResponse.json(
           {
-            error: "This cross-enrollee request is no longer pending approval.",
+            error: "This inter-program subject request is no longer pending approval.",
           },
           { status: 409 },
         );
@@ -1542,7 +1670,7 @@ export async function POST(request: Request) {
 
       if (userId) {
         await insertIntoReports({
-          action: `Approved cross-enrollee request for ${requestRow.student_number} (${requestRow.academic_year} Sem ${requestRow.semester}) by ${session?.user?.name}`,
+          action: `Approved inter-program subject request for ${requestRow.student_number} (${requestRow.academic_year} Sem ${requestRow.semester}) by ${session?.user?.name}`,
           user_id: userId,
           created_at: new Date(),
         });
@@ -1550,7 +1678,7 @@ export async function POST(request: Request) {
 
       return NextResponse.json({
         success: true,
-        message: "Cross-enrollee request approved successfully.",
+        message: "Inter-program subject request approved successfully.",
       });
     }
 
@@ -1559,7 +1687,7 @@ export async function POST(request: Request) {
 
       if (!Number.isFinite(requestId)) {
         return NextResponse.json(
-          { error: "id is required for cross-enrollee rejection." },
+          { error: "id is required for inter-program subject rejection." },
           { status: 400 },
         );
       }
@@ -1574,7 +1702,7 @@ export async function POST(request: Request) {
       const requestRow = requestRows[0];
       if (!requestRow) {
         return NextResponse.json(
-          { error: "Pending cross-enrollee request not found." },
+          { error: "Pending inter-program subject request not found." },
           { status: 404 },
         );
       }
@@ -1590,7 +1718,7 @@ export async function POST(request: Request) {
 
       if (String(requestRow.status || "").toLowerCase() !== "pending_approval") {
         return NextResponse.json(
-          { error: "This cross-enrollee request is no longer pending approval." },
+          { error: "This inter-program subject request is no longer pending approval." },
           { status: 409 },
         );
       }
@@ -1605,7 +1733,7 @@ export async function POST(request: Request) {
 
       if (userId) {
         await insertIntoReports({
-          action: `Rejected cross-enrollee request for ${requestRow.student_number} (${requestRow.academic_year} Sem ${requestRow.semester}) by ${session?.user?.name}`,
+          action: `Rejected inter-program subject request for ${requestRow.student_number} (${requestRow.academic_year} Sem ${requestRow.semester}) by ${session?.user?.name}`,
           user_id: userId,
           created_at: new Date(),
         });
@@ -1613,7 +1741,7 @@ export async function POST(request: Request) {
 
       return NextResponse.json({
         success: true,
-        message: "Cross-enrollee request rejected successfully.",
+        message: "Inter-program subject request rejected successfully.",
       });
     }
 
@@ -2130,6 +2258,209 @@ export async function POST(request: Request) {
       return NextResponse.json({
         success: true,
         message: "Program shift request rejected successfully.",
+      });
+    }
+
+    if (actionType === "petition_subject") {
+      const requestId = Number(body?.id);
+      if (!Number.isFinite(requestId)) {
+        return NextResponse.json(
+          { error: "id is required for petition subject approval." },
+          { status: 400 },
+        );
+      }
+
+      const requestRows = await prisma.$queryRaw<any[]>`
+        SELECT
+          id,
+          student_number,
+          academic_year,
+          semester,
+          curriculum_course_id,
+          subject_id,
+          requested_subject_year_level,
+          units_total,
+          status
+        FROM student_petition_subject_requests
+        WHERE id = ${requestId}
+        LIMIT 1
+      `;
+
+      const requestRow = requestRows[0];
+      if (!requestRow) {
+        return NextResponse.json(
+          { error: "Pending petition subject request not found." },
+          { status: 404 },
+        );
+      }
+
+      const access = await ensureDeanStudentAccess(scope, {
+        studentNumber: requestRow.student_number,
+        academicYear: requestRow.academic_year,
+        semester: requestRow.semester,
+      });
+      if (!access.ok) {
+        return NextResponse.json({ error: access });
+      }
+
+      if (String(requestRow.status || "").toLowerCase() !== "pending_approval") {
+        return NextResponse.json(
+          { error: "This petition subject request is no longer pending approval." },
+          { status: 409 },
+        );
+      }
+
+      const minimumStudentsRequired = await getMinimumPetitionStudents();
+      const demandRows = await prisma.$queryRaw<{ demand_count: bigint }[]>`
+        SELECT COUNT(DISTINCT student_number)::bigint AS demand_count
+        FROM student_petition_subject_requests
+        WHERE academic_year = ${requestRow.academic_year}
+          AND semester = ${requestRow.semester}
+          AND curriculum_course_id = ${requestRow.curriculum_course_id}
+          AND LOWER(COALESCE(status, '')) IN ('pending_approval', 'approved')
+      `;
+      const demandCount = Number(demandRows[0]?.demand_count || 0);
+
+      if (demandCount < minimumStudentsRequired) {
+        return NextResponse.json(
+          {
+            error: `Petition requires at least ${minimumStudentsRequired} students for the same subject. Current demand is ${demandCount}.`,
+          },
+          { status: 409 },
+        );
+      }
+
+      await prisma.$transaction(async (tx) => {
+        const existingEnrolled = await tx.$queryRaw<any[]>`
+          SELECT id
+          FROM enrolled_subjects
+          WHERE student_number = ${requestRow.student_number}
+            AND academic_year = ${requestRow.academic_year}
+            AND semester = ${requestRow.semester}
+            AND curriculum_course_id = ${requestRow.curriculum_course_id}
+          LIMIT 1
+        `;
+
+        if (!existingEnrolled.length) {
+          await tx.$executeRaw`
+            INSERT INTO enrolled_subjects (
+              student_number,
+              curriculum_course_id,
+              subject_id,
+              academic_year,
+              semester,
+              term,
+              year_level,
+              units_total,
+              status,
+              drop_status,
+              updated_at
+            )
+            VALUES (
+              ${requestRow.student_number},
+              ${requestRow.curriculum_course_id},
+              ${requestRow.subject_id ?? null},
+              ${requestRow.academic_year},
+              ${requestRow.semester},
+              ${termLabelFromSemester(Number(requestRow.semester))},
+              ${requestRow.requested_subject_year_level ?? null},
+              ${requestRow.units_total ?? 0},
+              'enrolled',
+              'none',
+              NOW()
+            )
+          `;
+        }
+
+        await recalculateAssessmentForTerm(
+          tx,
+          requestRow.student_number,
+          requestRow.academic_year,
+          Number(requestRow.semester),
+        );
+
+        await tx.$executeRaw`
+          UPDATE student_petition_subject_requests
+          SET status = 'approved',
+              approved_by = ${userId},
+              approved_at = NOW()
+          WHERE id = ${requestId}
+        `;
+      });
+
+      if (userId) {
+        await insertIntoReports({
+          action: `Approved petition subject request for ${requestRow.student_number} (${requestRow.academic_year} Sem ${requestRow.semester}) by ${session?.user?.name}`,
+          user_id: userId,
+          created_at: new Date(),
+        });
+      }
+
+      return NextResponse.json({
+        success: true,
+        message: "Petition subject request approved successfully.",
+      });
+    }
+
+    if (actionType === "reject_petition_subject") {
+      const requestId = Number(body?.id);
+      if (!Number.isFinite(requestId)) {
+        return NextResponse.json(
+          { error: "id is required for petition subject rejection." },
+          { status: 400 },
+        );
+      }
+
+      const requestRows = await prisma.$queryRaw<any[]>`
+        SELECT id, student_number, academic_year, semester, status
+        FROM student_petition_subject_requests
+        WHERE id = ${requestId}
+        LIMIT 1
+      `;
+
+      const requestRow = requestRows[0];
+      if (!requestRow) {
+        return NextResponse.json(
+          { error: "Pending petition subject request not found." },
+          { status: 404 },
+        );
+      }
+
+      const access = await ensureDeanStudentAccess(scope, {
+        studentNumber: requestRow.student_number,
+        academicYear: requestRow.academic_year,
+        semester: requestRow.semester,
+      });
+      if (!access.ok) {
+        return NextResponse.json({ error: access });
+      }
+
+      if (String(requestRow.status || "").toLowerCase() !== "pending_approval") {
+        return NextResponse.json(
+          { error: "This petition subject request is no longer pending approval." },
+          { status: 409 },
+        );
+      }
+
+      await prisma.$executeRaw`
+        UPDATE student_petition_subject_requests
+        SET status = 'rejected',
+            approved_by = ${userId},
+            approved_at = NOW()
+        WHERE id = ${requestId}
+      `;
+
+      if (userId) {
+        await insertIntoReports({
+          action: `Rejected petition subject request for ${requestRow.student_number} (${requestRow.academic_year} Sem ${requestRow.semester}) by ${session?.user?.name}`,
+          user_id: userId,
+          created_at: new Date(),
+        });
+      }
+
+      return NextResponse.json({
+        success: true,
+        message: "Petition subject request rejected successfully.",
       });
     }
 

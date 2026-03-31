@@ -196,7 +196,12 @@ const Navigation: React.FC<NavigationProps> = ({
       },
       {
         id: "cross-enrollee",
-        label: "Cross Enrollee",
+        label: "Inter-Program Subject",
+        icon: BookOpen,
+      },
+      {
+        id: "petition-subject",
+        label: "Petition Subject",
         icon: BookOpen,
       },
       {
@@ -278,7 +283,7 @@ const Navigation: React.FC<NavigationProps> = ({
           },
           {
             id: "reports-cross-enrollment",
-            label: "Cross Enroll Reports",
+            label: "Inter-Program Subject Reports",
             icon: BookOpen,
           },
           {

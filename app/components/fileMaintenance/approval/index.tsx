@@ -76,6 +76,7 @@ interface ApprovalResponse {
     crossEnrollmentRequests: CrossEnrollmentApproval[];
     shiftingRequests: SectionShiftApproval[];
     programShiftRequests: ProgramShiftApproval[];
+    petitionSubjectRequests: PetitionSubjectApproval[];
   };
   error?: string;
 }
@@ -128,7 +129,37 @@ interface ProgramShiftApproval {
   reason?: string | null;
 }
 
-type ApprovalFilter = "all" | "overload" | "drop" | "cross" | "shift" | "program-shift";
+interface PetitionSubjectApproval {
+  id: number;
+  studentNumber: string;
+  studentName: string;
+  firstName?: string;
+  lastName?: string;
+  academicYear: string;
+  semester: number;
+  curriculumCourseId: number;
+  subjectId?: number | null;
+  requestedSubjectSemester?: number | null;
+  requestedSubjectYearLevel?: number | null;
+  courseCode: string;
+  descriptiveTitle: string;
+  unitsTotal?: number | null;
+  petitionType?: string | null;
+  status: string;
+  requestedAt?: string | null;
+  approvedAt?: string | null;
+  reason?: string | null;
+  subjects?: ApprovalSubjectItem[];
+}
+
+type ApprovalFilter =
+  | "all"
+  | "overload"
+  | "drop"
+  | "cross"
+  | "shift"
+  | "program-shift"
+  | "petition";
 
 type ApprovalRow = {
   key: string;
@@ -138,7 +169,8 @@ type ApprovalRow = {
     | "student-drop"
     | "cross"
     | "shift"
-    | "program-shift";
+    | "program-shift"
+    | "petition";
   approvalId: string | number;
   studentNumber: string;
   studentName: string;
@@ -190,6 +222,9 @@ export default function ApprovalManagement() {
   >([]);
   const [shiftingRequests, setShiftingRequests] = useState<SectionShiftApproval[]>([]);
   const [programShiftRequests, setProgramShiftRequests] = useState<ProgramShiftApproval[]>([]);
+  const [petitionSubjectRequests, setPetitionSubjectRequests] = useState<
+    PetitionSubjectApproval[]
+  >([]);
 
   const fetchApprovals = async () => {
     setIsLoading(true);
@@ -208,6 +243,7 @@ export default function ApprovalManagement() {
       setCrossEnrollmentRequests(result.data.crossEnrollmentRequests || []);
       setShiftingRequests(result.data.shiftingRequests || []);
       setProgramShiftRequests(result.data.programShiftRequests || []);
+      setPetitionSubjectRequests(result.data.petitionSubjectRequests || []);
     } catch (fetchError) {
       setError(
         fetchError instanceof Error
@@ -219,6 +255,7 @@ export default function ApprovalManagement() {
       setCrossEnrollmentRequests([]);
       setShiftingRequests([]);
       setProgramShiftRequests([]);
+      setPetitionSubjectRequests([]);
     } finally {
       setIsLoading(false);
     }
@@ -234,13 +271,15 @@ export default function ApprovalManagement() {
       subjectDrops.length +
       crossEnrollmentRequests.length +
       shiftingRequests.length +
-      programShiftRequests.length,
+      programShiftRequests.length +
+      petitionSubjectRequests.length,
     [
       crossEnrollmentRequests.length,
       programShiftRequests.length,
       shiftingRequests.length,
       subjectDrops.length,
       subjectOverloads.length,
+      petitionSubjectRequests.length,
     ],
   );
 
@@ -341,8 +380,44 @@ export default function ApprovalManagement() {
       contextLine: `From major: ${item.fromMajorName || "None"} • To major: ${item.toMajorName || "None"}`,
     }));
 
-    return [...overloadRows, ...dropRows, ...crossRows, ...shiftRows, ...programShiftRows];
-  }, [crossEnrollmentRequests, programShiftRequests, shiftingRequests, subjectDrops, subjectOverloads]);
+    const petitionRows = petitionSubjectRequests.map<ApprovalRow>((item) => ({
+      key: `petition-${item.id}`,
+      type: "petition",
+      approvalId: item.id,
+      studentNumber: item.studentNumber,
+      studentName: item.studentName,
+      firstName: item.firstName,
+      lastName: item.lastName,
+      academicYear: item.academicYear,
+      semester: item.semester,
+      detailsPrimary: item.courseCode,
+      detailsSecondary: item.descriptiveTitle,
+      termLabel: `A.Y. ${item.academicYear} • Sem ${item.semester}`,
+      statusLabel: "Pending Approval",
+      reason: item.reason,
+      subjects: item.subjects || [],
+      contextLine:
+        item.petitionType === "last_semester"
+          ? `Petition type: Last semester subject • Units: ${item.unitsTotal || 0}`
+          : `Petition type: Currently not open • Units: ${item.unitsTotal || 0}`,
+    }));
+
+    return [
+      ...overloadRows,
+      ...dropRows,
+      ...crossRows,
+      ...shiftRows,
+      ...programShiftRows,
+      ...petitionRows,
+    ];
+  }, [
+    crossEnrollmentRequests,
+    petitionSubjectRequests,
+    programShiftRequests,
+    shiftingRequests,
+    subjectDrops,
+    subjectOverloads,
+  ]);
 
   const filteredRows = useMemo(() => {
     let rows = approvalRows;
@@ -359,6 +434,8 @@ export default function ApprovalManagement() {
       rows = rows.filter((row) => row.type === "shift");
     } else if (filter === "program-shift") {
       rows = rows.filter((row) => row.type === "program-shift");
+    } else if (filter === "petition") {
+      rows = rows.filter((row) => row.type === "petition");
     }
 
     const searchValue = studentSearch.trim().toLowerCase();
@@ -397,6 +474,11 @@ export default function ApprovalManagement() {
       } else if (row.type === "program-shift") {
         payload = {
           type: "program_shift",
+          id: row.approvalId,
+        };
+      } else if (row.type === "petition") {
+        payload = {
+          type: "petition_subject",
           id: row.approvalId,
         };
       } else if (row.type === "student-drop") {
@@ -478,6 +560,11 @@ export default function ApprovalManagement() {
       } else if (row.type === "shift") {
         payload = {
           type: "reject_section_shift",
+          id: row.approvalId,
+        };
+      } else if (row.type === "petition") {
+        payload = {
+          type: "reject_petition_subject",
           id: row.approvalId,
         };
       } else {
@@ -577,6 +664,8 @@ export default function ApprovalManagement() {
                     ? "Cross-Enrollee Approval"
                     : confirmation.type === "shift"
                       ? "Section Shift Approval"
+                      : confirmation.type === "petition"
+                        ? "Petition Subject Approval"
                       : "Program Shift Approval"}
             </p>
           </div>
@@ -671,10 +760,13 @@ export default function ApprovalManagement() {
                 ? confirmation.reason?.trim() || "No drop reason was provided."
                 : confirmation.type === "cross"
                   ? confirmation.reason?.trim() ||
-                    "No cross-enrollee reason was provided."
+                    "No inter-program request reason was provided."
                 : confirmation.type === "shift"
                   ? confirmation.reason?.trim() ||
                     "Section shift requested by registrar and awaiting admin/dean approval."
+                : confirmation.type === "petition"
+                  ? confirmation.reason?.trim() ||
+                    "Petition subject requested due to last-semester subject or currently unavailable offering."
                 : confirmation.type === "program-shift"
                   ? confirmation.reason?.trim() ||
                     "Program shift requested and awaiting admin/dean approval."
@@ -695,6 +787,8 @@ export default function ApprovalManagement() {
                   ? "Subject To Add"
                 : confirmation.type === "shift"
                   ? "Section Movement"
+                  : confirmation.type === "petition"
+                    ? "Petition Subject"
                   : confirmation.type === "program-shift"
                     ? "Program Movement"
                     : "Student Subject Section"}
@@ -779,7 +873,7 @@ export default function ApprovalManagement() {
               Approval Management
             </h1>
             <p className="mt-1 text-sm" style={{ color: colors.tertiary }}>
-              Central review hub for requests that need approval before they can proceed.
+              Central review hub for overload, drop, inter-program, shift, and petition subject requests.
             </p>
           </div>
 
@@ -822,7 +916,7 @@ export default function ApprovalManagement() {
           </div>
           <div className="rounded-2xl p-5" style={cardStyle}>
             <p className="text-sm font-semibold" style={{ color: colors.tertiary }}>
-              Cross Enrollee
+              Inter-Program
             </p>
             <p className="mt-2 text-3xl font-bold" style={{ color: colors.primary }}>
               {crossEnrollmentRequests.length}
@@ -842,6 +936,14 @@ export default function ApprovalManagement() {
             </p>
             <p className="mt-2 text-3xl font-bold" style={{ color: colors.primary }}>
               {programShiftRequests.length}
+            </p>
+          </div>
+          <div className="rounded-2xl p-5" style={cardStyle}>
+            <p className="text-sm font-semibold" style={{ color: colors.tertiary }}>
+              Petition Subjects
+            </p>
+            <p className="mt-2 text-3xl font-bold" style={{ color: colors.primary }}>
+              {petitionSubjectRequests.length}
             </p>
           </div>
         </div>
@@ -867,7 +969,7 @@ export default function ApprovalManagement() {
                 Pending Approvals
               </h2>
               <p className="text-sm" style={{ color: colors.tertiary }}>
-                Combined approval queue for overload, dropping, cross-enrollee, and shifting requests.
+                Combined approval queue for overload, dropping, inter-program, shifting, and petition subject requests.
               </p>
             </div>
 
@@ -920,9 +1022,10 @@ export default function ApprovalManagement() {
                   <option value="all">All Requests</option>
                   <option value="overload">Beyond 27 Units</option>
                   <option value="drop">Subject Drops</option>
-                  <option value="cross">Cross Enrollee</option>
+                  <option value="cross">Inter-Program</option>
                   <option value="shift">Section Shift</option>
                   <option value="program-shift">Program Shift</option>
+                  <option value="petition">Petition Subject</option>
                 </select>
               </div>
             </div>
@@ -1003,6 +1106,8 @@ export default function ApprovalManagement() {
                                   ? `${colors.secondary}15`
                                   : item.type === "program-shift"
                                     ? `${colors.primary}15`
+                                    : item.type === "petition"
+                                      ? `${colors.secondary}15`
                                     : `${colors.info}15`,
                             color:
                               item.type === "overload"
@@ -1011,6 +1116,8 @@ export default function ApprovalManagement() {
                                   ? colors.secondary
                                   : item.type === "program-shift"
                                     ? colors.primary
+                                    : item.type === "petition"
+                                      ? colors.secondary
                                     : colors.info,
                           }}
                         >
@@ -1021,10 +1128,12 @@ export default function ApprovalManagement() {
                                 : item.type === "drop"
                                 ? "Drop"
                                 : item.type === "cross"
-                                  ? "Cross Enrollee"
+                                  ? "Inter-Program"
                                   : item.type === "shift"
                                     ? "Section Shift"
-                                    : "Program Shift"}
+                                    : item.type === "petition"
+                                      ? "Petition Subject"
+                                      : "Program Shift"}
                         </span>
                       </td>
                       <td className="px-4 py-3 text-sm" style={{ color: colors.primary }}>

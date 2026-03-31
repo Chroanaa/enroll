@@ -101,7 +101,9 @@ function App() {
       case "student-dropping":
         return <StudentDroppingManagement />;
       case "cross-enrollee":
-        return <CrossEnrollmentManagement />;
+        return <CrossEnrollmentManagement mode="inter-program" />;
+      case "petition-subject":
+        return <CrossEnrollmentManagement mode="petition" />;
       case "shifting":
         return <ShiftingManagement />;
       case "program-shifting":
