@@ -11,12 +11,125 @@ import {
   ApiError
 } from '../../types/sectionTypes';
 
+type PetitionStudentScheduleRow = {
+  student_number: string;
+  day_of_week: string;
+  start_time: Date;
+  end_time: Date;
+  course_code: string | null;
+  descriptive_title: string | null;
+  section_name: string | null;
+};
+
 const semesterToNumber = (semester: string): number => {
   const normalized = semester.trim().toLowerCase();
   if (normalized === '1' || normalized === 'first' || normalized === 'first semester') return 1;
   if (normalized === '2' || normalized === 'second' || normalized === 'second semester') return 2;
   return 3;
 };
+
+const toMinutes = (value: Date): number => value.getHours() * 60 + value.getMinutes();
+const formatHHmm = (minutes: number): string => {
+  const h = Math.floor(minutes / 60);
+  const m = minutes % 60;
+  return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
+};
+const semesterAliases = (semesterNum: number): string[] => {
+  if (semesterNum === 1) return ['first', 'first semester', '1', '1st semester'];
+  if (semesterNum === 2) return ['second', 'second semester', '2', '2nd semester'];
+  return ['third', 'third semester', '3', '3rd semester', 'summer'];
+};
+
+async function getPendingPetitionStudentsForSubject(
+  curriculumCourseId: number,
+  academicYear: string,
+  semesterNum: number,
+): Promise<string[]> {
+  const rows = await prisma.$queryRaw<{ student_number: string }[]>`
+    SELECT DISTINCT psr.student_number
+    FROM student_petition_subject_requests psr
+    WHERE psr.curriculum_course_id = ${curriculumCourseId}
+      AND psr.academic_year = ${academicYear}
+      AND psr.semester = ${semesterNum}
+      AND LOWER(COALESCE(psr.status, '')) = 'pending_approval'
+    ORDER BY psr.student_number
+  `;
+  return rows.map((row) => String(row.student_number)).filter(Boolean);
+}
+
+async function getSchedulesByStudent(
+  studentNumbers: string[],
+  academicYear: string,
+  semesterNum: number,
+): Promise<Map<string, PetitionStudentScheduleRow[]>> {
+  if (studentNumbers.length === 0) return new Map();
+  const aliases = semesterAliases(semesterNum);
+  const rows = await prisma.$queryRaw<PetitionStudentScheduleRow[]>`
+    SELECT
+      ss.student_number,
+      cs.day_of_week,
+      cs.start_time,
+      cs.end_time,
+      COALESCE(cc.course_code, 'N/A') AS course_code,
+      COALESCE(cc.descriptive_title, '') AS descriptive_title,
+      sec.section_name
+    FROM student_section ss
+    INNER JOIN student_section_subjects sss ON sss.student_section_id = ss.id
+    INNER JOIN class_schedule cs ON cs.id = sss.class_schedule_id
+    LEFT JOIN curriculum_course cc ON cc.id = cs.curriculum_course_id
+    LEFT JOIN sections sec ON sec.id = cs.section_id
+    WHERE ss.student_number IN (${Prisma.join(studentNumbers)})
+      AND ss.academic_year = ${academicYear}
+      AND LOWER(COALESCE(ss.semester, '')) IN (${Prisma.join(aliases)})
+      AND LOWER(COALESCE(cs.status, '')) = 'active'
+  `;
+  const byStudent = new Map<string, PetitionStudentScheduleRow[]>();
+  for (const row of rows) {
+    const key = String(row.student_number || '');
+    if (!byStudent.has(key)) byStudent.set(key, []);
+    byStudent.get(key)!.push(row);
+  }
+  return byStudent;
+}
+
+function computePetitionConflicts(
+  studentNumbers: string[],
+  byStudent: Map<string, PetitionStudentScheduleRow[]>,
+  dayOfWeek: string,
+  startTime: Date,
+  endTime: Date,
+) {
+  const slotStart = toMinutes(startTime);
+  const slotEnd = toMinutes(endTime);
+  const details: string[] = [];
+  let conflictCount = 0;
+
+  for (const studentNumber of studentNumbers) {
+    const schedules = byStudent.get(studentNumber) || [];
+    const overlaps = schedules.filter((row) => {
+      const sameDay = String(row.day_of_week || '').trim().toLowerCase() === dayOfWeek.toLowerCase();
+      if (!sameDay) return false;
+      const rowStart = toMinutes(new Date(row.start_time));
+      const rowEnd = toMinutes(new Date(row.end_time));
+      return slotStart < rowEnd && slotEnd > rowStart;
+    });
+    if (overlaps.length > 0) {
+      conflictCount += 1;
+      const overlapText = overlaps
+        .slice(0, 2)
+        .map(
+          (item) =>
+            `${String(item.course_code || 'N/A')} ${String(item.day_of_week || dayOfWeek)} ${formatHHmm(
+              toMinutes(new Date(item.start_time)),
+            )}-${formatHHmm(toMinutes(new Date(item.end_time)))}`,
+        )
+        .join(' | ');
+      details.push(`${studentNumber}: ${overlapText}`);
+    }
+  }
+
+  return { conflictCount, details };
+}
 
 /**
  * POST /api/class-schedule
@@ -237,6 +350,85 @@ export async function POST(request: NextRequest) {
         } as ApiError,
         { status: 409 }
       );
+    }
+
+    // Petition mode protection:
+    // For petition sections, block creation if this slot conflicts with pending petition students.
+    // For lab creation, also block if an existing sibling schedule already has petition conflicts.
+    const isPetitionSection = String(section.section_name || '').toUpperCase().startsWith('PET-');
+    if (isPetitionSection) {
+      const semesterNum = semesterToNumber(body.semester);
+      const pendingPetitionStudents = await getPendingPetitionStudentsForSubject(
+        body.curriculumCourseId,
+        body.academicYear,
+        semesterNum,
+      );
+      if (pendingPetitionStudents.length > 0) {
+        const schedulesByStudent = await getSchedulesByStudent(
+          pendingPetitionStudents,
+          body.academicYear,
+          semesterNum,
+        );
+
+        const directConflict = computePetitionConflicts(
+          pendingPetitionStudents,
+          schedulesByStudent,
+          body.dayOfWeek,
+          startTime,
+          endTime,
+        );
+        if (directConflict.conflictCount > 0) {
+          return NextResponse.json(
+            {
+              error: 'PETITION_STUDENT_CONFLICT',
+              message: `Petition schedule conflict: ${directConflict.conflictCount}/${pendingPetitionStudents.length} pending students overlap this slot.`,
+              statusCode: 409,
+              details: directConflict.details.slice(0, 6).join(' || ')
+            } as ApiError,
+            { status: 409 }
+          );
+        }
+
+        const siblingSchedules = await prisma.class_schedule.findMany({
+          where: {
+            section_id: body.sectionId,
+            curriculum_course_id: body.curriculumCourseId,
+            academic_year: body.academicYear,
+            semester: body.semester,
+            status: 'active',
+          },
+          select: {
+            id: true,
+            day_of_week: true,
+            start_time: true,
+            end_time: true,
+          }
+        });
+
+        for (const sibling of siblingSchedules) {
+          const siblingConflict = computePetitionConflicts(
+            pendingPetitionStudents,
+            schedulesByStudent,
+            sibling.day_of_week,
+            sibling.start_time,
+            sibling.end_time,
+          );
+          if (siblingConflict.conflictCount > 0) {
+            const tryingLab = !!body.isLabSchedule;
+            return NextResponse.json(
+              {
+                error: tryingLab ? 'PETITION_LECTURE_CONFLICT' : 'PETITION_LAB_CONFLICT',
+                message: tryingLab
+                  ? `Cannot submit lab yet. Existing lecture/sibling schedule still conflicts with ${siblingConflict.conflictCount} pending students.`
+                  : `Cannot submit lecture yet. Existing lab/sibling schedule still conflicts with ${siblingConflict.conflictCount} pending students.`,
+                statusCode: 409,
+                details: siblingConflict.details.slice(0, 6).join(' || ')
+              } as ApiError,
+              { status: 409 }
+            );
+          }
+        }
+      }
     }
 
     // Create class schedule - faculty_id can be null

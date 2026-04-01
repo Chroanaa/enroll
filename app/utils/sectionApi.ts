@@ -258,7 +258,10 @@ export async function createClassSchedule(
 
   if (!response.ok) {
     const error = await response.json();
-    throw new Error(error.message || 'Failed to create class schedule');
+    const details = typeof error?.details === 'string' && error.details.trim().length > 0
+      ? ` ${error.details}`
+      : '';
+    throw new Error((error.message || 'Failed to create class schedule') + details);
   }
 
   const result = await response.json();

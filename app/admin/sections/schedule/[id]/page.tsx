@@ -58,6 +58,33 @@ const formatMinutesAsHours = (minutes: number): string => {
   return `${h}:${m.toString().padStart(2, '0')}`;
 };
 
+const formatTimeDisplay = (time: string) => {
+  const [hour, min] = time.split(':').map(Number);
+  const ampm = hour >= 12 ? 'PM' : 'AM';
+  const displayHour = hour % 12 || 12;
+  return `${displayHour}:${min.toString().padStart(2, '0')} ${ampm}`;
+};
+
+type PetitionConflictStudent = {
+  studentNumber: string;
+  conflictingCourseCode: string;
+  conflictingTitle: string;
+  conflictingSection: string;
+  conflictingDay: string;
+  conflictingStart: string;
+  conflictingEnd: string;
+};
+
+type PetitionScheduleSuggestion = {
+  dayOfWeek: string;
+  startTime: string;
+  endTime: string;
+  conflictCount: number;
+  conflictClassCount?: number;
+  totalStudents: number;
+  conflictStudents: PetitionConflictStudent[];
+};
+
 export default function BuildSchedulePage() {
   const router = useRouter();
   const params = useParams();
@@ -192,6 +219,15 @@ export default function BuildSchedulePage() {
   // Lab occupied slots (for lab schedule conflict prevention)
   const [labOccupiedSlots, setLabOccupiedSlots] = useState<any[]>([]);
   const [loadingLabOccupied, setLoadingLabOccupied] = useState(false);
+  const [petitionAdviceLoading, setPetitionAdviceLoading] = useState(false);
+  const [petitionAdviceError, setPetitionAdviceError] = useState<string | null>(null);
+  const [petitionAdvice, setPetitionAdvice] = useState<{
+    pendingStudentCount: number;
+    lectureMinutes: number;
+    labMinutes: number;
+    lectureSuggestions: PetitionScheduleSuggestion[];
+    labSuggestions: PetitionScheduleSuggestion[];
+  } | null>(null);
 
   // Edit schedule modal state (full edit: faculty, room, day, time)
   const [editScheduleModal, setEditScheduleModal] = useState<{
@@ -624,6 +660,51 @@ export default function BuildSchedulePage() {
     schedules,
   ]);
 
+  useEffect(() => {
+    const loadPetitionAdvice = async () => {
+      if (!isPetitionScheduleMode || !section || !selectedCourse?.id) {
+        setPetitionAdvice(null);
+        setPetitionAdviceError(null);
+        setPetitionAdviceLoading(false);
+        return;
+      }
+
+      setPetitionAdviceLoading(true);
+      setPetitionAdviceError(null);
+      try {
+        const params = new URLSearchParams({
+          sectionId: String(section.id),
+          curriculumCourseId: String(selectedCourse.id),
+        });
+        const response = await fetch(
+          `/api/auth/section/petition-schedule-advice?${params.toString()}`,
+        );
+        const result = await response.json();
+        if (!response.ok || !result?.success) {
+          throw new Error(result?.error || 'Failed to load petition schedule advice.');
+        }
+
+        const data = result?.data || {};
+        setPetitionAdvice({
+          pendingStudentCount: Number(data.pendingStudentCount || 0),
+          lectureMinutes: Number(data.lectureMinutes || 0),
+          labMinutes: Number(data.labMinutes || 0),
+          lectureSuggestions: Array.isArray(data.lectureSuggestions) ? data.lectureSuggestions : [],
+          labSuggestions: Array.isArray(data.labSuggestions) ? data.labSuggestions : [],
+        });
+      } catch (err) {
+        setPetitionAdvice(null);
+        setPetitionAdviceError(
+          err instanceof Error ? err.message : 'Failed to load petition schedule advice.',
+        );
+      } finally {
+        setPetitionAdviceLoading(false);
+      }
+    };
+
+    loadPetitionAdvice();
+  }, [isPetitionScheduleMode, section, selectedCourse]);
+
   const handleInputChange = (name: string, value: string) => {
     // When lecture day changes, auto-populate the lab day too
     if (name === 'dayOfWeek') {
@@ -876,6 +957,94 @@ export default function BuildSchedulePage() {
     });
   };
 
+  const applyPetitionSuggestion = (
+    target: 'lecture' | 'lab',
+    suggestion: PetitionScheduleSuggestion,
+  ) => {
+    const isOverlap = (
+      dayA: string,
+      startA: string,
+      endA: string,
+      dayB: string,
+      startB: string,
+      endB: string,
+    ) => {
+      if (!dayA || !startA || !endA || !dayB || !startB || !endB) return false;
+      if (String(dayA).toLowerCase() !== String(dayB).toLowerCase()) return false;
+      const aStart = parseTimeToMinutes(startA);
+      const aEnd = parseTimeToMinutes(endA);
+      const bStart = parseTimeToMinutes(startB);
+      const bEnd = parseTimeToMinutes(endB);
+      return aStart < bEnd && aEnd > bStart;
+    };
+
+    if (target === 'lecture') {
+      // Prevent applying lecture suggestion that overlaps an already-selected lab slot
+      if (
+        hasLab &&
+        labFormData.dayOfWeek &&
+        labFormData.startTime &&
+        labFormData.endTime &&
+        isOverlap(
+          suggestion.dayOfWeek,
+          suggestion.startTime,
+          suggestion.endTime,
+          labFormData.dayOfWeek,
+          labFormData.startTime,
+          labFormData.endTime,
+        )
+      ) {
+        setConflictModal({
+          isOpen: true,
+          type: 'section',
+          title: 'Lecture/Lab Overlap',
+          message: 'Selected lecture slot overlaps the current lab slot. Choose a non-overlapping lecture time.',
+          day: suggestion.dayOfWeek,
+          startTime: formatTimeDisplay(suggestion.startTime),
+          endTime: formatTimeDisplay(suggestion.endTime),
+          resourceName: selectedCourse?.course_code || 'Subject',
+        });
+        return;
+      }
+
+      handleInputChange('dayOfWeek', suggestion.dayOfWeek);
+      handleInputChange('startTime', suggestion.startTime);
+      handleInputChange('endTime', suggestion.endTime);
+      return;
+    }
+
+    // Prevent applying lab suggestion that overlaps an already-selected lecture slot
+    if (
+      formData.dayOfWeek &&
+      formData.startTime &&
+      formData.endTime &&
+      isOverlap(
+        suggestion.dayOfWeek,
+        suggestion.startTime,
+        suggestion.endTime,
+        formData.dayOfWeek,
+        formData.startTime,
+        formData.endTime,
+      )
+    ) {
+      setConflictModal({
+        isOpen: true,
+        type: 'section',
+        title: 'Lecture/Lab Overlap',
+        message: 'Selected lab slot overlaps the current lecture slot. Choose a non-overlapping lab time.',
+        day: suggestion.dayOfWeek,
+        startTime: formatTimeDisplay(suggestion.startTime),
+        endTime: formatTimeDisplay(suggestion.endTime),
+        resourceName: selectedCourse?.course_code || 'Subject',
+      });
+      return;
+    }
+
+    handleLabInputChange('dayOfWeek', suggestion.dayOfWeek);
+    handleLabInputChange('startTime', suggestion.startTime);
+    handleLabInputChange('endTime', suggestion.endTime);
+  };
+
   const handleAddSchedule = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedCourse) {
@@ -885,6 +1054,9 @@ export default function BuildSchedulePage() {
 
     setError(null);
     setLoading(true);
+    let createdLectureScheduleId: number | null = null;
+    let labCreationAttempted = false;
+    let labCreated = false;
 
     try {
       // Faculty is optional - other fields are required
@@ -920,7 +1092,7 @@ export default function BuildSchedulePage() {
       const endDate = new Date();
       endDate.setHours(endHour, endMin, 0);
 
-      await createClassSchedule({
+      const createdLecture = await createClassSchedule({
         sectionId: section!.id,
         curriculumCourseId: selectedCourse.id,
         facultyId: formData.facultyId ? parseInt(formData.facultyId) : null, // Optional faculty
@@ -934,6 +1106,7 @@ export default function BuildSchedulePage() {
         isLabSchedule: isLabOnly,
         includeIrregularStudents,
       } as any);
+      createdLectureScheduleId = createdLecture?.id || null;
 
       // If course has BOTH lecture and lab, also create the separate lab time-block schedule
       if (hasLab) {
@@ -953,6 +1126,7 @@ export default function BuildSchedulePage() {
         labStart.setHours(lsh, lsm, 0);
         const labEnd = new Date();
         labEnd.setHours(leh, lem, 0);
+        labCreationAttempted = true;
         await createClassSchedule({
           sectionId: section!.id,
           curriculumCourseId: selectedCourse.id,
@@ -966,6 +1140,7 @@ export default function BuildSchedulePage() {
           isLabSchedule: true,
           includeIrregularStudents,
         } as any);
+        labCreated = true;
       }
 
       // Reload schedules
@@ -995,19 +1170,19 @@ export default function BuildSchedulePage() {
       setLabFormData({ roomId: '', dayOfWeek: '', startTime: '', endTime: '' });
       setBreakMinutes(60);
     } catch (err) {
+      if (hasLab && labCreationAttempted && !labCreated && createdLectureScheduleId) {
+        try {
+          await deleteClassSchedule(createdLectureScheduleId);
+        } catch (rollbackError) {
+          console.error('Failed to rollback lecture schedule after lab failure:', rollbackError);
+        }
+      }
+
       const errorMessage = err instanceof Error ? err.message : 'Failed to add schedule';
       
       // Parse conflict errors and show user-friendly modal
       const selectedFaculty = faculty.find(f => f.id === parseInt(formData.facultyId));
       const selectedRoom = rooms.find(r => r.id === parseInt(formData.roomId));
-      
-      // Format time for display
-      const formatTimeDisplay = (time: string) => {
-        const [hour, min] = time.split(':').map(Number);
-        const ampm = hour >= 12 ? 'PM' : 'AM';
-        const displayHour = hour % 12 || 12;
-        return `${displayHour}:${min.toString().padStart(2, '0')} ${ampm}`;
-      };
       
       if (errorMessage.toLowerCase().includes('faculty') && errorMessage.toLowerCase().includes('conflict')) {
         setConflictModal({
@@ -1031,7 +1206,11 @@ export default function BuildSchedulePage() {
           endTime: formatTimeDisplay(formData.endTime),
           resourceName: selectedRoom?.room_number || 'Room'
         });
-      } else if (errorMessage.toLowerCase().includes('section') && errorMessage.toLowerCase().includes('conflict')) {
+      } else if (
+        (errorMessage.toLowerCase().includes('section') && errorMessage.toLowerCase().includes('conflict')) ||
+        errorMessage.toLowerCase().includes('internal time overlap') ||
+        errorMessage.toLowerCase().includes('time overlap')
+      ) {
         setConflictModal({
           isOpen: true,
           type: 'section',
@@ -1052,6 +1231,20 @@ export default function BuildSchedulePage() {
           startTime: '',
           endTime: '',
           resourceName: selectedCourse?.course_code || 'Subject'
+        });
+      } else if (errorMessage.toLowerCase().includes('petition schedule conflict') ||
+                 errorMessage.toLowerCase().includes('cannot submit lab yet') ||
+                 errorMessage.toLowerCase().includes('cannot submit lecture yet') ||
+                 errorMessage.toLowerCase().includes('pending students overlap')) {
+        setConflictModal({
+          isOpen: true,
+          type: 'section',
+          title: 'Petition Student Conflict',
+          message: errorMessage,
+          day: formData.dayOfWeek,
+          startTime: formData.startTime ? formatTimeDisplay(formData.startTime) : '',
+          endTime: formData.endTime ? formatTimeDisplay(formData.endTime) : '',
+          resourceName: selectedCourse?.course_code || 'Petition Subject'
         });
       } else {
         setError(errorMessage);
@@ -1621,6 +1814,147 @@ export default function BuildSchedulePage() {
                         Lecture-hour warning: this subject requires <strong>{formatMinutesAsHours(addLectureOnlyWarning.requiredMinutes)} hours</strong>,
                         but selected time is only <strong>{formatMinutesAsHours(addLectureOnlyWarning.actualMinutes)} hours</strong>.
                       </span>
+                    </div>
+                  )}
+
+                  {isPetitionScheduleMode && (
+                    <div
+                      className="rounded-xl p-4"
+                      style={{
+                        backgroundColor: 'rgba(59,130,246,0.04)',
+                        border: '1px solid rgba(59,130,246,0.2)',
+                      }}
+                    >
+                      <div className="flex items-center justify-between gap-3 flex-wrap">
+                        <h3 className="text-sm font-semibold" style={{ color: colors.primary }}>
+                          Petition Conflict Assistant
+                        </h3>
+                        <span
+                          className="text-xs font-semibold px-2 py-1 rounded-full"
+                          style={{ backgroundColor: 'rgba(59,130,246,0.12)', color: '#1D4ED8' }}
+                        >
+                          {petitionAdvice?.pendingStudentCount || 0} student{(petitionAdvice?.pendingStudentCount || 0) === 1 ? '' : 's'}
+                        </span>
+                      </div>
+
+                      {petitionAdviceLoading ? (
+                        <p className="mt-2 text-xs flex items-center gap-2" style={{ color: colors.neutral }}>
+                          <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                          Computing lowest-conflict slots...
+                        </p>
+                      ) : petitionAdviceError ? (
+                        <p className="mt-2 text-xs" style={{ color: colors.warning }}>{petitionAdviceError}</p>
+                      ) : (
+                        <div className="mt-3 space-y-3">
+                          <div>
+                            <p className="text-xs font-semibold mb-1" style={{ color: colors.tertiary }}>
+                              Best Lecture Slots
+                            </p>
+                            <div className="space-y-2">
+                              {(petitionAdvice?.lectureSuggestions || []).slice(0, 3).map((slot, idx) => (
+                                <div
+                                  key={`lect-suggest-${idx}-${slot.dayOfWeek}-${slot.startTime}`}
+                                  className="flex items-start justify-between gap-3 rounded-lg px-3 py-2"
+                                  style={{ backgroundColor: 'white', border: '1px solid rgba(179,116,74,0.15)' }}
+                                >
+                                  <div className="min-w-0">
+                                    <p className="text-xs font-semibold" style={{ color: colors.primary }}>
+                                      {slot.dayOfWeek} {slot.startTime}-{slot.endTime}
+                                    </p>
+                                    <p className="text-[11px]" style={{ color: slot.conflictCount === 0 ? colors.success : colors.warning }}>
+                                      {slot.conflictCount === 0
+                                        ? 'No student conflicts'
+                                        : `${slot.conflictCount}/${slot.totalStudents} students conflicted`}
+                                    </p>
+                                    {slot.conflictCount > 0 && (
+                                      <p className="text-[10px]" style={{ color: colors.neutral }}>
+                                        {slot.conflictClassCount || slot.conflictStudents.length} overlapping class schedule
+                                        {(slot.conflictClassCount || slot.conflictStudents.length) === 1 ? '' : 's'}
+                                      </p>
+                                    )}
+                                    {slot.conflictStudents.length > 0 && (
+                                      <p className="text-[10px] mt-1" style={{ color: colors.neutral }}>
+                                        {slot.conflictStudents
+                                          .slice(0, 2)
+                                          .map((c) => `${c.studentNumber} (${c.conflictingCourseCode} • ${c.conflictingDay} ${c.conflictingStart}-${c.conflictingEnd})`)
+                                          .join(' | ')}
+                                      </p>
+                                    )}
+                                  </div>
+                                  <button
+                                    type="button"
+                                    onClick={() => applyPetitionSuggestion('lecture', slot)}
+                                    className="px-2.5 py-1.5 rounded text-[11px] font-semibold text-white"
+                                    style={{ backgroundColor: colors.info }}
+                                  >
+                                    Apply
+                                  </button>
+                                </div>
+                              ))}
+                              {(petitionAdvice?.lectureSuggestions || []).length === 0 && (
+                                <p className="text-[11px]" style={{ color: colors.neutral }}>
+                                  No lecture suggestion available for this petition subject.
+                                </p>
+                              )}
+                            </div>
+                          </div>
+
+                          {hasLab && (
+                            <div>
+                              <p className="text-xs font-semibold mb-1" style={{ color: colors.tertiary }}>
+                                Best Lab Slots
+                              </p>
+                              <div className="space-y-2">
+                                {(petitionAdvice?.labSuggestions || []).slice(0, 3).map((slot, idx) => (
+                                  <div
+                                    key={`lab-suggest-${idx}-${slot.dayOfWeek}-${slot.startTime}`}
+                                    className="flex items-start justify-between gap-3 rounded-lg px-3 py-2"
+                                    style={{ backgroundColor: 'white', border: '1px solid rgba(179,116,74,0.15)' }}
+                                  >
+                                    <div className="min-w-0">
+                                      <p className="text-xs font-semibold" style={{ color: colors.primary }}>
+                                        {slot.dayOfWeek} {slot.startTime}-{slot.endTime}
+                                      </p>
+                                      <p className="text-[11px]" style={{ color: slot.conflictCount === 0 ? colors.success : colors.warning }}>
+                                        {slot.conflictCount === 0
+                                          ? 'No student conflicts'
+                                          : `${slot.conflictCount}/${slot.totalStudents} students conflicted`}
+                                      </p>
+                                      {slot.conflictCount > 0 && (
+                                        <p className="text-[10px]" style={{ color: colors.neutral }}>
+                                          {slot.conflictClassCount || slot.conflictStudents.length} overlapping class schedule
+                                          {(slot.conflictClassCount || slot.conflictStudents.length) === 1 ? '' : 's'}
+                                        </p>
+                                      )}
+                                      {slot.conflictStudents.length > 0 && (
+                                        <p className="text-[10px] mt-1" style={{ color: colors.neutral }}>
+                                          {slot.conflictStudents
+                                            .slice(0, 2)
+                                            .map((c) => `${c.studentNumber} (${c.conflictingCourseCode} • ${c.conflictingDay} ${c.conflictingStart}-${c.conflictingEnd})`)
+                                            .join(' | ')}
+                                        </p>
+                                      )}
+                                    </div>
+                                    <button
+                                      type="button"
+                                      onClick={() => applyPetitionSuggestion('lab', slot)}
+                                      className="px-2.5 py-1.5 rounded text-[11px] font-semibold text-white"
+                                      style={{ backgroundColor: colors.info }}
+                                    >
+                                      Apply Lab
+                                    </button>
+                                  </div>
+                                ))}
+                                {(petitionAdvice?.labSuggestions || []).length === 0 && (
+                                  <p className="text-[11px]" style={{ color: colors.neutral }}>
+                                    No lab suggestion available for this petition subject.
+                                  </p>
+                                )}
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      )}
                     </div>
                   )}
 

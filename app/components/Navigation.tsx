@@ -497,6 +497,7 @@ const Navigation: React.FC<NavigationProps> = ({
     userRole,
   ]);
 
+
   const dedupedNavGroups = useMemo(() => {
     const seenItemIds = new Set<string>();
 
@@ -529,12 +530,12 @@ const Navigation: React.FC<NavigationProps> = ({
     () => filterNestedNavItems(reportSubItems),
     [reportSubItems, canAccessView],
   );
-
   const isFileMaintenanceActive = currentView.startsWith("file-maintenance");
   const isCurriculumActive = currentView.startsWith("curriculum");
   const isTransactionActive = transactionSubItems.some(
     (item) => item.id === currentView,
   );
+  
   const isReportActive = nestedNavContainsView(reportSubItems, currentView);
   const prevWasFileMaintenance =
     prevViewRef.current.startsWith("file-maintenance");

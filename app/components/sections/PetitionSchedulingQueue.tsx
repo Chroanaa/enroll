@@ -301,7 +301,7 @@ export default function PetitionSchedulingQueue({
                             backgroundColor: "white",
                           }}
                         >
-                          Manual Enrollment
+                          Open Petition Student List
                         </button>
                       ) : null}
                     </div>
