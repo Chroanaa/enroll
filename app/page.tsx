@@ -44,6 +44,7 @@ import {
   Subject,
   Products,
   SchoolsPrograms,
+  PaymentMethods,
 } from "./components/fileMaintenance";
 import MiscellaneousFees from "./components/MiscellaneousFees";
 import AccountManagement from "./components/AccountManagement";
@@ -162,6 +163,8 @@ function App() {
         return <SchoolsPrograms />;
       case "file-maintenance-subject":
         return <Subject />;
+      case "file-maintenance-payment-methods":
+        return <PaymentMethods />;
       case "miscellaneous-fees":
         return <MiscellaneousFees />;
       case "account-management":

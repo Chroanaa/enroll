@@ -37,14 +37,18 @@ export async function GET(request: NextRequest) {
     const academicYearParam = String(searchParams.get("academicYear") || "").trim();
     const semesterParam = String(searchParams.get("semester") || "").trim().toLowerCase();
 
-    const currentTerm = await getServerCurrentTerm();
-    const defaultSemesterNum = currentTerm.semester === "First" ? 1 : 2;
-
-    let semesterNum = defaultSemesterNum;
+    let semesterNum = 0;
     if (semesterParam === "first" || semesterParam === "1") semesterNum = 1;
     if (semesterParam === "second" || semesterParam === "2") semesterNum = 2;
 
-    const academicYear = academicYearParam || currentTerm.academicYear;
+    let academicYear = academicYearParam;
+    if (!academicYear || !semesterNum) {
+      const currentTerm = await getServerCurrentTerm();
+      academicYear = academicYear || currentTerm.academicYear;
+      if (!semesterNum) {
+        semesterNum = currentTerm.semester === "First" ? 1 : 2;
+      }
+    }
 
     const firstSemesterAliases = getSemesterAliases(1);
     const secondSemesterAliases = getSemesterAliases(2);
@@ -94,6 +98,23 @@ export async function GET(request: NextRequest) {
               AND cs.curriculum_course_id = pr.curriculum_course_id
           ) AS has_assignment
         FROM petition_requests pr
+      ),
+      petition_schedule_summary AS (
+        SELECT
+          cs_pet.curriculum_course_id,
+          COUNT(DISTINCT sec_pet.id)::int AS petition_section_count,
+          COUNT(DISTINCT cs_pet.id)::int AS petition_schedule_count
+        FROM class_schedule cs_pet
+        INNER JOIN sections sec_pet ON sec_pet.id = cs_pet.section_id
+        WHERE cs_pet.academic_year = ${academicYear}
+          AND (
+            (${semesterNum} = 1 AND LOWER(COALESCE(cs_pet.semester, '')) IN (${firstSemesterAliases[0]}, ${firstSemesterAliases[1]}, ${firstSemesterAliases[2]}, ${firstSemesterAliases[3]}))
+            OR
+            (${semesterNum} = 2 AND LOWER(COALESCE(cs_pet.semester, '')) IN (${secondSemesterAliases[0]}, ${secondSemesterAliases[1]}, ${secondSemesterAliases[2]}, ${secondSemesterAliases[3]}))
+          )
+          AND LOWER(COALESCE(cs_pet.status, '')) = 'active'
+          AND sec_pet.section_name ILIKE 'PET-%'
+        GROUP BY cs_pet.curriculum_course_id
       )
       SELECT
         pwa.curriculum_course_id,
@@ -109,30 +130,15 @@ export async function GET(request: NextRequest) {
         COUNT(DISTINCT pwa.student_number)::int AS requested_students,
         COUNT(DISTINCT CASE WHEN pwa.request_status = 'approved' THEN pwa.student_number END)::int AS approved_students,
         COUNT(DISTINCT CASE WHEN pwa.request_status = 'pending_approval' THEN pwa.student_number END)::int AS pending_students,
-        COUNT(DISTINCT CASE WHEN sec_pet.id IS NOT NULL THEN sec_pet.id END)::int AS petition_section_count,
-        COUNT(DISTINCT CASE WHEN cs_pet.id IS NOT NULL THEN cs_pet.id END)::int AS petition_schedule_count,
+        COALESCE(MAX(pss.petition_section_count), 0)::int AS petition_section_count,
+        COALESCE(MAX(pss.petition_schedule_count), 0)::int AS petition_schedule_count,
         COUNT(DISTINCT CASE WHEN NOT pwa.has_assignment THEN pwa.student_number END)::int AS unassigned_students
       FROM petition_with_assignment pwa
       LEFT JOIN curriculum_course cc ON cc.id = pwa.curriculum_course_id
       LEFT JOIN curriculum cur ON cur.id = cc.curriculum_id
       LEFT JOIN program prog ON LOWER(COALESCE(prog.code, '')) = LOWER(COALESCE(cur.program_code, ''))
       LEFT JOIN subject sub ON sub.id = COALESCE(cc.subject_id, pwa.subject_id)
-      LEFT JOIN sections sec_pet ON sec_pet.academic_year = pwa.academic_year
-        AND (
-          (pwa.semester = 1 AND LOWER(COALESCE(sec_pet.semester, '')) IN (${firstSemesterAliases[0]}, ${firstSemesterAliases[1]}, ${firstSemesterAliases[2]}, ${firstSemesterAliases[3]}))
-          OR
-          (pwa.semester = 2 AND LOWER(COALESCE(sec_pet.semester, '')) IN (${secondSemesterAliases[0]}, ${secondSemesterAliases[1]}, ${secondSemesterAliases[2]}, ${secondSemesterAliases[3]}))
-        )
-        AND sec_pet.section_name ILIKE 'PET-%'
-      LEFT JOIN class_schedule cs_pet ON cs_pet.section_id = sec_pet.id
-        AND cs_pet.curriculum_course_id = pwa.curriculum_course_id
-        AND cs_pet.academic_year = pwa.academic_year
-        AND (
-          (pwa.semester = 1 AND LOWER(COALESCE(cs_pet.semester, '')) IN (${firstSemesterAliases[0]}, ${firstSemesterAliases[1]}, ${firstSemesterAliases[2]}, ${firstSemesterAliases[3]}))
-          OR
-          (pwa.semester = 2 AND LOWER(COALESCE(cs_pet.semester, '')) IN (${secondSemesterAliases[0]}, ${secondSemesterAliases[1]}, ${secondSemesterAliases[2]}, ${secondSemesterAliases[3]}))
-        )
-        AND LOWER(COALESCE(cs_pet.status, '')) = 'active'
+      LEFT JOIN petition_schedule_summary pss ON pss.curriculum_course_id = pwa.curriculum_course_id
       GROUP BY
         pwa.curriculum_course_id,
         COALESCE(cc.subject_id, pwa.subject_id),

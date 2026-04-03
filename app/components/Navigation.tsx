@@ -135,6 +135,12 @@ const Navigation: React.FC<NavigationProps> = ({
         allowedRoles: [ROLES.ADMIN, ROLES.CASHIER],
       },
       {
+        id: "file-maintenance-payment-methods",
+        label: "Payment Methods",
+        icon: CreditCard,
+        allowedRoles: [ROLES.ADMIN, ROLES.CASHIER, ROLES.REGISTRAR, ROLES.DEAN],
+      },
+      {
         id: "miscellaneous-fees",
         label: "Miscellaneous Fees",
         icon: Receipt,

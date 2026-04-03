@@ -1,8 +1,12 @@
 import React from "react";
-import { Package, Users, FileText, RefreshCw } from "lucide-react";
+import { Package, Users, FileText, RefreshCw, BadgeCheck } from "lucide-react";
 import { colors } from "../../colors";
 
-type ActiveTab = "products" | "enrollments" | "transactions";
+type ActiveTab =
+  | "products"
+  | "enrollments"
+  | "transactions"
+  | "online-submissions";
 
 interface PaymentBillingHeaderProps {
   activeTab: ActiveTab;
@@ -102,6 +106,25 @@ export const PaymentBillingHeader: React.FC<PaymentBillingHeaderProps> = ({
           >
             <FileText className='w-5 h-5' />
             Transactions
+          </button>
+          <button
+            onClick={() => onTabChange("online-submissions")}
+            className={`flex-1 flex items-center justify-center gap-2 px-6 py-4 font-medium transition-colors ${
+              activeTab === "online-submissions"
+                ? "border-b-2 text-white"
+                : "text-gray-500 hover:text-gray-700 hover:bg-gray-50"
+            }`}
+            style={
+              activeTab === "online-submissions"
+                ? {
+                    borderColor: colors.secondary,
+                    backgroundColor: colors.secondary,
+                  }
+                : {}
+            }
+          >
+            <BadgeCheck className='w-5 h-5' />
+            Online Submissions
           </button>
         </div>
       </div>

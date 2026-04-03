@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { useRouter, useParams, useSearchParams } from 'next/navigation';
 import {
   createClassSchedule,
@@ -219,6 +219,14 @@ export default function BuildSchedulePage() {
   // Lab occupied slots (for lab schedule conflict prevention)
   const [labOccupiedSlots, setLabOccupiedSlots] = useState<any[]>([]);
   const [loadingLabOccupied, setLoadingLabOccupied] = useState(false);
+  const occupiedSlotsCacheRef = useRef<Record<string, any[]>>({});
+  const labOccupiedSlotsCacheRef = useRef<Record<string, any[]>>({});
+  const editOccupiedSlotsCacheRef = useRef<Record<string, any[]>>({});
+  const clearConflictCaches = () => {
+    occupiedSlotsCacheRef.current = {};
+    labOccupiedSlotsCacheRef.current = {};
+    editOccupiedSlotsCacheRef.current = {};
+  };
   const [petitionAdviceLoading, setPetitionAdviceLoading] = useState(false);
   const [petitionAdviceError, setPetitionAdviceError] = useState<string | null>(null);
   const [petitionAdvice, setPetitionAdvice] = useState<{
@@ -429,7 +437,7 @@ export default function BuildSchedulePage() {
     } else {
       setOccupiedSlots([]);
     }
-  }, [formData.dayOfWeek, formData.roomId, section]);
+  }, [formData.dayOfWeek, section]);
 
   // Fetch lab occupied slots when lab day changes
   useEffect(() => {
@@ -450,9 +458,14 @@ export default function BuildSchedulePage() {
   }, [editFormData.dayOfWeek, section, editScheduleModal.isOpen, editScheduleModal.schedule]);
 
   // Fetch all occupied slots for edit modal (excludes the schedule being edited)
-  const fetchEditOccupiedSlots = async (day: string, excludeScheduleId: number) => {
+  const fetchEditOccupiedSlots = async (day: string, excludeScheduleId: number, force = false) => {
     if (!section) return;
-    
+    const cacheKey = `${day}:${excludeScheduleId}`;
+    if (!force && editOccupiedSlotsCacheRef.current[cacheKey]) {
+      setEditOccupiedSlots(editOccupiedSlotsCacheRef.current[cacheKey]);
+      return;
+    }
+
     setLoadingEditOccupied(true);
     try {
       const response = await fetch(
@@ -461,7 +474,9 @@ export default function BuildSchedulePage() {
       
       if (response.ok) {
         const data = await response.json();
-        setEditOccupiedSlots(data.data?.occupiedSlots || []);
+        const slots = data.data?.occupiedSlots || [];
+        editOccupiedSlotsCacheRef.current[cacheKey] = slots;
+        setEditOccupiedSlots(slots);
       }
     } catch (err) {
       console.error('Failed to fetch edit occupied slots:', err);
@@ -471,20 +486,23 @@ export default function BuildSchedulePage() {
   };
 
   // Fetch all occupied slots for a given day (from ALL sections including current))
-  const fetchOccupiedSlots = async (day: string) => {
+  const fetchOccupiedSlots = async (day: string, force = false) => {
     if (!section) return;
-    
+    if (!force && occupiedSlotsCacheRef.current[day]) {
+      setOccupiedSlots(occupiedSlotsCacheRef.current[day]);
+      return;
+    }
+
     setLoadingOccupied(true);
     try {
       const url = `/api/class-schedule/conflicts?dayOfWeek=${day}&academicYear=${section.academicYear}&semester=${section.semester}&currentSectionId=${section.id}`;
-      console.log('Fetching occupied slots:', url);
-      
       const response = await fetch(url);
       
       if (response.ok) {
         const data = await response.json();
-        console.log('Occupied slots response:', data);
-        setOccupiedSlots(data.data?.occupiedSlots || []);
+        const slots = data.data?.occupiedSlots || [];
+        occupiedSlotsCacheRef.current[day] = slots;
+        setOccupiedSlots(slots);
       } else {
         console.error('Failed to fetch occupied slots:', response.status, response.statusText);
       }
@@ -496,15 +514,21 @@ export default function BuildSchedulePage() {
   };
 
   // Fetch occupied slots for the lab day (for lab conflict prevention)
-  const fetchLabOccupiedSlots = async (day: string) => {
+  const fetchLabOccupiedSlots = async (day: string, force = false) => {
     if (!section) return;
+    if (!force && labOccupiedSlotsCacheRef.current[day]) {
+      setLabOccupiedSlots(labOccupiedSlotsCacheRef.current[day]);
+      return;
+    }
     setLoadingLabOccupied(true);
     try {
       const url = `/api/class-schedule/conflicts?dayOfWeek=${day}&academicYear=${section.academicYear}&semester=${section.semester}&currentSectionId=${section.id}`;
       const response = await fetch(url);
       if (response.ok) {
         const data = await response.json();
-        setLabOccupiedSlots(data.data?.occupiedSlots || []);
+        const slots = data.data?.occupiedSlots || [];
+        labOccupiedSlotsCacheRef.current[day] = slots;
+        setLabOccupiedSlots(slots);
       }
     } catch (err) {
       console.error('Failed to fetch lab occupied slots:', err);
@@ -1149,6 +1173,7 @@ export default function BuildSchedulePage() {
         academicYear: section!.academicYear,
         semester: section!.semester
       });
+      clearConflictCaches();
       setSchedules(updatedSchedules);
       
       setSuccessModal({
@@ -1404,6 +1429,7 @@ export default function BuildSchedulePage() {
         academicYear: section!.academicYear,
         semester: section!.semester
       });
+      clearConflictCaches();
       setSchedules(updatedSchedules);
 
       setSuccessModal({
@@ -1440,6 +1466,7 @@ export default function BuildSchedulePage() {
         academicYear: section!.academicYear,
         semester: section!.semester
       });
+      clearConflictCaches();
       setSchedules(updatedSchedules);
       
       setSuccessModal({

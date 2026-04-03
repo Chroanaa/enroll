@@ -19,7 +19,21 @@ export async function POST(request: NextRequest) {
 }
 export async function GET() {
   try {
-    const rooms = await prisma.room.findMany();
+    const rooms = await prisma.room.findMany({
+      where: {
+        OR: [{ status: "available" }, { status: "active" }],
+      },
+      select: {
+        id: true,
+        building_id: true,
+        room_number: true,
+        capacity: true,
+        room_type: true,
+        floor: true,
+        status: true,
+      },
+      orderBy: [{ building_id: "asc" }, { room_number: "asc" }],
+    });
     return NextResponse.json(rooms);
   } catch (error) {
     return NextResponse.json(
