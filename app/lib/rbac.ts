@@ -7,11 +7,25 @@ export const ROLES = {
 } as const;
 
 export type RoleId = (typeof ROLES)[keyof typeof ROLES];
-export type BillingTab = "products" | "enrollments" | "transactions";
+export type BillingTab =
+  | "products"
+  | "enrollments"
+  | "transactions"
+  | "online-submissions";
 
-const PAYMENT_BILLING_ALLOWED_ROLES = [ROLES.ADMIN, ROLES.CASHIER, ROLES.DEAN];
+const PAYMENT_BILLING_ALLOWED_ROLES = [
+  ROLES.ADMIN,
+  ROLES.CASHIER,
+  ROLES.REGISTRAR,
+  ROLES.DEAN,
+];
 
-const BILLING_TABS: BillingTab[] = ["products", "enrollments", "transactions"];
+const BILLING_TABS: BillingTab[] = [
+  "products",
+  "enrollments",
+  "transactions",
+  "online-submissions",
+];
 
 export const VIEW_ROLES: Record<string, number[]> = {
   home: [
@@ -39,6 +53,7 @@ export const VIEW_ROLES: Record<string, number[]> = {
   "subject-dropping": [ROLES.ADMIN, ROLES.REGISTRAR, ROLES.DEAN],
   "student-dropping": [ROLES.ADMIN, ROLES.REGISTRAR, ROLES.DEAN],
   "cross-enrollee": [ROLES.ADMIN, ROLES.REGISTRAR, ROLES.DEAN],
+  "petition-subject": [ROLES.ADMIN, ROLES.REGISTRAR, ROLES.DEAN],
   shifting: [ROLES.ADMIN, ROLES.REGISTRAR],
   "program-shifting": [ROLES.ADMIN, ROLES.REGISTRAR, ROLES.DEAN],
   reports: [ROLES.ADMIN, ROLES.REGISTRAR],
@@ -68,6 +83,12 @@ export const VIEW_ROLES: Record<string, number[]> = {
   "file-maintenance-fees": [ROLES.ADMIN],
   "file-maintenance-discount": [ROLES.ADMIN, ROLES.REGISTRAR, ROLES.DEAN],
   "file-maintenance-products": [ROLES.ADMIN, ROLES.CASHIER, ROLES.DEAN],
+  "file-maintenance-payment-methods": [
+    ROLES.ADMIN,
+    ROLES.CASHIER,
+    ROLES.REGISTRAR,
+    ROLES.DEAN,
+  ],
   "file-maintenance-schools-programs": [
     ROLES.ADMIN,
     ROLES.REGISTRAR,
@@ -84,6 +105,7 @@ export const BILLING_TAB_ROLES: Record<BillingTab, number[]> = {
   products: [ROLES.ADMIN, ROLES.CASHIER],
   enrollments: PAYMENT_BILLING_ALLOWED_ROLES,
   transactions: PAYMENT_BILLING_ALLOWED_ROLES,
+  "online-submissions": PAYMENT_BILLING_ALLOWED_ROLES,
 };
 
 export function isViewAllowed(view: string, role: number): boolean {

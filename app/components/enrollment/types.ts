@@ -20,4 +20,11 @@ export interface EnrollmentPageProps {
   fieldErrors?: Record<string, string>;
   duplicateError?: string | null;
   isCheckingDuplicate?: boolean;
+  isLoadingPrograms?: boolean;
+  programLoadError?: string | null;
+  isRetryingPrograms?: boolean;
+  retryPrograms?: () => void | Promise<void>;
+  studentIdLoadError?: string | null;
+  isRetryingStudentId?: boolean;
+  retryStudentId?: () => void | Promise<void>;
 }

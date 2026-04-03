@@ -81,6 +81,157 @@ export async function GET(request: NextRequest) {
       },
     });
 
+    // Optimized path: batch load settings, assessments, payments, and billing totals.
+    // This avoids N+1 queries per enrollee on large payment queues.
+    const studentNumbers = Array.from(
+      new Set(
+        enrollees
+          .map((enrollee) => enrollee.student_number)
+          .filter((value): value is string => Boolean(value)),
+      ),
+    );
+    const enrolleeIds = enrollees.map((enrollee) => enrollee.id);
+
+    const [minPaySetting, assessments, billingSums] = await Promise.all([
+      prisma.settings
+        .findUnique({
+          where: { key: "enrollment_min_payment" },
+          select: { value: true },
+        })
+        .catch(() => null),
+      studentNumbers.length
+        ? prisma.student_assessment.findMany({
+            where: {
+              status: "finalized",
+              student_number: { in: studentNumbers },
+            },
+            select: {
+              id: true,
+              student_number: true,
+              academic_year: true,
+              payment_mode: true,
+              total_due: true,
+              total_due_cash: true,
+              total_due_installment: true,
+              created_at: true,
+            },
+            orderBy: { created_at: "desc" },
+          })
+        : Promise.resolve([]),
+      enrolleeIds.length
+        ? prisma.billing.groupBy({
+            by: ["enrollee_id"],
+            _sum: { amount: true },
+            where: { enrollee_id: { in: enrolleeIds } },
+          })
+        : Promise.resolve([]),
+    ]);
+
+    const batchedMinPaymentDefault = Number(minPaySetting?.value || 3000) || 3000;
+
+    const assessmentsByStudent = new Map<string, typeof assessments>();
+    for (const assessment of assessments) {
+      const list = assessmentsByStudent.get(assessment.student_number) || [];
+      list.push(assessment);
+      assessmentsByStudent.set(assessment.student_number, list);
+    }
+
+    const pickAssessment = (enrollee: (typeof enrollees)[number]) => {
+      if (!enrollee.student_number) return null;
+      const candidates = assessmentsByStudent.get(enrollee.student_number) || [];
+      if (!candidates.length) return null;
+      if (enrollee.academic_year) {
+        const sameYear = candidates.find(
+          (assessment) => assessment.academic_year === enrollee.academic_year,
+        );
+        if (sameYear) return sameYear;
+      }
+      return candidates[0];
+    };
+
+    const selectedAssessmentIds = Array.from(
+      new Set(
+        enrollees
+          .map((enrollee) => pickAssessment(enrollee)?.id)
+          .filter((value): value is number => Boolean(value)),
+      ),
+    );
+
+    const paymentSums = selectedAssessmentIds.length
+      ? await prisma.student_payment.groupBy({
+          by: ["assessment_id"],
+          _sum: { amount_paid: true },
+          where: { assessment_id: { in: selectedAssessmentIds } },
+        })
+      : [];
+
+    const paymentSumByAssessmentId = new Map<number, number>(
+      paymentSums.map((row) => [row.assessment_id, Number(row._sum.amount_paid || 0)]),
+    );
+
+    const billingSumByEnrolleeId = new Map<number, number>();
+    for (const row of billingSums) {
+      if (row.enrollee_id !== null) {
+        billingSumByEnrolleeId.set(row.enrollee_id, Number(row._sum.amount || 0));
+      }
+    }
+
+    const optimized = enrollees.map((enrollee) => {
+      let totalDue = 0;
+      let totalPaid = 0;
+      let assessmentId: number | null = null;
+      let paymentMode: string | null = null;
+
+      const assessment = pickAssessment(enrollee);
+      if (assessment) {
+        assessmentId = assessment.id;
+        paymentMode = assessment.payment_mode;
+        totalDue =
+          assessment.payment_mode.toLowerCase() === "installment"
+            ? Number(assessment.total_due_installment || assessment.total_due)
+            : Number(assessment.total_due_cash || assessment.total_due);
+        totalPaid = paymentSumByAssessmentId.get(assessment.id) || 0;
+      }
+
+      if ((enrollee.status === 4 || enrollee.status === 5) && totalDue <= 0) {
+        totalDue = batchedMinPaymentDefault;
+        if (!assessmentId) {
+          totalPaid = billingSumByEnrolleeId.get(enrollee.id) || 0;
+        }
+      }
+
+      const remainingBalance = Math.max(0, totalDue - totalPaid);
+      const studentName =
+        `${enrollee.family_name || ""}, ${enrollee.first_name || ""} ${enrollee.middle_name || ""}`.trim();
+
+      return {
+        id: enrollee.id,
+        student_number: enrollee.student_number,
+        student_name: studentName,
+        first_name: enrollee.first_name,
+        middle_name: enrollee.middle_name,
+        family_name: enrollee.family_name,
+        course_program: enrollee.course_program,
+        academic_year: enrollee.academic_year,
+        term: enrollee.term,
+        year_level: enrollee.year_level,
+        status: enrollee.status,
+        total_due: Math.round(totalDue * 100) / 100,
+        total_paid: Math.round(totalPaid * 100) / 100,
+        remaining_balance: Math.round(remainingBalance * 100) / 100,
+        assessment_id: assessmentId,
+        payment_mode: paymentMode,
+      };
+    });
+
+    return NextResponse.json({
+      success: true,
+      data: optimized,
+      total: optimized.length,
+    });
+
+    /*
+
     // Fetch the dynamic minimum payment from settings (default 3000)
     let minPaymentDefault = 3000;
     try {
@@ -189,6 +340,7 @@ export async function GET(request: NextRequest) {
       data: enriched,
       total: enriched.length,
     });
+    */
   } catch (error: any) {
     console.error("Error fetching pending enrollees:", error);
     return NextResponse.json(

@@ -49,6 +49,7 @@ import {
   Subject,
   Products,
   SchoolsPrograms,
+  PaymentMethods,
 } from "../components/fileMaintenance";
 import MiscellaneousFees from "../components/MiscellaneousFees";
 import ProtectedRoute from "../components/ProtectedRoute";
@@ -122,7 +123,9 @@ function DashboardContent() {
       case "student-dropping":
         return <StudentDroppingManagement />;
       case "cross-enrollee":
-        return <CrossEnrollmentManagement />;
+        return <CrossEnrollmentManagement mode="inter-program" />;
+      case "petition-subject":
+        return <CrossEnrollmentManagement mode="petition" />;
       case "shifting":
         return <ShiftingManagement />;
       case "program-shifting":
@@ -185,6 +188,8 @@ function DashboardContent() {
         return <Products />;
       case "file-maintenance-subject":
         return <Subject />;
+      case "file-maintenance-payment-methods":
+        return <PaymentMethods />;
       case "file-maintenance-schools-programs":
         return <SchoolsPrograms />;
       case "miscellaneous-fees":

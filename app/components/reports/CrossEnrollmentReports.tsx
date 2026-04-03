@@ -86,7 +86,7 @@ export default function CrossEnrollmentReports() {
       const response = await fetch(`/api/auth/cross-enrollment?${params.toString()}`);
       const result = await response.json();
       if (!response.ok) {
-        throw new Error(result.error || "Failed to load cross enrollment report.");
+        throw new Error(result.error || "Failed to load inter-program subject report.");
       }
 
       const nextRows = Array.isArray(result.data)
@@ -132,7 +132,7 @@ export default function CrossEnrollmentReports() {
         message:
           error instanceof Error
             ? error.message
-            : "Failed to load cross enrollment report.",
+            : "Failed to load inter-program subject report.",
         details: "",
       });
     } finally {
@@ -223,10 +223,10 @@ export default function CrossEnrollmentReports() {
               </div>
               <div>
                 <h1 className='text-3xl font-bold tracking-tight' style={{ color: colors.primary }}>
-                  Cross Enrollment Reports
+                  Inter-Program Subject Reports
                 </h1>
                 <p className='mt-1 text-sm leading-6' style={{ color: colors.tertiary }}>
-                  Review cross-enrollment requests for the current term and open a PDF-ready report viewer.
+                  Review inter-program subject requests for the current term and open a PDF-ready report viewer.
                 </p>
               </div>
             </div>
@@ -336,14 +336,14 @@ export default function CrossEnrollmentReports() {
             <div className='flex flex-col items-center justify-center gap-3 px-6 py-20'>
               <Loader2 className='h-8 w-8 animate-spin' style={{ color: colors.secondary }} />
               <p className='text-sm font-medium' style={{ color: colors.tertiary }}>
-                Loading cross enrollment report...
+                Loading inter-program subject report...
               </p>
             </div>
           ) : filteredRows.length === 0 ? (
             <div className='flex flex-col items-center justify-center gap-3 px-6 py-20'>
               <FileText className='h-8 w-8' style={{ color: colors.neutral }} />
               <p className='text-sm font-medium' style={{ color: colors.primary }}>
-                No cross enrollment records found for the selected filters.
+                No inter-program subject records found for the selected filters.
               </p>
             </div>
           ) : (
@@ -436,7 +436,7 @@ export default function CrossEnrollmentReports() {
                   totalPages={Math.max(1, Math.ceil(filteredRows.length / itemsPerPage))}
                   itemsPerPage={itemsPerPage}
                   totalItems={filteredRows.length}
-                  itemName='cross-enrollment records'
+                  itemName='inter-program subject records'
                   onPageChange={setCurrentPage}
                   onItemsPerPageChange={setItemsPerPage}
                 />
@@ -455,7 +455,7 @@ export default function CrossEnrollmentReports() {
 
       {isViewerOpen && (
         <TransactionReportPDFViewer
-          title='Cross Enrollment Report'
+          title='Inter-Program Subject Report'
           rows={filteredRows}
           columns={columns}
           onClose={() => setIsViewerOpen(false)}

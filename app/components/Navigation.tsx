@@ -135,6 +135,12 @@ const Navigation: React.FC<NavigationProps> = ({
         allowedRoles: [ROLES.ADMIN, ROLES.CASHIER],
       },
       {
+        id: "file-maintenance-payment-methods",
+        label: "Payment Methods",
+        icon: CreditCard,
+        allowedRoles: [ROLES.ADMIN, ROLES.CASHIER, ROLES.REGISTRAR, ROLES.DEAN],
+      },
+      {
         id: "miscellaneous-fees",
         label: "Miscellaneous Fees",
         icon: Receipt,
@@ -196,7 +202,12 @@ const Navigation: React.FC<NavigationProps> = ({
       },
       {
         id: "cross-enrollee",
-        label: "Cross Enrollee",
+        label: "Inter-Program Subject",
+        icon: BookOpen,
+      },
+      {
+        id: "petition-subject",
+        label: "Petition Subject",
         icon: BookOpen,
       },
       {
@@ -278,7 +289,7 @@ const Navigation: React.FC<NavigationProps> = ({
           },
           {
             id: "reports-cross-enrollment",
-            label: "Cross Enroll Reports",
+            label: "Inter-Program Subject Reports",
             icon: BookOpen,
           },
           {
@@ -492,6 +503,7 @@ const Navigation: React.FC<NavigationProps> = ({
     userRole,
   ]);
 
+
   const dedupedNavGroups = useMemo(() => {
     const seenItemIds = new Set<string>();
 
@@ -524,12 +536,12 @@ const Navigation: React.FC<NavigationProps> = ({
     () => filterNestedNavItems(reportSubItems),
     [reportSubItems, canAccessView],
   );
-
   const isFileMaintenanceActive = currentView.startsWith("file-maintenance");
   const isCurriculumActive = currentView.startsWith("curriculum");
   const isTransactionActive = transactionSubItems.some(
     (item) => item.id === currentView,
   );
+  
   const isReportActive = nestedNavContainsView(reportSubItems, currentView);
   const prevWasFileMaintenance =
     prevViewRef.current.startsWith("file-maintenance");

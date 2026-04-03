@@ -133,6 +133,11 @@ export const useEnrollmentForm = () => {
   const [programs, setPrograms] = useState<Program[]>([]);
   const [majors, setMajors] = useState<Major[]>([]);
   const [selectedProgramHasMajors, setSelectedProgramHasMajors] = useState(false);
+  const [isLoadingPrograms, setIsLoadingPrograms] = useState(false);
+  const [programLoadError, setProgramLoadError] = useState<string | null>(null);
+  const [isRetryingPrograms, setIsRetryingPrograms] = useState(false);
+  const [studentIdLoadError, setStudentIdLoadError] = useState<string | null>(null);
+  const [isRetryingStudentId, setIsRetryingStudentId] = useState(false);
 
   // Get today's date
   const getTodayDate = () => {
@@ -169,7 +174,32 @@ export const useEnrollmentForm = () => {
   }, []);
 
   // Function to generate student ID
-  const generateStudentId = async () => {
+  const getStudentIdErrorMessage = (error: unknown) => {
+    if (typeof navigator !== "undefined" && !navigator.onLine) {
+      return "Unable to generate a student ID because your internet connection appears to be offline. The system will retry when the network is back.";
+    }
+
+    if (Axios.isAxiosError(error)) {
+      if (error.code === "ERR_NETWORK" || !error.response) {
+        return "Unable to generate a student ID due to a network issue. Please check your connection and try again.";
+      }
+
+      return (
+        error.response?.data?.error ||
+        "Failed to generate a student ID right now. Please try again in a moment."
+      );
+    }
+
+    return "Failed to generate a student ID right now. Please try again in a moment.";
+  };
+
+  const generateStudentId = async (options?: { isRetry?: boolean }) => {
+    const isRetry = options?.isRetry ?? false;
+
+    if (isRetry) {
+      setIsRetryingStudentId(true);
+    }
+
     try {
       const response = await Axios.get("/api/auth/student/generate-id");
       if (response.data?.student_number) {
@@ -177,9 +207,13 @@ export const useEnrollmentForm = () => {
           ...prev,
           student_number: response.data.student_number,
         }));
+        setStudentIdLoadError(null);
       }
     } catch (error) {
       console.error("Error generating student ID:", error);
+      setStudentIdLoadError(getStudentIdErrorMessage(error));
+    } finally {
+      setIsRetryingStudentId(false);
     }
   };
 
@@ -189,27 +223,110 @@ export const useEnrollmentForm = () => {
     generateStudentId();
   }, []);
 
+  const getProgramLoadErrorMessage = (error: unknown) => {
+    if (typeof navigator !== "undefined" && !navigator.onLine) {
+      return "Unable to load programs because your internet connection appears to be offline. The system will retry when the network is back.";
+    }
+
+    if (Axios.isAxiosError(error)) {
+      if (error.code === "ERR_NETWORK" || !error.response) {
+        return "Unable to load programs due to a network issue. Please check your connection and try again.";
+      }
+
+      return (
+        error.response?.data?.error ||
+        "Failed to load programs right now. Please try again in a moment."
+      );
+    }
+
+    if (error instanceof Error && /fetch|network|load/i.test(error.message)) {
+      return "Unable to load programs due to a network issue. Please check your connection and try again.";
+    }
+
+    return "Failed to load programs right now. Please try again in a moment.";
+  };
+
+  const loadPrograms = async (options?: { isRetry?: boolean }) => {
+    const isRetry = options?.isRetry ?? false;
+
+    if (isRetry) {
+      setIsRetryingPrograms(true);
+    } else {
+      setIsLoadingPrograms(true);
+    }
+
+    try {
+      const programsData = await getPrograms();
+      const programsArray: Program[] = Array.isArray(programsData)
+        ? programsData
+        : Object.values(programsData);
+      setPrograms(programsArray);
+      setProgramLoadError(null);
+    } catch (error) {
+      console.error("Error fetching programs:", error);
+      setPrograms([]);
+      setProgramLoadError(getProgramLoadErrorMessage(error));
+    } finally {
+      setIsLoadingPrograms(false);
+      setIsRetryingPrograms(false);
+    }
+  };
+
   useEffect(() => {
     const fetchData = async () => {
       try {
-        const [departmentsData, programsData] = await Promise.all([
+        const [departmentsData, programsData] = await Promise.allSettled([
           getDepartments(),
           getPrograms(),
         ]);
-        const departmentsArray: Department[] = Array.isArray(departmentsData)
-          ? departmentsData
-          : Object.values(departmentsData);
-        const programsArray: Program[] = Array.isArray(programsData)
-          ? programsData
-          : Object.values(programsData);
-        setDepartments(departmentsArray);
-        setPrograms(programsArray);
+
+        if (departmentsData.status === "fulfilled") {
+          const departmentsArray: Department[] = Array.isArray(
+            departmentsData.value,
+          )
+            ? departmentsData.value
+            : Object.values(departmentsData.value);
+          setDepartments(departmentsArray);
+        } else {
+          console.error("Error fetching departments:", departmentsData.reason);
+        }
+
+        if (programsData.status === "fulfilled") {
+          const programsArray: Program[] = Array.isArray(programsData.value)
+            ? programsData.value
+            : Object.values(programsData.value);
+          setPrograms(programsArray);
+          setProgramLoadError(null);
+        } else {
+          console.error("Error fetching programs:", programsData.reason);
+          setPrograms([]);
+          setProgramLoadError(getProgramLoadErrorMessage(programsData.reason));
+        }
       } catch (error) {
         console.error("Error fetching departments and programs:", error);
+      } finally {
+        setIsLoadingPrograms(false);
       }
     };
+
+    setIsLoadingPrograms(true);
     fetchData();
   }, []);
+
+  useEffect(() => {
+    const handleOnline = () => {
+      if (programs.length === 0 || programLoadError) {
+        void loadPrograms({ isRetry: true });
+      }
+
+      if (!formData.student_number || studentIdLoadError) {
+        void generateStudentId({ isRetry: true });
+      }
+    };
+
+    window.addEventListener("online", handleOnline);
+    return () => window.removeEventListener("online", handleOnline);
+  }, [formData.student_number, programLoadError, programs.length, studentIdLoadError]);
 
   // Fetch majors when program is selected
   const fetchMajorsByProgram = async (programId: number) => {
@@ -996,5 +1113,12 @@ export const useEnrollmentForm = () => {
     // Program/Major state
     majors,
     selectedProgramHasMajors,
+    isLoadingPrograms,
+    programLoadError,
+    isRetryingPrograms,
+    retryPrograms: () => loadPrograms({ isRetry: true }),
+    studentIdLoadError,
+    isRetryingStudentId,
+    retryStudentId: () => generateStudentId({ isRetry: true }),
   };
 };

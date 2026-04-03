@@ -20,6 +20,11 @@ const ErrorModal: React.FC<ErrorModalProps> = ({
 }) => {
   if (!isOpen) return null;
 
+  const detailItems = String(details || "")
+    .split("||")
+    .map((item) => item.trim())
+    .filter(Boolean);
+
   return (
     <div
       className='fixed inset-0 flex items-center justify-center p-4 z-50 backdrop-blur-sm'
@@ -73,9 +78,24 @@ const ErrorModal: React.FC<ErrorModalProps> = ({
             {message}
           </p>
           {details && (
-            <p className='text-sm text-gray-500 mt-2'>
-              {details}
-            </p>
+            detailItems.length > 0 ? (
+              <div className='mt-3 max-h-56 overflow-auto rounded-lg border border-red-100 bg-red-50/40 p-3'>
+                <p className='text-xs font-semibold uppercase tracking-wide text-red-700 mb-2'>
+                  Conflict Details
+                </p>
+                <ul className='space-y-2'>
+                  {detailItems.map((item, index) => (
+                    <li key={`${index}-${item.slice(0, 20)}`} className='text-sm text-gray-700 leading-relaxed'>
+                      {item}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            ) : (
+              <p className='text-sm text-gray-500 mt-2 whitespace-pre-wrap'>
+                {details}
+              </p>
+            )
           )}
 
           {/* Action Button */}

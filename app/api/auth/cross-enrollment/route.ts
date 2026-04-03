@@ -261,9 +261,9 @@ export async function GET(request: NextRequest) {
       })),
     });
   } catch (error: any) {
-    console.error("Error fetching cross-enrollee requests:", error);
+    console.error("Error fetching inter-program subject requests:", error);
     return NextResponse.json(
-      { error: error?.message || "Failed to fetch cross-enrollee requests." },
+      { error: error?.message || "Failed to fetch inter-program subject requests." },
       { status: 500 },
     );
   }
@@ -331,7 +331,7 @@ export async function POST(request: NextRequest) {
 
     if (!reason) {
       return NextResponse.json(
-        { error: "A reason is required for cross-enrollee requests." },
+        { error: "A reason is required for inter-program subject requests." },
         { status: 400 },
       );
     }
@@ -346,7 +346,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json(
         {
           error:
-            "Cross-enrollee requests can only be submitted for the current academic term.",
+            "Inter-program subject requests can only be submitted for the current academic term.",
         },
         { status: 403 },
       );
@@ -385,7 +385,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json(
         {
           error:
-            "Cross-enrollee requests must target a different host program.",
+            "Inter-program subject requests must target a different program.",
         },
         { status: 400 },
       );
@@ -476,7 +476,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json(
         {
           error:
-            "A pending cross-enrollee request already exists for this subject.",
+            "A pending inter-program subject request already exists for this subject.",
         },
         { status: 409 },
       );
@@ -573,14 +573,14 @@ export async function POST(request: NextRequest) {
       success: true,
       id: insertedRows[0]?.id ?? null,
       message: autoApprove
-        ? "Cross-enrollee subject added successfully."
-        : "Cross-enrollee request submitted for approval.",
+        ? "Inter-program subject added successfully."
+        : "Inter-program subject request submitted for approval.",
       status: requestStatus,
     });
   } catch (error: any) {
-    console.error("Error creating cross-enrollee request:", error);
+    console.error("Error creating inter-program subject request:", error);
     return NextResponse.json(
-      { error: error?.message || "Failed to create cross-enrollee request." },
+      { error: error?.message || "Failed to create inter-program subject request." },
       { status: 500 },
     );
   }

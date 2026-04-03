@@ -44,6 +44,7 @@ import {
   Subject,
   Products,
   SchoolsPrograms,
+  PaymentMethods,
 } from "./components/fileMaintenance";
 import MiscellaneousFees from "./components/MiscellaneousFees";
 import AccountManagement from "./components/AccountManagement";
@@ -101,7 +102,9 @@ function App() {
       case "student-dropping":
         return <StudentDroppingManagement />;
       case "cross-enrollee":
-        return <CrossEnrollmentManagement />;
+        return <CrossEnrollmentManagement mode="inter-program" />;
+      case "petition-subject":
+        return <CrossEnrollmentManagement mode="petition" />;
       case "shifting":
         return <ShiftingManagement />;
       case "program-shifting":
@@ -160,6 +163,8 @@ function App() {
         return <SchoolsPrograms />;
       case "file-maintenance-subject":
         return <Subject />;
+      case "file-maintenance-payment-methods":
+        return <PaymentMethods />;
       case "miscellaneous-fees":
         return <MiscellaneousFees />;
       case "account-management":

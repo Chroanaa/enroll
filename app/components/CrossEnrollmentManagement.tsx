@@ -66,6 +66,30 @@ interface PendingRequest {
   hasSectionAssignment: boolean;
 }
 
+interface PetitionCandidate {
+  curriculumCourseId: number;
+  subjectId: number | null;
+  courseCode: string | null;
+  descriptiveTitle: string | null;
+  unitsTotal: number;
+  yearLevel: number | null;
+  subjectSemester: number | null;
+  petitionType: "last_semester" | "not_open";
+}
+
+interface PetitionRequest {
+  id: number;
+  courseCode: string;
+  descriptiveTitle: string;
+  reason: string | null;
+  status: string;
+  academicYear: string;
+  semester: number;
+  curriculumCourseId: number;
+  unitsTotal: number;
+  petitionType: "last_semester" | "not_open";
+}
+
 const cardStyle: React.CSSProperties = {
   backgroundColor: "white",
   border: `1px solid ${colors.neutralBorder}`,
@@ -124,7 +148,13 @@ function EmptyStateCard({ icon: Icon, title, description }: EmptyStateProps) {
   );
 }
 
-export default function CrossEnrollmentManagement() {
+interface CrossEnrollmentManagementProps {
+  mode?: "inter-program" | "petition";
+}
+
+export default function CrossEnrollmentManagement({
+  mode = "inter-program",
+}: CrossEnrollmentManagementProps) {
   const router = useRouter();
   const { currentTerm, loading: termLoading } = useAcademicTerm();
   const { programs, loading: programsLoading } = useProgramsWithMajors();
@@ -139,20 +169,37 @@ export default function CrossEnrollmentManagement() {
   const [hostSelection, setHostSelection] = useState("");
   const [availableCourses, setAvailableCourses] = useState<AvailableCourse[]>([]);
   const [pendingRequests, setPendingRequests] = useState<PendingRequest[]>([]);
+  const [petitionCandidates, setPetitionCandidates] = useState<PetitionCandidate[]>([]);
+  const [petitionRequests, setPetitionRequests] = useState<PetitionRequest[]>([]);
+  const [petitionMinimumRequired, setPetitionMinimumRequired] = useState(15);
   const [isLoadingCourses, setIsLoadingCourses] = useState(false);
   const [isLoadingRequests, setIsLoadingRequests] = useState(false);
+  const [isLoadingPetitions, setIsLoadingPetitions] = useState(false);
   const [subjectSearch, setSubjectSearch] = useState("");
+  const [petitionSearch, setPetitionSearch] = useState("");
   const [subjectCurrentPage, setSubjectCurrentPage] = useState(1);
+  const [petitionCurrentPage, setPetitionCurrentPage] = useState(1);
   const [subjectItemsPerPage, setSubjectItemsPerPage] = useState(6);
+  const [petitionItemsPerPage, setPetitionItemsPerPage] = useState(6);
   const [requestReason, setRequestReason] = useState("");
+  const [petitionReason, setPetitionReason] = useState("");
   const [submittingKey, setSubmittingKey] = useState("");
   const [confirmationCourse, setConfirmationCourse] = useState<AvailableCourse | null>(null);
+  const [confirmationPetition, setConfirmationPetition] = useState<PetitionCandidate | null>(null);
   const [successModal, setSuccessModal] = useState({ isOpen: false, message: "" });
   const [errorModal, setErrorModal] = useState({
     isOpen: false,
     message: "",
     details: "",
   });
+  const showInterProgram = mode === "inter-program";
+  const showPetition = mode === "petition";
+  const pageTitle = showPetition
+    ? "Petition Subject Requests"
+    : "Inter-Program Subject Requests";
+  const pageDescription = showPetition
+    ? "Submit approval requests to open eligible last-semester or currently not-open subjects."
+    : "Submit approval requests for students who need to take a subject from a different program.";
 
   const semesterNum = currentTerm?.semester === "First" ? 1 : 2;
 
@@ -244,19 +291,26 @@ export default function CrossEnrollmentManagement() {
   const loadStudentContext = async (studentNumber: string) => {
     setIsLoadingCourses(true);
     setIsLoadingRequests(true);
+    setIsLoadingPetitions(true);
 
     try {
-      const [studentResponse, requestsResponse] = await Promise.all([
+      const [studentResponse, requestsResponse, petitionResponse] = await Promise.all([
         fetch(`/api/students/${encodeURIComponent(studentNumber)}`),
         fetch(
           `/api/auth/cross-enrollment?studentNumber=${encodeURIComponent(
             studentNumber,
           )}&status=all`,
         ),
+        fetch(
+          `/api/auth/petition-subject?studentNumber=${encodeURIComponent(
+            studentNumber,
+          )}&status=all`,
+        ),
       ]);
-      const [studentResult, requestsResult] = await Promise.all([
+      const [studentResult, requestsResult, petitionResult] = await Promise.all([
         studentResponse.json(),
         requestsResponse.json(),
+        petitionResponse.json(),
       ]);
 
       if (!studentResponse.ok) {
@@ -265,7 +319,12 @@ export default function CrossEnrollmentManagement() {
 
       if (!requestsResponse.ok) {
         throw new Error(
-          requestsResult.error || "Failed to load cross-enrollee requests.",
+          requestsResult.error || "Failed to load inter-program subject requests.",
+        );
+      }
+      if (!petitionResponse.ok) {
+        throw new Error(
+          petitionResult.error || "Failed to load petition subject data.",
         );
       }
 
@@ -309,11 +368,61 @@ export default function CrossEnrollmentManagement() {
             }))
           : [],
       );
+      const petitionPayload = petitionResult.data || {};
+      setPetitionMinimumRequired(
+        Number(petitionPayload.minimumRequiredStudents || 15),
+      );
+      setPetitionCandidates(
+        Array.isArray(petitionPayload.candidates)
+          ? petitionPayload.candidates.map((item: any) => ({
+              curriculumCourseId: Number(item.curriculumCourseId),
+              subjectId:
+                item.subjectId === null || item.subjectId === undefined
+                  ? null
+                  : Number(item.subjectId),
+              courseCode: item.courseCode ? String(item.courseCode) : null,
+              descriptiveTitle: item.descriptiveTitle
+                ? String(item.descriptiveTitle)
+                : null,
+              unitsTotal: Number(item.unitsTotal || 0),
+              yearLevel:
+                item.yearLevel === null || item.yearLevel === undefined
+                  ? null
+                  : Number(item.yearLevel),
+              subjectSemester:
+                item.subjectSemester === null || item.subjectSemester === undefined
+                  ? null
+                  : Number(item.subjectSemester),
+              petitionType:
+                item.petitionType === "last_semester" ? "last_semester" : "not_open",
+            }))
+          : [],
+      );
+      setPetitionRequests(
+        Array.isArray(petitionPayload.requests)
+          ? petitionPayload.requests.map((item: any) => ({
+              id: Number(item.id),
+              courseCode: String(item.courseCode || "N/A"),
+              descriptiveTitle: String(item.descriptiveTitle || "No title"),
+              reason: item.reason ? String(item.reason) : null,
+              status: String(item.status || "pending_approval"),
+              academicYear: String(item.academicYear || ""),
+              semester: Number(item.semester || semesterNum),
+              curriculumCourseId: Number(item.curriculumCourseId),
+              unitsTotal: Number(item.unitsTotal || 0),
+              petitionType:
+                item.petitionType === "last_semester" ? "last_semester" : "not_open",
+            }))
+          : [],
+      );
       setHostSelection("");
       setAvailableCourses([]);
       setSubjectSearch("");
+      setPetitionSearch("");
       setRequestReason("");
+      setPetitionReason("");
       setSubjectCurrentPage(1);
+      setPetitionCurrentPage(1);
     } catch (error) {
       setErrorModal({
         isOpen: true,
@@ -324,6 +433,7 @@ export default function CrossEnrollmentManagement() {
     } finally {
       setIsLoadingCourses(false);
       setIsLoadingRequests(false);
+      setIsLoadingPetitions(false);
     }
   };
 
@@ -452,6 +562,51 @@ export default function CrossEnrollmentManagement() {
     return filteredCourses.slice(startIndex, startIndex + subjectItemsPerPage);
   }, [filteredCourses, subjectCurrentPage, subjectItemsPerPage]);
 
+  const petitionRequestedCourseIds = useMemo(() => {
+    return new Set(
+      petitionRequests
+        .map((item) => Number(item.curriculumCourseId))
+        .filter(Number.isFinite),
+    );
+  }, [petitionRequests]);
+
+  const pendingPetitionRequests = useMemo(
+    () =>
+      petitionRequests.filter(
+        (item) => String(item.status || "").toLowerCase() === "pending_approval",
+      ),
+    [petitionRequests],
+  );
+
+  const filteredPetitionCandidates = useMemo(() => {
+    const query = petitionSearch.trim().toLowerCase();
+    return petitionCandidates.filter((item) => {
+      if (petitionRequestedCourseIds.has(item.curriculumCourseId)) {
+        return false;
+      }
+
+      if (!query) {
+        return true;
+      }
+
+      const courseCode = String(item.courseCode || "").toLowerCase();
+      const title = String(item.descriptiveTitle || "").toLowerCase();
+      return courseCode.includes(query) || title.includes(query);
+    });
+  }, [petitionCandidates, petitionRequestedCourseIds, petitionSearch]);
+
+  const paginatedPetitionCandidates = useMemo(() => {
+    const startIndex = (petitionCurrentPage - 1) * petitionItemsPerPage;
+    return filteredPetitionCandidates.slice(
+      startIndex,
+      startIndex + petitionItemsPerPage,
+    );
+  }, [
+    filteredPetitionCandidates,
+    petitionCurrentPage,
+    petitionItemsPerPage,
+  ]);
+
   const totalStudentPages = Math.max(
     1,
     Math.ceil(filteredStudents.length / studentItemsPerPage),
@@ -459,6 +614,10 @@ export default function CrossEnrollmentManagement() {
   const totalSubjectPages = Math.max(
     1,
     Math.ceil(filteredCourses.length / subjectItemsPerPage),
+  );
+  const totalPetitionPages = Math.max(
+    1,
+    Math.ceil(filteredPetitionCandidates.length / petitionItemsPerPage),
   );
 
   const hostProgramOptions = useMemo(() => {
@@ -477,7 +636,7 @@ export default function CrossEnrollmentManagement() {
     if (!requestReason.trim()) {
       setErrorModal({
         isOpen: true,
-        message: "A reason is required before submitting a cross-enrollee request.",
+        message: "A reason is required before submitting an inter-program subject request.",
         details: "",
       });
       return;
@@ -503,12 +662,13 @@ export default function CrossEnrollmentManagement() {
       const result = await response.json();
 
       if (!response.ok || !result.success) {
-        throw new Error(result.error || "Failed to submit cross-enrollee request.");
+        throw new Error(result.error || "Failed to submit inter-program subject request.");
       }
 
       setSuccessModal({
         isOpen: true,
-        message: result.message || "Cross-enrollee request submitted successfully.",
+        message:
+          result.message || "Inter-program subject request submitted successfully.",
       });
       setConfirmationCourse(null);
       setRequestReason("");
@@ -519,7 +679,64 @@ export default function CrossEnrollmentManagement() {
         message:
           error instanceof Error
             ? error.message
-            : "Failed to submit cross-enrollee request.",
+            : "Failed to submit inter-program subject request.",
+        details: "",
+      });
+    } finally {
+      setSubmittingKey("");
+    }
+  };
+
+  const submitPetitionSubjectRequest = async () => {
+    if (!confirmationPetition || !selectedStudent || !currentTerm) {
+      return;
+    }
+
+    if (!petitionReason.trim()) {
+      setErrorModal({
+        isOpen: true,
+        message: "A reason is required before submitting a petition request.",
+        details: "",
+      });
+      return;
+    }
+
+    const requestKey = `petition-${confirmationPetition.curriculumCourseId}`;
+    setSubmittingKey(requestKey);
+
+    try {
+      const response = await fetch("/api/auth/petition-subject", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          studentNumber: selectedStudent.studentNumber,
+          curriculumCourseId: confirmationPetition.curriculumCourseId,
+          academicYear: currentTerm.academicYear,
+          semester: semesterNum,
+          reason: petitionReason.trim(),
+        }),
+      });
+      const result = await response.json();
+
+      if (!response.ok || !result.success) {
+        throw new Error(result.error || "Failed to submit petition subject request.");
+      }
+
+      setSuccessModal({
+        isOpen: true,
+        message:
+          result.message || "Petition subject request submitted successfully.",
+      });
+      setConfirmationPetition(null);
+      setPetitionReason("");
+      await loadStudentContext(selectedStudent.studentNumber);
+    } catch (error) {
+      setErrorModal({
+        isOpen: true,
+        message:
+          error instanceof Error
+            ? error.message
+            : "Failed to submit petition subject request.",
         details: "",
       });
     } finally {
@@ -607,6 +824,88 @@ export default function CrossEnrollmentManagement() {
     );
   };
 
+  const renderPetitionConfirmationContent = () => {
+    if (!confirmationPetition || !selectedStudent || !currentTerm) {
+      return null;
+    }
+
+    const petitionTypeLabel =
+      confirmationPetition.petitionType === "last_semester"
+        ? "Last semester subject"
+        : "Currently not open";
+
+    return (
+      <div className="space-y-4 text-sm" style={{ color: colors.primary }}>
+        <div
+          className="rounded-xl border p-4"
+          style={{
+            borderColor: colors.neutralBorder,
+            backgroundColor: colors.paper,
+          }}
+        >
+          <p
+            className="text-[11px] font-semibold uppercase tracking-[0.18em]"
+            style={{ color: colors.tertiary }}
+          >
+            Petition Summary
+          </p>
+          <div className="mt-3 space-y-2">
+            <p>
+              <span style={{ color: colors.tertiary }}>Student:</span>{" "}
+              <span className="font-semibold">{selectedStudent.studentName}</span>
+            </p>
+            <p>
+              <span style={{ color: colors.tertiary }}>Student ID:</span>{" "}
+              <span className="font-semibold">{selectedStudent.studentNumber}</span>
+            </p>
+            <p>
+              <span style={{ color: colors.tertiary }}>Subject:</span>{" "}
+              <span className="font-semibold">
+                {confirmationPetition.courseCode || "N/A"} -{" "}
+                {confirmationPetition.descriptiveTitle || "No title"}
+              </span>
+            </p>
+            <p>
+              <span style={{ color: colors.tertiary }}>Petition Type:</span>{" "}
+              <span className="font-semibold">{petitionTypeLabel}</span>
+            </p>
+            <p>
+              <span style={{ color: colors.tertiary }}>Units:</span>{" "}
+              <span className="font-semibold">{confirmationPetition.unitsTotal}</span>
+            </p>
+            <p>
+              <span style={{ color: colors.tertiary }}>Term:</span>{" "}
+              <span className="font-semibold">
+                {currentTerm.semester} Semester, {currentTerm.academicYear}
+              </span>
+            </p>
+          </div>
+        </div>
+
+        <div>
+          <label
+            className="text-[11px] font-semibold uppercase tracking-[0.18em]"
+            style={{ color: colors.tertiary }}
+          >
+            Reason
+          </label>
+          <textarea
+            value={petitionReason}
+            onChange={(event) => setPetitionReason(event.target.value)}
+            rows={4}
+            className="mt-2 w-full rounded-xl px-3 py-3 text-sm outline-none transition"
+            style={{
+              border: `1px solid ${colors.neutralBorder}`,
+              backgroundColor: "white",
+              color: colors.primary,
+            }}
+            placeholder="Explain why this subject should be petitioned."
+          />
+        </div>
+      </div>
+    );
+  };
+
   return (
     <div className="min-h-screen px-6 pb-6 pt-4" style={{ backgroundColor: colors.paper }}>
       <div className="mx-auto max-w-7xl space-y-5">
@@ -616,10 +915,10 @@ export default function CrossEnrollmentManagement() {
               className="text-[2.35rem] font-bold tracking-[-0.03em]"
               style={{ color: colors.primary }}
             >
-              Cross Enrollee
+              {pageTitle}
             </h1>
             <p className="mt-1 text-[12px] leading-6" style={{ color: colors.neutral }}>
-              Submit approval requests for students who need to take a subject from a different program.
+              {pageDescription}
             </p>
           </div>
 
@@ -657,7 +956,9 @@ export default function CrossEnrollmentManagement() {
                   Student Directory
                 </h2>
                 <p className={`${sectionDescriptionClassName} mt-1`} style={{ color: colors.neutral }}>
-                  Select the student who needs a cross-enrollee subject request.
+                  {showPetition
+                    ? "Select the student who needs a petition subject request."
+                    : "Select the student who needs an inter-program subject request."}
                 </p>
               </div>
 
@@ -811,9 +1112,12 @@ export default function CrossEnrollmentManagement() {
               onClick={() => {
                 setSelectedStudent(null);
                 setPendingRequests([]);
+                setPetitionCandidates([]);
+                setPetitionRequests([]);
                 setAvailableCourses([]);
                 setHostSelection("");
                 setRequestReason("");
+                setPetitionReason("");
               }}
               className="inline-flex items-center gap-2 rounded-2xl px-5 py-3 text-sm font-semibold transition-all"
               style={{
@@ -880,6 +1184,7 @@ export default function CrossEnrollmentManagement() {
             </section>
 
             <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_280px]">
+              {showInterProgram ? (
               <section className="rounded-2xl p-5" style={cardStyle}>
                 <div className="flex flex-col gap-2 border-b pb-5" style={{ borderColor: colors.neutralBorder }}>
                   <p
@@ -1114,6 +1419,160 @@ export default function CrossEnrollmentManagement() {
                   </div>
                 </div>
               </section>
+              ) : null}
+
+              {showPetition ? (
+              <section className="rounded-2xl p-5" style={cardStyle}>
+                <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+                  <div>
+                    <p className={sectionLabelClassName} style={sectionEyebrowStyle}>
+                      Petition Subject
+                    </p>
+                    <h2 className="mt-1 text-[1.08rem] font-semibold" style={{ color: colors.primary }}>
+                      Last Semester / Not Open Subjects
+                    </h2>
+                    <p className="mt-1 text-[12px] leading-5" style={{ color: colors.neutral }}>
+                      Request subjects that were from a different semester or are not currently open this term.
+                    </p>
+                    <p className="mt-1 text-[11px] leading-5" style={{ color: colors.secondary }}>
+                      Approval requires at least {petitionMinimumRequired} students requesting the same subject.
+                    </p>
+                  </div>
+                  <div className="relative w-full lg:max-w-md">
+                    <Search
+                      className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2"
+                      style={{ color: colors.tertiary }}
+                    />
+                    <input
+                      value={petitionSearch}
+                      onChange={(event) => {
+                        setPetitionSearch(event.target.value);
+                        setPetitionCurrentPage(1);
+                      }}
+                      placeholder="Search petition subject code or title"
+                      className={`${fieldClassName} py-3 pl-11 pr-4`}
+                      style={{ color: colors.primary }}
+                    />
+                  </div>
+                </div>
+
+                <div
+                  className="mt-4 overflow-x-auto rounded-2xl border"
+                  style={{ borderColor: colors.neutralBorder }}
+                >
+                  <table className="min-w-full border-collapse">
+                    <thead>
+                      <tr style={{ backgroundColor: `${colors.secondary}08` }}>
+                        <th className="px-4 py-3 text-left text-[11px] font-medium uppercase tracking-[0.2em]" style={{ color: colors.neutral }}>
+                          Code
+                        </th>
+                        <th className="px-4 py-3 text-left text-[11px] font-medium uppercase tracking-[0.2em]" style={{ color: colors.neutral }}>
+                          Subject
+                        </th>
+                        <th className="px-4 py-3 text-left text-[11px] font-medium uppercase tracking-[0.2em]" style={{ color: colors.neutral }}>
+                          Type
+                        </th>
+                        <th className="px-4 py-3 text-left text-[11px] font-medium uppercase tracking-[0.2em]" style={{ color: colors.neutral }}>
+                          Units
+                        </th>
+                        <th className="px-4 py-3 text-center text-[11px] font-medium uppercase tracking-[0.2em]" style={{ color: colors.neutral }}>
+                          Request
+                        </th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {isLoadingPetitions ? (
+                        <tr>
+                          <td colSpan={5} className="px-4 py-12 text-center text-sm" style={{ color: colors.tertiary }}>
+                            Loading petition candidates...
+                          </td>
+                        </tr>
+                      ) : paginatedPetitionCandidates.length === 0 ? (
+                        <tr>
+                          <td colSpan={5} className="px-0 py-0">
+                            <EmptyStateCard
+                              icon={BookOpen}
+                              title="No petition candidates"
+                              description="No eligible last-semester or currently not-open subjects are available for petition."
+                            />
+                          </td>
+                        </tr>
+                      ) : (
+                        paginatedPetitionCandidates.map((item) => (
+                          <tr
+                            key={`petition-candidate-${item.curriculumCourseId}`}
+                            className="border-t align-middle transition-colors hover:bg-slate-50/70"
+                            style={{ borderColor: colors.neutralBorder }}
+                          >
+                            <td className="px-4 py-4 text-sm font-semibold" style={{ color: colors.primary }}>
+                              {item.courseCode || "N/A"}
+                            </td>
+                            <td className="px-4 py-4 text-[14px] font-medium leading-6" style={{ color: colors.primary }}>
+                              {item.descriptiveTitle || "No title"}
+                            </td>
+                            <td className="px-4 py-4 text-[12px]">
+                              <span
+                                className="rounded-full px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.14em]"
+                                style={{
+                                  backgroundColor:
+                                    item.petitionType === "last_semester"
+                                      ? `${colors.warning}12`
+                                      : `${colors.secondary}12`,
+                                  color:
+                                    item.petitionType === "last_semester"
+                                      ? colors.warning
+                                      : colors.secondary,
+                                }}
+                              >
+                                {item.petitionType === "last_semester"
+                                  ? "Last Semester"
+                                  : "Not Open"}
+                              </span>
+                            </td>
+                            <td className="px-4 py-4 text-[14px] font-medium" style={{ color: colors.neutralDark }}>
+                              {item.unitsTotal}
+                            </td>
+                            <td className="px-4 py-4 text-center">
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setConfirmationPetition(item);
+                                  setPetitionReason("");
+                                }}
+                                className={primaryButtonClassName}
+                                style={{
+                                  backgroundColor: colors.primary,
+                                  boxShadow: `0 10px 20px ${colors.primary}20`,
+                                }}
+                              >
+                                <span className="inline-flex items-center gap-2">
+                                  <Send className="h-4 w-4" />
+                                  Request
+                                </span>
+                              </button>
+                            </td>
+                          </tr>
+                        ))
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+
+                <div className="mt-3">
+                  <Pagination
+                    currentPage={petitionCurrentPage}
+                    totalPages={totalPetitionPages}
+                    totalItems={filteredPetitionCandidates.length}
+                    itemsPerPage={petitionItemsPerPage}
+                    onPageChange={setPetitionCurrentPage}
+                    onItemsPerPageChange={(value) => {
+                      setPetitionItemsPerPage(value);
+                      setPetitionCurrentPage(1);
+                    }}
+                  />
+                </div>
+              </section>
+              ) : null}
 
               <aside
                 className="rounded-2xl border p-4"
@@ -1131,7 +1590,9 @@ export default function CrossEnrollmentManagement() {
                       Pending Requests
                     </h3>
                     <p className="mt-1 text-[11px] leading-5" style={{ color: colors.neutral }}>
-                      Awaiting approval.
+                      {showPetition
+                        ? "Petition subject requests awaiting approval."
+                        : "Inter-program requests awaiting approval."}
                     </p>
                   </div>
                   <span
@@ -1141,21 +1602,24 @@ export default function CrossEnrollmentManagement() {
                       color: colors.neutralDark,
                     }}
                   >
-                    {pendingApprovalRequests.length}
+                    {showPetition
+                      ? pendingPetitionRequests.length
+                      : pendingApprovalRequests.length}
                   </span>
                 </div>
 
-                {isLoadingRequests ? (
+                {isLoadingRequests || isLoadingPetitions ? (
                   <div className="py-10 text-sm" style={{ color: colors.tertiary }}>
                     Loading requests...
                   </div>
                 ) : (
                   <div className="mt-4 space-y-5">
-                    {pendingApprovalRequests.length === 0 ? (
+                    {showInterProgram ? (
+                    pendingApprovalRequests.length === 0 ? (
                       <EmptyStateCard
                         icon={User}
                         title="No pending requests"
-                        description="Submitted cross-enrollee requests for this student will appear here while awaiting approval."
+                        description="Submitted inter-program requests for this student will appear here while awaiting approval."
                       />
                     ) : (
                       <div className="max-h-[240px] space-y-3 overflow-y-auto pr-1 request-queue-scroll">
@@ -1201,8 +1665,80 @@ export default function CrossEnrollmentManagement() {
                           </div>
                         ))}
                       </div>
-                    )}
+                    )
+                    ) : null}
 
+                    {showPetition ? (
+                    <div className="border-t pt-4" style={{ borderColor: colors.neutralBorder }}>
+                      <div className="flex items-start justify-between gap-3">
+                        <div>
+                          <h3 className="text-[14px] font-semibold" style={{ color: colors.neutralDark }}>
+                            Petition Subject Queue
+                          </h3>
+                          <p className="mt-1 text-[11px] leading-5" style={{ color: colors.neutral }}>
+                            Last-semester or not-open subjects awaiting approval.
+                          </p>
+                        </div>
+                        <span
+                          className="rounded-full px-3 py-1 text-xs font-semibold"
+                          style={{
+                            backgroundColor: `${colors.secondary}12`,
+                            color: colors.secondary,
+                          }}
+                        >
+                          {pendingPetitionRequests.length}
+                        </span>
+                      </div>
+
+                      {pendingPetitionRequests.length === 0 ? (
+                        <p className="mt-3 text-xs leading-5" style={{ color: colors.neutral }}>
+                          No pending petition subject requests for this student.
+                        </p>
+                      ) : (
+                        <div className="mt-3 max-h-[220px] space-y-3 overflow-y-auto pr-1 request-queue-scroll">
+                          {pendingPetitionRequests.map((request) => (
+                            <div
+                              key={`petition-queue-${request.id}`}
+                              className="rounded-xl border px-3 py-3"
+                              style={{
+                                borderColor: colors.neutralBorder,
+                                backgroundColor: "white",
+                              }}
+                            >
+                              <div className="flex items-start justify-between gap-3">
+                                <div>
+                                  <p className="text-sm font-semibold" style={{ color: colors.primary }}>
+                                    {request.courseCode}
+                                  </p>
+                                  <p className="mt-1 text-[13px] leading-5" style={{ color: colors.primary }}>
+                                    {request.descriptiveTitle}
+                                  </p>
+                                </div>
+                                <span
+                                  className="rounded-full px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.14em]"
+                                  style={{
+                                    backgroundColor: `${colors.secondary}12`,
+                                    color: colors.secondary,
+                                  }}
+                                >
+                                  {request.petitionType === "last_semester"
+                                    ? "last semester"
+                                    : "not open"}
+                                </span>
+                              </div>
+                              {request.reason ? (
+                                <p className="mt-2 text-xs leading-5" style={{ color: colors.neutral }}>
+                                  {request.reason}
+                                </p>
+                              ) : null}
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                    ) : null}
+
+                    {showInterProgram ? (
                     <div className="border-t pt-4" style={{ borderColor: colors.neutralBorder }}>
                       <div className="flex items-start justify-between gap-3">
                         <div>
@@ -1210,7 +1746,7 @@ export default function CrossEnrollmentManagement() {
                             No Section Enrolled Subject Queue
                           </h3>
                           <p className="mt-1 text-[11px] leading-5" style={{ color: colors.neutral }}>
-                            Approved cross-enrollee subjects without section assignment.
+                            Approved inter-program subjects without section assignment.
                           </p>
                         </div>
                         <span
@@ -1271,6 +1807,7 @@ export default function CrossEnrollmentManagement() {
                         </div>
                       )}
                     </div>
+                    ) : null}
                   </div>
                 )}
               </aside>
@@ -1285,7 +1822,7 @@ export default function CrossEnrollmentManagement() {
             setRequestReason("");
           }}
           onConfirm={submitCrossEnrollmentRequest}
-          title="Submit Cross-Enrollee Request"
+          title="Submit Inter-Program Subject Request"
           description="Review the request details before submitting it for approval."
           confirmText={
             submittingKey && confirmationCourse
@@ -1298,6 +1835,28 @@ export default function CrossEnrollmentManagement() {
           variant="info"
           isLoading={Boolean(confirmationCourse) && Boolean(submittingKey)}
           customContent={renderConfirmationContent()}
+        />
+
+        <ConfirmationModal
+          isOpen={Boolean(confirmationPetition)}
+          onClose={() => {
+            setConfirmationPetition(null);
+            setPetitionReason("");
+          }}
+          onConfirm={submitPetitionSubjectRequest}
+          title="Submit Petition Subject Request"
+          description="Review the petition details before submitting for approval."
+          confirmText={
+            submittingKey && confirmationPetition
+              ? submittingKey === `petition-${confirmationPetition.curriculumCourseId}`
+                ? "Submitting..."
+                : "Submit Request"
+              : "Submit Request"
+          }
+          cancelText="Cancel"
+          variant="info"
+          isLoading={Boolean(confirmationPetition) && Boolean(submittingKey)}
+          customContent={renderPetitionConfirmationContent()}
         />
 
         <SuccessModal
