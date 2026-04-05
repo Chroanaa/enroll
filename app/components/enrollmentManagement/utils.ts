@@ -1,5 +1,42 @@
 import { StatusColor } from "../../types";
 import { getCountOfEnrolleesStatus } from "@/app/utils/getCountStatusEnrollees";
+import { parseProgramFilter } from "@/app/utils/programUtils";
+
+export const ADMISSION_REQUIREMENTS = [
+  "School Form 10 / Form 137A",
+  "Transcript of Records",
+  "Certificate of Good Moral Character",
+  "School Form 9 / Form 138",
+  "Honorable Dismissal",
+  "Birth / Marriage Certificate",
+] as const;
+
+export const parseEnrollmentRequirements = (value: unknown): string[] => {
+  if (Array.isArray(value)) {
+    return value.filter((item): item is string => typeof item === "string");
+  }
+
+  if (typeof value === "string" && value.trim()) {
+    try {
+      const parsed = JSON.parse(value);
+      if (Array.isArray(parsed)) {
+        return parsed.filter((item): item is string => typeof item === "string");
+      }
+    } catch {
+      return value
+        .split(",")
+        .map((item) => item.trim())
+        .filter(Boolean);
+    }
+  }
+
+  return [];
+};
+
+export const getMissingEnrollmentRequirements = (requirements: unknown) => {
+  const submitted = new Set(parseEnrollmentRequirements(requirements));
+  return ADMISSION_REQUIREMENTS.filter((item) => !submitted.has(item));
+};
 
 export const ENROLLMENT_STATUS_OPTIONS = [
   { value: "all", label: "All Status" },
@@ -91,10 +128,14 @@ export const filterEnrollments = (
   enrollments: any[],
   searchTerm: string,
   statusFilter: "all" | 1 | 2 | 3 | 4,
-  courseFilter: string
+  programMajorFilter: string
 ) => {
   const normalizedSearch = searchTerm.toLowerCase().trim();
   const compactSearch = normalizedSearch.replace(/[\s-]/g, "");
+  const parsedFilter =
+    programMajorFilter === "all"
+      ? { programId: null, majorId: null }
+      : parseProgramFilter(programMajorFilter);
 
   return enrollments.filter((enrollment) => {
     const studentName = `${enrollment.first_name || ""} ${
@@ -113,9 +154,27 @@ export const filterEnrollments = (
     const matchesStatus =
       statusFilter === "all" ||
       normalizeEnrollmentStatus(enrollment.status) === statusFilter;
-    const matchesCourse =
-      courseFilter === "all" || enrollment.course_program === courseFilter;
-    return matchesSearch && matchesStatus && matchesCourse;
+    const enrollmentProgramId =
+      typeof enrollment.program_id === "number"
+        ? enrollment.program_id
+        : Number.parseInt(String(enrollment.program_id ?? ""), 10);
+    const enrollmentMajorId =
+      typeof enrollment.major_id === "number"
+        ? enrollment.major_id
+        : Number.parseInt(String(enrollment.major_id ?? ""), 10);
+    const hasValidProgramId = Number.isFinite(enrollmentProgramId);
+    const hasValidMajorId = Number.isFinite(enrollmentMajorId);
+
+    const matchesProgramMajor =
+      programMajorFilter === "all" ||
+      (parsedFilter.programId !== null &&
+        hasValidProgramId &&
+        enrollmentProgramId === parsedFilter.programId &&
+        (parsedFilter.majorId === null
+          ? !hasValidMajorId
+          : hasValidMajorId && enrollmentMajorId === parsedFilter.majorId));
+
+    return matchesSearch && matchesStatus && matchesProgramMajor;
   });
 };
 

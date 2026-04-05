@@ -64,28 +64,35 @@ export async function POST(request: NextRequest) {
 export async function GET() {
   try {
     const faculties = await prisma.faculty.findMany({
+      where: {
+        OR: [{ status: "active" }, { status: 1 as any }],
+      },
+      select: {
+        id: true,
+        first_name: true,
+        last_name: true,
+        middle_name: true,
+        department_id: true,
+        status: true,
+      },
       orderBy: {
         last_name: 'asc',
       },
     });
 
-    // Fetch all departments
-    const departments = await prisma.department.findMany({
-      select: {
-        id: true,
-        name: true,
-      },
-    });
-
-    // Create a map for quick lookup
-    const departmentMap = new Map(
-      departments.map((dept) => [dept.id, dept.name])
-    );
+    const departmentIds = [...new Set(faculties.map((f) => f.department_id).filter(Boolean))] as number[];
+    const departments = departmentIds.length
+      ? await prisma.department.findMany({
+          where: { id: { in: departmentIds } },
+          select: { id: true, name: true },
+        })
+      : [];
+    const departmentMap = new Map(departments.map((d) => [d.id, d.name]));
 
     // Add department name to each faculty
     const facultiesWithDepartment = faculties.map((faculty) => ({
       ...faculty,
-      departmentName: faculty.department_id 
+      departmentName: faculty.department_id
         ? departmentMap.get(faculty.department_id) || 'N/A'
         : 'N/A',
     }));

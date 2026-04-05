@@ -1,7 +1,8 @@
 "use client";
 import React, { useState, useEffect, useMemo } from "react";
-import { useRouter } from "next/navigation";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import {
+  AlertCircle,
   Calendar,
   User,
   Mail,
@@ -107,6 +108,8 @@ interface EnrollmentHistory {
 
 export default function ResidentPortalContent() {
   const router = useRouter();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
   
   // Table list state
   const [students, setStudents] = useState<ResidentStudent[]>([]);
@@ -149,6 +152,7 @@ export default function ResidentPortalContent() {
     () => [...programsWithMajors].sort((a, b) => a.label.localeCompare(b.label)),
     [programsWithMajors],
   );
+  const selectedStudentFromUrl = searchParams.get("studentNumber")?.trim() || "";
 
   // Form data
   const [enrollmentId, setEnrollmentId] = useState<number | null>(null);
@@ -211,9 +215,25 @@ export default function ResidentPortalContent() {
     }
   };
 
+  const updateResidentUrl = (selectedStudent?: string) => {
+    const params = new URLSearchParams(searchParams.toString());
+    params.set("view", "resident-enrollment");
+
+    if (selectedStudent) {
+      params.set("studentNumber", selectedStudent);
+    } else {
+      params.delete("studentNumber");
+    }
+
+    const queryString = params.toString();
+    router.replace(queryString ? `${pathname}?${queryString}` : pathname, {
+      scroll: false,
+    });
+  };
+
   // Fetch students on mount and when page/search/filter changes
   useEffect(() => {
-    if (!studentData) {
+    if (!studentData && !selectedStudentFromUrl) {
       fetchResidentStudents();
     }
   }, [
@@ -223,9 +243,23 @@ export default function ResidentPortalContent() {
     programMajorFilter,
     yearLevelFilter,
     studentData,
+    selectedStudentFromUrl,
   ]);
 
-  const handleSearchStudent = async (studentNum?: string) => {
+  useEffect(() => {
+    if (
+      selectedStudentFromUrl &&
+      selectedStudentFromUrl !== studentNumber &&
+      !studentData
+    ) {
+      handleSearchStudent(selectedStudentFromUrl, false);
+    }
+  }, [selectedStudentFromUrl, studentNumber, studentData]);
+
+  const handleSearchStudent = async (
+    studentNum?: string,
+    syncUrl: boolean = true,
+  ) => {
     const studentNumberToSearch = studentNum || inputStudentNumber.trim();
 
     if (!studentNumberToSearch) {
@@ -247,6 +281,9 @@ export default function ResidentPortalContent() {
         setStudentData(data);
         setStudentNumber(studentNumberToSearch);
         setInputStudentNumber(studentNumberToSearch);
+        if (syncUrl) {
+          updateResidentUrl(studentNumberToSearch);
+        }
         setEnrollmentId(data.enrollment_id || null);
         // Pre-fill form with existing data from backend, default to current term if not available
         setTerm(data.term || currentTerm?.semesterCode || "");
@@ -347,6 +384,7 @@ export default function ResidentPortalContent() {
     setYearLevel(1);
     setErrorMessage("");
     setShowError(false);
+    updateResidentUrl();
     // Refresh the list
     fetchResidentStudents();
   };
@@ -416,6 +454,38 @@ export default function ResidentPortalContent() {
     }
 
     return "N/A";
+  };
+
+  const getEnrollmentStatusMeta = (status?: number) => {
+    if (status === 1) {
+      return {
+        label: "Active",
+        icon: CheckCircle,
+        textClassName: "text-green-600",
+      };
+    }
+
+    if (status === 3) {
+      return {
+        label: "Dropped Out",
+        icon: AlertCircle,
+        textClassName: "text-red-600",
+      };
+    }
+
+    if (status === 4) {
+      return {
+        label: "Pending",
+        icon: Loader2,
+        textClassName: "text-amber-600",
+      };
+    }
+
+    return {
+      label: "Inactive",
+      icon: AlertCircle,
+      textClassName: "text-gray-500",
+    };
   };
 
   return (
@@ -954,7 +1024,7 @@ export default function ResidentPortalContent() {
                     {studentData.first_name} {studentData.middle_name}{" "}
                     {studentData.last_name}
                   </h2>
-                  <p className='text-sm font-medium text-gray-500 mb-6 flex items-center gap-2'>
+                  <p className='text-sm font-medium text-gray-500 mb-4 flex items-center gap-2'>
                     <span
                       className='px-2 py-0.5 rounded text-xs font-semibold'
                       style={{
@@ -964,14 +1034,43 @@ export default function ResidentPortalContent() {
                     >
                       {studentData.student_number}
                     </span>
-                    {studentData.status === 1 ? (
-                      <span className='text-green-600 text-xs flex items-center gap-1'>
-                        <CheckCircle size={12} /> Active
-                      </span>
-                    ) : (
-                      <span className='text-gray-500 text-xs'>Inactive</span>
-                    )}
+                    {(() => {
+                      const statusMeta = getEnrollmentStatusMeta(
+                        studentData.status,
+                      );
+                      const StatusIcon = statusMeta.icon;
+
+                      return (
+                        <span
+                          className={`text-xs flex items-center gap-1 ${statusMeta.textClassName}`}
+                        >
+                          <StatusIcon
+                            size={12}
+                            className={studentData.status === 4 ? "animate-spin" : ""}
+                          />
+                          {statusMeta.label}
+                        </span>
+                      );
+                    })()}
                   </p>
+
+                  {studentData.status === 3 ? (
+                    <div
+                      className='mb-6 rounded-xl border px-4 py-3'
+                      style={{
+                        backgroundColor: "#fef2f2",
+                        borderColor: "#fecaca",
+                        color: "#991b1b",
+                      }}
+                    >
+                      <p className='text-sm font-semibold'>Dropped Out Status</p>
+                      <p className='mt-1 text-xs leading-5'>
+                        This student was marked as dropped out in the enrollment
+                        record. Re-enrolling here will return the status to
+                        Pending for review.
+                      </p>
+                    </div>
+                  ) : null}
 
                   <div className='space-y-4'>
                     <div className='flex items-start gap-3 p-3 rounded-xl bg-gray-50'>
@@ -1152,6 +1251,39 @@ export default function ResidentPortalContent() {
                     Update the student's enrollment information for the upcoming
                     term.
                   </p>
+                  {studentData.status === 3 ? (
+                    <div
+                      className='mt-5 rounded-2xl border px-4 py-4'
+                      style={{
+                        backgroundColor: "#fff7ed",
+                        borderColor: "#fdba74",
+                      }}
+                    >
+                      <div className='flex items-start gap-3'>
+                        <AlertCircle
+                          size={18}
+                          className='mt-0.5 shrink-0'
+                          style={{ color: "#c2410c" }}
+                        />
+                        <div>
+                          <p
+                            className='text-sm font-semibold'
+                            style={{ color: "#9a3412" }}
+                          >
+                            Student is currently marked as Dropped Out
+                          </p>
+                          <p
+                            className='mt-1 text-xs leading-5'
+                            style={{ color: "#9a3412" }}
+                          >
+                            Submitting this re-enrollment will move the
+                            enrollment status to Pending (`4`) so the student
+                            can go through the normal review flow again.
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+                  ) : null}
                 </div>
 
                 <form onSubmit={handleSubmit} className='space-y-8'>

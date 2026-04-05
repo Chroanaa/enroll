@@ -1,7 +1,7 @@
 "use client";
 import React, { useState, useEffect, useMemo, useCallback, useRef } from "react";
 import { useSearchParams } from "next/navigation";
-import { CheckCircle2, GraduationCap, List, UserPlus } from "lucide-react";
+import { CheckCircle2, GraduationCap, List, RefreshCw, UserPlus } from "lucide-react";
 import { colors } from "../colors";
 import { defaultFormStyles } from "../utils/formStyles";
 import { useAcademicTerm } from "../hooks/useAcademicTerm";
@@ -1222,6 +1222,11 @@ const AssessmentManagement: React.FC = () => {
     }
   };
 
+  const handleRefreshStudents = async () => {
+    lastFetchParamsRef.current = "";
+    await fetchStudents();
+  };
+
   // Fetch students when filters change.
   // Also sets filter defaults from currentTerm on first load.
   // Merged into one effect to avoid a double-fetch when currentTerm first arrives.
@@ -1400,7 +1405,7 @@ const AssessmentManagement: React.FC = () => {
       // Always persist enrolled subjects to enrolled_subjects table before saving assessment
       if (enrolledSubjects.length > 0) {
         try {
-          await fetch("/api/auth/enrolled-subjects", {
+          const enrolledSubjectsResponse = await fetch("/api/auth/enrolled-subjects", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
@@ -1417,9 +1422,37 @@ const AssessmentManagement: React.FC = () => {
               })),
             }),
           });
+
+          const enrolledSubjectsResult = await enrolledSubjectsResponse.json();
+
+          if (!enrolledSubjectsResponse.ok) {
+            setErrorModal({
+              isOpen: true,
+              message:
+                enrolledSubjectsResult.error ||
+                "Failed to validate enrolled subjects before finalizing assessment",
+            });
+            return false;
+          }
+
+          if (enrolledSubjectsResult.status === "pending_approval") {
+            setErrorModal({
+              isOpen: true,
+              message:
+                enrolledSubjectsResult.message ||
+                "This assessment cannot be finalized yet because the student load exceeds 27 units and is still pending approval.",
+            });
+            return false;
+          }
         } catch (enrollErr) {
           console.error("Error saving enrolled subjects during assessment save:", enrollErr);
-          // Non-blocking: continue saving assessment even if enrolled-subjects save fails
+          setErrorModal({
+            isOpen: true,
+            message: "Failed to validate enrolled subjects before finalizing assessment",
+            details:
+              enrollErr instanceof Error ? enrollErr.message : "Unknown error occurred",
+          });
+          return false;
         }
       }
 
@@ -1646,22 +1679,34 @@ const AssessmentManagement: React.FC = () => {
             <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-4">
               <div className="flex items-center justify-between mb-3">
                 <h3 className="text-sm font-bold text-gray-800">Filter Students</h3>
-                <button
-                  onClick={() => {
-                    setSearchQuery("");
-                    setFilterProgram("");
-                    setFilterYearLevel("");
-                    setFilterAssessmentStatus("");
-                    if (currentTerm) {
-                      setFilterAcademicYear(currentTerm.academicYear);
-                      setFilterSemester(currentTerm.semester === "First" ? "1" : "2");
-                    }
-                  }}
-                  className="px-3 py-1 text-xs font-medium rounded-lg transition-all hover:bg-gray-100"
-                  style={{ color: colors.secondary }}
-                >
-                  Clear Filters
-                </button>
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={handleRefreshStudents}
+                    disabled={loadingStudents}
+                    className="inline-flex items-center gap-1.5 px-3 py-1 text-xs font-medium rounded-lg border border-gray-200 transition-all hover:bg-gray-100 disabled:opacity-60 disabled:cursor-not-allowed"
+                    style={{ color: colors.primary }}
+                    title="Refresh student list"
+                  >
+                    <RefreshCw className={`w-3.5 h-3.5 ${loadingStudents ? "animate-spin" : ""}`} />
+                    Refresh
+                  </button>
+                  <button
+                    onClick={() => {
+                      setSearchQuery("");
+                      setFilterProgram("");
+                      setFilterYearLevel("");
+                      setFilterAssessmentStatus("");
+                      if (currentTerm) {
+                        setFilterAcademicYear(currentTerm.academicYear);
+                        setFilterSemester(currentTerm.semester === "First" ? "1" : "2");
+                      }
+                    }}
+                    className="px-3 py-1 text-xs font-medium rounded-lg transition-all hover:bg-gray-100"
+                    style={{ color: colors.secondary }}
+                  >
+                    Clear Filters
+                  </button>
+                </div>
               </div>
               
               {/* Compact Single Row Layout */}

@@ -7,6 +7,7 @@ import ErrorModal from "./common/ErrorModal";
 import PaymentBillingHeader from "./paymentBilling/Header";
 import { ProductsTabContent } from "./paymentBilling/ProductsTabContent";
 import { TransactionsTabContent } from "./paymentBilling/TransactionsTabContent";
+import OnlinePaymentSubmissionsTabContent from "./paymentBilling/OnlinePaymentSubmissionsTabContent";
 import {
   EnrollmentsTabContent,
   StudentSummary,
@@ -33,7 +34,11 @@ import { useStudentSearch } from "./paymentBilling/hooks/useStudentSearch";
 import { useFinancialSummary } from "./paymentBilling/hooks/useFinancialSummary";
 import { useTransactions } from "./paymentBilling/hooks/useTransactions";
 import { formatAmount } from "./paymentBilling/utils";
-type ActiveTab = "products" | "enrollments" | "transactions";
+type ActiveTab =
+  | "products"
+  | "enrollments"
+  | "transactions"
+  | "online-submissions";
 const STUDENT_PAYMENT_CART_KEY = "student-payment-cart";
 const STUDENT_PAYMENT_UPDATED_KEY = "student-payment-updated";
 
@@ -155,6 +160,8 @@ const PaymentBillingManagement: React.FC = () => {
     return () => window.removeEventListener("storage", handleStorage);
   }, []);
 
+  const [isRefreshingCurrentTab, setIsRefreshingCurrentTab] = useState(false);
+
   const fetchData = async () => {
     setIsLoading(true);
     try {
@@ -173,6 +180,30 @@ const PaymentBillingManagement: React.FC = () => {
       });
     } finally {
       setIsLoading(false);
+    }
+  };
+
+  const handleRefreshCurrentTab = async () => {
+    setIsRefreshingCurrentTab(true);
+    try {
+      if (activeTab === "products") {
+        await fetchData();
+        return;
+      }
+
+      if (activeTab === "enrollments") {
+        setStudentPaymentRefreshSignal(Date.now());
+        return;
+      }
+
+      if (activeTab === "online-submissions") {
+        setStudentPaymentRefreshSignal(Date.now());
+        return;
+      }
+
+      await transactionsHook.fetchOrders();
+    } finally {
+      setIsRefreshingCurrentTab(false);
     }
   };
 
@@ -399,6 +430,8 @@ const PaymentBillingManagement: React.FC = () => {
         <PaymentBillingHeader
           activeTab={activeTab}
           onTabChange={setActiveTab}
+          onRefresh={handleRefreshCurrentTab}
+          isRefreshing={isRefreshingCurrentTab}
         />
 
         {/* Products Tab Content */}
@@ -476,6 +509,12 @@ const PaymentBillingManagement: React.FC = () => {
               )
             }
             formatAmount={formatAmount}
+          />
+        )}
+
+        {activeTab === "online-submissions" && (
+          <OnlinePaymentSubmissionsTabContent
+            refreshSignal={studentPaymentRefreshSignal}
           />
         )}
       </div>

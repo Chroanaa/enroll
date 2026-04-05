@@ -18,6 +18,11 @@ import ProgramShiftingManagement from "./components/ProgramShiftingManagement";
 import ReportManagement from "./components/ReportManagement";
 import PaymentsDashboard from "./components/reports/PaymentsDashboard";
 import RegistrationFormPrintReports from "./components/reports/RegistrationFormPrintReports";
+import SubjectDropReports from "./components/reports/SubjectDropReports";
+import CrossEnrollmentReports from "./components/reports/CrossEnrollmentReports";
+import ProgramShiftingReports from "./components/reports/ProgramShiftingReports";
+import SectionShiftingReports from "./components/reports/SectionShiftingReports";
+import RefundReports from "./components/reports/RefundReports";
 import SchedulingManagement from "./components/SchedulingManagement";
 import PaymentBillingManagement from "./components/PaymentBillingManagement";
 import RefundManagement from "./components/RefundManagement";
@@ -39,6 +44,7 @@ import {
   Subject,
   Products,
   SchoolsPrograms,
+  PaymentMethods,
 } from "./components/fileMaintenance";
 import MiscellaneousFees from "./components/MiscellaneousFees";
 import AccountManagement from "./components/AccountManagement";
@@ -96,7 +102,9 @@ function App() {
       case "student-dropping":
         return <StudentDroppingManagement />;
       case "cross-enrollee":
-        return <CrossEnrollmentManagement />;
+        return <CrossEnrollmentManagement mode="inter-program" />;
+      case "petition-subject":
+        return <CrossEnrollmentManagement mode="petition" />;
       case "shifting":
         return <ShiftingManagement />;
       case "program-shifting":
@@ -107,6 +115,16 @@ function App() {
         return <PaymentsDashboard />;
       case "reports-registration-forms":
         return <RegistrationFormPrintReports />;
+      case "reports-subject-dropping":
+        return <SubjectDropReports />;
+      case "reports-cross-enrollment":
+        return <CrossEnrollmentReports />;
+      case "reports-program-shifting":
+        return <ProgramShiftingReports />;
+      case "reports-section-shifting":
+        return <SectionShiftingReports />;
+      case "reports-refund":
+        return <RefundReports />;
       case "scheduling":
         return <SchedulingManagement />;
       case "section-management":
@@ -145,6 +163,8 @@ function App() {
         return <SchoolsPrograms />;
       case "file-maintenance-subject":
         return <Subject />;
+      case "file-maintenance-payment-methods":
+        return <PaymentMethods />;
       case "miscellaneous-fees":
         return <MiscellaneousFees />;
       case "account-management":

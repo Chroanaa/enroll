@@ -189,6 +189,24 @@ export const EnrolledSubjectsTab: React.FC<EnrolledSubjectsTabProps> = ({
         </div>
       </div>
 
+      {displayTotalUnits > 27 && (
+        <div
+          className="mb-4 rounded-xl border px-4 py-3"
+          style={{
+            backgroundColor: "#fff7ed",
+            borderColor: "#fdba74",
+          }}
+        >
+          <p className="text-sm font-semibold" style={{ color: "#9a3412" }}>
+            Subject load exceeds 27 units.
+          </p>
+          <p className="mt-1 text-xs" style={{ color: "#c2410c" }}>
+            Non-admin users need approval before this assessment can be finalized
+            or used for student payment processing.
+          </p>
+        </div>
+      )}
+
       {isLoadingSubjects ? (
         <div className="text-center py-12">
           <div className="animate-spin rounded-full h-8 w-8 border-2 border-gray-300 border-t-blue-600 mx-auto"></div>

@@ -48,6 +48,7 @@ type NavLeafItem = {
   label: string;
   icon: any;
   allowedRoles?: number[];
+  children?: NavLeafItem[];
 };
 
 const Navigation: React.FC<NavigationProps> = ({
@@ -65,6 +66,11 @@ const Navigation: React.FC<NavigationProps> = ({
   const [isCurriculumOpen, setIsCurriculumOpen] = useState(false);
   const [isTransactionOpen, setIsTransactionOpen] = useState(false);
   const [isReportOpen, setIsReportOpen] = useState(false);
+  const [openReportGroups, setOpenReportGroups] = useState<
+    Record<string, boolean>
+  >({
+    "reports-transaction-group": true,
+  });
   const prevViewRef = useRef<string>("");
 
   const canAccessView = (view: string) => isViewAllowed(view, resolvedUserRole);
@@ -129,6 +135,12 @@ const Navigation: React.FC<NavigationProps> = ({
         allowedRoles: [ROLES.ADMIN, ROLES.CASHIER],
       },
       {
+        id: "file-maintenance-payment-methods",
+        label: "Payment Methods",
+        icon: CreditCard,
+        allowedRoles: [ROLES.ADMIN, ROLES.CASHIER, ROLES.REGISTRAR, ROLES.DEAN],
+      },
+      {
         id: "miscellaneous-fees",
         label: "Miscellaneous Fees",
         icon: Receipt,
@@ -190,7 +202,12 @@ const Navigation: React.FC<NavigationProps> = ({
       },
       {
         id: "cross-enrollee",
-        label: "Cross Enrollee",
+        label: "Inter-Program Subject",
+        icon: BookOpen,
+      },
+      {
+        id: "petition-subject",
+        label: "Petition Subject",
         icon: BookOpen,
       },
       {
@@ -260,9 +277,94 @@ const Navigation: React.FC<NavigationProps> = ({
         label: "Registration Forms",
         icon: FileText,
       },
+      {
+        id: "reports-transaction-group",
+        label: "Transaction Reports",
+        icon: FileBarChart,
+        children: [
+          {
+            id: "reports-subject-dropping",
+            label: "Subject Drop Reports",
+            icon: UserMinus,
+          },
+          {
+            id: "reports-cross-enrollment",
+            label: "Inter-Program Subject Reports",
+            icon: BookOpen,
+          },
+          {
+            id: "reports-program-shifting",
+            label: "Program Shift Reports",
+            icon: ArrowLeftRight,
+          },
+          {
+            id: "reports-section-shifting",
+            label: "Section Shift Reports",
+            icon: CalendarClock,
+          },
+          {
+            id: "reports-refund",
+            label: "Refund Reports",
+            icon: DollarSign,
+          },
+        ],
+      },
     ],
     [],
   );
+
+  const filterNestedNavItems = (items: NavLeafItem[]): NavLeafItem[] =>
+    items
+      .map((item) => {
+        const visibleChildren = item.children
+          ? filterNestedNavItems(item.children)
+          : undefined;
+
+        if (visibleChildren && visibleChildren.length > 0) {
+          return { ...item, children: visibleChildren };
+        }
+
+        if (!item.children && canAccessView(item.id)) {
+          return item;
+        }
+
+        return null;
+      })
+      .filter((item): item is NavLeafItem => Boolean(item));
+
+  const nestedNavContainsView = (
+    items: NavLeafItem[],
+    view: string,
+  ): boolean =>
+    items.some(
+      (item) =>
+        item.id === view ||
+        (item.children ? nestedNavContainsView(item.children, view) : false),
+    );
+
+  const findReportAncestorIds = (
+    items: NavLeafItem[],
+    view: string,
+    ancestors: string[] = [],
+  ): string[] => {
+    for (const item of items) {
+      if (item.id === view) {
+        return ancestors;
+      }
+
+      if (item.children) {
+        const nested = findReportAncestorIds(item.children, view, [
+          ...ancestors,
+          item.id,
+        ]);
+        if (nested.length > 0) {
+          return nested;
+        }
+      }
+    }
+
+    return [];
+  };
 
   const navGroups = useMemo(
     () => [
@@ -380,9 +482,7 @@ const Navigation: React.FC<NavigationProps> = ({
           }
 
           if (item.id === "report") {
-            const visibleSubItems = reportSubItems.filter((sub) =>
-              canAccessView(sub.id),
-            );
+            const visibleSubItems = filterNestedNavItems(reportSubItems);
             return visibleSubItems.length > 0;
           }
 
@@ -398,9 +498,11 @@ const Navigation: React.FC<NavigationProps> = ({
     curriculumSubItems,
     transactionSubItems,
     reportSubItems,
+    canAccessView,
     resolvedUserRole,
     userRole,
   ]);
+
 
   const dedupedNavGroups = useMemo(() => {
     const seenItemIds = new Set<string>();
@@ -430,25 +532,24 @@ const Navigation: React.FC<NavigationProps> = ({
   const visibleTransactionSubItems = transactionSubItems.filter((item) =>
     canAccessView(item.id),
   );
-  const visibleReportSubItems = reportSubItems.filter((item) =>
-    canAccessView(item.id),
+  const visibleReportSubItems = useMemo(
+    () => filterNestedNavItems(reportSubItems),
+    [reportSubItems, canAccessView],
   );
-
   const isFileMaintenanceActive = currentView.startsWith("file-maintenance");
   const isCurriculumActive = currentView.startsWith("curriculum");
   const isTransactionActive = transactionSubItems.some(
     (item) => item.id === currentView,
   );
-  const isReportActive = reportSubItems.some((item) => item.id === currentView);
+  
+  const isReportActive = nestedNavContainsView(reportSubItems, currentView);
   const prevWasFileMaintenance =
     prevViewRef.current.startsWith("file-maintenance");
   const prevWasCurriculum = prevViewRef.current.startsWith("curriculum");
   const prevWasTransaction = transactionSubItems.some(
     (item) => item.id === prevViewRef.current,
   );
-  const prevWasReport = reportSubItems.some(
-    (item) => item.id === prevViewRef.current,
-  );
+  const prevWasReport = nestedNavContainsView(reportSubItems, prevViewRef.current);
 
   useEffect(() => {
     if (
@@ -467,6 +568,17 @@ const Navigation: React.FC<NavigationProps> = ({
     if (isReportActive && !prevWasReport && !isReportOpen) {
       setIsReportOpen(true);
     }
+
+    const ancestorIds = findReportAncestorIds(reportSubItems, currentView);
+    if (ancestorIds.length > 0) {
+      setOpenReportGroups((prev) => {
+        const next = { ...prev };
+        ancestorIds.forEach((id) => {
+          next[id] = true;
+        });
+        return next;
+      });
+    }
     prevViewRef.current = currentView;
   }, [
     currentView,
@@ -482,6 +594,7 @@ const Navigation: React.FC<NavigationProps> = ({
     isReportActive,
     prevWasReport,
     isReportOpen,
+    reportSubItems,
   ]);
 
   return (
@@ -810,47 +923,147 @@ const Navigation: React.FC<NavigationProps> = ({
                         <ul className='ml-0 md:ml-4 mt-1 space-y-1'>
                           {visibleReportSubItems.map((subItem) => {
                             const SubIcon = subItem.icon;
-                            const isSubActive = currentView === subItem.id;
+                            const isSubActive =
+                              currentView === subItem.id ||
+                              (subItem.children
+                                ? nestedNavContainsView(
+                                    subItem.children,
+                                    currentView,
+                                  )
+                                : false);
                             return (
                               <li key={subItem.id}>
-                                <button
-                                  onClick={(e) => {
-                                    e.preventDefault();
-                                    e.stopPropagation();
-                                    onViewChange(subItem.id);
-                                  }}
-                                  className='w-full flex items-center justify-start gap-3 px-3 py-2 rounded-lg text-sm font-medium transition-all duration-200'
-                                  style={
-                                    isSubActive
-                                      ? {
-                                          backgroundColor: `${colors.secondary}40`,
-                                          color: colors.paper,
-                                          border: `1px solid ${colors.secondary}`,
-                                        }
-                                      : {
-                                          color: colors.paper,
-                                          backgroundColor: "transparent",
-                                          border: "1px solid transparent",
-                                          opacity: 0.7,
-                                        }
-                                  }
-                                  onMouseEnter={(e) => {
-                                    if (!isSubActive) {
-                                      e.currentTarget.style.backgroundColor = `${colors.paper}20`;
-                                      e.currentTarget.style.opacity = "1";
+                                {subItem.children ? (
+                                  <>
+                                    <button
+                                      onClick={(e) => {
+                                        e.preventDefault();
+                                        e.stopPropagation();
+                                        setOpenReportGroups((prev) => ({
+                                          ...prev,
+                                          [subItem.id]: !prev[subItem.id],
+                                        }));
+                                      }}
+                                      className='w-full flex items-center justify-start gap-2.5 px-2.5 py-2 rounded-lg text-[13px] font-medium transition-all duration-200'
+                                      style={
+                                        isSubActive
+                                          ? {
+                                              backgroundColor: `${colors.secondary}40`,
+                                              color: colors.paper,
+                                              border: `1px solid ${colors.secondary}`,
+                                            }
+                                          : {
+                                              color: colors.paper,
+                                              backgroundColor: "transparent",
+                                              border: "1px solid transparent",
+                                              opacity: 0.7,
+                                            }
+                                      }
+                                    >
+                                      <SubIcon className='h-4 w-4 shrink-0' />
+                                      <span className='min-w-0 flex-1 whitespace-nowrap text-left leading-none'>
+                                        {subItem.label}
+                                      </span>
+                                      {openReportGroups[subItem.id] ? (
+                                        <ChevronDown className='h-4 w-4 shrink-0' />
+                                      ) : (
+                                        <ChevronRight className='h-4 w-4 shrink-0' />
+                                      )}
+                                    </button>
+
+                                    {openReportGroups[subItem.id] && (
+                                      <ul className='ml-4 mt-1 space-y-1'>
+                                        {subItem.children.map((child) => {
+                                          const ChildIcon = child.icon;
+                                          const isChildActive = currentView === child.id;
+                                          return (
+                                            <li key={child.id}>
+                                              <button
+                                                onClick={(e) => {
+                                                  e.preventDefault();
+                                                  e.stopPropagation();
+                                                  onViewChange(child.id);
+                                                }}
+                                                className='w-full flex items-center justify-start gap-2.5 px-2.5 py-2 rounded-lg text-[13px] font-medium transition-all duration-200'
+                                                style={
+                                                  isChildActive
+                                                    ? {
+                                                        backgroundColor: `${colors.secondary}40`,
+                                                        color: colors.paper,
+                                                        border: `1px solid ${colors.secondary}`,
+                                                      }
+                                                    : {
+                                                        color: colors.paper,
+                                                        backgroundColor: "transparent",
+                                                        border: "1px solid transparent",
+                                                        opacity: 0.7,
+                                                      }
+                                                }
+                                                onMouseEnter={(e) => {
+                                                  if (!isChildActive) {
+                                                    e.currentTarget.style.backgroundColor = `${colors.paper}20`;
+                                                    e.currentTarget.style.opacity = "1";
+                                                  }
+                                                }}
+                                                onMouseLeave={(e) => {
+                                                  if (!isChildActive) {
+                                                    e.currentTarget.style.backgroundColor =
+                                                      "transparent";
+                                                    e.currentTarget.style.opacity = "0.7";
+                                                  }
+                                                }}
+                                              >
+                                                <ChildIcon className='h-4 w-4 shrink-0' />
+                                                <span className='min-w-0 whitespace-nowrap leading-none'>
+                                                  {child.label}
+                                                </span>
+                                              </button>
+                                            </li>
+                                          );
+                                        })}
+                                      </ul>
+                                    )}
+                                  </>
+                                ) : (
+                                  <button
+                                    onClick={(e) => {
+                                      e.preventDefault();
+                                      e.stopPropagation();
+                                      onViewChange(subItem.id);
+                                    }}
+                                    className='w-full flex items-center justify-start gap-3 px-3 py-2 rounded-lg text-sm font-medium transition-all duration-200'
+                                    style={
+                                      isSubActive
+                                        ? {
+                                            backgroundColor: `${colors.secondary}40`,
+                                            color: colors.paper,
+                                            border: `1px solid ${colors.secondary}`,
+                                          }
+                                        : {
+                                            color: colors.paper,
+                                            backgroundColor: "transparent",
+                                            border: "1px solid transparent",
+                                            opacity: 0.7,
+                                          }
                                     }
-                                  }}
-                                  onMouseLeave={(e) => {
-                                    if (!isSubActive) {
-                                      e.currentTarget.style.backgroundColor =
-                                        "transparent";
-                                      e.currentTarget.style.opacity = "0.7";
-                                    }
-                                  }}
-                                >
-                                  <SubIcon className='w-4 h-4' />
-                                  <span>{subItem.label}</span>
-                                </button>
+                                    onMouseEnter={(e) => {
+                                      if (!isSubActive) {
+                                        e.currentTarget.style.backgroundColor = `${colors.paper}20`;
+                                        e.currentTarget.style.opacity = "1";
+                                      }
+                                    }}
+                                    onMouseLeave={(e) => {
+                                      if (!isSubActive) {
+                                        e.currentTarget.style.backgroundColor =
+                                          "transparent";
+                                        e.currentTarget.style.opacity = "0.7";
+                                      }
+                                    }}
+                                  >
+                                    <SubIcon className='w-4 h-4' />
+                                    <span>{subItem.label}</span>
+                                  </button>
+                                )}
                               </li>
                             );
                           })}

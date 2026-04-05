@@ -122,7 +122,7 @@ export async function GET(request: NextRequest) {
     let assessments: any[];
 
     if (hasEnrollmentFilters) {
-      const [enr, programs, majors] = await Promise.all([
+      const [enr, programs, majors, pendingOverloads] = await Promise.all([
         prisma.enrollment.findMany({
           where: enrollmentWhere,
           select: enrollmentSelect,
@@ -130,6 +130,15 @@ export async function GET(request: NextRequest) {
         }),
         prisma.program.findMany({ select: { id: true, code: true, name: true } }),
         prisma.major.findMany({ select: { id: true, name: true, program_id: true } }),
+        prisma.enrolled_subjects.findMany({
+          where: {
+            academic_year: academicYear,
+            semester: semesterInt,
+            status: "pending_approval",
+          },
+          select: { student_number: true, academic_year: true, semester: true },
+          distinct: ["student_number", "academic_year", "semester"],
+        }),
       ]);
       enrollments = enr;
       const studentNumbers = enrollments
@@ -151,10 +160,10 @@ export async function GET(request: NextRequest) {
       assessments = asmts;
       return buildResponse(
         enrollments, assessments, payGroups, programs, majors,
-        assessmentStatusFilter, statusFilter, includeNotAssessed, academicYear, semesterInt,
+        assessmentStatusFilter, statusFilter, includeNotAssessed, academicYear, semesterInt, pendingOverloads,
       );
     } else {
-      const [enr, asmts, programs, majors, payGroups] = await Promise.all([
+      const [enr, asmts, programs, majors, payGroups, pendingOverloads] = await Promise.all([
         prisma.enrollment.findMany({
           where: enrollmentWhere,
           select: enrollmentSelect,
@@ -172,12 +181,21 @@ export async function GET(request: NextRequest) {
           where: { assessment: { academic_year: academicYear, semester: semesterInt } },
           _sum: { amount_paid: true },
         }),
+        prisma.enrolled_subjects.findMany({
+          where: {
+            academic_year: academicYear,
+            semester: semesterInt,
+            status: "pending_approval",
+          },
+          select: { student_number: true, academic_year: true, semester: true },
+          distinct: ["student_number", "academic_year", "semester"],
+        }),
       ]);
       enrollments = enr;
       assessments = asmts;
       return buildResponse(
         enrollments, assessments, payGroups, programs, majors,
-        assessmentStatusFilter, statusFilter, includeNotAssessed, academicYear, semesterInt,
+        assessmentStatusFilter, statusFilter, includeNotAssessed, academicYear, semesterInt, pendingOverloads,
       );
     }
   } catch (error) {
@@ -203,6 +221,7 @@ function buildResponse(
   includeNotAssessed: boolean,
   academicYear: string,
   semesterInt: number,
+  pendingOverloads: { student_number: string; academic_year: string; semester: number }[],
 ): NextResponse {
   const programMap = new Map(programs.map((p) => [p.id, p]));
   const majorMap = new Map(majors.map((m) => [m.id, m]));
@@ -213,6 +232,11 @@ function buildResponse(
   );
   const paymentSumMap = new Map(
     payGroups.map((p) => [p.assessment_id, Number(p._sum.amount_paid) || 0]),
+  );
+  const pendingOverloadKeys = new Set(
+    pendingOverloads.map(
+      (item) => `${item.student_number}::${item.academic_year}::${item.semester}`,
+    ),
   );
   const assessedNumbers = new Set(assessments.map((a) => a.student_number));
 
@@ -241,6 +265,12 @@ function buildResponse(
 
   const assessedSummaries = assessments
     .filter((a) => enrollmentMap.has(a.student_number))
+    .filter(
+      (a) =>
+        !pendingOverloadKeys.has(
+          `${a.student_number}::${a.academic_year}::${a.semester}`,
+        ),
+    )
     .map((a) => {
       const enrollment = enrollmentMap.get(a.student_number)!;
       let totalDue = Number(a.total_due) || 0;

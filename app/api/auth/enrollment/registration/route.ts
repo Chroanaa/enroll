@@ -183,7 +183,7 @@ export async function GET(request: NextRequest) {
 
     const classListRows = await prisma.$queryRaw<any[]>`
       SELECT
-        sec.section_name,
+        COALESCE(schedule_sec.section_name, sec.section_name) AS section_name,
         COALESCE(cc.course_code, sub.code) AS course_code,
         COALESCE(cc.descriptive_title, sub.name) AS descriptive_title,
         COALESCE(cc.units_total, 0) AS units_total,
@@ -196,6 +196,7 @@ export async function GET(request: NextRequest) {
       JOIN student_section_subjects sss ON sss.student_section_id = ss.id
       JOIN class_schedule cs ON cs.id = sss.class_schedule_id
       LEFT JOIN sections sec ON sec.id = ss.section_id
+      LEFT JOIN sections schedule_sec ON schedule_sec.id = cs.section_id
       LEFT JOIN curriculum_course cc ON cc.id = cs.curriculum_course_id
       LEFT JOIN subject sub ON sub.id = cc.subject_id
       LEFT JOIN room ON room.id = cs.room_id

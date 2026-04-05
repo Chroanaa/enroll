@@ -2,6 +2,12 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/app/lib/prisma";
 import { getSessionScope, isRoleAllowed, type SessionScope } from "@/app/lib/accessScope";
 import { ROLES } from "@/app/lib/rbac";
+import { sendAssessmentPaymentLinkEmail } from "@/app/lib/email";
+import {
+  createPaymentLinkToken,
+  ensureOnlinePaymentTables,
+  getPaymentPortalBaseUrl,
+} from "@/app/lib/onlinePayment";
 
 const ASSESSMENT_ALLOWED_ROLES = [ROLES.ADMIN, ROLES.CASHIER, ROLES.DEAN];
 
@@ -279,6 +285,27 @@ export async function POST(request: NextRequest) {
       }
     }
 
+    if (mode === "finalize") {
+      const pendingOverloadCount = await prisma.enrolled_subjects.count({
+        where: {
+          student_number: studentNumber,
+          academic_year: academicYear,
+          semester: semesterNum,
+          status: "pending_approval",
+        },
+      });
+
+      if (pendingOverloadCount > 0) {
+        return NextResponse.json(
+          {
+            error:
+              "This assessment cannot be finalized because the enrolled subjects are still pending overload approval.",
+          },
+          { status: 409 },
+        );
+      }
+    }
+
     // Use transaction to ensure data integrity
     // Add timeout to prevent P2028 errors (default is 5 seconds, increase to 10 seconds)
     let isUpdate = false;
@@ -503,6 +530,73 @@ export async function POST(request: NextRequest) {
       maxWait: 10000, // Maximum time to wait for a transaction slot (10 seconds)
       timeout: 15000, // Maximum time the transaction can run (15 seconds)
     });
+
+    if (mode === "finalize" && result) {
+      try {
+        await ensureOnlinePaymentTables();
+        const enrollmentRow = await prisma.enrollment.findFirst({
+          where: {
+            student_number: studentNumber,
+            academic_year: academicYear,
+            term: {
+              in: getSemesterTermVariants(semesterNum),
+            },
+          },
+          select: {
+            email_address: true,
+            first_name: true,
+            middle_name: true,
+            family_name: true,
+            student_number: true,
+          },
+          orderBy: { id: "desc" },
+        });
+
+        if (enrollmentRow?.email_address) {
+          const token = createPaymentLinkToken();
+          const expiresAt = new Date(Date.now() + 1000 * 60 * 60 * 24 * 7); // 7 days
+          const normalizedSemester = semesterNum;
+
+          await prisma.$executeRawUnsafe(
+            `
+              INSERT INTO online_payment_links
+                (token, assessment_id, student_number, email_address, academic_year, semester, expires_at, is_active)
+              VALUES
+                ($1, $2, $3, $4, $5, $6, $7, true)
+            `,
+            token,
+            result.id,
+            studentNumber,
+            enrollmentRow.email_address,
+            academicYear,
+            normalizedSemester,
+            expiresAt,
+          );
+
+          const portalBase = getPaymentPortalBaseUrl(new URL(request.url).origin);
+          const paymentLink = `${portalBase.replace(/\/$/, "")}/payment?token=${encodeURIComponent(token)}`;
+          const studentName =
+            `${enrollmentRow.first_name || ""} ${enrollmentRow.middle_name || ""} ${enrollmentRow.family_name || ""}`
+              .replace(/\s+/g, " ")
+              .trim() || studentNumber;
+
+          await sendAssessmentPaymentLinkEmail({
+            to: enrollmentRow.email_address,
+            studentName,
+            studentNumber: enrollmentRow.student_number,
+            paymentLink,
+            totalAmount:
+              paymentMode === "installment"
+                ? Number(totalDueInstallment || totalDue || 0)
+                : Number(totalDueCash || totalDue || 0),
+            academicYear,
+            semester: normalizedSemester === 1 ? "First Semester" : "Second Semester",
+          });
+        }
+      } catch (emailError) {
+        console.error("Failed to send assessment payment link email:", emailError);
+      }
+    }
 
     return NextResponse.json({
       success: true,

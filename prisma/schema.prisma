@@ -745,3 +745,38 @@ model backup_artifacts {
 
   @@index([created_at(sort: Desc)], map: "idx_backup_artifacts_created_at")
 }
+
+model payment_gateway_methods {
+  id               Int      @id @default(autoincrement())
+  name             String   @db.VarChar(100)
+  receiver_name    String   @db.VarChar(150)
+  receiver_account String   @db.VarChar(120)
+  instructions     String?
+  is_active        Boolean  @default(true)
+  sort_order       Int      @default(0)
+  created_at       DateTime @default(now()) @db.Timestamp(6)
+  updated_at       DateTime @default(now()) @db.Timestamp(6)
+
+  @@index([is_active, sort_order, name], map: "idx_payment_gateway_methods_active_sort")
+}
+
+model student_petition_subject_requests {
+  id                           Int       @id @default(autoincrement())
+  student_number               String    @db.VarChar(20)
+  home_program_id              Int?
+  home_major_id                Int?
+  curriculum_course_id         Int
+  subject_id                   Int?
+  academic_year                String    @db.VarChar(20)
+  semester                     Int
+  requested_subject_semester   Int?
+  requested_subject_year_level Int?
+  units_total                  Int       @default(0)
+  reason                       String?
+  petition_type                String    @default("not_open") @db.VarChar(30)
+  status                       String    @default("pending_approval") @db.VarChar(30)
+  requested_by                 Int?
+  approved_by                  Int?
+  requested_at                 DateTime  @default(now()) @db.Timestamp(6)
+  approved_at                  DateTime? @db.Timestamp(6)
+}

@@ -3,6 +3,7 @@ import { getServerSession } from "next-auth";
 import { prisma } from "../../../../../lib/prisma";
 import { authOptions } from "../../../[...nextauth]/authOptions";
 import { insertIntoReports } from "@/app/utils/reportsUtils";
+import { sendEnrollmentVerifiedEmail } from "@/app/lib/email";
 
 const ALLOWED_ROLES = new Set([1, 4]); // Admin, Registrar
 const ALLOWED_VERIFICATION_STATUSES = new Set([
@@ -62,6 +63,7 @@ export async function PATCH(
         student_number: true,
         first_name: true,
         family_name: true,
+        email_address: true,
         verification_status: true,
       },
     });
@@ -83,6 +85,31 @@ export async function PATCH(
         verified_at: shouldStampVerifier ? new Date() : null,
       },
     });
+
+    const shouldSendApprovalEmail =
+      verificationStatus === "approved" &&
+      existing.verification_status !== "approved" &&
+      Boolean(existing.email_address);
+
+    if (shouldSendApprovalEmail) {
+      const assessmentUrl =
+        process.env.ENROLLMENT_ASSESSMENT_URL?.trim() ||
+        process.env.ENROLLMENT_PAYMENT_URL?.trim() ||
+        null;
+
+      try {
+        await sendEnrollmentVerifiedEmail({
+          to: existing.email_address!,
+          studentName:
+            `${existing.first_name || ""} ${existing.family_name || ""}`.trim() ||
+            "Student",
+          studentNumber: existing.student_number,
+          assessmentUrl,
+        });
+      } catch (emailError) {
+        console.error("Failed to send enrollment verification email:", emailError);
+      }
+    }
 
     if (verifierId) {
       const studentName =

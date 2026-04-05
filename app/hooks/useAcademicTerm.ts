@@ -77,6 +77,20 @@ export function useAcademicTerm(options?: {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
+  const getAcademicTermErrorMessage = (err: unknown) => {
+    if (typeof navigator !== "undefined" && !navigator.onLine) {
+      return "Unable to load the academic term because your internet connection appears to be offline. The system will retry when the network is back.";
+    }
+
+    if (err instanceof Error && /network|fetch|load/i.test(err.message)) {
+      return "Unable to load the academic term due to a network issue. Please check your connection and try again.";
+    }
+
+    return err instanceof Error
+      ? err.message
+      : "Failed to fetch academic term";
+  };
+
   const fetchAcademicTerm = useCallback(
     async (shouldSync: boolean = false) => {
       try {
@@ -102,7 +116,7 @@ export function useAcademicTerm(options?: {
         setPreviousTerm(data.data.previousTerm || null);
         setStoredSettings(data.data.storedSettings || null);
       } catch (err) {
-        setError(err instanceof Error ? err.message : "Unknown error");
+        setError(getAcademicTermErrorMessage(err));
         console.error("Failed to fetch academic term:", err);
       } finally {
         setLoading(false);
@@ -138,6 +152,15 @@ export function useAcademicTerm(options?: {
   useEffect(() => {
     fetchAcademicTerm(autoSync);
   }, [fetchAcademicTerm, autoSync]);
+
+  useEffect(() => {
+    const handleOnline = () => {
+      void fetchAcademicTerm(false);
+    };
+
+    window.addEventListener("online", handleOnline);
+    return () => window.removeEventListener("online", handleOnline);
+  }, [fetchAcademicTerm]);
 
   // Set up auto-refresh interval if specified
   useEffect(() => {

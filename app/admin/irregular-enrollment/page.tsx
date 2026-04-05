@@ -62,6 +62,8 @@ interface ClassSchedule {
   subjectYearLevel: number | null;
   subjectSemester: number | null;
   unitsTotal: number;
+  lectureHour: number;
+  labHour: number;
 }
 
 interface EnrolledSubject {
@@ -82,6 +84,47 @@ interface EnrolledSubject {
   unitsLab: number;
   lectureHour: number;
   labHour: number;
+}
+
+interface PetitionEnrollmentRow {
+  studentNumber: string;
+  firstName: string;
+  middleName: string;
+  lastName: string;
+  name: string;
+  email: string;
+  programId?: number | null;
+  programCode?: string;
+  programName?: string;
+  majorId?: number | null;
+  majorName?: string;
+  programLabel: string;
+  yearLevel: number | null;
+  academicStatus: string;
+  hasAssignment: boolean;
+}
+
+interface ScheduleConflictDetail {
+  conflictingCourseCode: string;
+  conflictingCourseTitle: string;
+  conflictingDay: string;
+  conflictingStart: string;
+  conflictingEnd: string;
+}
+
+interface AvailableScheduleGroup {
+  key: string;
+  curriculumCourseId: number;
+  sectionId: number;
+  sectionName: string;
+  courseCode: string;
+  courseTitle: string;
+  unitsTotal: number;
+  lectureHour: number;
+  labHour: number;
+  slots: ClassSchedule[];
+  conflictBySlot: Record<number, ScheduleConflictDetail[]>;
+  hasConflict: boolean;
 }
 
 // Step indicator component
@@ -151,10 +194,21 @@ function IrregularEnrollmentPageContent() {
   } | null>(null);
 
   const crossRequestId = Number(searchParams.get('crossRequestId') || '');
+  const petitionModeParam = searchParams.get('petitionMode') === '1';
   const prefillStudentNumber = searchParams.get('studentNumber')?.trim() || '';
   const prefillAcademicYear = searchParams.get('academicYear')?.trim() || '';
   const prefillSemester = searchParams.get('semester')?.trim() || '';
   const prefillCurriculumCourseId = Number(searchParams.get('curriculumCourseId') || '');
+  const isPetitionEnrollmentMode =
+    petitionModeParam &&
+    Number.isFinite(prefillCurriculumCourseId) &&
+    prefillCurriculumCourseId > 0;
+
+  const [enrollmentView, setEnrollmentView] = useState<'petition' | 'manual'>(
+    isPetitionEnrollmentMode ? 'petition' : 'manual',
+  );
+  const [petitionRows, setPetitionRows] = useState<PetitionEnrollmentRow[]>([]);
+  const [loadingPetitionRows, setLoadingPetitionRows] = useState(false);
 
   const effectiveStudentNumber = crossContext?.studentNumber || prefillStudentNumber;
   const effectiveAcademicYear = crossContext?.academicYear || prefillAcademicYear;
@@ -164,6 +218,14 @@ function IrregularEnrollmentPageContent() {
 
   // Derive current step for the progress indicator
   const currentStep = !selectedStudent ? 1 : !selectedAssessmentSubject ? 2 : 3;
+
+  useEffect(() => {
+    if (!isPetitionEnrollmentMode) {
+      setEnrollmentView('manual');
+    } else if (enrollmentView !== 'petition' && !selectedStudent) {
+      setEnrollmentView('petition');
+    }
+  }, [isPetitionEnrollmentMode, enrollmentView, selectedStudent]);
 
   const handleViewChange = (view: string) => router.push(`/dashboard?view=${view}`);
 
@@ -214,7 +276,13 @@ function IrregularEnrollmentPageContent() {
     return () => clearTimeout(handle);
   }, [studentSearchQuery, studentSearchModal]);
   useEffect(() => { if (selectedStudent) { loadEnrolledSubjects(); } }, [selectedStudent, academicYear, semester]);
-  useEffect(() => { if (selectedAssessmentSubject) loadSchedulesBySubject(selectedAssessmentSubject.curriculum_course_id); }, [academicYear, semester]);
+  useEffect(() => {
+    if (!selectedStudent || !selectedAssessmentSubject?.curriculum_course_id) {
+      setSchedules([]);
+      return;
+    }
+    loadSchedulesBySubject(selectedAssessmentSubject.curriculum_course_id);
+  }, [selectedStudent, selectedAssessmentSubject, academicYear, semester]);
 
   useEffect(() => {
     const fetchCrossContext = async () => {
@@ -316,6 +384,94 @@ function IrregularEnrollmentPageContent() {
       setSelectedAssessmentSubject(matchedSubject);
     }
   }, [enrolledSubjectsFromAssessment, effectiveCurriculumCourseId, selectedAssessmentSubject]);
+
+  const semesterToNumber = (value: string) => {
+    const normalized = String(value || '').trim().toLowerCase();
+    if (normalized === 'first' || normalized === '1') return 1;
+    if (normalized === 'second' || normalized === '2') return 2;
+    return 3;
+  };
+
+  const applyStudentSelection = (student: Student) => {
+    setSelectedStudent(student);
+    setStudentSearchModal(false);
+    setStudentSearchQuery('');
+    setSelectedSection(null);
+    setSchedules([]);
+    setError(null);
+    setSelectedAssessmentSubject(null);
+  };
+
+  useEffect(() => {
+    const loadPetitionEnrollmentRows = async () => {
+      if (!isPetitionEnrollmentMode) {
+        setPetitionRows([]);
+        return;
+      }
+      if (!Number.isFinite(prefillCurriculumCourseId) || prefillCurriculumCourseId <= 0) {
+        setPetitionRows([]);
+        return;
+      }
+
+      setLoadingPetitionRows(true);
+      try {
+        const semesterNum = semesterToNumber(semester);
+        const params = new URLSearchParams({
+          curriculumCourseId: String(prefillCurriculumCourseId),
+          academicYear,
+          semester: String(semesterNum),
+        });
+        const response = await fetch(
+          `/api/auth/petition-subject/enrollment-list?${params.toString()}`,
+        );
+        const result = await response.json();
+        if (!response.ok || !result?.success) {
+          throw new Error(result?.error || 'Failed to load petition enrollment list.');
+        }
+        setPetitionRows(Array.isArray(result?.data) ? result.data : []);
+      } catch (err) {
+        console.error('Failed to load petition enrollment list:', err);
+        setPetitionRows([]);
+      } finally {
+        setLoadingPetitionRows(false);
+      }
+    };
+
+    loadPetitionEnrollmentRows();
+  }, [isPetitionEnrollmentMode, prefillCurriculumCourseId, academicYear, semester]);
+
+  const handleSelectPetitionStudent = (row: PetitionEnrollmentRow) => {
+    const programCode = String(row.programCode || '').trim();
+    const programName = String(row.programName || '').trim();
+    const majorName = String(row.majorName || '').trim();
+    const fallbackLabel = String(row.programLabel || '').trim();
+    const displayCode = programCode || fallbackLabel;
+    const displayName = majorName
+      ? [programName || programCode, majorName].filter(Boolean).join(' - ')
+      : (programName || fallbackLabel);
+
+    applyStudentSelection({
+      studentId: 0,
+      studentNumber: row.studentNumber,
+      firstName: row.firstName,
+      middleName: row.middleName,
+      lastName: row.lastName,
+      name: row.name || row.studentNumber,
+      email: row.email,
+      programId: Number(row.programId || 0),
+      programCode: displayCode || 'N/A',
+      programName: displayName || 'N/A',
+      yearLevel: row.yearLevel,
+      academicStatus: row.academicStatus || 'irregular',
+      enrollmentStatus: null,
+      paymentStatus: null,
+      paymentMode: null,
+      totalDue: null,
+      totalPaid: null,
+      noSectionSubjectCount: row.hasAssignment ? 0 : 1,
+    });
+    setEnrollmentView('manual');
+  };
 
   const searchStudents = async () => {
     const hasExistingRows = students.length > 0;
@@ -441,7 +597,7 @@ function IrregularEnrollmentPageContent() {
     setLoadingSchedules(true);
     try {
       const res = await fetch(
-        `/api/class-schedule?curriculumCourseId=${curriculumCourseId}&academicYear=${academicYear}&semester=${semester}&status=active`,
+        `/api/class-schedule?curriculumCourseId=${curriculumCourseId}&matchByCourseCode=1&academicYear=${academicYear}&semester=${semester}&status=active`,
       );
       if (res.ok) {
         const data = await res.json();
@@ -513,12 +669,12 @@ function IrregularEnrollmentPageContent() {
     return (Number.isFinite(h) ? h : 0) * 60 + (Number.isFinite(m) ? m : 0);
   };
 
-  const hasScheduleConflict = (schedule: ClassSchedule) => {
+  const getScheduleConflictDetails = (schedule: ClassSchedule): ScheduleConflictDetail[] => {
     const targetDay = String(schedule.dayOfWeek || '').trim().toLowerCase();
     const targetStart = parseTimeToMinutes(schedule.startTime);
     const targetEnd = parseTimeToMinutes(schedule.endTime);
 
-    return enrolledSubjects.some((enrolled) => {
+    const conflicts = enrolledSubjects.filter((enrolled) => {
       if (enrolled.classScheduleId === schedule.id) return false;
       const enrolledDay = String(enrolled.dayOfWeek || '').trim().toLowerCase();
       if (enrolledDay !== targetDay) return false;
@@ -526,12 +682,71 @@ function IrregularEnrollmentPageContent() {
       const enrolledEnd = parseTimeToMinutes(enrolled.endTime);
       return targetStart < enrolledEnd && targetEnd > enrolledStart;
     });
+
+    return conflicts.map((item) => ({
+      conflictingCourseCode: item.courseCode,
+      conflictingCourseTitle: item.courseTitle,
+      conflictingDay: item.dayOfWeek,
+      conflictingStart: item.startTime,
+      conflictingEnd: item.endTime,
+    }));
   };
 
-  const visibleSchedules = useMemo(() => {
-    if (timeFilter === 'all') return schedules;
-    return schedules.filter((schedule) => !hasScheduleConflict(schedule));
-  }, [schedules, timeFilter, enrolledSubjects]);
+  const hasScheduleConflict = (schedule: ClassSchedule) => {
+    return getScheduleConflictDetails(schedule).length > 0;
+  };
+
+  const groupedAvailableSchedules = useMemo<AvailableScheduleGroup[]>(() => {
+    const map = new Map<string, AvailableScheduleGroup>();
+
+    schedules.forEach((schedule) => {
+      const key = `${schedule.curriculumCourseId}-${schedule.sectionId}`;
+      if (!map.has(key)) {
+        map.set(key, {
+          key,
+          curriculumCourseId: schedule.curriculumCourseId,
+          sectionId: schedule.sectionId,
+          sectionName: schedule.sectionName,
+          courseCode: schedule.courseCode,
+          courseTitle: schedule.courseTitle,
+          unitsTotal: schedule.unitsTotal,
+          lectureHour: schedule.lectureHour,
+          labHour: schedule.labHour,
+          slots: [],
+          conflictBySlot: {},
+          hasConflict: false,
+        });
+      }
+      map.get(key)!.slots.push(schedule);
+    });
+
+    return Array.from(map.values())
+      .map((group) => {
+        const sortedSlots = [...group.slots].sort(
+          (a, b) => parseTimeToMinutes(a.startTime) - parseTimeToMinutes(b.startTime),
+        );
+        const conflictBySlot: Record<number, ScheduleConflictDetail[]> = {};
+        sortedSlots.forEach((slot) => {
+          conflictBySlot[slot.id] = getScheduleConflictDetails(slot);
+        });
+        const hasConflict = sortedSlots.some((slot) => (conflictBySlot[slot.id] || []).length > 0);
+        return {
+          ...group,
+          slots: sortedSlots,
+          conflictBySlot,
+          hasConflict,
+        };
+      })
+      .sort((a, b) => {
+        if (a.courseCode !== b.courseCode) return a.courseCode.localeCompare(b.courseCode);
+        return a.sectionName.localeCompare(b.sectionName);
+      });
+  }, [schedules, enrolledSubjects]);
+
+  const visibleScheduleGroups = useMemo(() => {
+    if (timeFilter === 'all') return groupedAvailableSchedules;
+    return groupedAvailableSchedules.filter((group) => !group.hasConflict);
+  }, [groupedAvailableSchedules, timeFilter]);
 
   const handleSelectStudent = (student: Student) => {
     // Check if student has unpaid or no payment status
@@ -541,20 +756,12 @@ function IrregularEnrollmentPageContent() {
     }
     
     // Proceed with selection for Partial or Fully Paid students
-    setSelectedStudent(student); setStudentSearchModal(false);
-    setStudentSearchQuery(''); setSelectedSection(null); setSchedules([]); setError(null);
-    setSelectedAssessmentSubject(null);
+    applyStudentSelection(student);
   };
 
   const handleConfirmUnpaidStudent = () => {
     if (paymentWarningModal.student) {
-      setSelectedStudent(paymentWarningModal.student);
-      setStudentSearchModal(false);
-      setStudentSearchQuery('');
-      setSelectedSection(null);
-      setSchedules([]);
-      setError(null);
-      setSelectedAssessmentSubject(null);
+      applyStudentSelection(paymentWarningModal.student);
     }
     setPaymentWarningModal({ isOpen: false, student: null });
   };
@@ -673,7 +880,10 @@ function IrregularEnrollmentPageContent() {
   );
 
   // Determine if a slot is lecture or lab based on duration vs curriculum hours
-  const getSlotLabel = (slot: EnrolledSubject, totalSlots: number): 'Lecture' | 'Lab' | null => {
+  const getSlotLabel = (
+    slot: { startTime: string; endTime: string; lectureHour: number; labHour: number },
+    totalSlots: number,
+  ): 'Lecture' | 'Lab' | null => {
     if (slot.lectureHour === 0) return 'Lab'; // lab-only subject
     if (totalSlots === 1) return null; // single slot, no label needed
     const [sh, sm] = slot.startTime.split(':').map(Number);
@@ -731,22 +941,51 @@ function IrregularEnrollmentPageContent() {
             </div>
           </div>
 
+          {isPetitionEnrollmentMode && (
+            <div className="mt-4 inline-flex rounded-xl border bg-white p-1" style={{ borderColor: 'rgba(179,116,74,0.2)' }}>
+              <button
+                type="button"
+                onClick={() => setEnrollmentView('petition')}
+                className="rounded-lg px-3 py-2 text-xs font-semibold transition"
+                style={{
+                  backgroundColor: enrollmentView === 'petition' ? colors.primary : 'transparent',
+                  color: enrollmentView === 'petition' ? 'white' : colors.neutralDark,
+                }}
+              >
+                Petition Student List
+              </button>
+              <button
+                type="button"
+                onClick={() => setEnrollmentView('manual')}
+                className="rounded-lg px-3 py-2 text-xs font-semibold transition"
+                style={{
+                  backgroundColor: enrollmentView === 'manual' ? colors.primary : 'transparent',
+                  color: enrollmentView === 'manual' ? 'white' : colors.neutralDark,
+                }}
+              >
+                Manual Enrollment
+              </button>
+            </div>
+          )}
+
           {/* Step Progress Bar */}
-          <div className="flex items-center gap-2 mt-4">
-            {[
-              { n: 1, label: 'Select Student' },
-              { n: 2, label: 'Pick Subject' },
-              { n: 3, label: 'Add Subjects' },
-            ].map(({ n, label }, i) => (
-              <React.Fragment key={n}>
-                <div className="flex items-center gap-2">
-                  <StepIndicator step={n} currentStep={currentStep} />
-                  <span className="text-xs font-medium hidden sm:block" style={{ color: currentStep === n ? colors.secondary : currentStep > n ? colors.success : colors.neutral }}>{label}</span>
-                </div>
-                {i < 2 && <ChevronRight className="w-4 h-4 flex-shrink-0" style={{ color: colors.neutralBorder }} />}
-              </React.Fragment>
-            ))}
-          </div>
+          {(!isPetitionEnrollmentMode || enrollmentView === 'manual') && (
+            <div className="flex items-center gap-2 mt-4">
+              {[
+                { n: 1, label: 'Select Student' },
+                { n: 2, label: 'Pick Subject' },
+                { n: 3, label: 'Add Subjects' },
+              ].map(({ n, label }, i) => (
+                <React.Fragment key={n}>
+                  <div className="flex items-center gap-2">
+                    <StepIndicator step={n} currentStep={currentStep} />
+                    <span className="text-xs font-medium hidden sm:block" style={{ color: currentStep === n ? colors.secondary : currentStep > n ? colors.success : colors.neutral }}>{label}</span>
+                  </div>
+                  {i < 2 && <ChevronRight className="w-4 h-4 flex-shrink-0" style={{ color: colors.neutralBorder }} />}
+                </React.Fragment>
+              ))}
+            </div>
+          )}
         </div>
 
         {/* Error Banner */}
@@ -760,6 +999,86 @@ function IrregularEnrollmentPageContent() {
 
         {/* Main 3-column layout */}
         <div className="flex-1 overflow-hidden p-6">
+          {isPetitionEnrollmentMode && enrollmentView === 'petition' ? (
+            <div className="h-full max-w-7xl mx-auto">
+              <div className="h-full rounded-2xl overflow-hidden" style={{ backgroundColor: 'white', border: '1px solid rgba(179,116,74,0.12)', boxShadow: '0 1px 4px rgba(0,0,0,0.04)' }}>
+                <div className="px-5 py-4 flex items-center justify-between" style={{ borderBottom: '1px solid rgba(179,116,74,0.08)' }}>
+                  <div>
+                    <h2 className="text-base font-semibold" style={{ color: colors.primary }}>Petition Student List</h2>
+                    <p className="text-xs mt-1" style={{ color: colors.neutral }}>
+                      Students approved for the selected petition subject ({academicYear} • {semester} semester)
+                    </p>
+                  </div>
+                  <span className="text-xs font-semibold px-2.5 py-1 rounded-full" style={{ backgroundColor: 'rgba(149,90,39,0.1)', color: colors.secondary }}>
+                    {petitionRows.filter((row) => !row.hasAssignment).length} pending
+                  </span>
+                </div>
+
+                <div className="p-5 h-[calc(100%-74px)] overflow-auto bg-gray-50">
+                  {loadingPetitionRows ? (
+                    <div className="text-center py-16">
+                      <Loader2 className="w-7 h-7 animate-spin mx-auto mb-3" style={{ color: colors.secondary }} />
+                      <p className="text-sm" style={{ color: colors.neutral }}>Loading petition students...</p>
+                    </div>
+                  ) : petitionRows.length === 0 ? (
+                    <div className="text-center py-16 rounded-xl border border-dashed" style={{ borderColor: 'rgba(179,116,74,0.2)', backgroundColor: 'white' }}>
+                      <Users className="w-8 h-8 mx-auto mb-2" style={{ color: colors.neutralBorder }} />
+                      <p className="text-sm font-medium" style={{ color: colors.neutral }}>No approved petition students found.</p>
+                    </div>
+                  ) : (
+                    <div className="bg-white rounded-xl overflow-hidden border border-gray-100">
+                      <table className="w-full">
+                        <thead>
+                          <tr style={{ borderBottom: '1px solid rgba(179,116,74,0.1)' }}>
+                            <th className="text-left py-3 px-4 text-xs font-semibold uppercase tracking-wide" style={{ color: colors.tertiary }}>Student</th>
+                            <th className="text-left py-3 px-4 text-xs font-semibold uppercase tracking-wide" style={{ color: colors.tertiary }}>Program</th>
+                            <th className="text-left py-3 px-4 text-xs font-semibold uppercase tracking-wide" style={{ color: colors.tertiary }}>Year</th>
+                            <th className="text-left py-3 px-4 text-xs font-semibold uppercase tracking-wide" style={{ color: colors.tertiary }}>Status</th>
+                            <th className="text-left py-3 px-4 text-xs font-semibold uppercase tracking-wide" style={{ color: colors.tertiary }}>Assignment</th>
+                            <th className="py-3 px-4" />
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {petitionRows.map((row) => (
+                            <tr key={row.studentNumber} style={{ borderBottom: '1px solid rgba(179,116,74,0.06)' }}>
+                              <td className="py-3 px-4">
+                                <div className="text-sm font-medium" style={{ color: colors.primary }}>{row.name || row.studentNumber}</div>
+                                <div className="text-xs" style={{ color: colors.neutral }}>{row.studentNumber}</div>
+                              </td>
+                              <td className="py-3 px-4 text-sm" style={{ color: colors.neutral }}>
+                                {row.programLabel || row.programCode || row.programName || '—'}
+                              </td>
+                              <td className="py-3 px-4 text-sm" style={{ color: colors.neutral }}>{row.yearLevel ? `Year ${row.yearLevel}` : '—'}</td>
+                              <td className="py-3 px-4">
+                                <span className="text-xs px-2 py-0.5 rounded-full font-medium" style={{ backgroundColor: row.academicStatus === 'irregular' ? 'rgba(245,158,11,0.1)' : 'rgba(16,185,129,0.1)', color: row.academicStatus === 'irregular' ? '#D97706' : '#059669' }}>
+                                  {row.academicStatus || 'irregular'}
+                                </span>
+                              </td>
+                              <td className="py-3 px-4">
+                                <span className="text-xs px-2 py-0.5 rounded-full font-medium" style={{ backgroundColor: row.hasAssignment ? 'rgba(16,185,129,0.1)' : 'rgba(239,68,68,0.1)', color: row.hasAssignment ? '#059669' : '#DC2626' }}>
+                                  {row.hasAssignment ? 'Already assigned' : 'Pending section'}
+                                </span>
+                              </td>
+                              <td className="py-3 px-4 text-right">
+                                <button
+                                  type="button"
+                                  onClick={() => handleSelectPetitionStudent(row)}
+                                  className="px-3 py-1.5 rounded-lg text-xs font-semibold text-white transition-all hover:opacity-90"
+                                  style={{ backgroundColor: colors.secondary }}
+                                >
+                                  Select & Continue
+                                </button>
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+          ) : (
           <div className="h-full grid grid-cols-1 lg:grid-cols-3 gap-5 max-w-7xl mx-auto">
 
             {/* ── Column 1: Student ── */}
@@ -934,7 +1253,7 @@ function IrregularEnrollmentPageContent() {
                             <option value="all">Show all</option>
                           </select>
                           <span className="text-[10px] px-2 py-0.5 rounded-full" style={{ backgroundColor: 'rgba(149,90,39,0.08)', color: colors.secondary }}>
-                            {visibleSchedules.length}/{schedules.length} schedules
+                            {visibleScheduleGroups.length}/{groupedAvailableSchedules.length} options
                           </span>
                         </div>
                       )}
@@ -951,51 +1270,62 @@ function IrregularEnrollmentPageContent() {
                           <div key={i} className="w-full h-16 rounded-xl animate-pulse" style={{ backgroundColor: 'rgba(179,116,74,0.06)' }} />
                         ))}
                       </div>
-                    ) : visibleSchedules.length === 0 ? (
+                    ) : visibleScheduleGroups.length === 0 ? (
                       <div className="flex-1 flex flex-col items-center justify-center rounded-xl p-6 text-center" style={{ border: '1px dashed rgba(179,116,74,0.2)', backgroundColor: 'rgba(253,251,248,0.5)' }}>
                         <BookOpen className="w-8 h-8 mb-2" style={{ color: colors.neutralBorder }} />
                         <p className="text-sm font-medium" style={{ color: colors.neutral }}>
-                          {schedules.length > 0 ? 'No schedule passed current time filter' : 'No matching subjects'}
+                          {groupedAvailableSchedules.length > 0 ? 'No schedule passed current time filter' : 'No matching subjects'}
                         </p>
                         <p className="text-xs mt-1" style={{ color: colors.tertiary }}>
-                          {schedules.length > 0
+                          {groupedAvailableSchedules.length > 0
                             ? 'Try "Show all" to inspect conflicting schedules.'
                             : 'No section currently offers this subject for the selected term.'}
                         </p>
                       </div>
                     ) : (
                       <div className="flex-1 overflow-y-auto space-y-2 pr-0.5">
-                        {visibleSchedules.map(schedule => {
-                          const enrolled = isEnrolled(schedule.id);
-                          const subjectEnrolled = isSubjectEnrolled(schedule.curriculumCourseId);
-                          const timeConflict = hasScheduleConflict(schedule);
-                          const cannotAdd = enrolled || subjectEnrolled || timeConflict;
+                        {visibleScheduleGroups.map(group => {
+                          const subjectEnrolled = isSubjectEnrolled(group.curriculumCourseId);
+                          const allSlotsEnrolled = group.slots.every(slot => isEnrolled(slot.id));
+                          const cannotAdd = subjectEnrolled || group.hasConflict;
+                          const schedule = group.slots[0];
                           return (
-                            <div key={schedule.id} className="rounded-xl p-3 transition-all" style={{
-                              border: `1px solid ${enrolled ? 'rgba(16,185,129,0.25)' : subjectEnrolled ? 'rgba(245,158,11,0.25)' : timeConflict ? 'rgba(239,68,68,0.25)' : 'rgba(179,116,74,0.12)'}`,
-                              backgroundColor: enrolled ? 'rgba(16,185,129,0.04)' : subjectEnrolled ? 'rgba(245,158,11,0.04)' : timeConflict ? 'rgba(239,68,68,0.04)' : 'white'
+                            <div key={group.key} className="rounded-xl p-3 transition-all" style={{
+                              border: `1px solid ${allSlotsEnrolled ? 'rgba(16,185,129,0.25)' : subjectEnrolled ? 'rgba(245,158,11,0.25)' : group.hasConflict ? 'rgba(239,68,68,0.25)' : 'rgba(179,116,74,0.12)'}`,
+                              backgroundColor: allSlotsEnrolled ? 'rgba(16,185,129,0.04)' : subjectEnrolled ? 'rgba(245,158,11,0.04)' : group.hasConflict ? 'rgba(239,68,68,0.04)' : 'white'
                             }}>
                               <div className="flex items-start gap-3">
                                 <div className="flex-1 min-w-0">
                                   <div className="flex items-center gap-2 flex-wrap">
-                                    <span className="text-sm font-bold" style={{ color: cannotAdd ? colors.neutral : colors.primary }}>{schedule.courseCode}</span>
-                                    <span className="text-[10px] font-medium px-1.5 py-0.5 rounded" style={{ backgroundColor: 'rgba(149,90,39,0.08)', color: colors.secondary }}>{schedule.unitsTotal}u</span>
-                                    {enrolled && (
+                                    <span className="text-sm font-bold" style={{ color: cannotAdd ? colors.neutral : colors.primary }}>{group.courseCode}</span>
+                                    {group.lectureHour > 0 && group.labHour > 0 ? (
+                                      <span className="text-[10px] font-medium px-1.5 py-0.5 rounded" style={{ backgroundColor: 'rgba(149,90,39,0.08)', color: colors.secondary }}>
+                                        {group.lectureHour}lec / {group.labHour}lab
+                                      </span>
+                                    ) : (
+                                      <span className="text-[10px] font-medium px-1.5 py-0.5 rounded" style={{ backgroundColor: 'rgba(149,90,39,0.08)', color: colors.secondary }}>
+                                        {group.unitsTotal}u
+                                      </span>
+                                    )}
+                                    <span className="text-[10px] px-1.5 py-0.5 rounded font-medium" style={{ backgroundColor: 'rgba(99,102,241,0.08)', color: '#6366F1' }}>
+                                      {group.sectionName}
+                                    </span>
+                                    {allSlotsEnrolled && (
                                       <span className="inline-flex items-center gap-1 text-[10px] font-semibold px-1.5 py-0.5 rounded-full" style={{ backgroundColor: 'rgba(16,185,129,0.12)', color: colors.success }}>
                                         <CheckCircle2 className="w-3 h-3" />
                                         Enrolled
                                       </span>
                                     )}
-                                    {!enrolled && subjectEnrolled && (
+                                    {!allSlotsEnrolled && subjectEnrolled && (
                                       <span className="inline-flex items-center gap-1 text-[10px] font-semibold px-1.5 py-0.5 rounded-full" style={{ backgroundColor: 'rgba(245,158,11,0.12)', color: colors.warning }}>
                                         <CheckCircle2 className="w-3 h-3" />
                                         Other section
                                       </span>
                                     )}
-                                    {!enrolled && !subjectEnrolled && timeConflict && <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-full" style={{ backgroundColor: 'rgba(239,68,68,0.12)', color: colors.danger }}>Time conflict</span>}
+                                    {!allSlotsEnrolled && !subjectEnrolled && group.hasConflict && <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-full" style={{ backgroundColor: 'rgba(239,68,68,0.12)', color: colors.danger }}>Time conflict</span>}
                                   </div>
-                                  <div className="text-xs mt-0.5 truncate" style={{ color: colors.neutral }}>{schedule.courseTitle}</div>
-                                  <div className="flex flex-wrap gap-x-3 gap-y-1 mt-2">
+                                  <div className="text-xs mt-0.5 truncate" style={{ color: colors.neutral }}>{group.courseTitle}</div>
+                                  <div className="hidden">
                                     <span className="flex items-center gap-1 text-sm font-semibold" style={{ color: colors.primary }}>
                                       <Clock className="w-4 h-4" style={{ color: colors.tertiary }} />
                                       {schedule.dayOfWeek} {schedule.startTime}–{schedule.endTime}
@@ -1009,6 +1339,59 @@ function IrregularEnrollmentPageContent() {
                                       {schedule.facultyName}
                                     </span>
                                   </div>
+                                  <div className="mt-2 space-y-1.5">
+                                    {group.slots.map((slot) => {
+                                      const slotLabel = getSlotLabel(slot, group.slots.length);
+                                      const slotConflicts = group.conflictBySlot[slot.id] || [];
+                                      const isLabSlot = slotLabel === 'Lab';
+                                      return (
+                                        <div
+                                          key={slot.id}
+                                          className="rounded-lg px-2 py-1.5"
+                                          style={{
+                                            backgroundColor: isLabSlot ? 'rgba(14,165,233,0.06)' : 'rgba(149,90,39,0.04)',
+                                            border: `1px solid ${slotConflicts.length > 0 ? 'rgba(239,68,68,0.25)' : isLabSlot ? 'rgba(14,165,233,0.15)' : 'rgba(179,116,74,0.1)'}`,
+                                          }}
+                                        >
+                                          <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5">
+                                            {slotLabel && (
+                                              <span
+                                                className="text-[9px] font-bold uppercase tracking-wide px-1.5 py-0.5 rounded"
+                                                style={{
+                                                  backgroundColor: isLabSlot ? 'rgba(14,165,233,0.1)' : 'rgba(149,90,39,0.08)',
+                                                  color: isLabSlot ? '#0EA5E9' : colors.secondary,
+                                                }}
+                                              >
+                                                {slotLabel}
+                                              </span>
+                                            )}
+                                            <span className="flex items-center gap-1 text-sm font-semibold" style={{ color: colors.primary }}>
+                                              <Clock className="w-3.5 h-3.5" style={{ color: colors.tertiary }} />
+                                              {slot.dayOfWeek} {slot.startTime}-{slot.endTime}
+                                            </span>
+                                            <span className="flex items-center gap-1 text-sm" style={{ color: colors.primary }}>
+                                              <MapPin className="w-3.5 h-3.5" style={{ color: colors.tertiary }} />
+                                              {slot.roomNumber}
+                                            </span>
+                                            {slot.facultyName && (
+                                              <span className="flex items-center gap-1 text-sm" style={{ color: colors.primary }}>
+                                                <User className="w-3.5 h-3.5" style={{ color: colors.tertiary }} />
+                                                {slot.facultyName}
+                                              </span>
+                                            )}
+                                          </div>
+                                          {slotConflicts.length > 0 && (
+                                            <div className="mt-1.5 text-[10px] leading-relaxed" style={{ color: colors.danger }}>
+                                              Conflicts with:{' '}
+                                              {slotConflicts
+                                                .map((conflict) => `${conflict.conflictingCourseCode} (${conflict.conflictingDay} ${conflict.conflictingStart}-${conflict.conflictingEnd})`)
+                                                .join(', ')}
+                                            </div>
+                                          )}
+                                        </div>
+                                      );
+                                    })}
+                                  </div>
                                   {schedule.prerequisite && (
                                     <div className="mt-1.5 text-[10px] px-2 py-0.5 rounded inline-block" style={{ backgroundColor: 'rgba(245,158,11,0.08)', color: colors.warning }}>
                                       Prereq: {schedule.prerequisite}
@@ -1017,7 +1400,7 @@ function IrregularEnrollmentPageContent() {
                                 </div>
                                 {!cannotAdd && (
                                   <button
-                                    onClick={() => handleAddSubject(schedule)}
+                                    onClick={() => handleAddSubject(group.slots[0])}
                                     disabled={submitting}
                                     className="flex-shrink-0 w-8 h-8 rounded-lg flex items-center justify-center transition-all hover:scale-105 disabled:opacity-50"
                                     style={{ backgroundColor: 'rgba(16,185,129,0.1)', color: colors.success }}
@@ -1192,6 +1575,7 @@ function IrregularEnrollmentPageContent() {
             </div>
 
           </div>
+          )}
         </div>
       </div>
 

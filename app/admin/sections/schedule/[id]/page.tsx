@@ -1,7 +1,7 @@
 'use client';
 
-import React, { useState, useEffect, useMemo } from 'react';
-import { useRouter, useParams } from 'next/navigation';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
+import { useRouter, useParams, useSearchParams } from 'next/navigation';
 import {
   createClassSchedule,
   getClassSchedules,
@@ -58,10 +58,39 @@ const formatMinutesAsHours = (minutes: number): string => {
   return `${h}:${m.toString().padStart(2, '0')}`;
 };
 
+const formatTimeDisplay = (time: string) => {
+  const [hour, min] = time.split(':').map(Number);
+  const ampm = hour >= 12 ? 'PM' : 'AM';
+  const displayHour = hour % 12 || 12;
+  return `${displayHour}:${min.toString().padStart(2, '0')} ${ampm}`;
+};
+
+type PetitionConflictStudent = {
+  studentNumber: string;
+  conflictingCourseCode: string;
+  conflictingTitle: string;
+  conflictingSection: string;
+  conflictingDay: string;
+  conflictingStart: string;
+  conflictingEnd: string;
+};
+
+type PetitionScheduleSuggestion = {
+  dayOfWeek: string;
+  startTime: string;
+  endTime: string;
+  conflictCount: number;
+  conflictClassCount?: number;
+  totalStudents: number;
+  conflictStudents: PetitionConflictStudent[];
+};
+
 export default function BuildSchedulePage() {
   const router = useRouter();
   const params = useParams();
+  const searchParams = useSearchParams();
   const sectionId = parseInt(params.id as string);
+  const petitionCurriculumCourseId = Number(searchParams.get('curriculumCourseId') || '');
 
   // Handle navigation view changes with Next.js routing
   const handleViewChange = (view: string) => {
@@ -77,6 +106,7 @@ export default function BuildSchedulePage() {
   const [error, setError] = useState<string | null>(null);
   const [schedules, setSchedules] = useState<any[]>([]);
   const [curriculum, setCurriculum] = useState<any[]>([]);
+  const [petitionCurriculumHydrated, setPetitionCurriculumHydrated] = useState<number | null>(null);
   const [faculty, setFaculty] = useState<any[]>([]);
   const [rooms, setRooms] = useState<any[]>([]);
   
@@ -189,6 +219,23 @@ export default function BuildSchedulePage() {
   // Lab occupied slots (for lab schedule conflict prevention)
   const [labOccupiedSlots, setLabOccupiedSlots] = useState<any[]>([]);
   const [loadingLabOccupied, setLoadingLabOccupied] = useState(false);
+  const occupiedSlotsCacheRef = useRef<Record<string, any[]>>({});
+  const labOccupiedSlotsCacheRef = useRef<Record<string, any[]>>({});
+  const editOccupiedSlotsCacheRef = useRef<Record<string, any[]>>({});
+  const clearConflictCaches = () => {
+    occupiedSlotsCacheRef.current = {};
+    labOccupiedSlotsCacheRef.current = {};
+    editOccupiedSlotsCacheRef.current = {};
+  };
+  const [petitionAdviceLoading, setPetitionAdviceLoading] = useState(false);
+  const [petitionAdviceError, setPetitionAdviceError] = useState<string | null>(null);
+  const [petitionAdvice, setPetitionAdvice] = useState<{
+    pendingStudentCount: number;
+    lectureMinutes: number;
+    labMinutes: number;
+    lectureSuggestions: PetitionScheduleSuggestion[];
+    labSuggestions: PetitionScheduleSuggestion[];
+  } | null>(null);
 
   // Edit schedule modal state (full edit: faculty, room, day, time)
   const [editScheduleModal, setEditScheduleModal] = useState<{
@@ -208,6 +255,7 @@ export default function BuildSchedulePage() {
   const [editFacultySearchQuery, setEditFacultySearchQuery] = useState('');
   const [editFacultySearchModal, setEditFacultySearchModal] = useState(false);
   const [selectedEditFacultyDisplay, setSelectedEditFacultyDisplay] = useState('');
+  const isPetitionScheduleMode = Number.isFinite(petitionCurriculumCourseId) && petitionCurriculumCourseId > 0;
 
   // Edit modal conflict checking state
   const [editOccupiedSlots, setEditOccupiedSlots] = useState<any[]>([]);
@@ -223,6 +271,27 @@ export default function BuildSchedulePage() {
       f.last_name.toLowerCase().includes(query)
     );
   }, [faculty, editFacultySearchQuery]);
+
+  const visibleCurriculum = useMemo(() => {
+    if (!isPetitionScheduleMode) return curriculum;
+    return curriculum.filter((course) => Number(course.id) === petitionCurriculumCourseId);
+  }, [curriculum, isPetitionScheduleMode, petitionCurriculumCourseId]);
+
+  const visibleCurriculumIds = useMemo(
+    () => new Set(visibleCurriculum.map((course) => Number(course.id))),
+    [visibleCurriculum],
+  );
+
+  const visibleScheduledCount = useMemo(() => {
+    const scheduled = new Set<number>();
+    schedules.forEach((schedule) => {
+      const curriculumCourseId = Number(schedule.curriculumCourseId);
+      if (visibleCurriculumIds.has(curriculumCourseId)) {
+        scheduled.add(curriculumCourseId);
+      }
+    });
+    return scheduled.size;
+  }, [schedules, visibleCurriculumIds]);
 
   // Check for conflicts in edit modal (excludes the schedule being edited)
   const editConflicts = useMemo(() => {
@@ -368,7 +437,7 @@ export default function BuildSchedulePage() {
     } else {
       setOccupiedSlots([]);
     }
-  }, [formData.dayOfWeek, formData.roomId, section]);
+  }, [formData.dayOfWeek, section]);
 
   // Fetch lab occupied slots when lab day changes
   useEffect(() => {
@@ -389,9 +458,14 @@ export default function BuildSchedulePage() {
   }, [editFormData.dayOfWeek, section, editScheduleModal.isOpen, editScheduleModal.schedule]);
 
   // Fetch all occupied slots for edit modal (excludes the schedule being edited)
-  const fetchEditOccupiedSlots = async (day: string, excludeScheduleId: number) => {
+  const fetchEditOccupiedSlots = async (day: string, excludeScheduleId: number, force = false) => {
     if (!section) return;
-    
+    const cacheKey = `${day}:${excludeScheduleId}`;
+    if (!force && editOccupiedSlotsCacheRef.current[cacheKey]) {
+      setEditOccupiedSlots(editOccupiedSlotsCacheRef.current[cacheKey]);
+      return;
+    }
+
     setLoadingEditOccupied(true);
     try {
       const response = await fetch(
@@ -400,7 +474,9 @@ export default function BuildSchedulePage() {
       
       if (response.ok) {
         const data = await response.json();
-        setEditOccupiedSlots(data.data?.occupiedSlots || []);
+        const slots = data.data?.occupiedSlots || [];
+        editOccupiedSlotsCacheRef.current[cacheKey] = slots;
+        setEditOccupiedSlots(slots);
       }
     } catch (err) {
       console.error('Failed to fetch edit occupied slots:', err);
@@ -410,20 +486,23 @@ export default function BuildSchedulePage() {
   };
 
   // Fetch all occupied slots for a given day (from ALL sections including current))
-  const fetchOccupiedSlots = async (day: string) => {
+  const fetchOccupiedSlots = async (day: string, force = false) => {
     if (!section) return;
-    
+    if (!force && occupiedSlotsCacheRef.current[day]) {
+      setOccupiedSlots(occupiedSlotsCacheRef.current[day]);
+      return;
+    }
+
     setLoadingOccupied(true);
     try {
       const url = `/api/class-schedule/conflicts?dayOfWeek=${day}&academicYear=${section.academicYear}&semester=${section.semester}&currentSectionId=${section.id}`;
-      console.log('Fetching occupied slots:', url);
-      
       const response = await fetch(url);
       
       if (response.ok) {
         const data = await response.json();
-        console.log('Occupied slots response:', data);
-        setOccupiedSlots(data.data?.occupiedSlots || []);
+        const slots = data.data?.occupiedSlots || [];
+        occupiedSlotsCacheRef.current[day] = slots;
+        setOccupiedSlots(slots);
       } else {
         console.error('Failed to fetch occupied slots:', response.status, response.statusText);
       }
@@ -435,15 +514,21 @@ export default function BuildSchedulePage() {
   };
 
   // Fetch occupied slots for the lab day (for lab conflict prevention)
-  const fetchLabOccupiedSlots = async (day: string) => {
+  const fetchLabOccupiedSlots = async (day: string, force = false) => {
     if (!section) return;
+    if (!force && labOccupiedSlotsCacheRef.current[day]) {
+      setLabOccupiedSlots(labOccupiedSlotsCacheRef.current[day]);
+      return;
+    }
     setLoadingLabOccupied(true);
     try {
       const url = `/api/class-schedule/conflicts?dayOfWeek=${day}&academicYear=${section.academicYear}&semester=${section.semester}&currentSectionId=${section.id}`;
       const response = await fetch(url);
       if (response.ok) {
         const data = await response.json();
-        setLabOccupiedSlots(data.data?.occupiedSlots || []);
+        const slots = data.data?.occupiedSlots || [];
+        labOccupiedSlotsCacheRef.current[day] = slots;
+        setLabOccupiedSlots(slots);
       }
     } catch (err) {
       console.error('Failed to fetch lab occupied slots:', err);
@@ -536,6 +621,113 @@ export default function BuildSchedulePage() {
     setIncludeIrregularStudents(false);
     setError(null);
   };
+
+  useEffect(() => {
+    const loadMissingPetitionCourse = async () => {
+      if (!Number.isFinite(petitionCurriculumCourseId) || petitionCurriculumCourseId <= 0) return;
+      if (loadingCurriculum) return;
+
+      const alreadyPresent = curriculum.some((course) => course.id === petitionCurriculumCourseId);
+      if (alreadyPresent) {
+        setPetitionCurriculumHydrated(petitionCurriculumCourseId);
+        return;
+      }
+      if (petitionCurriculumHydrated === petitionCurriculumCourseId) return;
+
+      try {
+        const response = await fetch(
+          `/api/auth/section/curriculum-course/${petitionCurriculumCourseId}`,
+        );
+        const result = await response.json();
+        if (!response.ok || !result?.success || !result?.data) {
+          throw new Error(result?.error || "Failed to load petition subject details.");
+        }
+
+        setCurriculum((prev) => {
+          if (prev.some((course) => course.id === petitionCurriculumCourseId)) {
+            return prev;
+          }
+          return [...prev, result.data];
+        });
+      } catch (err) {
+        console.error("Failed to hydrate petition curriculum subject:", err);
+      } finally {
+        setPetitionCurriculumHydrated(petitionCurriculumCourseId);
+      }
+    };
+
+    loadMissingPetitionCourse();
+  }, [petitionCurriculumCourseId, loadingCurriculum, curriculum, petitionCurriculumHydrated]);
+
+  useEffect(() => {
+    if (!Number.isFinite(petitionCurriculumCourseId) || petitionCurriculumCourseId <= 0) return;
+    if (selectedCourse) return;
+    if (loadingCurriculum || loadingSchedules) return;
+    if (!curriculum.length) return;
+
+    const requestedCourse = curriculum.find((course) => course.id === petitionCurriculumCourseId);
+    if (!requestedCourse) return;
+
+    const alreadyScheduled = schedules.some(
+      (schedule) => schedule.curriculumCourseId === petitionCurriculumCourseId,
+    );
+    if (alreadyScheduled) return;
+
+    handleCourseSelect(requestedCourse);
+    setActiveTab('schedule');
+  }, [
+    petitionCurriculumCourseId,
+    selectedCourse,
+    loadingCurriculum,
+    loadingSchedules,
+    curriculum,
+    schedules,
+  ]);
+
+  useEffect(() => {
+    const loadPetitionAdvice = async () => {
+      if (!isPetitionScheduleMode || !section || !selectedCourse?.id) {
+        setPetitionAdvice(null);
+        setPetitionAdviceError(null);
+        setPetitionAdviceLoading(false);
+        return;
+      }
+
+      setPetitionAdviceLoading(true);
+      setPetitionAdviceError(null);
+      try {
+        const params = new URLSearchParams({
+          sectionId: String(section.id),
+          curriculumCourseId: String(selectedCourse.id),
+        });
+        const response = await fetch(
+          `/api/auth/section/petition-schedule-advice?${params.toString()}`,
+        );
+        const result = await response.json();
+        if (!response.ok || !result?.success) {
+          throw new Error(result?.error || 'Failed to load petition schedule advice.');
+        }
+
+        const data = result?.data || {};
+        setPetitionAdvice({
+          pendingStudentCount: Number(data.pendingStudentCount || 0),
+          lectureMinutes: Number(data.lectureMinutes || 0),
+          labMinutes: Number(data.labMinutes || 0),
+          lectureSuggestions: Array.isArray(data.lectureSuggestions) ? data.lectureSuggestions : [],
+          labSuggestions: Array.isArray(data.labSuggestions) ? data.labSuggestions : [],
+        });
+      } catch (err) {
+        setPetitionAdvice(null);
+        setPetitionAdviceError(
+          err instanceof Error ? err.message : 'Failed to load petition schedule advice.',
+        );
+      } finally {
+        setPetitionAdviceLoading(false);
+      }
+    };
+
+    loadPetitionAdvice();
+  }, [isPetitionScheduleMode, section, selectedCourse]);
 
   const handleInputChange = (name: string, value: string) => {
     // When lecture day changes, auto-populate the lab day too
@@ -789,6 +981,94 @@ export default function BuildSchedulePage() {
     });
   };
 
+  const applyPetitionSuggestion = (
+    target: 'lecture' | 'lab',
+    suggestion: PetitionScheduleSuggestion,
+  ) => {
+    const isOverlap = (
+      dayA: string,
+      startA: string,
+      endA: string,
+      dayB: string,
+      startB: string,
+      endB: string,
+    ) => {
+      if (!dayA || !startA || !endA || !dayB || !startB || !endB) return false;
+      if (String(dayA).toLowerCase() !== String(dayB).toLowerCase()) return false;
+      const aStart = parseTimeToMinutes(startA);
+      const aEnd = parseTimeToMinutes(endA);
+      const bStart = parseTimeToMinutes(startB);
+      const bEnd = parseTimeToMinutes(endB);
+      return aStart < bEnd && aEnd > bStart;
+    };
+
+    if (target === 'lecture') {
+      // Prevent applying lecture suggestion that overlaps an already-selected lab slot
+      if (
+        hasLab &&
+        labFormData.dayOfWeek &&
+        labFormData.startTime &&
+        labFormData.endTime &&
+        isOverlap(
+          suggestion.dayOfWeek,
+          suggestion.startTime,
+          suggestion.endTime,
+          labFormData.dayOfWeek,
+          labFormData.startTime,
+          labFormData.endTime,
+        )
+      ) {
+        setConflictModal({
+          isOpen: true,
+          type: 'section',
+          title: 'Lecture/Lab Overlap',
+          message: 'Selected lecture slot overlaps the current lab slot. Choose a non-overlapping lecture time.',
+          day: suggestion.dayOfWeek,
+          startTime: formatTimeDisplay(suggestion.startTime),
+          endTime: formatTimeDisplay(suggestion.endTime),
+          resourceName: selectedCourse?.course_code || 'Subject',
+        });
+        return;
+      }
+
+      handleInputChange('dayOfWeek', suggestion.dayOfWeek);
+      handleInputChange('startTime', suggestion.startTime);
+      handleInputChange('endTime', suggestion.endTime);
+      return;
+    }
+
+    // Prevent applying lab suggestion that overlaps an already-selected lecture slot
+    if (
+      formData.dayOfWeek &&
+      formData.startTime &&
+      formData.endTime &&
+      isOverlap(
+        suggestion.dayOfWeek,
+        suggestion.startTime,
+        suggestion.endTime,
+        formData.dayOfWeek,
+        formData.startTime,
+        formData.endTime,
+      )
+    ) {
+      setConflictModal({
+        isOpen: true,
+        type: 'section',
+        title: 'Lecture/Lab Overlap',
+        message: 'Selected lab slot overlaps the current lecture slot. Choose a non-overlapping lab time.',
+        day: suggestion.dayOfWeek,
+        startTime: formatTimeDisplay(suggestion.startTime),
+        endTime: formatTimeDisplay(suggestion.endTime),
+        resourceName: selectedCourse?.course_code || 'Subject',
+      });
+      return;
+    }
+
+    handleLabInputChange('dayOfWeek', suggestion.dayOfWeek);
+    handleLabInputChange('startTime', suggestion.startTime);
+    handleLabInputChange('endTime', suggestion.endTime);
+  };
+
   const handleAddSchedule = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedCourse) {
@@ -798,6 +1078,9 @@ export default function BuildSchedulePage() {
 
     setError(null);
     setLoading(true);
+    let createdLectureScheduleId: number | null = null;
+    let labCreationAttempted = false;
+    let labCreated = false;
 
     try {
       // Faculty is optional - other fields are required
@@ -833,7 +1116,7 @@ export default function BuildSchedulePage() {
       const endDate = new Date();
       endDate.setHours(endHour, endMin, 0);
 
-      await createClassSchedule({
+      const createdLecture = await createClassSchedule({
         sectionId: section!.id,
         curriculumCourseId: selectedCourse.id,
         facultyId: formData.facultyId ? parseInt(formData.facultyId) : null, // Optional faculty
@@ -847,6 +1130,7 @@ export default function BuildSchedulePage() {
         isLabSchedule: isLabOnly,
         includeIrregularStudents,
       } as any);
+      createdLectureScheduleId = createdLecture?.id || null;
 
       // If course has BOTH lecture and lab, also create the separate lab time-block schedule
       if (hasLab) {
@@ -866,6 +1150,7 @@ export default function BuildSchedulePage() {
         labStart.setHours(lsh, lsm, 0);
         const labEnd = new Date();
         labEnd.setHours(leh, lem, 0);
+        labCreationAttempted = true;
         await createClassSchedule({
           sectionId: section!.id,
           curriculumCourseId: selectedCourse.id,
@@ -879,6 +1164,7 @@ export default function BuildSchedulePage() {
           isLabSchedule: true,
           includeIrregularStudents,
         } as any);
+        labCreated = true;
       }
 
       // Reload schedules
@@ -887,6 +1173,7 @@ export default function BuildSchedulePage() {
         academicYear: section!.academicYear,
         semester: section!.semester
       });
+      clearConflictCaches();
       setSchedules(updatedSchedules);
       
       setSuccessModal({
@@ -908,19 +1195,19 @@ export default function BuildSchedulePage() {
       setLabFormData({ roomId: '', dayOfWeek: '', startTime: '', endTime: '' });
       setBreakMinutes(60);
     } catch (err) {
+      if (hasLab && labCreationAttempted && !labCreated && createdLectureScheduleId) {
+        try {
+          await deleteClassSchedule(createdLectureScheduleId);
+        } catch (rollbackError) {
+          console.error('Failed to rollback lecture schedule after lab failure:', rollbackError);
+        }
+      }
+
       const errorMessage = err instanceof Error ? err.message : 'Failed to add schedule';
       
       // Parse conflict errors and show user-friendly modal
       const selectedFaculty = faculty.find(f => f.id === parseInt(formData.facultyId));
       const selectedRoom = rooms.find(r => r.id === parseInt(formData.roomId));
-      
-      // Format time for display
-      const formatTimeDisplay = (time: string) => {
-        const [hour, min] = time.split(':').map(Number);
-        const ampm = hour >= 12 ? 'PM' : 'AM';
-        const displayHour = hour % 12 || 12;
-        return `${displayHour}:${min.toString().padStart(2, '0')} ${ampm}`;
-      };
       
       if (errorMessage.toLowerCase().includes('faculty') && errorMessage.toLowerCase().includes('conflict')) {
         setConflictModal({
@@ -944,7 +1231,11 @@ export default function BuildSchedulePage() {
           endTime: formatTimeDisplay(formData.endTime),
           resourceName: selectedRoom?.room_number || 'Room'
         });
-      } else if (errorMessage.toLowerCase().includes('section') && errorMessage.toLowerCase().includes('conflict')) {
+      } else if (
+        (errorMessage.toLowerCase().includes('section') && errorMessage.toLowerCase().includes('conflict')) ||
+        errorMessage.toLowerCase().includes('internal time overlap') ||
+        errorMessage.toLowerCase().includes('time overlap')
+      ) {
         setConflictModal({
           isOpen: true,
           type: 'section',
@@ -965,6 +1256,20 @@ export default function BuildSchedulePage() {
           startTime: '',
           endTime: '',
           resourceName: selectedCourse?.course_code || 'Subject'
+        });
+      } else if (errorMessage.toLowerCase().includes('petition schedule conflict') ||
+                 errorMessage.toLowerCase().includes('cannot submit lab yet') ||
+                 errorMessage.toLowerCase().includes('cannot submit lecture yet') ||
+                 errorMessage.toLowerCase().includes('pending students overlap')) {
+        setConflictModal({
+          isOpen: true,
+          type: 'section',
+          title: 'Petition Student Conflict',
+          message: errorMessage,
+          day: formData.dayOfWeek,
+          startTime: formData.startTime ? formatTimeDisplay(formData.startTime) : '',
+          endTime: formData.endTime ? formatTimeDisplay(formData.endTime) : '',
+          resourceName: selectedCourse?.course_code || 'Petition Subject'
         });
       } else {
         setError(errorMessage);
@@ -1124,6 +1429,7 @@ export default function BuildSchedulePage() {
         academicYear: section!.academicYear,
         semester: section!.semester
       });
+      clearConflictCaches();
       setSchedules(updatedSchedules);
 
       setSuccessModal({
@@ -1160,6 +1466,7 @@ export default function BuildSchedulePage() {
         academicYear: section!.academicYear,
         semester: section!.semester
       });
+      clearConflictCaches();
       setSchedules(updatedSchedules);
       
       setSuccessModal({
@@ -1289,8 +1596,8 @@ export default function BuildSchedulePage() {
               >
                 <div className="text-[10px] font-medium uppercase tracking-wide" style={{ color: colors.tertiary }}>Completion</div>
                 <div className="text-2xl font-bold" style={{ color: colors.secondary }}>
-                  {curriculum.length > 0
-                    ? Math.round((new Set(schedules.map(s => s.curriculumCourseId)).size / curriculum.length) * 100)
+                  {visibleCurriculum.length > 0
+                    ? Math.round((visibleScheduledCount / visibleCurriculum.length) * 100)
                     : 0}%
                 </div>
               </div>
@@ -1372,11 +1679,11 @@ export default function BuildSchedulePage() {
                 <div className="flex items-center gap-2">
                   <GraduationCap className="w-4 h-4" style={{ color: colors.secondary }} />
                   <h2 className="text-sm font-semibold" style={{ color: colors.primary }}>
-                    Curriculum Subjects ({curriculum.length})
+                    {isPetitionScheduleMode ? "Petition Subject" : "Curriculum Subjects"} ({visibleCurriculum.length})
                   </h2>
                 </div>
                 <div className="text-xs" style={{ color: colors.neutral }}>
-                  Click a subject to schedule
+                  {isPetitionScheduleMode ? "Petition subject to schedule" : "Click a subject to schedule"}
                 </div>
               </div>
               {loadingCurriculum ? (
@@ -1386,16 +1693,18 @@ export default function BuildSchedulePage() {
                     Loading curriculum...
                   </p>
                 </div>
-              ) : curriculum.length === 0 ? (
+              ) : visibleCurriculum.length === 0 ? (
                 <div className="text-center py-8">
                   <BookOpen className="w-10 h-10 mx-auto mb-2" style={{ color: colors.neutral }} />
                   <p className="text-sm" style={{ color: colors.neutral }}>
-                    No curriculum courses found for this program, year level, and semester.
+                    {isPetitionScheduleMode
+                      ? "Petition subject could not be loaded for this section."
+                      : "No curriculum courses found for this program, year level, and semester."}
                   </p>
                 </div>
               ) : (
                 <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3">
-                  {curriculum.map((course) => {
+                  {visibleCurriculum.map((course) => {
                     const isScheduled = schedules.some(s => s.curriculumCourseId === course.id);
                     const isSelected = selectedCourse?.id === course.id;
                     
@@ -1532,6 +1841,147 @@ export default function BuildSchedulePage() {
                         Lecture-hour warning: this subject requires <strong>{formatMinutesAsHours(addLectureOnlyWarning.requiredMinutes)} hours</strong>,
                         but selected time is only <strong>{formatMinutesAsHours(addLectureOnlyWarning.actualMinutes)} hours</strong>.
                       </span>
+                    </div>
+                  )}
+
+                  {isPetitionScheduleMode && (
+                    <div
+                      className="rounded-xl p-4"
+                      style={{
+                        backgroundColor: 'rgba(59,130,246,0.04)',
+                        border: '1px solid rgba(59,130,246,0.2)',
+                      }}
+                    >
+                      <div className="flex items-center justify-between gap-3 flex-wrap">
+                        <h3 className="text-sm font-semibold" style={{ color: colors.primary }}>
+                          Petition Conflict Assistant
+                        </h3>
+                        <span
+                          className="text-xs font-semibold px-2 py-1 rounded-full"
+                          style={{ backgroundColor: 'rgba(59,130,246,0.12)', color: '#1D4ED8' }}
+                        >
+                          {petitionAdvice?.pendingStudentCount || 0} student{(petitionAdvice?.pendingStudentCount || 0) === 1 ? '' : 's'}
+                        </span>
+                      </div>
+
+                      {petitionAdviceLoading ? (
+                        <p className="mt-2 text-xs flex items-center gap-2" style={{ color: colors.neutral }}>
+                          <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                          Computing lowest-conflict slots...
+                        </p>
+                      ) : petitionAdviceError ? (
+                        <p className="mt-2 text-xs" style={{ color: colors.warning }}>{petitionAdviceError}</p>
+                      ) : (
+                        <div className="mt-3 space-y-3">
+                          <div>
+                            <p className="text-xs font-semibold mb-1" style={{ color: colors.tertiary }}>
+                              Best Lecture Slots
+                            </p>
+                            <div className="space-y-2">
+                              {(petitionAdvice?.lectureSuggestions || []).slice(0, 3).map((slot, idx) => (
+                                <div
+                                  key={`lect-suggest-${idx}-${slot.dayOfWeek}-${slot.startTime}`}
+                                  className="flex items-start justify-between gap-3 rounded-lg px-3 py-2"
+                                  style={{ backgroundColor: 'white', border: '1px solid rgba(179,116,74,0.15)' }}
+                                >
+                                  <div className="min-w-0">
+                                    <p className="text-xs font-semibold" style={{ color: colors.primary }}>
+                                      {slot.dayOfWeek} {slot.startTime}-{slot.endTime}
+                                    </p>
+                                    <p className="text-[11px]" style={{ color: slot.conflictCount === 0 ? colors.success : colors.warning }}>
+                                      {slot.conflictCount === 0
+                                        ? 'No student conflicts'
+                                        : `${slot.conflictCount}/${slot.totalStudents} students conflicted`}
+                                    </p>
+                                    {slot.conflictCount > 0 && (
+                                      <p className="text-[10px]" style={{ color: colors.neutral }}>
+                                        {slot.conflictClassCount || slot.conflictStudents.length} overlapping class schedule
+                                        {(slot.conflictClassCount || slot.conflictStudents.length) === 1 ? '' : 's'}
+                                      </p>
+                                    )}
+                                    {slot.conflictStudents.length > 0 && (
+                                      <p className="text-[10px] mt-1" style={{ color: colors.neutral }}>
+                                        {slot.conflictStudents
+                                          .slice(0, 2)
+                                          .map((c) => `${c.studentNumber} (${c.conflictingCourseCode} • ${c.conflictingDay} ${c.conflictingStart}-${c.conflictingEnd})`)
+                                          .join(' | ')}
+                                      </p>
+                                    )}
+                                  </div>
+                                  <button
+                                    type="button"
+                                    onClick={() => applyPetitionSuggestion('lecture', slot)}
+                                    className="px-2.5 py-1.5 rounded text-[11px] font-semibold text-white"
+                                    style={{ backgroundColor: colors.info }}
+                                  >
+                                    Apply
+                                  </button>
+                                </div>
+                              ))}
+                              {(petitionAdvice?.lectureSuggestions || []).length === 0 && (
+                                <p className="text-[11px]" style={{ color: colors.neutral }}>
+                                  No lecture suggestion available for this petition subject.
+                                </p>
+                              )}
+                            </div>
+                          </div>
+
+                          {hasLab && (
+                            <div>
+                              <p className="text-xs font-semibold mb-1" style={{ color: colors.tertiary }}>
+                                Best Lab Slots
+                              </p>
+                              <div className="space-y-2">
+                                {(petitionAdvice?.labSuggestions || []).slice(0, 3).map((slot, idx) => (
+                                  <div
+                                    key={`lab-suggest-${idx}-${slot.dayOfWeek}-${slot.startTime}`}
+                                    className="flex items-start justify-between gap-3 rounded-lg px-3 py-2"
+                                    style={{ backgroundColor: 'white', border: '1px solid rgba(179,116,74,0.15)' }}
+                                  >
+                                    <div className="min-w-0">
+                                      <p className="text-xs font-semibold" style={{ color: colors.primary }}>
+                                        {slot.dayOfWeek} {slot.startTime}-{slot.endTime}
+                                      </p>
+                                      <p className="text-[11px]" style={{ color: slot.conflictCount === 0 ? colors.success : colors.warning }}>
+                                        {slot.conflictCount === 0
+                                          ? 'No student conflicts'
+                                          : `${slot.conflictCount}/${slot.totalStudents} students conflicted`}
+                                      </p>
+                                      {slot.conflictCount > 0 && (
+                                        <p className="text-[10px]" style={{ color: colors.neutral }}>
+                                          {slot.conflictClassCount || slot.conflictStudents.length} overlapping class schedule
+                                          {(slot.conflictClassCount || slot.conflictStudents.length) === 1 ? '' : 's'}
+                                        </p>
+                                      )}
+                                      {slot.conflictStudents.length > 0 && (
+                                        <p className="text-[10px] mt-1" style={{ color: colors.neutral }}>
+                                          {slot.conflictStudents
+                                            .slice(0, 2)
+                                            .map((c) => `${c.studentNumber} (${c.conflictingCourseCode} • ${c.conflictingDay} ${c.conflictingStart}-${c.conflictingEnd})`)
+                                            .join(' | ')}
+                                        </p>
+                                      )}
+                                    </div>
+                                    <button
+                                      type="button"
+                                      onClick={() => applyPetitionSuggestion('lab', slot)}
+                                      className="px-2.5 py-1.5 rounded text-[11px] font-semibold text-white"
+                                      style={{ backgroundColor: colors.info }}
+                                    >
+                                      Apply Lab
+                                    </button>
+                                  </div>
+                                ))}
+                                {(petitionAdvice?.labSuggestions || []).length === 0 && (
+                                  <p className="text-[11px]" style={{ color: colors.neutral }}>
+                                    No lab suggestion available for this petition subject.
+                                  </p>
+                                )}
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      )}
                     </div>
                   )}
 
