@@ -38,6 +38,18 @@ type PaymentDecisionEmailArgs = {
   remarks?: string | null;
 };
 
+type ExternalCrossEnrollmentApprovedEmailArgs = {
+  to: string;
+  studentName: string;
+  studentNumber: string;
+  subjectCode: string;
+  subjectTitle: string;
+  externalSchoolName: string;
+  academicYear: string;
+  semester: number;
+  approvalLetterUrl: string;
+};
+
 let transporterPromise: Promise<nodemailer.Transporter> | null = null;
 
 function getMailConfig(): MailConfig | null {
@@ -309,6 +321,87 @@ export async function sendPaymentSubmissionDecisionEmail({
     to: trimmedTo,
     subject,
     text: `${isApproved ? "Approved" : "Rejected"} payment for ${studentName}. Amount: PHP ${safeAmount}. Reference: ${referenceNo}.`,
+    html,
+  });
+}
+
+export async function sendExternalCrossEnrollmentApprovedEmail({
+  to,
+  studentName,
+  studentNumber,
+  subjectCode,
+  subjectTitle,
+  externalSchoolName,
+  academicYear,
+  semester,
+  approvalLetterUrl,
+}: ExternalCrossEnrollmentApprovedEmailArgs) {
+  const trimmedTo = String(to || "").trim();
+  if (!trimmedTo) throw new Error("Student email address is missing.");
+
+  const { transporter, config } = await getTransporter();
+  const safeName = escapeHtml(studentName || "Student");
+  const safeStudentNumber = escapeHtml(studentNumber || "N/A");
+  const safeSubjectCode = escapeHtml(subjectCode || "N/A");
+  const safeSubjectTitle = escapeHtml(subjectTitle || "N/A");
+  const safeSchool = escapeHtml(externalSchoolName || "External School");
+  const safeAcademicYear = escapeHtml(academicYear || "N/A");
+  const safeSemester = escapeHtml(String(semester || "N/A"));
+  const safeApprovalLetterUrl = escapeHtml(approvalLetterUrl);
+
+  const subject = "External cross-enrollment request approved";
+  const text = [
+    `Hello ${studentName || "Student"},`,
+    "",
+    "Your external cross-enrollment request has been approved.",
+    `Student Number: ${studentNumber || "N/A"}`,
+    `Subject: ${subjectCode || "N/A"} - ${subjectTitle || "N/A"}`,
+    `External School: ${externalSchoolName || "N/A"}`,
+    `Academic Year: ${academicYear || "N/A"}`,
+    `Semester: ${semester || "N/A"}`,
+    "",
+    "Open your approval form here:",
+    approvalLetterUrl,
+    "",
+    "Please print the form and secure the required manual dean signature when needed.",
+  ].join("\n");
+
+  const html = `
+    <div style="font-family:Arial,Helvetica,sans-serif;background:#f7f3ef;padding:24px;">
+      <div style="max-width:680px;margin:0 auto;background:#ffffff;border-radius:16px;overflow:hidden;border:1px solid ${colors.secondary}33;">
+        <div style="background:${colors.primary};padding:20px 28px;border-bottom:4px solid ${colors.secondary};">
+          <p style="margin:0;color:#fff;font-size:17px;font-weight:700;">External Cross-Enrollment Approved</p>
+        </div>
+        <div style="padding:28px;">
+          <p style="margin:0 0 12px;font-size:16px;color:${colors.primary};">Hello ${safeName},</p>
+          <p style="margin:0 0 12px;color:${colors.primary};line-height:1.7;">
+            Your request to take a subject from another school has been approved. Please review the request details below and open the approval form for printing or PDF saving.
+          </p>
+          <div style="padding:14px;border-radius:12px;background:${colors.secondary}12;border:1px solid ${colors.secondary}55;">
+            <p style="margin:0 0 6px;color:${colors.primary};"><strong>Student Number:</strong> ${safeStudentNumber}</p>
+            <p style="margin:0 0 6px;color:${colors.primary};"><strong>Subject:</strong> ${safeSubjectCode} - ${safeSubjectTitle}</p>
+            <p style="margin:0 0 6px;color:${colors.primary};"><strong>External School:</strong> ${safeSchool}</p>
+            <p style="margin:0 0 6px;color:${colors.primary};"><strong>Academic Year:</strong> ${safeAcademicYear}</p>
+            <p style="margin:0;color:${colors.primary};"><strong>Semester:</strong> ${safeSemester}</p>
+          </div>
+          <p style="margin:18px 0 0;">
+            <a href="${safeApprovalLetterUrl}" style="display:inline-block;background:${colors.secondary};color:#fff;text-decoration:none;padding:10px 14px;border-radius:10px;font-weight:700;">
+              Open Approval Form
+            </a>
+          </p>
+          <p style="margin:16px 0 0;color:${colors.primary};line-height:1.7;font-size:14px;">
+            The approval form includes the official school header and a dean signature section for manual signing. You may print it directly or save it as PDF from your browser.
+          </p>
+        </div>
+      </div>
+    </div>
+  `;
+
+  await transporter.sendMail({
+    from: `"${config.fromName}" <${config.fromEmail}>`,
+    to: trimmedTo,
+    subject,
+    text,
     html,
   });
 }
