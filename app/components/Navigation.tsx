@@ -206,6 +206,11 @@ const Navigation: React.FC<NavigationProps> = ({
         icon: BookOpen,
       },
       {
+        id: "external-cross-enrollment",
+        label: "External Cross Enrollment",
+        icon: Building2,
+      },
+      {
         id: "petition-subject",
         label: "Petition Subject",
         icon: BookOpen,
