@@ -445,7 +445,7 @@ export default function RefundReports() {
                 setCurrentPage(1);
               }}
               totalItems={rows.length}
-              itemLabel='refunds'
+              itemName='refunds'
             />
           </div>
         </section>
