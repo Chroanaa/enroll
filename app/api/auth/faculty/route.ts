@@ -65,7 +65,7 @@ export async function GET() {
   try {
     const faculties = await prisma.faculty.findMany({
       where: {
-        OR: [{ status: "active" }, { status: 1 as any }],
+        OR: [{ status: "active" }, { status: "1" }],
       },
       select: {
         id: true,
