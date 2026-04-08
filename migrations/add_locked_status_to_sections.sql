@@ -1,5 +1,5 @@
 -- =====================================================
--- Migration: Add 'locked' status support to sections
+-- Migration: Add 'locked' status support to sectionss
 -- Description: Adds support for 'locked' status in sections table
 --              to prevent modifications after enrollment period
 -- Date: 2024
