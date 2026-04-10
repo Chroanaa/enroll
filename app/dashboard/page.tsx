@@ -15,6 +15,7 @@ import AssessmentManagement from "../components/AssessmentManagement";
 import SubjectDroppingManagement from "../components/SubjectDroppingManagement";
 import StudentDroppingManagement from "../components/StudentDroppingManagement";
 import CrossEnrollmentManagement from "../components/CrossEnrollmentManagement";
+import ExternalCrossEnrollmentManagement from "../components/ExternalCrossEnrollmentManagement";
 import ShiftingManagement from "../components/ShiftingManagement";
 import ProgramShiftingManagement from "../components/ProgramShiftingManagement";
 import ReportManagement from "../components/ReportManagement";
@@ -124,6 +125,8 @@ function DashboardContent() {
         return <StudentDroppingManagement />;
       case "cross-enrollee":
         return <CrossEnrollmentManagement mode="inter-program" />;
+      case "external-cross-enrollment":
+        return <ExternalCrossEnrollmentManagement />;
       case "petition-subject":
         return <CrossEnrollmentManagement mode="petition" />;
       case "shifting":

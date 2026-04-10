@@ -1,5 +1,5 @@
 "use client";
-import React, { useEffect, useMemo, useState } from "react";
+import React, { Suspense, useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { colors } from "../colors";
 import {
@@ -78,7 +78,7 @@ const formatPaymentDate = (value?: string | null) => {
   });
 };
 
-export default function PublicPaymentPage() {
+function PublicPaymentPageContent() {
   const searchParams = useSearchParams();
   const token = (searchParams.get("token") || "").trim();
 
@@ -724,5 +724,13 @@ export default function PublicPaymentPage() {
       </div>
     </div>
     </div>
+  );
+}
+
+export default function PublicPaymentPage() {
+  return (
+    <Suspense fallback={<div className='min-h-screen bg-[#f4f7fb]' />}>
+      <PublicPaymentPageContent />
+    </Suspense>
   );
 }

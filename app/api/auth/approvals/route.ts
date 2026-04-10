@@ -9,6 +9,7 @@ import {
   ensureDeanStudentAccess,
   getSessionScope,
 } from "@/app/lib/accessScope";
+import { sendExternalCrossEnrollmentApprovedEmail } from "@/app/lib/email";
 import {
   getEnrolledSubjectIdsForTerm,
   getMatchingScheduleIdsForSection,
@@ -110,6 +111,28 @@ const PETITION_SUBJECT_REQUESTS_TABLE_SQL = `
   )
 `;
 
+const EXTERNAL_CROSS_ENROLLMENT_REQUESTS_TABLE_SQL = `
+  CREATE TABLE IF NOT EXISTS student_external_cross_enrollment_requests (
+    id SERIAL PRIMARY KEY,
+    student_number VARCHAR(20) NOT NULL,
+    school_id INT NULL,
+    external_school_name VARCHAR(255) NOT NULL,
+    subject_code VARCHAR(50) NOT NULL,
+    subject_title VARCHAR(255) NOT NULL,
+    units_total NUMERIC(6,2) NOT NULL DEFAULT 0,
+    year_level INT NULL,
+    academic_year VARCHAR(20) NOT NULL,
+    semester INT NOT NULL,
+    reason TEXT NULL,
+    status VARCHAR(30) NOT NULL DEFAULT 'pending_approval',
+    requested_by INT NULL,
+    approved_by INT NULL,
+    requested_at TIMESTAMP(6) NOT NULL DEFAULT NOW(),
+    approved_at TIMESTAMP(6) NULL,
+    remarks TEXT NULL
+  )
+`;
+
 async function ensureShiftRequestsTable() {
   await prisma.$executeRawUnsafe(SHIFT_REQUESTS_TABLE_SQL);
   await prisma.$executeRawUnsafe(
@@ -173,6 +196,25 @@ async function ensurePetitionSubjectRequestsTable() {
   );
   await prisma.$executeRawUnsafe(
     "ALTER TABLE student_petition_subject_requests ADD COLUMN IF NOT EXISTS petition_type VARCHAR(30) NOT NULL DEFAULT 'not_open'",
+  );
+}
+
+async function ensureExternalCrossEnrollmentRequestsTable() {
+  await prisma.$executeRawUnsafe(EXTERNAL_CROSS_ENROLLMENT_REQUESTS_TABLE_SQL);
+  await prisma.$executeRawUnsafe(
+    "ALTER TABLE student_external_cross_enrollment_requests ADD COLUMN IF NOT EXISTS school_id INT NULL",
+  );
+  await prisma.$executeRawUnsafe(
+    "ALTER TABLE student_external_cross_enrollment_requests ADD COLUMN IF NOT EXISTS remarks TEXT NULL",
+  );
+  await prisma.$executeRawUnsafe(
+    "CREATE INDEX IF NOT EXISTS idx_external_cross_enrollment_term ON student_external_cross_enrollment_requests(academic_year, semester)",
+  );
+  await prisma.$executeRawUnsafe(
+    "CREATE INDEX IF NOT EXISTS idx_external_cross_enrollment_status ON student_external_cross_enrollment_requests(status)",
+  );
+  await prisma.$executeRawUnsafe(
+    "CREATE INDEX IF NOT EXISTS idx_external_cross_enrollment_student ON student_external_cross_enrollment_requests(student_number)",
   );
 }
 
@@ -531,6 +573,7 @@ export async function GET() {
       ensureShiftRequestsTable(),
       ensureProgramShiftRequestsTable(),
       ensurePetitionSubjectRequestsTable(),
+      ensureExternalCrossEnrollmentRequestsTable(),
     ]);
 
     const [
@@ -538,6 +581,7 @@ export async function GET() {
       groupedStudentDrops,
       subjectDrops,
       crossEnrollmentRequests,
+      externalCrossEnrollmentRequests,
       shiftingRequests,
       programShiftRequests,
       petitionSubjectRequests,
@@ -736,6 +780,39 @@ export async function GET() {
       `,
       prisma.$queryRaw<any[]>`
         SELECT
+          req.id,
+          req.student_number,
+          req.academic_year,
+          req.semester,
+          req.reason,
+          req.status,
+          req.requested_at,
+          req.units_total,
+          req.subject_code,
+          req.subject_title,
+          req.external_school_name,
+          enr.first_name,
+          enr.family_name AS last_name,
+          CONCAT_WS(', ', enr.family_name, enr.first_name, enr.middle_name) AS student_name
+        FROM student_external_cross_enrollment_requests req
+        LEFT JOIN LATERAL (
+          SELECT e.first_name, e.middle_name, e.family_name
+          FROM enrollment e
+          WHERE e.student_number = req.student_number
+            AND e.academic_year = req.academic_year
+            AND (
+              (req.semester = 1 AND e.term IN ('First Semester', '1st Semester', 'first', '1'))
+              OR
+              (req.semester = 2 AND e.term IN ('Second Semester', '2nd Semester', 'second', '2'))
+            )
+          ORDER BY e.id DESC
+          LIMIT 1
+        ) enr ON TRUE
+        WHERE req.status = 'pending_approval'
+        ORDER BY req.requested_at DESC NULLS LAST, req.id DESC
+      `,
+      prisma.$queryRaw<any[]>`
+        SELECT
           ssr.id,
           ssr.student_number,
           ssr.academic_year,
@@ -862,6 +939,7 @@ export async function GET() {
             ...subjectOverloads.map((item) => item.student_number),
             ...subjectDrops.map((item) => item.student_number),
             ...crossEnrollmentRequests.map((item) => item.student_number),
+            ...externalCrossEnrollmentRequests.map((item) => item.student_number),
             ...shiftingRequests.map((item) => item.student_number),
             ...programShiftRequests.map((item) => item.student_number),
             ...petitionSubjectRequests.map((item) => item.student_number),
@@ -911,6 +989,13 @@ export async function GET() {
         0,
         crossEnrollmentRequests.length,
         ...crossEnrollmentRequests.filter((item) =>
+          allowedStudentNumbers.has(item.student_number),
+        ),
+      );
+      externalCrossEnrollmentRequests.splice(
+        0,
+        externalCrossEnrollmentRequests.length,
+        ...externalCrossEnrollmentRequests.filter((item) =>
           allowedStudentNumbers.has(item.student_number),
         ),
       );
@@ -1026,6 +1111,29 @@ export async function GET() {
               courseCode: item.course_code,
               descriptiveTitle: item.descriptive_title,
               unitsTotal: item.units_total,
+            },
+          ],
+        })),
+        externalCrossEnrollmentRequests: externalCrossEnrollmentRequests.map((item) => ({
+          id: item.id,
+          studentNumber: item.student_number,
+          studentName: item.student_name || item.student_number,
+          firstName: item.first_name || "",
+          lastName: item.last_name || "",
+          academicYear: item.academic_year,
+          semester: item.semester,
+          schoolName: item.external_school_name,
+          subjectCode: item.subject_code,
+          subjectTitle: item.subject_title,
+          status: item.status,
+          requestedAt: item.requested_at,
+          reason: item.reason,
+          unitsTotal: Number(item.units_total || 0),
+          subjects: [
+            {
+              courseCode: item.subject_code,
+              descriptiveTitle: item.subject_title,
+              unitsTotal: Number(item.units_total || 0),
             },
           ],
         })),
@@ -1928,6 +2036,185 @@ export async function POST(request: Request) {
       return NextResponse.json({
         success: true,
         message: "Inter-program subject request rejected successfully.",
+      });
+    }
+
+    if (actionType === "external_cross_enrollment") {
+      await ensureExternalCrossEnrollmentRequestsTable();
+
+      const requestId = Number(body?.id);
+      if (!Number.isFinite(requestId)) {
+        return NextResponse.json(
+          { error: "id is required for external cross-enrollment approval." },
+          { status: 400 },
+        );
+      }
+
+      const requestRows = await prisma.$queryRaw<any[]>`
+        SELECT
+          req.id,
+          req.student_number,
+          req.academic_year,
+          req.semester,
+          req.status,
+          req.external_school_name,
+          req.subject_code,
+          req.subject_title,
+          enr.first_name,
+          enr.middle_name,
+          enr.family_name,
+          enr.email_address
+        FROM student_external_cross_enrollment_requests req
+        LEFT JOIN LATERAL (
+          SELECT e.first_name, e.middle_name, e.family_name, e.email_address
+          FROM enrollment e
+          WHERE e.student_number = req.student_number
+          ORDER BY e.id DESC
+          LIMIT 1
+        ) enr ON TRUE
+        WHERE req.id = ${requestId}
+        LIMIT 1
+      `;
+      const requestRow = requestRows[0];
+      if (!requestRow) {
+        return NextResponse.json(
+          { error: "Pending external cross-enrollment request not found." },
+          { status: 404 },
+        );
+      }
+
+      const access = await ensureDeanStudentAccess(scope, {
+        studentNumber: requestRow.student_number,
+        academicYear: requestRow.academic_year,
+        semester: requestRow.semester,
+      });
+      if (!access.ok) {
+        return NextResponse.json({ error: access });
+      }
+
+      if (String(requestRow.status || "").toLowerCase() !== "pending_approval") {
+        return NextResponse.json(
+          { error: "This external cross-enrollment request is no longer pending approval." },
+          { status: 409 },
+        );
+      }
+
+      await prisma.$executeRaw`
+        UPDATE student_external_cross_enrollment_requests
+        SET status = 'approved',
+            approved_by = ${userId},
+            approved_at = NOW()
+        WHERE id = ${requestId}
+      `;
+
+      const studentName = [
+        requestRow.first_name,
+        requestRow.middle_name,
+        requestRow.family_name,
+      ]
+        .filter(Boolean)
+        .join(" ")
+        .trim() || requestRow.student_number;
+
+      const origin = new URL(request.url).origin;
+      const approvalLetterUrl = `${origin}/external-cross-enrollment/approval-letter/${requestId}`;
+
+      if (requestRow.email_address) {
+        try {
+          await sendExternalCrossEnrollmentApprovedEmail({
+            to: requestRow.email_address,
+            studentName,
+            studentNumber: requestRow.student_number,
+            subjectCode: requestRow.subject_code,
+            subjectTitle: requestRow.subject_title,
+            externalSchoolName: requestRow.external_school_name,
+            academicYear: requestRow.academic_year,
+            semester: Number(requestRow.semester || 0),
+            approvalLetterUrl,
+          });
+        } catch (emailError) {
+          console.error(
+            "Failed to send external cross-enrollment approval email:",
+            emailError,
+          );
+        }
+      }
+
+      if (userId) {
+        await insertIntoReports({
+          action: `Approved external cross-enrollment request for ${requestRow.student_number} (${requestRow.external_school_name} - ${requestRow.subject_code}) by ${session?.user?.name}`,
+          user_id: userId,
+          created_at: new Date(),
+        });
+      }
+
+      return NextResponse.json({
+        success: true,
+        message: "External cross-enrollment request approved successfully.",
+        approvalLetterUrl,
+      });
+    }
+
+    if (actionType === "reject_external_cross_enrollment") {
+      await ensureExternalCrossEnrollmentRequestsTable();
+
+      const requestId = Number(body?.id);
+      if (!Number.isFinite(requestId)) {
+        return NextResponse.json(
+          { error: "id is required for external cross-enrollment rejection." },
+          { status: 400 },
+        );
+      }
+
+      const requestRows = await prisma.$queryRaw<any[]>`
+        SELECT id, student_number, academic_year, semester, status, external_school_name, subject_code
+        FROM student_external_cross_enrollment_requests
+        WHERE id = ${requestId}
+        LIMIT 1
+      `;
+      const requestRow = requestRows[0];
+      if (!requestRow) {
+        return NextResponse.json(
+          { error: "Pending external cross-enrollment request not found." },
+          { status: 404 },
+        );
+      }
+
+      const access = await ensureDeanStudentAccess(scope, {
+        studentNumber: requestRow.student_number,
+        academicYear: requestRow.academic_year,
+        semester: requestRow.semester,
+      });
+      if (!access.ok) {
+        return NextResponse.json({ error: access });
+      }
+
+      if (String(requestRow.status || "").toLowerCase() !== "pending_approval") {
+        return NextResponse.json(
+          { error: "This external cross-enrollment request is no longer pending approval." },
+          { status: 409 },
+        );
+      }
+
+      await prisma.$executeRaw`
+        UPDATE student_external_cross_enrollment_requests
+        SET status = 'rejected',
+            approved_by = ${userId},
+            approved_at = NOW()
+        WHERE id = ${requestId}
+      `;
+
+      if (userId) {
+        await insertIntoReports({
+          action: `Rejected external cross-enrollment request for ${requestRow.student_number} (${requestRow.external_school_name} - ${requestRow.subject_code}) by ${session?.user?.name}`,
+          user_id: userId,
+          created_at: new Date(),
+        });
+      }
+
+      return NextResponse.json({
+        success: true,
+        message: "External cross-enrollment request rejected successfully.",
       });
     }
 

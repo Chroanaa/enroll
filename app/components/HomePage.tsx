@@ -59,6 +59,7 @@ const modules: HomeModule[] = [
       "subject-dropping",
       "student-dropping",
       "cross-enrollee",
+      "external-cross-enrollment",
       "shifting",
       "program-shifting",
       "refund",

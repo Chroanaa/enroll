@@ -59,6 +59,24 @@ interface CrossEnrollmentApproval {
   subjects?: ApprovalSubjectItem[];
 }
 
+interface ExternalCrossEnrollmentApproval {
+  id: number;
+  studentNumber: string;
+  studentName: string;
+  firstName?: string;
+  lastName?: string;
+  academicYear: string;
+  semester: number;
+  schoolName: string;
+  subjectCode: string;
+  subjectTitle: string;
+  status: string;
+  requestedAt?: string | null;
+  reason?: string | null;
+  unitsTotal?: number | null;
+  subjects?: ApprovalSubjectItem[];
+}
+
 interface ApprovalSubjectItem {
   courseCode?: string | null;
   descriptiveTitle?: string | null;
@@ -74,6 +92,7 @@ interface ApprovalResponse {
     subjectOverloads: SubjectOverloadApproval[];
     subjectDrops: SubjectDropApproval[];
     crossEnrollmentRequests: CrossEnrollmentApproval[];
+    externalCrossEnrollmentRequests: ExternalCrossEnrollmentApproval[];
     shiftingRequests: SectionShiftApproval[];
     programShiftRequests: ProgramShiftApproval[];
     petitionSubjectRequests: PetitionSubjectApproval[];
@@ -173,6 +192,7 @@ type ApprovalFilter =
   | "overload"
   | "drop"
   | "cross"
+  | "external-cross"
   | "shift"
   | "program-shift"
   | "petition";
@@ -184,6 +204,7 @@ type ApprovalRow = {
     | "drop"
     | "student-drop"
     | "cross"
+    | "external-cross"
     | "shift"
     | "program-shift"
     | "petition";
@@ -236,6 +257,8 @@ export default function ApprovalManagement() {
   const [crossEnrollmentRequests, setCrossEnrollmentRequests] = useState<
     CrossEnrollmentApproval[]
   >([]);
+  const [externalCrossEnrollmentRequests, setExternalCrossEnrollmentRequests] =
+    useState<ExternalCrossEnrollmentApproval[]>([]);
   const [shiftingRequests, setShiftingRequests] = useState<SectionShiftApproval[]>([]);
   const [programShiftRequests, setProgramShiftRequests] = useState<ProgramShiftApproval[]>([]);
   const [petitionSubjectRequests, setPetitionSubjectRequests] = useState<
@@ -278,6 +301,9 @@ export default function ApprovalManagement() {
       setSubjectOverloads(result.data.subjectOverloads || []);
       setSubjectDrops(result.data.subjectDrops || []);
       setCrossEnrollmentRequests(result.data.crossEnrollmentRequests || []);
+      setExternalCrossEnrollmentRequests(
+        result.data.externalCrossEnrollmentRequests || [],
+      );
       setShiftingRequests(result.data.shiftingRequests || []);
       setProgramShiftRequests(result.data.programShiftRequests || []);
       setPetitionSubjectRequests(result.data.petitionSubjectRequests || []);
@@ -290,6 +316,7 @@ export default function ApprovalManagement() {
       setSubjectOverloads([]);
       setSubjectDrops([]);
       setCrossEnrollmentRequests([]);
+      setExternalCrossEnrollmentRequests([]);
       setShiftingRequests([]);
       setProgramShiftRequests([]);
       setPetitionSubjectRequests([]);
@@ -325,11 +352,13 @@ export default function ApprovalManagement() {
       subjectOverloads.length +
       subjectDrops.length +
       crossEnrollmentRequests.length +
+      externalCrossEnrollmentRequests.length +
       shiftingRequests.length +
       programShiftRequests.length +
       petitionSubjectRequests.length,
     [
       crossEnrollmentRequests.length,
+      externalCrossEnrollmentRequests.length,
       programShiftRequests.length,
       shiftingRequests.length,
       subjectDrops.length,
@@ -398,6 +427,25 @@ export default function ApprovalManagement() {
       contextLine: `Home ${item.homeProgramCode || item.homeProgramName || "N/A"} • Host ${item.hostProgramCode || item.hostProgramName || "N/A"}`,
     }));
 
+    const externalCrossRows = externalCrossEnrollmentRequests.map<ApprovalRow>((item) => ({
+      key: `external-cross-${item.id}`,
+      type: "external-cross",
+      approvalId: item.id,
+      studentNumber: item.studentNumber,
+      studentName: item.studentName,
+      firstName: item.firstName,
+      lastName: item.lastName,
+      academicYear: item.academicYear,
+      semester: item.semester,
+      detailsPrimary: item.subjectCode,
+      detailsSecondary: item.subjectTitle,
+      termLabel: `A.Y. ${item.academicYear} â€¢ Sem ${item.semester}`,
+      statusLabel: "Pending Approval",
+      reason: item.reason,
+      subjects: item.subjects || [],
+      contextLine: `External school: ${item.schoolName || "N/A"} â€¢ Units: ${item.unitsTotal || 0}`,
+    }));
+
     const shiftRows = shiftingRequests.map<ApprovalRow>((item) => ({
       key: `shift-${item.id}`,
       type: "shift",
@@ -461,12 +509,14 @@ export default function ApprovalManagement() {
       ...overloadRows,
       ...dropRows,
       ...crossRows,
+      ...externalCrossRows,
       ...shiftRows,
       ...programShiftRows,
       ...petitionRows,
     ];
   }, [
     crossEnrollmentRequests,
+    externalCrossEnrollmentRequests,
     petitionSubjectRequests,
     programShiftRequests,
     shiftingRequests,
@@ -485,6 +535,8 @@ export default function ApprovalManagement() {
       );
     } else if (filter === "cross") {
       rows = rows.filter((row) => row.type === "cross");
+    } else if (filter === "external-cross") {
+      rows = rows.filter((row) => row.type === "external-cross");
     } else if (filter === "shift") {
       rows = rows.filter((row) => row.type === "shift");
     } else if (filter === "program-shift") {
@@ -747,6 +799,11 @@ export default function ApprovalManagement() {
           academicYear: row.academicYear,
           semester: row.semester,
         };
+      } else if (row.type === "external-cross") {
+        payload = {
+          type: "external_cross_enrollment",
+          id: row.approvalId,
+        };
       } else {
         payload = {
           type: row.type === "drop" ? "drop" : "cross_enrollment",
@@ -843,6 +900,11 @@ export default function ApprovalManagement() {
       } else if (row.type === "cross") {
         payload = {
           type: "reject_cross_enrollment",
+          id: row.approvalId,
+        };
+      } else if (row.type === "external-cross") {
+        payload = {
+          type: "reject_external_cross_enrollment",
           id: row.approvalId,
         };
       } else if (row.type === "shift") {
@@ -1168,7 +1230,7 @@ export default function ApprovalManagement() {
               Approval Management
             </h1>
             <p className="mt-1 text-sm" style={{ color: colors.tertiary }}>
-              Central review hub for overload, drop, inter-program, shift, and petition subject requests.
+              Central review hub for overload, drop, inter-program, external cross-enrollment, shift, and petition subject requests.
             </p>
           </div>
 
@@ -1215,6 +1277,14 @@ export default function ApprovalManagement() {
             </p>
             <p className="mt-2 text-3xl font-bold" style={{ color: colors.primary }}>
               {crossEnrollmentRequests.length}
+            </p>
+          </div>
+          <div className="rounded-2xl p-5" style={cardStyle}>
+            <p className="text-sm font-semibold" style={{ color: colors.tertiary }}>
+              External Cross-Enroll
+            </p>
+            <p className="mt-2 text-3xl font-bold" style={{ color: colors.primary }}>
+              {externalCrossEnrollmentRequests.length}
             </p>
           </div>
           <div className="rounded-2xl p-5" style={cardStyle}>
@@ -1267,7 +1337,7 @@ export default function ApprovalManagement() {
                 Pending Approvals
               </h2>
               <p className="text-sm" style={{ color: colors.tertiary }}>
-                Combined approval queue for overload, dropping, inter-program, shifting, and petition subject requests.
+                Combined approval queue for overload, dropping, inter-program, external cross-enrollment, shifting, and petition subject requests.
               </p>
             </div>
 
@@ -1321,6 +1391,7 @@ export default function ApprovalManagement() {
                   <option value="overload">Beyond 27 Units</option>
                   <option value="drop">Subject Drops</option>
                   <option value="cross">Inter-Program</option>
+                  <option value="external-cross">External Cross-Enroll</option>
                   <option value="shift">Section Shift</option>
                   <option value="program-shift">Program Shift</option>
                   <option value="petition">Petition Subject</option>
