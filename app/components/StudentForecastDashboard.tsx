@@ -38,13 +38,15 @@ interface ProgramData {
 
 interface ForecastItem {
   course: string;
-  predicted_year: number;
+  predicted_year?: number | null;
+  predicted_academic_year?: string | null;
   predicted_count: number;
 }
 
 interface CapacityItem {
   program: string;
   predicted_year?: number | null;
+  predicted_academic_year?: string | null;
   predicted_students: number;
   current_sections: number;
   current_capacity: number;
@@ -80,6 +82,7 @@ interface ForecastResult {
   success: boolean;
   programs: string[];
   historical: Record<string, { year: number; total_students: number }[]>;
+  predicted_school_year?: string | null;
   forecast: ForecastItem[];
   capacity: CapacityItem[];
   totalPrograms: number;
@@ -107,6 +110,38 @@ const CHART_COLORS = [
   "#EF4444",
 ];
 
+function normalizeProgramName(program?: string | null): string {
+  return String(program || "")
+    .trim()
+    .replace(/\s+/g, " ");
+}
+
+function getSchoolYearStartFromDate(date: Date): number {
+  const month = date.getMonth() + 1;
+  const year = date.getFullYear();
+  return month >= 8 ? year : year - 1;
+}
+
+function parseAcademicYearStart(academicYear?: string | null): number | null {
+  if (!academicYear) return null;
+
+  const match = String(academicYear).trim().match(/^(\d{4})-(\d{4})$/);
+  if (!match) return null;
+
+  const start = Number(match[1]);
+  const end = Number(match[2]);
+  if (!Number.isFinite(start) || !Number.isFinite(end) || end !== start + 1) {
+    return null;
+  }
+
+  return start;
+}
+
+function formatSchoolYear(startYear?: number | null): string {
+  if (startYear === undefined || startYear === null) return "";
+  return `${startYear}-${startYear + 1}`;
+}
+
 /* ───────────────────── Component ───────────────────── */
 
 const StudentForecastDashboard: React.FC = () => {
@@ -129,10 +164,19 @@ const StudentForecastDashboard: React.FC = () => {
       const response = await fetch("/api/auth/student/forecast");
       if (!response.ok) throw new Error("Failed to fetch student data");
       const data = await response.json();
-      setStudentData(data);
+      const normalizedData = {
+        ...data,
+        programData: Array.isArray(data.programData)
+          ? data.programData.map((item: ProgramData) => ({
+              ...item,
+              program: normalizeProgramName(item.program),
+            }))
+          : [],
+      };
+      setStudentData(normalizedData);
 
-      if (data.programData && data.programData.length > 0) {
-        await fetchForecastPredictions(data.programData);
+      if (normalizedData.programData && normalizedData.programData.length > 0) {
+        await fetchForecastPredictions(normalizedData.programData);
       }
     } catch (err: any) {
       setError(err.message);
@@ -144,20 +188,24 @@ const StudentForecastDashboard: React.FC = () => {
   const fetchForecastPredictions = async (programData: ProgramData[]) => {
     setForecastLoading(true);
     try {
-      const forecastData = programData.map((item) => ({
-        program: item.program,
-        total_students: item.total_students,
-        year:
+      const payload = programData.map((item) => {
+        const schoolYearStart =
           item.year ??
-          (item.academic_year
-            ? parseInt(item.academic_year.split("-")[0])
-            : new Date().getFullYear()),
-      }));
+          parseAcademicYearStart(item.academic_year) ??
+          getSchoolYearStartFromDate(new Date());
+
+        return {
+          program: normalizeProgramName(item.program),
+          total_students: item.total_students,
+          academic_year:
+            item.academic_year ?? formatSchoolYear(schoolYearStart),
+        };
+      });
 
       const response = await fetch("/api/auth/student/forecast", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ data: forecastData }),
+        body: JSON.stringify({ data: payload }),
       });
 
       if (!response.ok) {
@@ -186,31 +234,38 @@ const StudentForecastDashboard: React.FC = () => {
   const forecastLineChartData = useMemo(() => {
     if (!studentData?.programData) return [];
 
-    const grouped: Record<string, Record<string, number>> = {};
-    const historicalYears = new Set<string>();
+    const grouped: Record<string, Record<number, number>> = {};
+    const historicalYearStarts = new Set<number>();
 
     studentData.programData.forEach((item) => {
       if (!grouped[item.program]) grouped[item.program] = {};
-      const year =
-        item.year !== undefined
-          ? String(item.year)
-          : item.academic_year || "";
-      if (!year) return;
-      grouped[item.program][year] = item.total_students;
-      historicalYears.add(year);
+      const yearStart =
+        item.year ?? parseAcademicYearStart(item.academic_year) ?? null;
+      if (yearStart === null) return;
+
+      grouped[item.program][yearStart] = item.total_students;
+      historicalYearStarts.add(yearStart);
     });
 
-    const sortedYears = Array.from(historicalYears).sort();
-    const lastYear = sortedYears[sortedYears.length - 1];
+    const sortedYearStarts = Array.from(historicalYearStarts).sort(
+      (a, b) => a - b,
+    );
+    const lastYearStart = sortedYearStarts[sortedYearStarts.length - 1];
 
-    // Determine next year from forecast or capacity
-    let nextYear = "";
-    if (forecastResult?.forecast?.length && lastYear) {
-      const predictedYr = forecastResult.forecast[0].predicted_year;
-      nextYear = String(predictedYr);
-    } else if (forecastResult?.capacity?.length && lastYear) {
-      const predictedYr = forecastResult.capacity[0].predicted_year;
-      if (predictedYr) nextYear = String(predictedYr);
+    // Determine next school year start from forecast or capacity
+    let nextYearStart: number | null = null;
+    const forecastYear = forecastResult?.forecast?.find(
+      (f) => typeof f.predicted_year === "number",
+    )?.predicted_year;
+    if (typeof forecastYear === "number") {
+      nextYearStart = forecastYear;
+    } else {
+      const capacityYear = forecastResult?.capacity?.find(
+        (c) => typeof c.predicted_year === "number",
+      )?.predicted_year;
+      if (typeof capacityYear === "number") {
+        nextYearStart = capacityYear;
+      }
     }
 
     const predMap: Record<string, number> = {};
@@ -224,37 +279,61 @@ const StudentForecastDashboard: React.FC = () => {
       });
     }
 
-    const allYears = [...sortedYears, ...(nextYear ? [nextYear] : [])];
+    const allYearStarts = [...sortedYearStarts];
+    if (nextYearStart !== null && !allYearStarts.includes(nextYearStart)) {
+      allYearStarts.push(nextYearStart);
+      allYearStarts.sort((a, b) => a - b);
+    }
 
-    return allYears.map((year) => {
-      const entry: Record<string, any> = { year };
+    return allYearStarts.map((yearStart) => {
+      const entry: Record<string, any> = {
+        year: formatSchoolYear(yearStart),
+        schoolYearStart: yearStart,
+      };
+
       Object.keys(grouped).forEach((program) => {
-        if (year === nextYear) {
+        if (nextYearStart !== null && yearStart === nextYearStart) {
           entry[program] = null;
           entry[`${program}_forecast`] = predMap[program] ?? null;
-        } else if (year === lastYear && nextYear) {
-          entry[program] = grouped[program][year] ?? null;
-          entry[`${program}_forecast`] = grouped[program][year] ?? null;
+        } else if (
+          nextYearStart !== null &&
+          lastYearStart !== undefined &&
+          yearStart === lastYearStart
+        ) {
+          entry[program] = grouped[program][yearStart] ?? null;
+          entry[`${program}_forecast`] = grouped[program][yearStart] ?? null;
         } else {
-          entry[program] = grouped[program][year] ?? null;
+          entry[program] = grouped[program][yearStart] ?? null;
           entry[`${program}_forecast`] = null;
         }
       });
+
       return entry;
     });
   }, [studentData, forecastResult]);
 
-  const predictedYear = useMemo(() => {
-    if (forecastResult?.forecast?.length) {
-      return String(forecastResult.forecast[0].predicted_year);
+  const predictedYearStart = useMemo(() => {
+    const forecastYear = forecastResult?.forecast?.find(
+      (f) => typeof f.predicted_year === "number",
+    )?.predicted_year;
+    if (typeof forecastYear === "number") {
+      return forecastYear;
     }
+
     // Fall back to capacity predicted_year
-    if (forecastResult?.capacity?.length) {
-      const yr = forecastResult.capacity[0].predicted_year;
-      if (yr) return String(yr);
+    const capacityYear = forecastResult?.capacity?.find(
+      (c) => typeof c.predicted_year === "number",
+    )?.predicted_year;
+    if (typeof capacityYear === "number") {
+      return capacityYear;
     }
-    return "";
+
+    return null;
   }, [forecastResult]);
+
+  const predictedSchoolYear = useMemo(() => {
+    return forecastResult?.predicted_school_year ?? formatSchoolYear(predictedYearStart);
+  }, [forecastResult?.predicted_school_year, predictedYearStart]);
 
   // Total predicted students
   const totalPredicted = useMemo(() => {
@@ -380,7 +459,7 @@ const StudentForecastDashboard: React.FC = () => {
                 {/* Predicted Students */}
                 <SummaryCard
                   icon={<Target className='w-5 h-5' />}
-                  label={`Predicted ${predictedYear}`}
+                  label={`Predicted ${predictedSchoolYear || "School Year"}`}
                   value={totalPredicted}
                   color={colors.success}
                   badge={
@@ -511,10 +590,10 @@ const StudentForecastDashboard: React.FC = () => {
                       style={{ color: colors.neutral }}
                     >
                       Solid line = historical · Dashed line = predicted
-                      {predictedYear && (
+                      {predictedSchoolYear && (
                         <strong style={{ color: colors.secondary }}>
                           {" "}
-                          ({predictedYear})
+                          ({predictedSchoolYear})
                         </strong>
                       )}
                     </p>
@@ -561,13 +640,16 @@ const StudentForecastDashboard: React.FC = () => {
                     const programChartData = forecastLineChartData.map(
                       (entry) => ({
                         year: entry.year,
+                        schoolYearStart: entry.schoolYearStart as number,
                         students: entry[program] as number | null,
                         forecast: entry[`${program}_forecast`] as number | null,
                       }),
                     );
 
                     const historicalPoints = programChartData.filter(
-                      (d) => d.students !== null && d.year !== predictedYear,
+                      (d) =>
+                        d.students !== null &&
+                        d.schoolYearStart !== predictedYearStart,
                     );
                     const lastPoint =
                       historicalPoints[historicalPoints.length - 1];
@@ -626,7 +708,9 @@ const StudentForecastDashboard: React.FC = () => {
                               className='text-xs mb-0.5'
                               style={{ color: colors.neutral }}
                             >
-                              {lastPoint?.year ?? "Last known"}
+                              {lastPoint
+                                ? formatSchoolYear(lastPoint.schoolYearStart)
+                                : "Last known"}
                             </p>
                             <p
                               className='text-2xl font-bold tabular-nums'
@@ -643,7 +727,7 @@ const StudentForecastDashboard: React.FC = () => {
                                 className='text-xs mb-0.5'
                                 style={{ color: colors.secondary }}
                               >
-                                {predictedYear} (predicted)
+                                {predictedSchoolYear || "Next School Year"} (predicted)
                               </p>
                               <p
                                 className='text-2xl font-bold tabular-nums'
@@ -695,7 +779,7 @@ const StudentForecastDashboard: React.FC = () => {
                                   ? `${program} (predicted)`
                                   : program,
                               ]}
-                              labelFormatter={(l) => `Year: ${l}`}
+                              labelFormatter={(l) => `School Year: ${l}`}
                             />
                             <Line
                               type='monotone'
@@ -721,7 +805,7 @@ const StudentForecastDashboard: React.FC = () => {
                               dot={(dotProps: any) => {
                                 const { cx, cy, payload, key } = dotProps;
                                 if (
-                                  payload.year === predictedYear &&
+                                  payload.schoolYearStart === predictedYearStart &&
                                   payload.forecast != null
                                 ) {
                                   return (
@@ -809,7 +893,7 @@ const StudentForecastDashboard: React.FC = () => {
                       className='text-xs mt-0.5'
                       style={{ color: colors.neutral }}
                     >
-                      Based on predicted enrollment for {predictedYear}
+                      Based on predicted enrollment for {predictedSchoolYear || "the next school year"}
                       {totalSectionsNeeded > 0 && (
                         <span
                           className='ml-2 inline-flex items-center gap-1 px-2 py-0.5 rounded-full font-semibold'
@@ -1026,8 +1110,7 @@ const StudentForecastDashboard: React.FC = () => {
                     Projected Utilization Rate
                   </h3>
                   <p className='text-xs mb-4' style={{ color: colors.neutral }}>
-                    How full each program's sections will be in {predictedYear}{" "}
-                    after applying recommendations
+                    How full each program's sections will be in {predictedSchoolYear || "the next school year"} after applying recommendations
                   </p>
                   <ResponsiveContainer width='100%' height={240}>
                     <BarChart
@@ -1143,8 +1226,8 @@ const StudentForecastDashboard: React.FC = () => {
                 className='text-xs mb-6 ml-8'
                 style={{ color: colors.neutral }}
               >
-                Historical student counts per program across all years, with the
-                predicted count for {predictedYear || "the next year"}.
+                Historical student counts per program across all school years,
+                with the predicted count for {predictedSchoolYear || "the next school year"}.
               </p>
 
               <div className='overflow-x-auto'>
@@ -1177,7 +1260,7 @@ const StudentForecastDashboard: React.FC = () => {
                                 minWidth: 90,
                               }}
                             >
-                              {h.year}
+                              {formatSchoolYear(h.year)}
                             </th>
                           ),
                         )}
@@ -1190,8 +1273,8 @@ const StudentForecastDashboard: React.FC = () => {
                           borderLeft: `2px dashed ${colors.secondary}50`,
                         }}
                       >
-                        {predictedYear
-                          ? `${predictedYear} (Predicted)`
+                        {predictedSchoolYear
+                          ? `${predictedSchoolYear} (Predicted)`
                           : "Predicted"}
                       </th>
                     </tr>
@@ -1316,15 +1399,15 @@ const StudentForecastDashboard: React.FC = () => {
                 </table>
               </div>
 
-              {forecastResult && predictedYear && (
+              {forecastResult && predictedSchoolYear && (
                 <p className='mt-3 text-xs' style={{ color: colors.neutral }}>
                   {forecastResult.totalPrograms} program
                   {forecastResult.totalPrograms !== 1 ? "s" : ""} · Predicted
-                  year:{" "}
+                  school year:{" "}
                   <strong style={{ color: colors.secondary }}>
-                    {predictedYear}
+                    {predictedSchoolYear}
                   </strong>{" "}
-                  · Growth rate vs. previous year
+                  · Growth rate vs. previous school year
                 </p>
               )}
             </div>

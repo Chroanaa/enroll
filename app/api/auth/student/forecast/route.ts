@@ -6,6 +6,173 @@ import { getSessionScope, isRoleAllowed } from "@/app/lib/accessScope";
 const FORECAST_API_URL = process.env.FORECAST_API_URL;
 const FORECAST_ALLOWED_ROLES = [ROLES.ADMIN, ROLES.REGISTRAR, ROLES.DEAN];
 
+function getSchoolYearStart(dateInput: Date | string | number): number | null {
+  const date = new Date(dateInput);
+  if (Number.isNaN(date.getTime())) return null;
+
+  const month = date.getMonth() + 1;
+  const year = date.getFullYear();
+  return month >= 8 ? year : year - 1;
+}
+
+function parseAcademicYearStart(academicYear: string): number | null {
+  const match = String(academicYear).trim().match(/^(\d{4})-(\d{4})$/);
+  if (!match) return null;
+
+  const start = parseInt(match[1], 10);
+  const end = parseInt(match[2], 10);
+  if (Number.isNaN(start) || Number.isNaN(end) || end !== start + 1) {
+    return null;
+  }
+
+  return start;
+}
+
+function formatAcademicYear(startYear: number | null | undefined): string | null {
+  if (startYear === undefined || startYear === null) return null;
+  return `${startYear}-${startYear + 1}`;
+}
+
+function buildProgramAliasMap(
+  programs: Array<{ id: number; code: string | null; name?: string | null }>,
+) {
+  const aliasMap = new Map<string, string>();
+
+  for (const program of programs) {
+    const canonicalName =
+      program.name?.trim() || program.code?.trim() || String(program.id);
+
+    [program.name, program.code, String(program.id), canonicalName].forEach(
+      (alias) => {
+        const normalizedAlias = String(alias || "")
+          .trim()
+          .toLowerCase();
+        if (normalizedAlias) {
+          aliasMap.set(normalizedAlias, canonicalName);
+        }
+      },
+    );
+  }
+
+  return aliasMap;
+}
+
+type NormalizedForecastRow = {
+  program: string;
+  year: number;
+  academic_year: string;
+  total_students: number;
+};
+
+type SectionHistoryRow = {
+  program: string;
+  year: number;
+  student_count: number;
+  max_capacity?: number | null;
+};
+
+function resolveSchoolYearAnchor(years: number[]): number | null {
+  const finiteYears = years.filter((year) => Number.isFinite(year));
+  return finiteYears.length > 0 ? Math.min(...finiteYears) : null;
+}
+
+function getSchoolYearBucketStart(
+  year: number,
+  anchorYear: number | null | undefined,
+): number {
+  if (anchorYear === undefined || anchorYear === null) return year;
+  return anchorYear + Math.floor((year - anchorYear) / 2) * 2;
+}
+
+function aggregateForecastRows(
+  rows: Array<{ program: string; year: number; total_students: number }>,
+  anchorYear?: number | null,
+): NormalizedForecastRow[] {
+  const resolvedAnchorYear =
+    anchorYear ?? resolveSchoolYearAnchor(rows.map((row) => row.year));
+  const aggregatedRows = new Map<string, NormalizedForecastRow>();
+
+  for (const row of rows) {
+    const bucketYear = getSchoolYearBucketStart(row.year, resolvedAnchorYear);
+    const academicYear = formatAcademicYear(bucketYear);
+    if (!academicYear) continue;
+
+    const key = `${row.program}|${bucketYear}`;
+    const existing = aggregatedRows.get(key);
+
+    if (existing) {
+      existing.total_students += row.total_students;
+      continue;
+    }
+
+    aggregatedRows.set(key, {
+      program: row.program,
+      year: bucketYear,
+      academic_year: academicYear,
+      total_students: row.total_students,
+    });
+  }
+
+  return Array.from(aggregatedRows.values()).sort(
+    (a, b) => a.program.localeCompare(b.program) || a.year - b.year,
+  );
+}
+
+function aggregateSectionHistoryRows(
+  rows: SectionHistoryRow[],
+  anchorYear?: number | null,
+) {
+  const resolvedAnchorYear =
+    anchorYear ?? resolveSchoolYearAnchor(rows.map((row) => row.year));
+  const sectionMap = new Map<
+    string,
+    {
+      program: string;
+      year: number;
+      section_count: number;
+      total_students: number;
+      capacities: number[];
+    }
+  >();
+
+  for (const row of rows) {
+    const bucketYear = getSchoolYearBucketStart(row.year, resolvedAnchorYear);
+    const key = `${row.program}|${bucketYear}`;
+    const existing = sectionMap.get(key);
+
+    if (existing) {
+      existing.section_count += 1;
+      existing.total_students += row.student_count;
+      if (row.max_capacity) existing.capacities.push(row.max_capacity);
+      continue;
+    }
+
+    sectionMap.set(key, {
+      program: row.program,
+      year: bucketYear,
+      section_count: 1,
+      total_students: row.student_count,
+      capacities: row.max_capacity ? [row.max_capacity] : [],
+    });
+  }
+
+  return Array.from(sectionMap.values())
+    .map((row) => ({
+      program: row.program,
+      year: row.year,
+      student_count: row.total_students,
+      section_count: row.section_count,
+      avg_section_capacity:
+        row.capacities.length > 0
+          ? Math.round(
+              row.capacities.reduce((sum, capacity) => sum + capacity, 0) /
+                row.capacities.length,
+            )
+          : 40,
+    }))
+    .sort((a, b) => a.program.localeCompare(b.program) || a.year - b.year);
+}
+
 function buildRoomRecommendation(capacity: any[], rooms: any[]) {
   const totalRooms = rooms.length;
   const availableRooms = rooms.filter((r) => r.status === "available").length;
@@ -74,50 +241,89 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    // ── Students by program × academic_year (for the frontend charts) ────
-    const studentsByProgram =
+    const programs = await prisma.program.findMany({
+      where:
+        scope.isDean && scope.deanDepartmentId
+          ? { department_id: scope.deanDepartmentId }
+          : undefined,
+      select: { id: true, code: true, name: true },
+    });
+    const rawStudentsByProgram =
       scope.isDean && scope.deanDepartmentId
         ? await prisma.$queryRaw`
             SELECT
-              COALESCE(p.name, e.course_program) as program,
-              EXTRACT(YEAR FROM e.admission_date)::int as year,
+              src.program,
+              src.school_year_start as year,
+              CONCAT(
+                src.school_year_start::text,
+                '-',
+                (src.school_year_start + 1)::text
+              ) as academic_year,
               COUNT(*)::int as total_students
-            FROM enrollment e
-            LEFT JOIN program p ON
-              (e.course_program ~ '^[0-9]+$' AND p.id = CAST(e.course_program AS INTEGER))
-              OR e.course_program = p.code
-              OR e.course_program = p.name
-            WHERE e.course_program IS NOT NULL
-              AND e.admission_date IS NOT NULL
-              AND e.status = 1
-              AND e.department = ${scope.deanDepartmentId}
-            GROUP BY
-              COALESCE(p.name, e.course_program),
-              EXTRACT(YEAR FROM e.admission_date)::int
-            ORDER BY
-              COALESCE(p.name, e.course_program),
-              EXTRACT(YEAR FROM e.admission_date)::int
+            FROM (
+              SELECT
+                COALESCE(p.name, e.course_program) as program,
+                CASE
+                  WHEN EXTRACT(MONTH FROM e.admission_date) >= 8
+                    THEN EXTRACT(YEAR FROM e.admission_date)::int
+                  ELSE EXTRACT(YEAR FROM e.admission_date)::int - 1
+                END as school_year_start
+              FROM enrollment e
+              LEFT JOIN program p ON
+                (e.course_program ~ '^[0-9]+$' AND p.id = CAST(e.course_program AS INTEGER))
+                OR e.course_program = p.code
+                OR e.course_program = p.name
+              WHERE e.course_program IS NOT NULL
+                AND e.admission_date IS NOT NULL
+                AND e.status = 1
+                AND e.department = ${scope.deanDepartmentId}
+            ) src
+            GROUP BY src.program, src.school_year_start
+            ORDER BY src.program, src.school_year_start
           `
         : await prisma.$queryRaw`
             SELECT
-              COALESCE(p.name, e.course_program) as program,
-              EXTRACT(YEAR FROM e.admission_date)::int as year,
+              src.program,
+              src.school_year_start as year,
+              CONCAT(
+                src.school_year_start::text,
+                '-',
+                (src.school_year_start + 1)::text
+              ) as academic_year,
               COUNT(*)::int as total_students
-            FROM enrollment e
-            LEFT JOIN program p ON
-              (e.course_program ~ '^[0-9]+$' AND p.id = CAST(e.course_program AS INTEGER))
-              OR e.course_program = p.code
-              OR e.course_program = p.name
-            WHERE e.course_program IS NOT NULL
-              AND e.admission_date IS NOT NULL
-              AND e.status = 1
-            GROUP BY
-              COALESCE(p.name, e.course_program),
-              EXTRACT(YEAR FROM e.admission_date)::int
-            ORDER BY
-              COALESCE(p.name, e.course_program),
-              EXTRACT(YEAR FROM e.admission_date)::int
+            FROM (
+              SELECT
+                COALESCE(p.name, e.course_program) as program,
+                CASE
+                  WHEN EXTRACT(MONTH FROM e.admission_date) >= 8
+                    THEN EXTRACT(YEAR FROM e.admission_date)::int
+                  ELSE EXTRACT(YEAR FROM e.admission_date)::int - 1
+                END as school_year_start
+              FROM enrollment e
+              LEFT JOIN program p ON
+                (e.course_program ~ '^[0-9]+$' AND p.id = CAST(e.course_program AS INTEGER))
+                OR e.course_program = p.code
+                OR e.course_program = p.name
+              WHERE e.course_program IS NOT NULL
+                AND e.admission_date IS NOT NULL
+                AND e.status = 1
+            ) src
+            GROUP BY src.program, src.school_year_start
+            ORDER BY src.program, src.school_year_start
           `;
+
+    const rawYearlyProgramTotals = (rawStudentsByProgram as any[]).map((row) => ({
+      program: String(row.program),
+      year: Number(row.year),
+      total_students: Number(row.total_students ?? 0),
+    }));
+    const schoolYearAnchor = resolveSchoolYearAnchor(
+      rawYearlyProgramTotals.map((row) => row.year),
+    );
+    const studentsByProgram = aggregateForecastRows(
+      rawYearlyProgramTotals,
+      schoolYearAnchor,
+    );
 
     const totalStudents = await prisma.enrollment.count({
       where:
@@ -161,16 +367,11 @@ export async function GET(request: NextRequest) {
             GROUP BY d.name ORDER BY total_students DESC
           `;
 
-    // ── Enrollment counts by (program_code, admission_year) for Python ───
-    const programs = await prisma.program.findMany({
-      where:
-        scope.isDean && scope.deanDepartmentId
-          ? { department_id: scope.deanDepartmentId }
-          : undefined,
-      select: { id: true, code: true },
-    });
     const programCodeMap = new Map(
-      programs.map((p) => [p.id.toString(), p.code]),
+      programs.map((program) => [
+        program.id.toString(),
+        program.code?.trim() || String(program.id),
+      ]),
     );
 
     const rawEnrollments = await prisma.enrollment.findMany({
@@ -188,21 +389,33 @@ export async function GET(request: NextRequest) {
     });
 
     const enrollmentCounts: Record<string, number> = {};
-    for (const e of rawEnrollments) {
+    for (const enrollmentRow of rawEnrollments) {
       const programCode =
-        programCodeMap.get(e.course_program!) || e.course_program!;
-      const year = new Date(e.admission_date!).getFullYear();
-      if (isNaN(year)) continue;
+        programCodeMap.get(enrollmentRow.course_program!) ||
+        enrollmentRow.course_program!;
+      const year = getSchoolYearStart(enrollmentRow.admission_date!);
+      if (year === null) continue;
+
       const key = `${programCode}|${year}`;
       enrollmentCounts[key] = (enrollmentCounts[key] || 0) + 1;
     }
 
-    const enrollment = Object.entries(enrollmentCounts)
-      .map(([key, total_students]) => {
-        const [course, yearStr] = key.split("|");
-        return { course, year: parseInt(yearStr), total_students };
-      })
-      .sort((a, b) => a.course.localeCompare(b.course) || a.year - b.year);
+    const enrollment = aggregateForecastRows(
+      Object.entries(enrollmentCounts).map(([key, total_students]) => {
+        const [program, yearStr] = key.split("|");
+        return {
+          program,
+          year: parseInt(yearStr, 10),
+          total_students,
+        };
+      }),
+      schoolYearAnchor,
+    ).map((row) => ({
+      course: row.program,
+      year: row.year,
+      academic_year: row.academic_year,
+      total_students: row.total_students,
+    }));
 
     // ── Rooms ────────────────────────────────────────────────────────────
     const rawRooms = await prisma.room.findMany({
@@ -236,51 +449,27 @@ export async function GET(request: NextRequest) {
       },
     });
 
-    type SectionBucket = {
-      program: string;
-      year: number;
-      section_count: number;
-      total_students: number;
-      capacities: number[];
-    };
-    const sectionMap: Record<string, SectionBucket> = {};
+    const section_history = aggregateSectionHistoryRows(
+      rawSections.flatMap((section) => {
+        if (!section.academic_year || !section.program_id) return [];
 
-    for (const s of rawSections) {
-      if (!s.academic_year || !s.program_id) continue;
-      const programCode =
-        programCodeMap.get(s.program_id.toString()) || String(s.program_id);
-      const year = parseInt(s.academic_year.split("-")[0]);
-      if (isNaN(year)) continue;
+        const program =
+          programCodeMap.get(section.program_id.toString()) ||
+          String(section.program_id);
+        const year = parseInt(section.academic_year.split("-")[0], 10);
+        if (!Number.isFinite(year)) return [];
 
-      const key = `${programCode}|${year}`;
-      if (!sectionMap[key]) {
-        sectionMap[key] = {
-          program: programCode,
-          year,
-          section_count: 0,
-          total_students: 0,
-          capacities: [],
-        };
-      }
-      sectionMap[key].section_count++;
-      sectionMap[key].total_students += s.student_count ?? 0;
-      if (s.max_capacity) sectionMap[key].capacities.push(s.max_capacity);
-    }
-
-    const section_history = Object.values(sectionMap)
-      .map((s) => ({
-        program: s.program,
-        year: s.year,
-        student_count: s.total_students,
-        section_count: s.section_count,
-        avg_section_capacity:
-          s.capacities.length > 0
-            ? Math.round(
-                s.capacities.reduce((a, b) => a + b, 0) / s.capacities.length,
-              )
-            : 40,
-      }))
-      .sort((a, b) => a.program.localeCompare(b.program) || a.year - b.year);
+        return [
+          {
+            program,
+            year,
+            student_count: section.student_count ?? 0,
+            max_capacity: section.max_capacity,
+          },
+        ];
+      }),
+      schoolYearAnchor,
+    );
 
     return NextResponse.json({
       programData: studentsByProgram,
@@ -342,6 +531,7 @@ export async function POST(request: NextRequest) {
           : undefined,
       select: { id: true, code: true, name: true },
     });
+    const programAliasMap = buildProgramAliasMap(scopedPrograms);
 
     const allowedProgramKeys = new Set<string>();
     for (const p of scopedPrograms) {
@@ -361,7 +551,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const normalizedData =
+    const scopedData =
       scope.isDean && scope.deanDepartmentId
         ? data.filter((item: any) => {
             const key = String(item.program || item.course || "")
@@ -371,16 +561,49 @@ export async function POST(request: NextRequest) {
           })
         : data;
 
-    for (const item of normalizedData) {
+    const preparedRows: Array<{
+      program: string;
+      year: number;
+      total_students: number;
+    }> = [];
+
+    for (const item of scopedData) {
       // Accept "course" as alias for "program"
       if (!item.program && item.course) {
         item.program = item.course;
       }
-      // Accept academic_year (from GET response) and convert to year
-      if (!item.year && item.academic_year) {
-        item.year = parseInt(item.academic_year.split("-")[0]);
+
+      const rawProgram = String(item.program || "").trim();
+      const normalizedProgramKey = rawProgram.toLowerCase();
+      item.program = programAliasMap.get(normalizedProgramKey) || rawProgram;
+
+      // Accept academic_year (from GET response) and convert to school-year start
+      if (
+        (item.year === undefined || item.year === null || item.year === "") &&
+        item.academic_year
+      ) {
+        const parsedAcademicYear = parseAcademicYearStart(item.academic_year);
+        if (parsedAcademicYear !== null) {
+          item.year = parsedAcademicYear;
+        }
       }
-      if (!item.program || item.total_students === undefined || !item.year) {
+
+      if (item.year !== undefined && item.year !== null && item.year !== "") {
+        const parsedYear = Number(item.year);
+        if (Number.isFinite(parsedYear)) {
+          item.year = parsedYear;
+        }
+      }
+
+      const totalStudents = Number(item.total_students);
+      if (
+        !item.program ||
+        item.total_students === undefined ||
+        item.year === undefined ||
+        item.year === null ||
+        Number.isNaN(Number(item.year)) ||
+        !Number.isFinite(totalStudents)
+      ) {
         return NextResponse.json(
           {
             error:
@@ -389,7 +612,18 @@ export async function POST(request: NextRequest) {
           { status: 400 },
         );
       }
+
+      preparedRows.push({
+        program: item.program,
+        year: Number(item.year),
+        total_students: totalStudents,
+      });
     }
+
+    const schoolYearAnchor = resolveSchoolYearAnchor(
+      preparedRows.map((row) => row.year),
+    );
+    const normalizedData = aggregateForecastRows(preparedRows, schoolYearAnchor);
 
     if (!FORECAST_API_URL) {
       return NextResponse.json(
@@ -403,6 +637,7 @@ export async function POST(request: NextRequest) {
       course: item.program,
       total_students: item.total_students,
       year: item.year,
+      academic_year: item.academic_year,
     }));
 
     // Use provided section_history/rooms or fall back to DB
@@ -452,46 +687,27 @@ export async function POST(request: NextRequest) {
           },
         });
 
-        type SB = {
-          program: string;
-          year: number;
-          section_count: number;
-          total_students: number;
-          capacities: number[];
-        };
-        const sMap: Record<string, SB> = {};
-        for (const s of rawSections) {
-          if (!s.academic_year || !s.program_id) continue;
-          const pc =
-            programCodeMap.get(s.program_id.toString()) || String(s.program_id);
-          const yr = parseInt(s.academic_year.split("-")[0]);
-          if (isNaN(yr)) continue;
-          const key = `${pc}|${yr}`;
-          if (!sMap[key])
-            sMap[key] = {
-              program: pc,
-              year: yr,
-              section_count: 0,
-              total_students: 0,
-              capacities: [],
-            };
-          sMap[key].section_count++;
-          sMap[key].total_students += s.student_count ?? 0;
-          if (s.max_capacity) sMap[key].capacities.push(s.max_capacity);
-        }
+        section_history = aggregateSectionHistoryRows(
+          rawSections.flatMap((section) => {
+            if (!section.academic_year || !section.program_id) return [];
 
-        section_history = Object.values(sMap).map((s) => ({
-          program: s.program,
-          year: s.year,
-          student_count: s.total_students,
-          section_count: s.section_count,
-          avg_section_capacity:
-            s.capacities.length > 0
-              ? Math.round(
-                  s.capacities.reduce((a, b) => a + b, 0) / s.capacities.length,
-                )
-              : 40,
-        }));
+            const program =
+              programCodeMap.get(section.program_id.toString()) ||
+              String(section.program_id);
+            const year = parseInt(section.academic_year.split("-")[0], 10);
+            if (!Number.isFinite(year)) return [];
+
+            return [
+              {
+                program,
+                year,
+                student_count: section.student_count ?? 0,
+                max_capacity: section.max_capacity,
+              },
+            ];
+          }),
+          schoolYearAnchor,
+        );
       }
     }
 
@@ -531,6 +747,15 @@ export async function POST(request: NextRequest) {
 
     // Build a code→fullName map from the input data for resolving program codes
     const programNames = Object.keys(programGroups);
+    const latestHistoricalYear = normalizedData.reduce(
+      (latest, item) => Math.max(latest, item.year),
+      Number.NEGATIVE_INFINITY,
+    );
+    const predictedSchoolYearStart = Number.isFinite(latestHistoricalYear)
+      ? latestHistoricalYear + 2
+      : null;
+    const predictedSchoolYearLabel =
+      formatAcademicYear(predictedSchoolYearStart);
     const codeToName: Record<string, string> = {};
     programNames.forEach((name) => {
       const skip = new Set(["of", "in", "and", "the", "for"]);
@@ -557,6 +782,11 @@ export async function POST(request: NextRequest) {
     if (rawCapacity && Array.isArray(rawCapacity) && rawCapacity.length > 0) {
       capacity = rawCapacity.map((c: any) => {
         const fullName = resolveProgram(c.program || c.course);
+        const predictedYear =
+          predictedSchoolYearStart ??
+          (Number.isFinite(Number(c.predicted_year))
+            ? Number(c.predicted_year)
+            : null);
         const predictedStudents =
           c.predicted_students ?? c.predicted_count ?? 0;
         const currentSections = c.current_sections ?? 1;
@@ -580,7 +810,8 @@ export async function POST(request: NextRequest) {
 
         return {
           program: fullName,
-          predicted_year: c.predicted_year ?? null,
+          predicted_year: predictedYear,
+          predicted_academic_year: formatAcademicYear(predictedYear),
           predicted_students: predictedStudents,
           current_sections: currentSections,
           current_capacity: currentCapacity,
@@ -603,16 +834,27 @@ export async function POST(request: NextRequest) {
     // Build forecast from capacity when the Python server didn't return enrollment_predictions
     let forecast: any[] = [];
     if (rawForecast && Array.isArray(rawForecast) && rawForecast.length > 0) {
-      forecast = rawForecast.map((f: any) => ({
-        course: resolveProgram(f.course || f.program),
-        predicted_year: f.predicted_year ?? null,
-        predicted_count: f.predicted_count ?? f.predicted_students ?? 0,
-      }));
+      forecast = rawForecast.map((f: any) => {
+        const predictedYear =
+          predictedSchoolYearStart ??
+          (Number.isFinite(Number(f.predicted_year))
+            ? Number(f.predicted_year)
+            : null);
+
+        return {
+          course: resolveProgram(f.course || f.program),
+          predicted_year: predictedYear,
+          predicted_academic_year: formatAcademicYear(predictedYear),
+          predicted_count: f.predicted_count ?? f.predicted_students ?? 0,
+        };
+      });
     } else if (capacity.length > 0) {
       // Derive forecast from capacity data
       forecast = capacity.map((c: any) => ({
         course: c.program,
         predicted_year: c.predicted_year ?? null,
+        predicted_academic_year:
+          c.predicted_academic_year ?? formatAcademicYear(c.predicted_year),
         predicted_count: c.predicted_students ?? 0,
       }));
     }
@@ -643,6 +885,7 @@ export async function POST(request: NextRequest) {
           ...cap,
           predicted_students: predictedStudents,
           predicted_year: predictedYear,
+          predicted_academic_year: formatAcademicYear(predictedYear),
           utilization_rate: utilizationRate,
           status:
             cap.additional_sections_needed > 0
@@ -695,7 +938,10 @@ export async function POST(request: NextRequest) {
 
         return {
           program: programName,
-          predicted_year: fc.predicted_year ?? null,
+          predicted_year: fc.predicted_year ?? predictedSchoolYearStart,
+          predicted_academic_year:
+            fc.predicted_academic_year ??
+            formatAcademicYear(fc.predicted_year ?? predictedSchoolYearStart),
           predicted_students: predictedStudents,
           current_sections: currentSections,
           current_capacity: currentCapacity,
@@ -722,6 +968,7 @@ export async function POST(request: NextRequest) {
       success: true,
       programs: Object.keys(programGroups),
       historical: programGroups,
+      predicted_school_year: predictedSchoolYearLabel,
       forecast,
       capacity,
       totalPrograms: Object.keys(programGroups).length,
