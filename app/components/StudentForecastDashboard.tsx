@@ -38,14 +38,22 @@ interface ProgramData {
 
 interface ForecastItem {
   course: string;
-  predicted_year: number;
+  predicted_year?: number | null;
+  predicted_academic_year?: string | null;
   predicted_count: number;
+  confidence_score?: number;
+  confidence_label?: "High" | "Medium" | "Low";
+  confidence_reason?: string;
 }
 
 interface CapacityItem {
   program: string;
   predicted_year?: number | null;
+  predicted_academic_year?: string | null;
   predicted_students: number;
+  confidence_score?: number;
+  confidence_label?: "High" | "Medium" | "Low";
+  confidence_reason?: string;
   current_sections: number;
   current_capacity: number;
   avg_section_capacity: number;
@@ -80,6 +88,12 @@ interface ForecastResult {
   success: boolean;
   programs: string[];
   historical: Record<string, { year: number; total_students: number }[]>;
+  predicted_school_year?: string | null;
+  forecast_confidence?: {
+    score: number;
+    label: "High" | "Medium" | "Low";
+    reason: string;
+  };
   forecast: ForecastItem[];
   capacity: CapacityItem[];
   totalPrograms: number;
@@ -106,6 +120,34 @@ const CHART_COLORS = [
   "#F59E0B",
   "#EF4444",
 ];
+
+function getSchoolYearStartFromDate(date: Date): number {
+  const month = date.getMonth() + 1;
+  const year = date.getFullYear();
+  return month >= 8 ? year : year - 1;
+}
+
+function parseAcademicYearStart(academicYear?: string | null): number | null {
+  if (!academicYear) return null;
+
+  const match = String(academicYear)
+    .trim()
+    .match(/^(\d{4})-(\d{4})$/);
+  if (!match) return null;
+
+  const start = Number(match[1]);
+  const end = Number(match[2]);
+  if (!Number.isFinite(start) || !Number.isFinite(end) || end !== start + 1) {
+    return null;
+  }
+
+  return start;
+}
+
+function formatSchoolYear(startYear?: number | null): string {
+  if (startYear === undefined || startYear === null) return "";
+  return `${startYear}-${startYear + 1}`;
+}
 
 /* ───────────────────── Component ───────────────────── */
 
@@ -149,9 +191,8 @@ const StudentForecastDashboard: React.FC = () => {
         total_students: item.total_students,
         year:
           item.year ??
-          (item.academic_year
-            ? parseInt(item.academic_year.split("-")[0])
-            : new Date().getFullYear()),
+          parseAcademicYearStart(item.academic_year) ??
+          getSchoolYearStartFromDate(new Date()),
       }));
 
       const response = await fetch("/api/auth/student/forecast", {
@@ -186,31 +227,38 @@ const StudentForecastDashboard: React.FC = () => {
   const forecastLineChartData = useMemo(() => {
     if (!studentData?.programData) return [];
 
-    const grouped: Record<string, Record<string, number>> = {};
-    const historicalYears = new Set<string>();
+    const grouped: Record<string, Record<number, number>> = {};
+    const historicalYearStarts = new Set<number>();
 
     studentData.programData.forEach((item) => {
       if (!grouped[item.program]) grouped[item.program] = {};
-      const year =
-        item.year !== undefined
-          ? String(item.year)
-          : item.academic_year || "";
-      if (!year) return;
-      grouped[item.program][year] = item.total_students;
-      historicalYears.add(year);
+      const yearStart =
+        item.year ?? parseAcademicYearStart(item.academic_year) ?? null;
+      if (yearStart === null) return;
+
+      grouped[item.program][yearStart] = item.total_students;
+      historicalYearStarts.add(yearStart);
     });
 
-    const sortedYears = Array.from(historicalYears).sort();
-    const lastYear = sortedYears[sortedYears.length - 1];
+    const sortedYearStarts = Array.from(historicalYearStarts).sort(
+      (a, b) => a - b,
+    );
+    const lastYearStart = sortedYearStarts[sortedYearStarts.length - 1];
 
-    // Determine next year from forecast or capacity
-    let nextYear = "";
-    if (forecastResult?.forecast?.length && lastYear) {
-      const predictedYr = forecastResult.forecast[0].predicted_year;
-      nextYear = String(predictedYr);
-    } else if (forecastResult?.capacity?.length && lastYear) {
-      const predictedYr = forecastResult.capacity[0].predicted_year;
-      if (predictedYr) nextYear = String(predictedYr);
+    // Determine next school year start from forecast or capacity
+    let nextYearStart: number | null = null;
+    const forecastYear = forecastResult?.forecast?.find(
+      (f) => typeof f.predicted_year === "number",
+    )?.predicted_year;
+    if (typeof forecastYear === "number") {
+      nextYearStart = forecastYear;
+    } else {
+      const capacityYear = forecastResult?.capacity?.find(
+        (c) => typeof c.predicted_year === "number",
+      )?.predicted_year;
+      if (typeof capacityYear === "number") {
+        nextYearStart = capacityYear;
+      }
     }
 
     const predMap: Record<string, number> = {};
@@ -224,37 +272,79 @@ const StudentForecastDashboard: React.FC = () => {
       });
     }
 
-    const allYears = [...sortedYears, ...(nextYear ? [nextYear] : [])];
+    const allYearStarts = [...sortedYearStarts];
+    if (nextYearStart !== null && !allYearStarts.includes(nextYearStart)) {
+      allYearStarts.push(nextYearStart);
+      allYearStarts.sort((a, b) => a - b);
+    }
 
-    return allYears.map((year) => {
-      const entry: Record<string, any> = { year };
+    return allYearStarts.map((yearStart) => {
+      const entry: Record<string, any> = {
+        year: formatSchoolYear(yearStart),
+        schoolYearStart: yearStart,
+      };
+
       Object.keys(grouped).forEach((program) => {
-        if (year === nextYear) {
+        if (nextYearStart !== null && yearStart === nextYearStart) {
           entry[program] = null;
           entry[`${program}_forecast`] = predMap[program] ?? null;
-        } else if (year === lastYear && nextYear) {
-          entry[program] = grouped[program][year] ?? null;
-          entry[`${program}_forecast`] = grouped[program][year] ?? null;
+        } else if (
+          nextYearStart !== null &&
+          lastYearStart !== undefined &&
+          yearStart === lastYearStart
+        ) {
+          entry[program] = grouped[program][yearStart] ?? null;
+          entry[`${program}_forecast`] = grouped[program][yearStart] ?? null;
         } else {
-          entry[program] = grouped[program][year] ?? null;
+          entry[program] = grouped[program][yearStart] ?? null;
           entry[`${program}_forecast`] = null;
         }
       });
+
       return entry;
     });
   }, [studentData, forecastResult]);
 
-  const predictedYear = useMemo(() => {
-    if (forecastResult?.forecast?.length) {
-      return String(forecastResult.forecast[0].predicted_year);
+  const predictedYearStart = useMemo(() => {
+    const forecastYear = forecastResult?.forecast?.find(
+      (f) => typeof f.predicted_year === "number",
+    )?.predicted_year;
+    if (typeof forecastYear === "number") {
+      return forecastYear;
     }
+
     // Fall back to capacity predicted_year
-    if (forecastResult?.capacity?.length) {
-      const yr = forecastResult.capacity[0].predicted_year;
-      if (yr) return String(yr);
+    const capacityYear = forecastResult?.capacity?.find(
+      (c) => typeof c.predicted_year === "number",
+    )?.predicted_year;
+    if (typeof capacityYear === "number") {
+      return capacityYear;
     }
-    return "";
+
+    return null;
   }, [forecastResult]);
+
+  const predictedSchoolYear = useMemo(() => {
+    if (forecastResult?.predicted_school_year) {
+      return forecastResult.predicted_school_year;
+    }
+
+    const forecastAcademicYear = forecastResult?.forecast?.find(
+      (item) => item.predicted_academic_year,
+    )?.predicted_academic_year;
+    if (forecastAcademicYear) {
+      return forecastAcademicYear;
+    }
+
+    const capacityAcademicYear = forecastResult?.capacity?.find(
+      (item) => item.predicted_academic_year,
+    )?.predicted_academic_year;
+    if (capacityAcademicYear) {
+      return capacityAcademicYear;
+    }
+
+    return formatSchoolYear(predictedYearStart);
+  }, [forecastResult, predictedYearStart]);
 
   // Total predicted students
   const totalPredicted = useMemo(() => {
@@ -290,6 +380,7 @@ const StudentForecastDashboard: React.FC = () => {
   }, [forecastResult]);
 
   const roomRecommendation = forecastResult?.room_recommendation;
+  const overallConfidence = forecastResult?.forecast_confidence;
 
   /* ── Render ── */
 
@@ -362,7 +453,7 @@ const StudentForecastDashboard: React.FC = () => {
           <>
             {/* ─── Summary Cards ─── */}
             {forecastResult && (
-              <div className='grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-8'>
+              <div className='grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4 mb-8'>
                 {/* Total Programs */}
                 <SummaryCard
                   icon={<Layers className='w-5 h-5' />}
@@ -380,7 +471,7 @@ const StudentForecastDashboard: React.FC = () => {
                 {/* Predicted Students */}
                 <SummaryCard
                   icon={<Target className='w-5 h-5' />}
-                  label={`Predicted ${predictedYear}`}
+                  label={`Predicted ${predictedSchoolYear || "School Year"}`}
                   value={totalPredicted}
                   color={colors.success}
                   badge={
@@ -389,6 +480,27 @@ const StudentForecastDashboard: React.FC = () => {
                       : undefined
                   }
                   badgePositive={totalPredicted >= totalCurrent}
+                />
+                <SummaryCard
+                  icon={<BarChart3 className='w-5 h-5' />}
+                  label='Forecast Confidence'
+                  value={
+                    overallConfidence
+                      ? `${overallConfidence.score}%`
+                      : "Not available"
+                  }
+                  color={colors.primary}
+                  badge={overallConfidence?.label}
+                  badgeTone={
+                    overallConfidence?.label === "High"
+                      ? "positive"
+                      : overallConfidence?.label === "Medium"
+                        ? "warning"
+                        : overallConfidence?.label === "Low"
+                          ? "negative"
+                          : undefined
+                  }
+                  sub={overallConfidence?.reason}
                 />
                 {/* Rooms */}
                 <SummaryCard
@@ -511,10 +623,10 @@ const StudentForecastDashboard: React.FC = () => {
                       style={{ color: colors.neutral }}
                     >
                       Solid line = historical · Dashed line = predicted
-                      {predictedYear && (
+                      {predictedSchoolYear && (
                         <strong style={{ color: colors.secondary }}>
                           {" "}
-                          ({predictedYear})
+                          ({predictedSchoolYear})
                         </strong>
                       )}
                     </p>
@@ -561,13 +673,16 @@ const StudentForecastDashboard: React.FC = () => {
                     const programChartData = forecastLineChartData.map(
                       (entry) => ({
                         year: entry.year,
+                        schoolYearStart: entry.schoolYearStart as number,
                         students: entry[program] as number | null,
                         forecast: entry[`${program}_forecast`] as number | null,
                       }),
                     );
 
                     const historicalPoints = programChartData.filter(
-                      (d) => d.students !== null && d.year !== predictedYear,
+                      (d) =>
+                        d.students !== null &&
+                        d.schoolYearStart !== predictedYearStart,
                     );
                     const lastPoint =
                       historicalPoints[historicalPoints.length - 1];
@@ -626,7 +741,9 @@ const StudentForecastDashboard: React.FC = () => {
                               className='text-xs mb-0.5'
                               style={{ color: colors.neutral }}
                             >
-                              {lastPoint?.year ?? "Last known"}
+                              {lastPoint
+                                ? formatSchoolYear(lastPoint.schoolYearStart)
+                                : "Last known"}
                             </p>
                             <p
                               className='text-2xl font-bold tabular-nums'
@@ -643,7 +760,8 @@ const StudentForecastDashboard: React.FC = () => {
                                 className='text-xs mb-0.5'
                                 style={{ color: colors.secondary }}
                               >
-                                {predictedYear} (predicted)
+                                {predictedSchoolYear || "Next School Year"}{" "}
+                                (predicted)
                               </p>
                               <p
                                 className='text-2xl font-bold tabular-nums'
@@ -695,7 +813,7 @@ const StudentForecastDashboard: React.FC = () => {
                                   ? `${program} (predicted)`
                                   : program,
                               ]}
-                              labelFormatter={(l) => `Year: ${l}`}
+                              labelFormatter={(l) => `School Year: ${l}`}
                             />
                             <Line
                               type='monotone'
@@ -721,7 +839,8 @@ const StudentForecastDashboard: React.FC = () => {
                               dot={(dotProps: any) => {
                                 const { cx, cy, payload, key } = dotProps;
                                 if (
-                                  payload.year === predictedYear &&
+                                  payload.schoolYearStart ===
+                                    predictedYearStart &&
                                   payload.forecast != null
                                 ) {
                                   return (
@@ -809,7 +928,8 @@ const StudentForecastDashboard: React.FC = () => {
                       className='text-xs mt-0.5'
                       style={{ color: colors.neutral }}
                     >
-                      Based on predicted enrollment for {predictedYear}
+                      Based on predicted enrollment for{" "}
+                      {predictedSchoolYear || "the next school year"}
                       {totalSectionsNeeded > 0 && (
                         <span
                           className='ml-2 inline-flex items-center gap-1 px-2 py-0.5 rounded-full font-semibold'
@@ -1026,8 +1146,9 @@ const StudentForecastDashboard: React.FC = () => {
                     Projected Utilization Rate
                   </h3>
                   <p className='text-xs mb-4' style={{ color: colors.neutral }}>
-                    How full each program's sections will be in {predictedYear}{" "}
-                    after applying recommendations
+                    How full each program's sections will be in{" "}
+                    {predictedSchoolYear || "the next school year"} after
+                    applying recommendations
                   </p>
                   <ResponsiveContainer width='100%' height={240}>
                     <BarChart
@@ -1143,8 +1264,9 @@ const StudentForecastDashboard: React.FC = () => {
                 className='text-xs mb-6 ml-8'
                 style={{ color: colors.neutral }}
               >
-                Historical student counts per program across all years, with the
-                predicted count for {predictedYear || "the next year"}.
+                Historical student counts per program across all school years,
+                with the predicted count for{" "}
+                {predictedSchoolYear || "the next school year"}.
               </p>
 
               <div className='overflow-x-auto'>
@@ -1177,7 +1299,7 @@ const StudentForecastDashboard: React.FC = () => {
                                 minWidth: 90,
                               }}
                             >
-                              {h.year}
+                              {formatSchoolYear(h.year)}
                             </th>
                           ),
                         )}
@@ -1190,8 +1312,8 @@ const StudentForecastDashboard: React.FC = () => {
                           borderLeft: `2px dashed ${colors.secondary}50`,
                         }}
                       >
-                        {predictedYear
-                          ? `${predictedYear} (Predicted)`
+                        {predictedSchoolYear
+                          ? `${predictedSchoolYear} (Predicted)`
                           : "Predicted"}
                       </th>
                     </tr>
@@ -1210,6 +1332,12 @@ const StudentForecastDashboard: React.FC = () => {
                         fcItem?.predicted_count ??
                         capItem?.predicted_students ??
                         null;
+                      const confidenceScore =
+                        fcItem?.confidence_score ?? capItem?.confidence_score;
+                      const confidenceLabel =
+                        fcItem?.confidence_label ?? capItem?.confidence_label;
+                      const confidenceReason =
+                        fcItem?.confidence_reason ?? capItem?.confidence_reason;
                       const lastCount =
                         historicalArr[historicalArr.length - 1]
                           ?.total_students ?? 0;
@@ -1265,35 +1393,48 @@ const StudentForecastDashboard: React.FC = () => {
                             }}
                           >
                             {predictedCount !== null ? (
-                              <div className='flex items-center justify-end gap-2'>
-                                {growthRate > 0 ? (
-                                  <TrendingUp className='w-3.5 h-3.5 text-emerald-500' />
-                                ) : growthRate < 0 ? (
-                                  <TrendingDown className='w-3.5 h-3.5 text-red-500' />
-                                ) : null}
-                                <span
-                                  className='inline-block font-bold px-2.5 py-0.5 rounded-lg tabular-nums'
-                                  style={{
-                                    color: colors.secondary,
-                                    backgroundColor: colors.secondary + "18",
-                                  }}
-                                >
-                                  {predictedCount.toLocaleString()}
-                                </span>
-                                <span
-                                  className='text-xs font-semibold'
-                                  style={{
-                                    color:
-                                      growthRate > 0
-                                        ? "#10B981"
-                                        : growthRate < 0
-                                          ? "#EF4444"
-                                          : colors.neutral,
-                                  }}
-                                >
-                                  {growthRate >= 0 ? "+" : ""}
-                                  {growthRate.toFixed(1)}%
-                                </span>
+                              <div className='flex flex-col items-end gap-1'>
+                                <div className='flex items-center justify-end gap-2'>
+                                  {growthRate > 0 ? (
+                                    <TrendingUp className='w-3.5 h-3.5 text-emerald-500' />
+                                  ) : growthRate < 0 ? (
+                                    <TrendingDown className='w-3.5 h-3.5 text-red-500' />
+                                  ) : null}
+                                  <span
+                                    className='inline-block font-bold px-2.5 py-0.5 rounded-lg tabular-nums'
+                                    style={{
+                                      color: colors.secondary,
+                                      backgroundColor: colors.secondary + "18",
+                                    }}
+                                  >
+                                    {predictedCount.toLocaleString()}
+                                  </span>
+                                  <span
+                                    className='text-xs font-semibold'
+                                    style={{
+                                      color:
+                                        growthRate > 0
+                                          ? "#10B981"
+                                          : growthRate < 0
+                                            ? "#EF4444"
+                                            : colors.neutral,
+                                    }}
+                                  >
+                                    {growthRate >= 0 ? "+" : ""}
+                                    {growthRate.toFixed(1)}%
+                                  </span>
+                                </div>
+                                {confidenceLabel &&
+                                  confidenceScore !== undefined && (
+                                    <div
+                                      className='inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-semibold'
+                                      style={getConfidenceBadgeStyle(confidenceLabel)}
+                                      title={confidenceReason}
+                                    >
+                                      <span>{confidenceLabel}</span>
+                                      <span>{confidenceScore}%</span>
+                                    </div>
+                                  )}
                               </div>
                             ) : (
                               <span style={{ color: colors.neutral }}>—</span>
@@ -1316,15 +1457,15 @@ const StudentForecastDashboard: React.FC = () => {
                 </table>
               </div>
 
-              {forecastResult && predictedYear && (
+              {forecastResult && predictedSchoolYear && (
                 <p className='mt-3 text-xs' style={{ color: colors.neutral }}>
                   {forecastResult.totalPrograms} program
                   {forecastResult.totalPrograms !== 1 ? "s" : ""} · Predicted
-                  year:{" "}
+                  school year:{" "}
                   <strong style={{ color: colors.secondary }}>
-                    {predictedYear}
+                    {predictedSchoolYear}
                   </strong>{" "}
-                  · Growth rate vs. previous year
+                  · Growth rate vs. previous school year
                 </p>
               )}
             </div>
@@ -1344,6 +1485,7 @@ function SummaryCard({
   color,
   badge,
   badgePositive,
+  badgeTone,
   sub,
 }: {
   icon: React.ReactNode;
@@ -1352,8 +1494,20 @@ function SummaryCard({
   color: string;
   badge?: string;
   badgePositive?: boolean;
+  badgeTone?: "positive" | "warning" | "negative" | "neutral";
   sub?: string;
 }) {
+  const resolvedBadgeTone =
+    badgeTone ?? (badgePositive ? "positive" : "negative");
+  const badgeStyle =
+    resolvedBadgeTone === "positive"
+      ? { backgroundColor: "#D1FAE5", color: "#065F46" }
+      : resolvedBadgeTone === "warning"
+        ? { backgroundColor: "#FEF3C7", color: "#92400E" }
+        : resolvedBadgeTone === "neutral"
+          ? { backgroundColor: "#E5E7EB", color: "#374151" }
+          : { backgroundColor: "#FEE2E2", color: "#991B1B" };
+
   return (
     <div
       className='bg-white rounded-xl shadow-sm border p-5 flex items-start gap-4 transition-shadow hover:shadow-md'
@@ -1382,10 +1536,7 @@ function SummaryCard({
           {badge && (
             <span
               className='text-xs font-semibold px-1.5 py-0.5 rounded'
-              style={{
-                backgroundColor: badgePositive ? "#D1FAE5" : "#FEE2E2",
-                color: badgePositive ? "#065F46" : "#991B1B",
-              }}
+              style={badgeStyle}
             >
               {badge}
             </span>
@@ -1399,6 +1550,27 @@ function SummaryCard({
       </div>
     </div>
   );
+}
+
+function getConfidenceBadgeStyle(label: "High" | "Medium" | "Low") {
+  if (label === "High") {
+    return {
+      backgroundColor: "#D1FAE5",
+      color: "#065F46",
+    };
+  }
+
+  if (label === "Medium") {
+    return {
+      backgroundColor: "#FEF3C7",
+      color: "#92400E",
+    };
+  }
+
+  return {
+    backgroundColor: "#FEE2E2",
+    color: "#991B1B",
+  };
 }
 
 function UtilizationBadge({ rate }: { rate: number }) {

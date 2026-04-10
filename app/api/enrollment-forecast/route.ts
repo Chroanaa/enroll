@@ -1,6 +1,15 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "../../lib/prisma";
 
+function getSchoolYearStart(dateInput: Date | string | number): number | null {
+  const date = new Date(dateInput);
+  if (Number.isNaN(date.getTime())) return null;
+
+  const month = date.getMonth() + 1;
+  const year = date.getFullYear();
+  return month >= 8 ? year : year - 1;
+}
+
 /**
  * GET /api/enrollment-forecast
  *
@@ -9,14 +18,14 @@ import { prisma } from "../../lib/prisma";
  *
  * Response format:
  * {
- *   enrollment:       [{ course, year, total_students }],
+ *   enrollment:       [{ course, year, academic_year, total_students }],
  *   rooms:            [{ room_id, room_number, capacity, room_type, status }],
  *   section_history:  [{ program, year, student_count, section_count, avg_section_capacity }]
  * }
  */
 export async function GET(request: NextRequest) {
   try {
-    // ── Enrollment counts ─────────────────────────────────────────────────
+    // ── Enrollment counts by school-year start (Aug-Jul) ────────────────
     const enrollments = await prisma.enrollment.findMany({
       where: {
         course_program: { not: null },
@@ -39,8 +48,8 @@ export async function GET(request: NextRequest) {
     for (const e of enrollments) {
       const programCode =
         programCodeMap.get(e.course_program!) || e.course_program!;
-      const year = new Date(e.admission_date!).getFullYear();
-      if (isNaN(year)) continue;
+      const year = getSchoolYearStart(e.admission_date!);
+      if (year === null) continue;
       const key = `${programCode}|${year}`;
       enrollmentCounts[key] = (enrollmentCounts[key] || 0) + 1;
     }
@@ -48,7 +57,12 @@ export async function GET(request: NextRequest) {
     const enrollment = Object.entries(enrollmentCounts)
       .map(([key, total_students]) => {
         const [course, yearStr] = key.split("|");
-        return { course, year: parseInt(yearStr), total_students };
+        return {
+          course,
+          year: parseInt(yearStr, 10),
+          academic_year: `${yearStr}-${Number(yearStr) + 1}`,
+          total_students,
+        };
       })
       .sort((a, b) => a.course.localeCompare(b.course) || a.year - b.year);
 
