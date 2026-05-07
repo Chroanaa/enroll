@@ -2,6 +2,7 @@ import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
   /* config options here */
+  outputFileTracingRoot: process.cwd(),
   // Allow cross-origin requests from local network during development
   allowedDevOrigins: ['192.168.56.1'],
   
