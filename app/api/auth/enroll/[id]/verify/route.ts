@@ -6,7 +6,7 @@ import { insertIntoReports } from "@/app/utils/reportsUtils";
 import { buildAppUrl } from "@/app/lib/appUrl";
 import { sendEnrollmentVerifiedEmail } from "@/app/lib/email";
 
-const ALLOWED_ROLES = new Set([1, 4]); // Admin, Registrar
+const ALLOWED_ROLES = new Set([1, 4]); // Admin, Registrars
 const ALLOWED_VERIFICATION_STATUSES = new Set([
   "pending",
   "approved",
