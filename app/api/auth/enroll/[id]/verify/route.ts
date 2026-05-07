@@ -3,6 +3,7 @@ import { getServerSession } from "next-auth";
 import { prisma } from "../../../../../lib/prisma";
 import { authOptions } from "../../../[...nextauth]/authOptions";
 import { insertIntoReports } from "@/app/utils/reportsUtils";
+import { buildAppUrl } from "@/app/lib/appUrl";
 import { sendEnrollmentVerifiedEmail } from "@/app/lib/email";
 
 const ALLOWED_ROLES = new Set([1, 4]); // Admin, Registrar
@@ -95,7 +96,7 @@ export async function PATCH(
       const assessmentUrl =
         process.env.ENROLLMENT_ASSESSMENT_URL?.trim() ||
         process.env.ENROLLMENT_PAYMENT_URL?.trim() ||
-        null;
+        buildAppUrl("/", new URL(request.url).origin);
 
       try {
         await sendEnrollmentVerifiedEmail({

@@ -1,5 +1,6 @@
 import crypto from "crypto";
 import { prisma } from "@/app/lib/prisma";
+import { getAppBaseUrl } from "@/app/lib/appUrl";
 
 export type OnlinePaymentMethod = {
   id: number;
@@ -101,9 +102,7 @@ export function createPaymentLinkToken() {
 export function getPaymentPortalBaseUrl(fallbackOrigin: string) {
   return (
     process.env.ENROLLMENT_PAYMENT_URL?.trim() ||
-    process.env.NEXT_PUBLIC_APP_URL?.trim() ||
-    process.env.NEXTAUTH_URL?.trim() ||
-    fallbackOrigin
+    getAppBaseUrl(fallbackOrigin)
   );
 }
 
@@ -114,4 +113,3 @@ export function normalizeMethodPaymentType(name: string) {
   if (key.includes("bank")) return "bank_transfer";
   return "bank_transfer";
 }
-
