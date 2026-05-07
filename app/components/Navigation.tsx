@@ -55,6 +55,8 @@ const Navigation: React.FC<NavigationProps> = ({
   currentView,
   onViewChange,
 }) => {
+  const logoutCallbackUrl =
+    (process.env.NEXT_PUBLIC_APP_URL || "").trim().replace(/\/$/, "") || "/";
   const { data: session } = useSession();
 
   const userRole = session?.user?.role
@@ -1115,7 +1117,7 @@ const Navigation: React.FC<NavigationProps> = ({
           </div>
         </div>
         <button
-          onClick={() => signOut({ callbackUrl: "/" })}
+          onClick={() => signOut({ callbackUrl: logoutCallbackUrl })}
           className='w-full flex items-center gap-2 px-3 py-2 text-sm rounded-lg transition-all duration-200'
           style={{ color: colors.paper }}
           onMouseEnter={(e) => {
