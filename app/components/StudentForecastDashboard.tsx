@@ -1,4 +1,5 @@
 "use client";
+
 import React, { useState, useEffect, useMemo } from "react";
 import {
   TrendingUp,
@@ -147,6 +148,7 @@ interface PostEnrollmentReport {
   schoolYear: string;
   programRows: ProgramAccuracyAnalysis[];
   actionPlanRows: ForecastActionPlan[];
+  predictionHitExampleRows: ForecastActionPlan[];
   trendRows: {
     year: number;
     schoolYear: string;
@@ -197,10 +199,12 @@ function parseAcademicYearStart(academicYear?: string | null): number | null {
   const match = String(academicYear)
     .trim()
     .match(/^(\d{4})-(\d{4})$/);
+
   if (!match) return null;
 
   const start = Number(match[1]);
   const end = Number(match[2]);
+
   if (!Number.isFinite(start) || !Number.isFinite(end) || end !== start + 1) {
     return null;
   }
@@ -301,12 +305,17 @@ function resolveActionPriority(row: ProgramAccuracyAnalysis): ActionPriority {
   return "Low";
 }
 
-function buildForecastActionPlan(row: ProgramAccuracyAnalysis): ForecastActionPlan {
+function buildForecastActionPlan(
+  row: ProgramAccuracyAnalysis,
+): ForecastActionPlan {
   const sectionCapacityAssumption = 40;
   const sectionUnits =
     row.status === "Accurately predicted"
       ? 0
-      : Math.max(1, Math.ceil(row.absoluteDifference / sectionCapacityAssumption));
+      : Math.max(
+          1,
+          Math.ceil(row.absoluteDifference / sectionCapacityAssumption),
+        );
   const priority = resolveActionPriority(row);
 
   if (row.status === "Underpredicted") {
@@ -316,9 +325,15 @@ function buildForecastActionPlan(row: ProgramAccuracyAnalysis): ForecastActionPl
       priority,
       studentsVariance: row.absoluteDifference,
       sectionUnits,
-      sectionAction: `Open ${sectionUnits} additional section${sectionUnits > 1 ? "s" : ""} or increase approved capacity.`,
-      facultyAction: `Assign ${sectionUnits} additional faculty load${sectionUnits > 1 ? "s" : ""} or overload coverage.`,
-      roomAction: `Reserve ${sectionUnits} room slot${sectionUnits > 1 ? "s" : ""} for the excess demand.`,
+      sectionAction: `Open ${sectionUnits} additional section${
+        sectionUnits > 1 ? "s" : ""
+      } or increase approved capacity.`,
+      facultyAction: `Assign ${sectionUnits} additional faculty load${
+        sectionUnits > 1 ? "s" : ""
+      } or overload coverage.`,
+      roomAction: `Reserve ${sectionUnits} room slot${
+        sectionUnits > 1 ? "s" : ""
+      } for the excess demand.`,
       marketingAction:
         "Keep successful recruitment channels active and document why demand increased.",
       modelAction:
@@ -333,7 +348,9 @@ function buildForecastActionPlan(row: ProgramAccuracyAnalysis): ForecastActionPl
       priority,
       studentsVariance: row.absoluteDifference,
       sectionUnits,
-      sectionAction: `Merge or hold ${sectionUnits} underfilled section${sectionUnits > 1 ? "s" : ""} until demand improves.`,
+      sectionAction: `Merge or hold ${sectionUnits} underfilled section${
+        sectionUnits > 1 ? "s" : ""
+      } until demand improves.`,
       facultyAction:
         "Reassign excess faculty load to other subjects, advisories, or high-demand programs.",
       roomAction:
@@ -351,12 +368,34 @@ function buildForecastActionPlan(row: ProgramAccuracyAnalysis): ForecastActionPl
     priority,
     studentsVariance: row.absoluteDifference,
     sectionUnits,
-    sectionAction: "Maintain planned section allocation and continue monitoring.",
-    facultyAction: "Keep faculty assignments as planned unless late enrollees change demand.",
+    sectionAction:
+      "Maintain planned section allocation and continue monitoring.",
+    facultyAction:
+      "Keep faculty assignments as planned unless late enrollees change demand.",
     roomAction: "Keep room reservations stable for the next scheduling cycle.",
-    marketingAction: "Maintain current marketing approach and preserve campaign records.",
+    marketingAction:
+      "Maintain current marketing approach and preserve campaign records.",
     modelAction:
       "Keep the result as a reliable training point for the next forecast cycle.",
+  };
+}
+
+function buildPredictionHitExampleActionPlan(
+  row: ProgramAccuracyAnalysis,
+): ForecastActionPlan {
+  return {
+    program: row.program,
+    status: "Accurately predicted",
+    priority: "Low",
+    studentsVariance: 0,
+    sectionUnits: 0,
+    sectionAction: "Maintain the planned number of sections.",
+    facultyAction: "Keep the assigned faculty load as scheduled.",
+    roomAction: "Keep existing room reservations and scheduling assignments.",
+    marketingAction:
+      "Maintain the current recruitment approach and document it as an effective campaign reference.",
+    modelAction:
+      "Save this as a successful forecast result and use it as reliable training evidence for the next cycle.",
   };
 }
 
@@ -378,9 +417,11 @@ const StudentForecastDashboard: React.FC = () => {
   const fetchStudentData = async () => {
     setLoading(true);
     setError(null);
+
     try {
       const response = await fetch("/api/auth/student/forecast");
       if (!response.ok) throw new Error("Failed to fetch student data");
+
       const data = await response.json();
       setStudentData(data);
 
@@ -396,6 +437,7 @@ const StudentForecastDashboard: React.FC = () => {
 
   const fetchForecastPredictions = async (programData: ProgramData[]) => {
     setForecastLoading(true);
+
     try {
       const forecastData = programData.map((item) => ({
         program: item.program,
@@ -434,7 +476,6 @@ const StudentForecastDashboard: React.FC = () => {
     return [...new Set(studentData.programData.map((p) => p.program))];
   }, [studentData]);
 
-  // Build forecast line chart data (historical + predicted per program)
   const forecastLineChartData = useMemo(() => {
     if (!studentData?.programData) return [];
 
@@ -443,8 +484,10 @@ const StudentForecastDashboard: React.FC = () => {
 
     studentData.programData.forEach((item) => {
       if (!grouped[item.program]) grouped[item.program] = {};
+
       const yearStart =
         item.year ?? parseAcademicYearStart(item.academic_year) ?? null;
+
       if (yearStart === null) return;
 
       grouped[item.program][yearStart] = item.total_students;
@@ -456,27 +499,30 @@ const StudentForecastDashboard: React.FC = () => {
     );
     const lastYearStart = sortedYearStarts[sortedYearStarts.length - 1];
 
-    // Determine next school year start from forecast or capacity
     let nextYearStart: number | null = null;
+
     const forecastYear = forecastResult?.forecast?.find(
       (f) => typeof f.predicted_year === "number",
     )?.predicted_year;
+
     if (typeof forecastYear === "number") {
       nextYearStart = forecastYear;
     } else {
       const capacityYear = forecastResult?.capacity?.find(
         (c) => typeof c.predicted_year === "number",
       )?.predicted_year;
+
       if (typeof capacityYear === "number") {
         nextYearStart = capacityYear;
       }
     }
 
     const predMap: Record<string, number> = {};
+
     forecastResult?.forecast?.forEach((f) => {
       predMap[f.course] = f.predicted_count;
     });
-    // Fall back to capacity if forecast is empty
+
     if (Object.keys(predMap).length === 0 && forecastResult?.capacity?.length) {
       forecastResult.capacity.forEach((c) => {
         predMap[c.program] = c.predicted_students;
@@ -484,6 +530,7 @@ const StudentForecastDashboard: React.FC = () => {
     }
 
     const allYearStarts = [...sortedYearStarts];
+
     if (nextYearStart !== null && !allYearStarts.includes(nextYearStart)) {
       allYearStarts.push(nextYearStart);
       allYearStarts.sort((a, b) => a - b);
@@ -520,14 +567,15 @@ const StudentForecastDashboard: React.FC = () => {
     const forecastYear = forecastResult?.forecast?.find(
       (f) => typeof f.predicted_year === "number",
     )?.predicted_year;
+
     if (typeof forecastYear === "number") {
       return forecastYear;
     }
 
-    // Fall back to capacity predicted_year
     const capacityYear = forecastResult?.capacity?.find(
       (c) => typeof c.predicted_year === "number",
     )?.predicted_year;
+
     if (typeof capacityYear === "number") {
       return capacityYear;
     }
@@ -543,6 +591,7 @@ const StudentForecastDashboard: React.FC = () => {
     const forecastAcademicYear = forecastResult?.forecast?.find(
       (item) => item.predicted_academic_year,
     )?.predicted_academic_year;
+
     if (forecastAcademicYear) {
       return forecastAcademicYear;
     }
@@ -550,6 +599,7 @@ const StudentForecastDashboard: React.FC = () => {
     const capacityAcademicYear = forecastResult?.capacity?.find(
       (item) => item.predicted_academic_year,
     )?.predicted_academic_year;
+
     if (capacityAcademicYear) {
       return capacityAcademicYear;
     }
@@ -557,24 +607,24 @@ const StudentForecastDashboard: React.FC = () => {
     return formatSchoolYear(predictedYearStart);
   }, [forecastResult, predictedYearStart]);
 
-  // Total predicted students
   const totalPredicted = useMemo(() => {
     if (forecastResult?.forecast?.length) {
       return forecastResult.forecast.reduce((s, f) => s + f.predicted_count, 0);
     }
-    // Fall back to capacity predicted_students
+
     if (forecastResult?.capacity?.length) {
       return forecastResult.capacity.reduce(
         (s, c) => s + c.predicted_students,
         0,
       );
     }
+
     return 0;
   }, [forecastResult]);
 
-  // Total current students (latest year)
   const totalCurrent = useMemo(() => {
     if (!forecastResult?.historical) return 0;
+
     return Object.values(forecastResult.historical).reduce((sum, arr) => {
       const latest = arr[arr.length - 1];
       return sum + (latest?.total_students ?? 0);
@@ -603,6 +653,7 @@ const StudentForecastDashboard: React.FC = () => {
     Object.entries(forecastResult.historical).forEach(([program, rows]) => {
       const sortedRows = [...rows].sort((a, b) => a.year - b.year);
       const latest = sortedRows[sortedRows.length - 1];
+
       if (!latest) return;
 
       sortedRows.forEach((row) => {
@@ -613,6 +664,7 @@ const StudentForecastDashboard: React.FC = () => {
       });
 
       const priorRows = sortedRows.slice(0, -1);
+
       if (priorRows.length === 0) {
         insufficientHistoricalCount += 1;
         return;
@@ -622,6 +674,7 @@ const StudentForecastDashboard: React.FC = () => {
         priorRows.length >= 2
           ? runLinearRegression(priorRows, latest.year)
           : priorRows[0].total_students;
+
       const predicted = Math.max(0, Math.round(rawPrediction));
       const actual = latest.total_students;
       const difference = predicted - actual;
@@ -650,7 +703,9 @@ const StudentForecastDashboard: React.FC = () => {
         latestChangeRate,
         dataPoints: sortedRows.length,
         method:
-          priorRows.length >= 2 ? "Linear regression" : "Previous-year fallback",
+          priorRows.length >= 2
+            ? "Linear regression"
+            : "Previous-year fallback",
       });
     });
 
@@ -691,6 +746,7 @@ const StudentForecastDashboard: React.FC = () => {
       trendRows[trendRows.length - 1]?.schoolYear ??
       programRows[0]?.schoolYear ??
       "latest completed school year";
+
     const highestErrors = [...programRows]
       .sort(
         (a, b) =>
@@ -698,6 +754,7 @@ const StudentForecastDashboard: React.FC = () => {
           b.absoluteDifference - a.absoluteDifference,
       )
       .slice(0, 5);
+
     const unusualTrendRows = programRows
       .filter(
         (row) =>
@@ -705,10 +762,10 @@ const StudentForecastDashboard: React.FC = () => {
       )
       .sort(
         (a, b) =>
-          Math.abs(b.latestChangeRate ?? 0) -
-          Math.abs(a.latestChangeRate ?? 0),
+          Math.abs(b.latestChangeRate ?? 0) - Math.abs(a.latestChangeRate ?? 0),
       )
       .slice(0, 5);
+
     const actionPlanRows = programRows
       .map(buildForecastActionPlan)
       .sort((a, b) => {
@@ -723,6 +780,9 @@ const StudentForecastDashboard: React.FC = () => {
           b.studentsVariance - a.studentsVariance
         );
       });
+    const predictionHitExampleRows = programRows.map(
+      buildPredictionHitExampleActionPlan,
+    );
 
     const assumptions = [
       "The system does not show a stored historical prediction for the completed period, so this report uses a linear-regression backtest: prior school-year data predicts the latest completed school year, then that prediction is compared with actual enrollment.",
@@ -735,6 +795,7 @@ const StudentForecastDashboard: React.FC = () => {
       schoolYear: latestSchoolYear,
       programRows,
       actionPlanRows,
+      predictionHitExampleRows,
       trendRows,
       totals: {
         actual: actualTotal,
@@ -769,12 +830,12 @@ const StudentForecastDashboard: React.FC = () => {
 
   return (
     <div
-      className='p-4 sm:p-6 min-h-screen'
+      className='w-full overflow-x-hidden px-4 pt-4 pb-3 sm:px-6 sm:pt-6 sm:pb-4'
       style={{ backgroundColor: colors.paper }}
     >
       <div className='max-w-7xl mx-auto'>
         {/* ─── Header ─── */}
-        <div className='mb-8'>
+        <div className='mb-6'>
           <div className='flex items-center justify-between flex-wrap gap-4'>
             <div>
               <h1
@@ -788,14 +849,17 @@ const StudentForecastDashboard: React.FC = () => {
                 section capacity recommendations
               </p>
             </div>
+
             <button
               onClick={fetchStudentData}
               disabled={loading || forecastLoading}
-              className='flex items-center gap-2 px-4 py-2 rounded-lg text-white font-medium transition-all hover:opacity-90 disabled:opacity-60'
+              className='inline-flex w-fit shrink-0 items-center gap-2 px-4 py-2 rounded-lg text-white font-medium transition-all hover:opacity-90 disabled:opacity-60'
               style={{ backgroundColor: colors.secondary }}
             >
               <RefreshCw
-                className={`w-4 h-4 ${loading || forecastLoading ? "animate-spin" : ""}`}
+                className={`w-4 h-4 ${
+                  loading || forecastLoading ? "animate-spin" : ""
+                }`}
               />
               Refresh
             </button>
@@ -817,7 +881,7 @@ const StudentForecastDashboard: React.FC = () => {
         )}
 
         {loading && !studentData ? (
-          <div className='flex flex-col items-center justify-center py-32'>
+          <div className='flex flex-col items-center justify-center py-24'>
             <RefreshCw
               className='w-10 h-10 animate-spin mb-4'
               style={{ color: colors.secondary }}
@@ -836,22 +900,21 @@ const StudentForecastDashboard: React.FC = () => {
           <>
             {/* ─── Summary Cards ─── */}
             {forecastResult && (
-              <div className='grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4 mb-8'>
-                {/* Total Programs */}
+              <div className='grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4 mb-6'>
                 <SummaryCard
                   icon={<Layers className='w-5 h-5' />}
                   label='Total Programs'
                   value={forecastResult.totalPrograms}
                   color={colors.info}
                 />
-                {/* Current Students */}
+
                 <SummaryCard
                   icon={<Users className='w-5 h-5' />}
                   label='Current Students'
                   value={totalCurrent}
                   color={colors.secondary}
                 />
-                {/* Predicted Students */}
+
                 <SummaryCard
                   icon={<Target className='w-5 h-5' />}
                   label={`Predicted ${predictedSchoolYear || "School Year"}`}
@@ -859,11 +922,15 @@ const StudentForecastDashboard: React.FC = () => {
                   color={colors.success}
                   badge={
                     totalCurrent > 0
-                      ? `${totalPredicted >= totalCurrent ? "+" : ""}${(((totalPredicted - totalCurrent) / totalCurrent) * 100).toFixed(1)}%`
+                      ? `${totalPredicted >= totalCurrent ? "+" : ""}${(
+                          ((totalPredicted - totalCurrent) / totalCurrent) *
+                          100
+                        ).toFixed(1)}%`
                       : undefined
                   }
                   badgePositive={totalPredicted >= totalCurrent}
                 />
+
                 <SummaryCard
                   icon={<BarChart3 className='w-5 h-5' />}
                   label='Forecast Confidence'
@@ -885,20 +952,24 @@ const StudentForecastDashboard: React.FC = () => {
                   }
                   sub={overallConfidence?.reason}
                 />
-                {/* Rooms */}
+
                 <SummaryCard
                   icon={<Building2 className='w-5 h-5' />}
                   label='Available Rooms'
-                  value={`${forecastResult.room_summary?.available_rooms ?? "—"} / ${forecastResult.room_summary?.total_rooms ?? "—"}`}
+                  value={`${forecastResult.room_summary?.available_rooms ?? "—"} / ${
+                    forecastResult.room_summary?.total_rooms ?? "—"
+                  }`}
                   color={colors.warning}
-                  sub={`${forecastResult.room_summary?.total_available_capacity ?? 0} seat capacity`}
+                  sub={`${
+                    forecastResult.room_summary?.total_available_capacity ?? 0
+                  } seat capacity`}
                 />
               </div>
             )}
 
             {forecastResult?.room_recommendation && (
               <div
-                className='mb-8 rounded-xl border p-4 sm:p-5'
+                className='mb-6 rounded-xl border p-4 sm:p-5'
                 style={{
                   borderColor: forecastResult.room_recommendation
                     .rooms_are_sufficient
@@ -938,6 +1009,7 @@ const StudentForecastDashboard: React.FC = () => {
                       {forecastResult.room_recommendation.message}
                     </p>
                   </div>
+
                   <div
                     className='text-xs font-semibold px-2.5 py-1 rounded-full'
                     style={{
@@ -957,6 +1029,7 @@ const StudentForecastDashboard: React.FC = () => {
                       : "0 additional rooms needed"}
                   </div>
                 </div>
+
                 <div className='grid grid-cols-2 md:grid-cols-4 gap-3 mt-4 text-xs'>
                   <div>
                     <p className='text-gray-500'>Projected seat demand</p>
@@ -991,7 +1064,7 @@ const StudentForecastDashboard: React.FC = () => {
             )}
 
             {/* ─── Per-Program Mini Charts ─── */}
-            <div className='mb-8'>
+            <div className='mb-6'>
               <div className='flex items-center justify-between mb-4 flex-wrap gap-2'>
                 <div className='flex items-center gap-3'>
                   <BarChart3
@@ -1019,6 +1092,7 @@ const StudentForecastDashboard: React.FC = () => {
                     </p>
                   </div>
                 </div>
+
                 {forecastLoading ? (
                   <span
                     className='flex items-center gap-1.5 text-xs px-2.5 py-1 rounded-full font-medium'
@@ -1045,13 +1119,15 @@ const StudentForecastDashboard: React.FC = () => {
                 <div className='grid grid-cols-1 sm:grid-cols-2 gap-4'>
                   {uniquePrograms.map((program, index) => {
                     const color = CHART_COLORS[index % CHART_COLORS.length];
+
                     const fcItem = forecastResult?.forecast?.find(
                       (f) => f.course === program,
                     );
+
                     const capItem = forecastResult?.capacity?.find(
                       (c) => c.program === program,
                     );
-                    // Use forecast item or derive from capacity
+
                     const predictedCount =
                       fcItem?.predicted_count ??
                       capItem?.predicted_students ??
@@ -1071,8 +1147,10 @@ const StudentForecastDashboard: React.FC = () => {
                         d.students !== null &&
                         d.schoolYearStart !== predictedYearStart,
                     );
+
                     const lastPoint =
                       historicalPoints[historicalPoints.length - 1];
+
                     const growthRate =
                       lastPoint && predictedCount !== null
                         ? ((predictedCount - (lastPoint.students ?? 0)) /
@@ -1086,7 +1164,6 @@ const StudentForecastDashboard: React.FC = () => {
                         className='bg-white rounded-xl shadow-sm border p-5 transition-shadow hover:shadow-md'
                         style={{ borderColor: colors.neutralBorder }}
                       >
-                        {/* Card header */}
                         <div className='flex items-start justify-between mb-4'>
                           <div className='flex items-center gap-2 flex-1 min-w-0'>
                             <span
@@ -1100,6 +1177,7 @@ const StudentForecastDashboard: React.FC = () => {
                               {program}
                             </span>
                           </div>
+
                           {predictedCount !== null && (
                             <span
                               className={`flex-shrink-0 ml-2 text-xs font-semibold px-1.5 py-0.5 rounded ${
@@ -1121,7 +1199,6 @@ const StudentForecastDashboard: React.FC = () => {
                           )}
                         </div>
 
-                        {/* Key numbers */}
                         <div className='flex items-end justify-between mb-4'>
                           <div>
                             <p
@@ -1141,6 +1218,7 @@ const StudentForecastDashboard: React.FC = () => {
                                 : "—"}
                             </p>
                           </div>
+
                           {predictedCount !== null && (
                             <div className='text-right'>
                               <p
@@ -1160,11 +1238,15 @@ const StudentForecastDashboard: React.FC = () => {
                           )}
                         </div>
 
-                        {/* Mini line chart */}
                         <ResponsiveContainer width='100%' height={120}>
                           <LineChart
                             data={programChartData}
-                            margin={{ top: 8, right: 8, left: -28, bottom: 0 }}
+                            margin={{
+                              top: 8,
+                              right: 8,
+                              left: -28,
+                              bottom: 0,
+                            }}
                           >
                             <CartesianGrid
                               strokeDasharray='3 3'
@@ -1207,7 +1289,11 @@ const StudentForecastDashboard: React.FC = () => {
                               dataKey='students'
                               stroke={color}
                               strokeWidth={2.5}
-                              dot={{ r: 3.5, fill: color, strokeWidth: 0 }}
+                              dot={{
+                                r: 3.5,
+                                fill: color,
+                                strokeWidth: 0,
+                              }}
                               activeDot={{
                                 r: 5,
                                 stroke: "#fff",
@@ -1225,6 +1311,7 @@ const StudentForecastDashboard: React.FC = () => {
                               strokeDasharray='6 4'
                               dot={(dotProps: any) => {
                                 const { cx, cy, payload, key } = dotProps;
+
                                 if (
                                   payload.schoolYearStart ===
                                     predictedYearStart &&
@@ -1242,6 +1329,7 @@ const StudentForecastDashboard: React.FC = () => {
                                     />
                                   );
                                 }
+
                                 return <g key={key} />;
                               }}
                               connectNulls={false}
@@ -1251,7 +1339,6 @@ const StudentForecastDashboard: React.FC = () => {
                           </LineChart>
                         </ResponsiveContainer>
 
-                        {/* Section recommendation pill */}
                         {capItem && (
                           <div
                             className='mt-3 flex items-center gap-2 text-xs px-3 py-2 rounded-lg'
@@ -1271,7 +1358,11 @@ const StudentForecastDashboard: React.FC = () => {
                             )}
                             <span className='font-medium'>
                               {capItem.add_section
-                                ? `+${capItem.additional_sections_needed} section${capItem.additional_sections_needed > 1 ? "s" : ""} needed`
+                                ? `+${capItem.additional_sections_needed} section${
+                                    capItem.additional_sections_needed > 1
+                                      ? "s"
+                                      : ""
+                                  } needed`
                                 : "Sections sufficient"}
                             </span>
                             <span className='ml-auto opacity-70'>
@@ -1298,7 +1389,7 @@ const StudentForecastDashboard: React.FC = () => {
 
             {/* ─── Capacity & Section Recommendations ─── */}
             {forecastResult?.capacity && forecastResult.capacity.length > 0 && (
-              <div className='mb-8'>
+              <div className='mb-6'>
                 <div className='flex items-center gap-3 mb-4'>
                   <Building2
                     className='w-5 h-5'
@@ -1346,14 +1437,19 @@ const StudentForecastDashboard: React.FC = () => {
                           <Building2 className='w-3 h-3' />
                           {roomRecommendation.rooms_are_sufficient
                             ? "Rooms sufficient"
-                            : `Add ${roomRecommendation.additional_rooms_needed} room${roomRecommendation.additional_rooms_needed > 1 ? "s" : ""}`}
+                            : `Add ${
+                                roomRecommendation.additional_rooms_needed
+                              } room${
+                                roomRecommendation.additional_rooms_needed > 1
+                                  ? "s"
+                                  : ""
+                              }`}
                         </span>
                       )}
                     </p>
                   </div>
                 </div>
 
-                {/* Capacity Table */}
                 <div
                   className='bg-white rounded-xl shadow-sm border overflow-hidden'
                   style={{ borderColor: colors.neutralBorder }}
@@ -1493,6 +1589,7 @@ const StudentForecastDashboard: React.FC = () => {
                                     Sufficient
                                   </span>
                                 )}
+
                                 {roomRecommendation && (
                                   <span
                                     className='text-[11px] font-medium'
@@ -1521,7 +1618,7 @@ const StudentForecastDashboard: React.FC = () => {
 
             {/* ─── Utilization Bar Chart ─── */}
             {forecastResult?.capacity && forecastResult.capacity.length > 0 && (
-              <div className='mb-8'>
+              <div className='mb-6'>
                 <div
                   className='bg-white rounded-xl shadow-sm border p-6'
                   style={{ borderColor: colors.neutralBorder }}
@@ -1533,10 +1630,11 @@ const StudentForecastDashboard: React.FC = () => {
                     Projected Utilization Rate
                   </h3>
                   <p className='text-xs mb-4' style={{ color: colors.neutral }}>
-                    How full each program's sections will be in{" "}
+                    How full each program&apos;s sections will be in{" "}
                     {predictedSchoolYear || "the next school year"} after
                     applying recommendations
                   </p>
+
                   <ResponsiveContainer width='100%' height={240}>
                     <BarChart
                       data={forecastResult.capacity.map((c) => ({
@@ -1579,7 +1677,7 @@ const StudentForecastDashboard: React.FC = () => {
                         }
                       />
                       <Bar dataKey='utilization' radius={[6, 6, 0, 0]}>
-                        {forecastResult.capacity.map((cap, i) => (
+                        {forecastResult.capacity.map((cap) => (
                           <Cell
                             key={cap.program}
                             fill={
@@ -1594,8 +1692,9 @@ const StudentForecastDashboard: React.FC = () => {
                       </Bar>
                     </BarChart>
                   </ResponsiveContainer>
+
                   <div
-                    className='flex items-center gap-6 mt-2 text-xs'
+                    className='flex items-center gap-6 mt-2 text-xs flex-wrap'
                     style={{ color: colors.neutral }}
                   >
                     <span className='flex items-center gap-1.5'>
@@ -1626,7 +1725,7 @@ const StudentForecastDashboard: React.FC = () => {
 
             {/* ─── Enrollment Forecast Table ─── */}
             <div
-              className='bg-white rounded-xl shadow-sm border p-6'
+              className='bg-white rounded-xl shadow-sm border p-6 mb-0'
               style={{ borderColor: colors.neutralBorder }}
             >
               <div className='flex items-center gap-3 mb-1'>
@@ -1647,6 +1746,7 @@ const StudentForecastDashboard: React.FC = () => {
                   />
                 )}
               </div>
+
               <p
                 className='text-xs mb-6 ml-8'
                 style={{ color: colors.neutral }}
@@ -1674,6 +1774,7 @@ const StudentForecastDashboard: React.FC = () => {
                       >
                         Program
                       </th>
+
                       {forecastResult?.historical &&
                         Object.values(forecastResult.historical)[0]?.map(
                           (h) => (
@@ -1690,6 +1791,7 @@ const StudentForecastDashboard: React.FC = () => {
                             </th>
                           ),
                         )}
+
                       <th
                         className='text-right py-3 px-4 font-semibold text-xs uppercase tracking-wider'
                         style={{
@@ -1705,33 +1807,43 @@ const StudentForecastDashboard: React.FC = () => {
                       </th>
                     </tr>
                   </thead>
+
                   <tbody>
                     {forecastResult?.programs?.map((program, index) => {
                       const historicalArr =
                         forecastResult.historical?.[program] ?? [];
+
                       const fcItem = forecastResult.forecast?.find(
                         (f) => f.course === program,
                       );
+
                       const capItem = forecastResult.capacity?.find(
                         (c) => c.program === program,
                       );
+
                       const predictedCount =
                         fcItem?.predicted_count ??
                         capItem?.predicted_students ??
                         null;
+
                       const confidenceScore =
                         fcItem?.confidence_score ?? capItem?.confidence_score;
+
                       const confidenceLabel =
                         fcItem?.confidence_label ?? capItem?.confidence_label;
+
                       const confidenceReason =
                         fcItem?.confidence_reason ?? capItem?.confidence_reason;
+
                       const lastCount =
                         historicalArr[historicalArr.length - 1]
                           ?.total_students ?? 0;
+
                       const growthRate =
                         lastCount > 0 && predictedCount !== null
                           ? ((predictedCount - lastCount) / lastCount) * 100
                           : 0;
+
                       const color = CHART_COLORS[index % CHART_COLORS.length];
 
                       return (
@@ -1763,6 +1875,7 @@ const StudentForecastDashboard: React.FC = () => {
                               </span>
                             </div>
                           </td>
+
                           {historicalArr.map((h) => (
                             <td
                               key={h.year}
@@ -1772,6 +1885,7 @@ const StudentForecastDashboard: React.FC = () => {
                               {h.total_students.toLocaleString()}
                             </td>
                           ))}
+
                           <td
                             className='py-3 px-4 text-right'
                             style={{
@@ -1787,6 +1901,7 @@ const StudentForecastDashboard: React.FC = () => {
                                   ) : growthRate < 0 ? (
                                     <TrendingDown className='w-3.5 h-3.5 text-red-500' />
                                   ) : null}
+
                                   <span
                                     className='inline-block font-bold px-2.5 py-0.5 rounded-lg tabular-nums'
                                     style={{
@@ -1796,6 +1911,7 @@ const StudentForecastDashboard: React.FC = () => {
                                   >
                                     {predictedCount.toLocaleString()}
                                   </span>
+
                                   <span
                                     className='text-xs font-semibold'
                                     style={{
@@ -1811,11 +1927,14 @@ const StudentForecastDashboard: React.FC = () => {
                                     {growthRate.toFixed(1)}%
                                   </span>
                                 </div>
+
                                 {confidenceLabel &&
                                   confidenceScore !== undefined && (
                                     <div
                                       className='inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-semibold'
-                                      style={getConfidenceBadgeStyle(confidenceLabel)}
+                                      style={getConfidenceBadgeStyle(
+                                        confidenceLabel,
+                                      )}
                                       title={confidenceReason}
                                     >
                                       <span>{confidenceLabel}</span>
@@ -1886,6 +2005,7 @@ function SummaryCard({
 }) {
   const resolvedBadgeTone =
     badgeTone ?? (badgePositive ? "positive" : "negative");
+
   const badgeStyle =
     resolvedBadgeTone === "positive"
       ? { backgroundColor: "#D1FAE5", color: "#065F46" }
@@ -1906,6 +2026,7 @@ function SummaryCard({
       >
         {icon}
       </div>
+
       <div className='min-w-0'>
         <p
           className='text-xs font-medium mb-1'
@@ -1913,6 +2034,7 @@ function SummaryCard({
         >
           {label}
         </p>
+
         <div className='flex items-baseline gap-2 flex-wrap'>
           <p
             className='text-2xl font-bold tabular-nums leading-none'
@@ -1920,6 +2042,7 @@ function SummaryCard({
           >
             {typeof value === "number" ? value.toLocaleString() : value}
           </p>
+
           {badge && (
             <span
               className='text-xs font-semibold px-1.5 py-0.5 rounded'
@@ -1929,6 +2052,7 @@ function SummaryCard({
             </span>
           )}
         </div>
+
         {sub && (
           <p className='text-xs mt-1' style={{ color: colors.neutral }}>
             {sub}
@@ -1944,25 +2068,106 @@ function PostEnrollmentAnalyticalReport({
 }: {
   report: PostEnrollmentReport;
 }) {
+  const [showPredictionHitExample, setShowPredictionHitExample] =
+    useState(false);
+
+  const successfulReport = useMemo<PostEnrollmentReport>(() => {
+    const programRows = report.programRows.map((row) => ({
+      ...row,
+      predicted: row.actual,
+      difference: 0,
+      absoluteDifference: 0,
+      percentageError: 0,
+      accuracy: 100,
+      status: "Accurately predicted" as PredictionStatus,
+    }));
+    const actionRows = programRows.map(buildPredictionHitExampleActionPlan);
+
+    return {
+      ...report,
+      programRows,
+      actionPlanRows: actionRows,
+      predictionHitExampleRows: actionRows,
+      totals: {
+        ...report.totals,
+        predicted: report.totals.actual,
+        difference: 0,
+        absoluteDifference: 0,
+        percentageError: 0,
+        accuracy: 100,
+        status: "Accurately predicted" as PredictionStatus,
+      },
+      highestErrors: programRows.slice(0, 5),
+      accuratelyPredictedCount: programRows.length,
+      overpredictedCount: 0,
+      underpredictedCount: 0,
+      insufficientHistoricalCount: 0,
+      unusualTrendRows: [],
+      assumptions: [
+        "This is a sample successful forecast view. It assumes predicted enrollment matched actual enrollment for every program.",
+        "Because the prediction hit the actual count, percentage error is 0% and accuracy is 100%.",
+        "No corrective section, faculty, room, or marketing adjustment is required in this sample scenario.",
+      ],
+    };
+  }, [report]);
+
+  const displayedReport = showPredictionHitExample ? successfulReport : report;
+
   const reliabilityLabel =
-    report.totals.accuracy >= 90
+    displayedReport.totals.accuracy >= 90
       ? "reliable"
-      : report.totals.accuracy >= 80
+      : displayedReport.totals.accuracy >= 80
         ? "generally usable with monitoring"
         : "not yet reliable without recalibration";
+
   const statusPhrase =
-    report.totals.status === "Accurately predicted"
+    displayedReport.totals.status === "Accurately predicted"
       ? "accurate within the accepted 5% tolerance"
-      : report.totals.status === "Overpredicted"
+      : displayedReport.totals.status === "Overpredicted"
         ? "overestimated actual enrollment"
         : "underestimated actual enrollment";
-  const topAffected = report.highestErrors[0];
-  const latestTrend = report.trendRows[report.trendRows.length - 1];
-  const previousTrend = report.trendRows[report.trendRows.length - 2];
+
+  const topAffected = displayedReport.highestErrors[0];
+  const latestTrend =
+    displayedReport.trendRows[displayedReport.trendRows.length - 1];
+  const previousTrend =
+    displayedReport.trendRows[displayedReport.trendRows.length - 2];
+
+  const displayedActionPlanRows =
+    (showPredictionHitExample
+      ? displayedReport.predictionHitExampleRows
+      : displayedReport.actionPlanRows) ?? [];
+
+  const actionPlanModeText = showPredictionHitExample
+    ? "Prediction Hit Example"
+    : "Actual Variance Actions";
+  const failureAnalysisPrimary = showPredictionHitExample
+    ? "The sample successful forecast shows no model failure because predicted enrollment matched actual enrollment. No unusual variance, sudden demand shift, or corrective operational response is required in this scenario."
+    : "The main causes of prediction error are likely related to changes that a single-variable linear regression model cannot fully see. These include sudden changes in enrollment demand, tuition fee or payment policy adjustments, local economic conditions, program popularity shifts, admission policy changes, and unexpected external events during the enrollment period.";
+  const affectedProgramsIntro = showPredictionHitExample
+    ? "In this successful sample, every listed program is classified as accurately predicted with zero student variance."
+    : "The highest prediction errors are shown below. These programs should receive priority review before the next forecasting cycle.";
+  const operationalRecommendationItems = showPredictionHitExample
+    ? [
+        "Maintain planned sections because actual enrollment matched the forecast.",
+        "Keep faculty assignments and room reservations as scheduled.",
+        "Continue monitoring late enrollment changes, but no immediate corrective action is needed.",
+        "Store the successful result as evidence of model reliability for future planning.",
+      ]
+    : [
+        topAffected
+          ? `Review section planning for ${topAffected.program}, the program with the highest current prediction error.`
+          : "Review section planning for programs with the largest enrollment variance.",
+        displayedReport.totals.status === "Underpredicted"
+          ? "Prepare additional sections, rooms, and faculty assignments earlier for programs where actual demand exceeded prediction."
+          : "Avoid opening excess sections too early for programs where projected demand exceeded actual enrollment.",
+        "Improve marketing campaigns for programs with declining actual enrollment or repeated underperformance.",
+        "Use final enrollment counts to adjust faculty loading, room allocation, and section merging decisions.",
+      ];
 
   return (
     <section
-      className='mb-8 bg-white rounded-xl shadow-sm border p-6'
+      className='mb-6 bg-white rounded-xl shadow-sm border p-6 overflow-hidden'
       style={{ borderColor: colors.neutralBorder }}
     >
       <div className='flex items-start justify-between gap-4 flex-wrap mb-6'>
@@ -1972,56 +2177,58 @@ function PostEnrollmentAnalyticalReport({
               className='w-5 h-5'
               style={{ color: colors.secondary }}
             />
-            <h2
-              className='text-xl font-bold'
-              style={{ color: colors.primary }}
-            >
+            <h2 className='text-xl font-bold' style={{ color: colors.primary }}>
               Post-Enrollment Analytical Report
             </h2>
           </div>
           <p className='text-xs ml-8' style={{ color: colors.neutral }}>
-            Completed-period model performance analysis for {report.schoolYear}.
+            Completed-period model performance analysis for{" "}
+            {displayedReport.schoolYear}.
           </p>
         </div>
+
         <span
           className='text-xs font-bold px-3 py-1 rounded-full'
-          style={getStatusBadgeStyle(report.totals.status)}
+          style={getStatusBadgeStyle(displayedReport.totals.status)}
         >
-          {report.totals.status}
+          {displayedReport.totals.status}
         </span>
       </div>
 
       <div className='grid grid-cols-1 md:grid-cols-4 gap-3 mb-6'>
         <ReportMetric
           label='Predicted Enrollment'
-          value={report.totals.predicted.toLocaleString()}
+          value={displayedReport.totals.predicted.toLocaleString()}
         />
         <ReportMetric
           label='Actual Enrollment'
-          value={report.totals.actual.toLocaleString()}
+          value={displayedReport.totals.actual.toLocaleString()}
         />
         <ReportMetric
           label='Percentage Error'
-          value={`${report.totals.percentageError.toFixed(1)}%`}
+          value={`${displayedReport.totals.percentageError.toFixed(1)}%`}
         />
         <ReportMetric
           label='Accuracy'
-          value={`${report.totals.accuracy.toFixed(1)}%`}
+          value={`${displayedReport.totals.accuracy.toFixed(1)}%`}
         />
       </div>
 
       <div className='space-y-7'>
         <ReportSection title='1. Executive Summary'>
-          <p className='text-sm leading-relaxed' style={{ color: colors.neutralDark }}>
+          <p
+            className='text-sm leading-relaxed'
+            style={{ color: colors.neutralDark }}
+          >
             The enrollment prediction model {statusPhrase}. The overall
-            prediction for {report.schoolYear} was{" "}
-            <strong>{report.totals.predicted.toLocaleString()}</strong>{" "}
-            students compared with{" "}
-            <strong>{report.totals.actual.toLocaleString()}</strong> actual
+            prediction for {displayedReport.schoolYear} was{" "}
+            <strong>{displayedReport.totals.predicted.toLocaleString()}</strong> students
+            compared with{" "}
+            <strong>{displayedReport.totals.actual.toLocaleString()}</strong> actual
             students, producing an absolute variance of{" "}
-            <strong>{report.totals.absoluteDifference.toLocaleString()}</strong>{" "}
+            <strong>{displayedReport.totals.absoluteDifference.toLocaleString()}</strong>{" "}
             students. Overall accuracy is{" "}
-            <strong>{report.totals.accuracy.toFixed(1)}%</strong>, so the model
+            <strong>{displayedReport.totals.accuracy.toFixed(1)}%</strong>, so the model
             is currently {reliabilityLabel} for administrative planning.
           </p>
         </ReportSection>
@@ -2031,11 +2238,7 @@ function PostEnrollmentAnalyticalReport({
             <table className='w-full border-collapse text-sm'>
               <thead>
                 <tr style={{ backgroundColor: colors.neutralLight }}>
-                  {[
-                    "Metric",
-                    "Value",
-                    "Interpretation",
-                  ].map((heading) => (
+                  {["Metric", "Value", "Interpretation"].map((heading) => (
                     <th
                       key={heading}
                       className='text-left py-3 px-4 text-xs font-semibold uppercase'
@@ -2049,23 +2252,23 @@ function PostEnrollmentAnalyticalReport({
               <tbody>
                 <ReportTableRow
                   label='Difference (Predicted - Actual)'
-                  value={formatSignedNumber(report.totals.difference)}
+                  value={formatSignedNumber(displayedReport.totals.difference)}
                   note={
-                    report.totals.difference > 0
+                    displayedReport.totals.difference > 0
                       ? "The model overestimated enrollment."
-                      : report.totals.difference < 0
+                      : displayedReport.totals.difference < 0
                         ? "The model underestimated enrollment."
                         : "The model matched actual enrollment."
                   }
                 />
                 <ReportTableRow
                   label='Percentage Error'
-                  value={`${report.totals.percentageError.toFixed(1)}%`}
+                  value={`${displayedReport.totals.percentageError.toFixed(1)}%`}
                   note='Lower error means the prediction was closer to actual enrollment.'
                 />
                 <ReportTableRow
                   label='Accuracy Percentage'
-                  value={`${report.totals.accuracy.toFixed(1)}%`}
+                  value={`${displayedReport.totals.accuracy.toFixed(1)}%`}
                   note='Accuracy is calculated as 100% minus percentage error.'
                 />
               </tbody>
@@ -2095,8 +2298,9 @@ function PostEnrollmentAnalyticalReport({
                   ))}
                 </tr>
               </thead>
+
               <tbody>
-                {report.programRows.map((row, index) => (
+                {displayedReport.programRows.map((row, index) => (
                   <tr
                     key={row.program}
                     style={{
@@ -2105,7 +2309,10 @@ function PostEnrollmentAnalyticalReport({
                         index % 2 === 0 ? "white" : colors.neutralLight,
                     }}
                   >
-                    <td className='py-3 px-4 font-medium' style={{ color: colors.primary }}>
+                    <td
+                      className='py-3 px-4 font-medium'
+                      style={{ color: colors.primary }}
+                    >
                       {row.program}
                     </td>
                     <td className='py-3 px-4 tabular-nums'>
@@ -2136,19 +2343,15 @@ function PostEnrollmentAnalyticalReport({
         <ReportSection title='3. Failure Analysis'>
           <div className='grid grid-cols-1 md:grid-cols-2 gap-4 text-sm'>
             <ReportParagraph>
-              The main causes of prediction error are likely related to changes
-              that a single-variable linear regression model cannot fully see.
-              These include sudden changes in enrollment demand, tuition fee or
-              payment policy adjustments, local economic conditions, program
-              popularity shifts, admission policy changes, and unexpected
-              external events during the enrollment period.
+              {failureAnalysisPrimary}
             </ReportParagraph>
+
             <ReportParagraph>
-              {report.insufficientHistoricalCount > 0
-                ? `${report.insufficientHistoricalCount} program(s) have limited historical records, which weakens regression reliability and increases the chance of unstable predictions.`
+              {displayedReport.insufficientHistoricalCount > 0
+                ? `${displayedReport.insufficientHistoricalCount} program(s) have limited historical records, which weakens regression reliability and increases the chance of unstable predictions.`
                 : "All analyzed programs had enough prior data for a linear-regression backtest, but sharp demand changes can still reduce accuracy."}
-              {report.unusualTrendRows.length > 0
-                ? ` Unusual movement was detected in ${report.unusualTrendRows.length} program(s), led by ${report.unusualTrendRows[0].program}.`
+              {displayedReport.unusualTrendRows.length > 0
+                ? ` Unusual movement was detected in ${displayedReport.unusualTrendRows.length} program(s), led by ${displayedReport.unusualTrendRows[0].program}.`
                 : " No major program-level spike or decline above the 20% review threshold was detected."}
             </ReportParagraph>
           </div>
@@ -2156,9 +2359,9 @@ function PostEnrollmentAnalyticalReport({
 
         <ReportSection title='4. Affected Courses or Programs'>
           <p className='text-sm mb-3' style={{ color: colors.neutralDark }}>
-            The highest prediction errors are shown below. These programs should
-            receive priority review before the next forecasting cycle.
+            {affectedProgramsIntro}
           </p>
+
           <div className='overflow-x-auto'>
             <table className='w-full border-collapse text-sm'>
               <thead>
@@ -2180,8 +2383,9 @@ function PostEnrollmentAnalyticalReport({
                   ))}
                 </tr>
               </thead>
+
               <tbody>
-                {report.highestErrors.map((row, index) => (
+                {displayedReport.highestErrors.map((row, index) => (
                   <tr
                     key={row.program}
                     style={{
@@ -2190,7 +2394,10 @@ function PostEnrollmentAnalyticalReport({
                         index % 2 === 0 ? "white" : colors.neutralLight,
                     }}
                   >
-                    <td className='py-3 px-4 font-medium' style={{ color: colors.primary }}>
+                    <td
+                      className='py-3 px-4 font-medium'
+                      style={{ color: colors.primary }}
+                    >
                       {row.program}
                     </td>
                     <td className='py-3 px-4'>
@@ -2214,32 +2421,87 @@ function PostEnrollmentAnalyticalReport({
         </ReportSection>
 
         <ReportSection title='5. Forecast Action Plan'>
-          <p className='text-sm mb-3' style={{ color: colors.neutralDark }}>
-            This converts the post-enrollment variance into specific
-            administrative actions. Underpredicted programs trigger expansion
-            actions, overpredicted programs trigger consolidation actions, and
-            accurate programs are marked for monitoring.
-          </p>
+          <div className='flex items-start justify-between gap-4 flex-wrap mb-3'>
+            <p
+              className='text-sm max-w-3xl'
+              style={{ color: colors.neutralDark }}
+            >
+              This converts the post-enrollment variance into specific
+              administrative actions. Use the toggle to show how the system
+              responds when predictions hit the actual enrollment count.
+            </p>
+
+            <button
+              type='button'
+              onClick={() =>
+                setShowPredictionHitExample((currentValue) => !currentValue)
+              }
+              className='inline-flex items-center gap-3 cursor-pointer select-none'
+              title='Switch between actual variance actions and a prediction-hit example.'
+            >
+              <span
+                className='text-xs font-semibold'
+                style={{ color: colors.neutralDark }}
+              >
+                {actionPlanModeText}
+              </span>
+
+              <span
+                className='relative inline-flex h-6 w-11 items-center rounded-full transition-colors'
+                style={{
+                  backgroundColor: showPredictionHitExample
+                    ? colors.success
+                    : colors.neutralBorder,
+                }}
+              >
+                <span
+                  className='inline-block h-5 w-5 rounded-full bg-white shadow transition-transform'
+                  style={{
+                    transform: showPredictionHitExample
+                      ? "translateX(22px)"
+                      : "translateX(2px)",
+                  }}
+                />
+              </span>
+            </button>
+          </div>
+
+          {showPredictionHitExample && (
+            <div
+              className='mb-4 rounded-lg border px-4 py-3 text-sm'
+              style={{
+                borderColor: "#86EFAC",
+                backgroundColor: "#ECFDF5",
+                color: "#065F46",
+              }}
+            >
+              Example mode: the system treats each program as accurately
+              predicted, so no corrective section, faculty, or room adjustment
+              is required.
+            </div>
+          )}
+
           <div className='grid grid-cols-1 md:grid-cols-3 gap-3 mb-4'>
             <ReportMetric
               label='Expansion Actions'
-              value={report.actionPlanRows
+              value={displayedActionPlanRows
                 .filter((row) => row.status === "Underpredicted")
                 .length.toLocaleString()}
             />
             <ReportMetric
               label='Consolidation Actions'
-              value={report.actionPlanRows
+              value={displayedActionPlanRows
                 .filter((row) => row.status === "Overpredicted")
                 .length.toLocaleString()}
             />
             <ReportMetric
               label='Monitor Only'
-              value={report.actionPlanRows
+              value={displayedActionPlanRows
                 .filter((row) => row.status === "Accurately predicted")
                 .length.toLocaleString()}
             />
           </div>
+
           <div className='overflow-x-auto'>
             <table className='w-full border-collapse text-sm'>
               <thead>
@@ -2263,8 +2525,9 @@ function PostEnrollmentAnalyticalReport({
                   ))}
                 </tr>
               </thead>
+
               <tbody>
-                {report.actionPlanRows.map((row, index) => (
+                {displayedActionPlanRows.map((row, index) => (
                   <tr
                     key={`${row.program}-${row.sectionAction}`}
                     style={{
@@ -2274,29 +2537,38 @@ function PostEnrollmentAnalyticalReport({
                     }}
                   >
                     <td className='py-3 px-4 align-top'>
-                      <p className='font-medium' style={{ color: colors.primary }}>
+                      <p
+                        className='font-medium'
+                        style={{ color: colors.primary }}
+                      >
                         {row.program}
                       </p>
                       <div className='mt-1'>
                         <StatusBadge status={row.status} />
                       </div>
                     </td>
+
                     <td className='py-3 px-4 align-top'>
                       <ActionPriorityBadge priority={row.priority} />
                     </td>
+
                     <td className='py-3 px-4 align-top tabular-nums'>
                       {row.studentsVariance.toLocaleString()} student
                       {row.studentsVariance !== 1 ? "s" : ""}
                     </td>
+
                     <td className='py-3 px-4 align-top min-w-[220px]'>
                       {row.sectionAction}
                     </td>
+
                     <td className='py-3 px-4 align-top min-w-[220px]'>
                       {row.facultyAction}
                     </td>
+
                     <td className='py-3 px-4 align-top min-w-[220px]'>
                       {row.roomAction}
                     </td>
+
                     <td className='py-3 px-4 align-top min-w-[260px]'>
                       <p>{row.marketingAction}</p>
                       <p className='mt-2' style={{ color: colors.neutral }}>
@@ -2329,8 +2601,9 @@ function PostEnrollmentAnalyticalReport({
                     )}
                   </tr>
                 </thead>
+
                 <tbody>
-                  {report.trendRows.slice(-6).map((row, index) => (
+                  {displayedReport.trendRows.slice(-6).map((row, index) => (
                     <tr
                       key={row.year}
                       style={{
@@ -2346,25 +2619,41 @@ function PostEnrollmentAnalyticalReport({
                       <td className='py-3 px-4 tabular-nums'>
                         {row.change === null
                           ? "Baseline"
-                          : `${formatSignedNumber(row.change)} (${formatPercent(row.changeRate)})`}
+                          : `${formatSignedNumber(row.change)} (${formatPercent(
+                              row.changeRate,
+                            )})`}
                       </td>
                     </tr>
                   ))}
                 </tbody>
               </table>
             </div>
+
             <div
               className='rounded-lg border p-4'
               style={{ borderColor: colors.neutralBorder }}
             >
-              <p className='text-sm leading-relaxed' style={{ color: colors.neutralDark }}>
+              <p
+                className='text-sm leading-relaxed'
+                style={{ color: colors.neutralDark }}
+              >
                 {latestTrend && previousTrend
-                  ? `Latest enrollment changed from ${previousTrend.totalStudents.toLocaleString()} to ${latestTrend.totalStudents.toLocaleString()} students, a ${formatPercent(latestTrend.changeRate)} movement.`
+                  ? `Latest enrollment changed from ${previousTrend.totalStudents.toLocaleString()} to ${latestTrend.totalStudents.toLocaleString()} students, a ${formatPercent(
+                      latestTrend.changeRate,
+                    )} movement.`
                   : "Trend movement is limited because only one completed school-year total is available."}
               </p>
-              <p className='text-sm leading-relaxed mt-3' style={{ color: colors.neutralDark }}>
-                {report.unusualTrendRows.length > 0
-                  ? `Unusual spikes or declines were detected in ${report.unusualTrendRows.map((row) => row.program).join(", ")}. These programs should be reviewed for marketing, tuition, admission, or policy changes.`
+
+              <p
+                className='text-sm leading-relaxed mt-3'
+                style={{ color: colors.neutralDark }}
+              >
+                {displayedReport.unusualTrendRows.length > 0
+                  ? `Unusual spikes or declines were detected in ${displayedReport.unusualTrendRows
+                      .map((row) => row.program)
+                      .join(
+                        ", ",
+                      )}. These programs should be reviewed for marketing, tuition, admission, or policy changes.`
                   : "No unusual program-level spike or decline above 20% was detected in the latest completed period."}
               </p>
             </div>
@@ -2375,17 +2664,9 @@ function PostEnrollmentAnalyticalReport({
           <div className='grid grid-cols-1 md:grid-cols-2 gap-4'>
             <RecommendationList
               title='Operational Recommendations'
-              items={[
-                topAffected
-                  ? `Review section planning for ${topAffected.program}, the program with the highest current prediction error.`
-                  : "Review section planning for programs with the largest enrollment variance.",
-                report.totals.status === "Underpredicted"
-                  ? "Prepare additional sections, rooms, and faculty assignments earlier for programs where actual demand exceeded prediction."
-                  : "Avoid opening excess sections too early for programs where projected demand exceeded actual enrollment.",
-                "Improve marketing campaigns for programs with declining actual enrollment or repeated underperformance.",
-                "Use final enrollment counts to adjust faculty loading, room allocation, and section merging decisions.",
-              ]}
+              items={operationalRecommendationItems}
             />
+
             <RecommendationList
               title='Machine Learning Improvements'
               items={[
@@ -2399,10 +2680,13 @@ function PostEnrollmentAnalyticalReport({
         </ReportSection>
 
         <ReportSection title='8. Conclusion'>
-          <p className='text-sm leading-relaxed' style={{ color: colors.neutralDark }}>
+          <p
+            className='text-sm leading-relaxed'
+            style={{ color: colors.neutralDark }}
+          >
             Based on the completed enrollment comparison, the forecasting model
             produced an overall accuracy of{" "}
-            <strong>{report.totals.accuracy.toFixed(1)}%</strong>. It remains{" "}
+            <strong>{displayedReport.totals.accuracy.toFixed(1)}%</strong>. It remains{" "}
             {reliabilityLabel} for future enrollment planning, provided that
             administrators continue validating predictions after each enrollment
             cycle and improve the model with more explanatory variables.
@@ -2410,8 +2694,11 @@ function PostEnrollmentAnalyticalReport({
         </ReportSection>
 
         <ReportSection title='Analytical Assumptions'>
-          <ul className='space-y-2 text-sm' style={{ color: colors.neutralDark }}>
-            {report.assumptions.map((assumption) => (
+          <ul
+            className='space-y-2 text-sm'
+            style={{ color: colors.neutralDark }}
+          >
+            {displayedReport.assumptions.map((assumption) => (
               <li key={assumption} className='flex gap-2'>
                 <span style={{ color: colors.secondary }}>-</span>
                 <span>{assumption}</span>
@@ -2433,10 +2720,16 @@ function ReportMetric({ label, value }: { label: string; value: string }) {
         backgroundColor: colors.neutralLight,
       }}
     >
-      <p className='text-xs font-semibold mb-1' style={{ color: colors.neutral }}>
+      <p
+        className='text-xs font-semibold mb-1'
+        style={{ color: colors.neutral }}
+      >
         {label}
       </p>
-      <p className='text-xl font-bold tabular-nums' style={{ color: colors.primary }}>
+      <p
+        className='text-xl font-bold tabular-nums'
+        style={{ color: colors.primary }}
+      >
         {value}
       </p>
     </div>
@@ -2452,7 +2745,10 @@ function ReportSection({
 }) {
   return (
     <div>
-      <h3 className='text-base font-bold mb-3' style={{ color: colors.primary }}>
+      <h3
+        className='text-base font-bold mb-3'
+        style={{ color: colors.primary }}
+      >
         {title}
       </h3>
       {children}
@@ -2569,6 +2865,7 @@ function getConfidenceBadgeStyle(label: "High" | "Medium" | "Low") {
 function UtilizationBadge({ rate }: { rate: number }) {
   const bg = rate >= 90 ? "#FEE2E2" : rate >= 75 ? "#FEF3C7" : "#D1FAE5";
   const fg = rate >= 90 ? "#991B1B" : rate >= 75 ? "#92400E" : "#065F46";
+
   return (
     <span
       className='inline-block text-xs font-bold px-2 py-0.5 rounded-full tabular-nums'
@@ -2581,13 +2878,16 @@ function UtilizationBadge({ rate }: { rate: number }) {
 
 function shortenProgram(name: string): string {
   const words = name.split(" ");
+
   if (words.length <= 3) return name;
-  // Try to extract abbreviation like "BSIT" from "Bachelor of Science in Information Technology"
+
   const skip = new Set(["of", "in", "and", "the", "for"]);
+
   const abbr = words
-    .filter((w) => !skip.has(w.toLowerCase()))
-    .map((w) => w[0]?.toUpperCase() ?? "")
+    .filter((word) => !skip.has(word.toLowerCase()))
+    .map((word) => word[0]?.toUpperCase() ?? "")
     .join("");
+
   return abbr.length >= 2 ? abbr : words.slice(-2).join(" ");
 }
 
