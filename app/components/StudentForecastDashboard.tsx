@@ -108,6 +108,70 @@ interface StudentData {
   studentsByDepartment: { department_name: string; total_students: number }[];
 }
 
+type PredictionStatus =
+  | "Overpredicted"
+  | "Underpredicted"
+  | "Accurately predicted";
+
+type ActionPriority = "High" | "Moderate" | "Low";
+
+interface ProgramAccuracyAnalysis {
+  program: string;
+  schoolYear: string;
+  actual: number;
+  predicted: number;
+  difference: number;
+  absoluteDifference: number;
+  percentageError: number;
+  accuracy: number;
+  status: PredictionStatus;
+  latestChangeRate: number | null;
+  dataPoints: number;
+  method: "Linear regression" | "Previous-year fallback";
+}
+
+interface ForecastActionPlan {
+  program: string;
+  status: PredictionStatus;
+  priority: ActionPriority;
+  studentsVariance: number;
+  sectionUnits: number;
+  sectionAction: string;
+  facultyAction: string;
+  roomAction: string;
+  marketingAction: string;
+  modelAction: string;
+}
+
+interface PostEnrollmentReport {
+  schoolYear: string;
+  programRows: ProgramAccuracyAnalysis[];
+  actionPlanRows: ForecastActionPlan[];
+  trendRows: {
+    year: number;
+    schoolYear: string;
+    totalStudents: number;
+    change: number | null;
+    changeRate: number | null;
+  }[];
+  totals: {
+    actual: number;
+    predicted: number;
+    difference: number;
+    absoluteDifference: number;
+    percentageError: number;
+    accuracy: number;
+    status: PredictionStatus;
+  };
+  highestErrors: ProgramAccuracyAnalysis[];
+  accuratelyPredictedCount: number;
+  overpredictedCount: number;
+  underpredictedCount: number;
+  insufficientHistoricalCount: number;
+  unusualTrendRows: ProgramAccuracyAnalysis[];
+  assumptions: string[];
+}
+
 /* ───────────────────── Constants ───────────────────── */
 
 const CHART_COLORS = [
@@ -147,6 +211,153 @@ function parseAcademicYearStart(academicYear?: string | null): number | null {
 function formatSchoolYear(startYear?: number | null): string {
   if (startYear === undefined || startYear === null) return "";
   return `${startYear}-${startYear + 1}`;
+}
+
+function runLinearRegression(
+  rows: { year: number; total_students: number }[],
+  targetYear: number,
+): number {
+  const n = rows.length;
+  const sumX = rows.reduce((sum, row) => sum + row.year, 0);
+  const sumY = rows.reduce((sum, row) => sum + row.total_students, 0);
+  const sumXY = rows.reduce(
+    (sum, row) => sum + row.year * row.total_students,
+    0,
+  );
+  const sumXX = rows.reduce((sum, row) => sum + row.year * row.year, 0);
+  const denominator = n * sumXX - sumX * sumX;
+
+  if (denominator === 0) {
+    return sumY / Math.max(n, 1);
+  }
+
+  const slope = (n * sumXY - sumX * sumY) / denominator;
+  const intercept = (sumY - slope * sumX) / n;
+  return slope * targetYear + intercept;
+}
+
+function calculateAccuracyStatus(
+  predicted: number,
+  actual: number,
+  percentageError: number,
+): PredictionStatus {
+  if (percentageError <= 5) return "Accurately predicted";
+  if (predicted > actual) return "Overpredicted";
+  return "Underpredicted";
+}
+
+function calculatePercentageError(predicted: number, actual: number): number {
+  if (actual === 0) return predicted === 0 ? 0 : 100;
+  return (Math.abs(predicted - actual) / actual) * 100;
+}
+
+function clampAccuracy(percentageError: number): number {
+  return Math.max(0, 100 - percentageError);
+}
+
+function formatSignedNumber(value: number): string {
+  if (value > 0) return `+${value.toLocaleString()}`;
+  return value.toLocaleString();
+}
+
+function formatPercent(value: number | null): string {
+  if (value === null || !Number.isFinite(value)) return "N/A";
+  return `${value >= 0 ? "+" : ""}${value.toFixed(1)}%`;
+}
+
+function getStatusBadgeStyle(status: PredictionStatus) {
+  if (status === "Accurately predicted") {
+    return { backgroundColor: "#D1FAE5", color: "#065F46" };
+  }
+
+  if (status === "Underpredicted") {
+    return { backgroundColor: "#FEF3C7", color: "#92400E" };
+  }
+
+  return { backgroundColor: "#FEE2E2", color: "#991B1B" };
+}
+
+function getActionPriorityStyle(priority: ActionPriority) {
+  if (priority === "High") {
+    return { backgroundColor: "#FEE2E2", color: "#991B1B" };
+  }
+
+  if (priority === "Moderate") {
+    return { backgroundColor: "#FEF3C7", color: "#92400E" };
+  }
+
+  return { backgroundColor: "#D1FAE5", color: "#065F46" };
+}
+
+function resolveActionPriority(row: ProgramAccuracyAnalysis): ActionPriority {
+  if (row.percentageError >= 15 || row.absoluteDifference >= 40) {
+    return "High";
+  }
+
+  if (row.percentageError >= 8 || row.absoluteDifference >= 15) {
+    return "Moderate";
+  }
+
+  return "Low";
+}
+
+function buildForecastActionPlan(row: ProgramAccuracyAnalysis): ForecastActionPlan {
+  const sectionCapacityAssumption = 40;
+  const sectionUnits =
+    row.status === "Accurately predicted"
+      ? 0
+      : Math.max(1, Math.ceil(row.absoluteDifference / sectionCapacityAssumption));
+  const priority = resolveActionPriority(row);
+
+  if (row.status === "Underpredicted") {
+    return {
+      program: row.program,
+      status: row.status,
+      priority,
+      studentsVariance: row.absoluteDifference,
+      sectionUnits,
+      sectionAction: `Open ${sectionUnits} additional section${sectionUnits > 1 ? "s" : ""} or increase approved capacity.`,
+      facultyAction: `Assign ${sectionUnits} additional faculty load${sectionUnits > 1 ? "s" : ""} or overload coverage.`,
+      roomAction: `Reserve ${sectionUnits} room slot${sectionUnits > 1 ? "s" : ""} for the excess demand.`,
+      marketingAction:
+        "Keep successful recruitment channels active and document why demand increased.",
+      modelAction:
+        "Retrain with the latest actual count and add demand indicators so the model recognizes growth earlier.",
+    };
+  }
+
+  if (row.status === "Overpredicted") {
+    return {
+      program: row.program,
+      status: row.status,
+      priority,
+      studentsVariance: row.absoluteDifference,
+      sectionUnits,
+      sectionAction: `Merge or hold ${sectionUnits} underfilled section${sectionUnits > 1 ? "s" : ""} until demand improves.`,
+      facultyAction:
+        "Reassign excess faculty load to other subjects, advisories, or high-demand programs.",
+      roomAction:
+        "Release unused room slots and prioritize rooms for programs with higher actual demand.",
+      marketingAction:
+        "Review campaign reach, tuition sensitivity, and program appeal for this course.",
+      modelAction:
+        "Retrain with the lower actual count and add variables for tuition, marketing, and program demand changes.",
+    };
+  }
+
+  return {
+    program: row.program,
+    status: row.status,
+    priority,
+    studentsVariance: row.absoluteDifference,
+    sectionUnits,
+    sectionAction: "Maintain planned section allocation and continue monitoring.",
+    facultyAction: "Keep faculty assignments as planned unless late enrollees change demand.",
+    roomAction: "Keep room reservations stable for the next scheduling cycle.",
+    marketingAction: "Maintain current marketing approach and preserve campaign records.",
+    modelAction:
+      "Keep the result as a reliable training point for the next forecast cycle.",
+  };
 }
 
 /* ───────────────────── Component ───────────────────── */
@@ -382,6 +593,178 @@ const StudentForecastDashboard: React.FC = () => {
   const roomRecommendation = forecastResult?.room_recommendation;
   const overallConfidence = forecastResult?.forecast_confidence;
 
+  const postEnrollmentReport = useMemo<PostEnrollmentReport | null>(() => {
+    if (!forecastResult?.historical) return null;
+
+    const programRows: ProgramAccuracyAnalysis[] = [];
+    const yearlyTotals = new Map<number, number>();
+    let insufficientHistoricalCount = 0;
+
+    Object.entries(forecastResult.historical).forEach(([program, rows]) => {
+      const sortedRows = [...rows].sort((a, b) => a.year - b.year);
+      const latest = sortedRows[sortedRows.length - 1];
+      if (!latest) return;
+
+      sortedRows.forEach((row) => {
+        yearlyTotals.set(
+          row.year,
+          (yearlyTotals.get(row.year) ?? 0) + row.total_students,
+        );
+      });
+
+      const priorRows = sortedRows.slice(0, -1);
+      if (priorRows.length === 0) {
+        insufficientHistoricalCount += 1;
+        return;
+      }
+
+      const rawPrediction =
+        priorRows.length >= 2
+          ? runLinearRegression(priorRows, latest.year)
+          : priorRows[0].total_students;
+      const predicted = Math.max(0, Math.round(rawPrediction));
+      const actual = latest.total_students;
+      const difference = predicted - actual;
+      const percentageError = calculatePercentageError(predicted, actual);
+      const accuracy = clampAccuracy(percentageError);
+      const previousActual = priorRows[priorRows.length - 1]?.total_students;
+      const latestChangeRate =
+        previousActual && previousActual > 0
+          ? ((actual - previousActual) / previousActual) * 100
+          : null;
+
+      if (priorRows.length < 2) {
+        insufficientHistoricalCount += 1;
+      }
+
+      programRows.push({
+        program,
+        schoolYear: formatSchoolYear(latest.year),
+        actual,
+        predicted,
+        difference,
+        absoluteDifference: Math.abs(difference),
+        percentageError,
+        accuracy,
+        status: calculateAccuracyStatus(predicted, actual, percentageError),
+        latestChangeRate,
+        dataPoints: sortedRows.length,
+        method:
+          priorRows.length >= 2 ? "Linear regression" : "Previous-year fallback",
+      });
+    });
+
+    if (programRows.length === 0) return null;
+
+    const actualTotal = programRows.reduce((sum, row) => sum + row.actual, 0);
+    const predictedTotal = programRows.reduce(
+      (sum, row) => sum + row.predicted,
+      0,
+    );
+    const totalDifference = predictedTotal - actualTotal;
+    const totalPercentageError = calculatePercentageError(
+      predictedTotal,
+      actualTotal,
+    );
+
+    const trendRows = Array.from(yearlyTotals.entries())
+      .sort(([a], [b]) => a - b)
+      .map(([year, totalStudents], index, source) => {
+        const previousTotal = index > 0 ? source[index - 1][1] : null;
+        const change =
+          previousTotal !== null ? totalStudents - previousTotal : null;
+        const changeRate =
+          previousTotal && previousTotal > 0
+            ? ((totalStudents - previousTotal) / previousTotal) * 100
+            : null;
+
+        return {
+          year,
+          schoolYear: formatSchoolYear(year),
+          totalStudents,
+          change,
+          changeRate,
+        };
+      });
+
+    const latestSchoolYear =
+      trendRows[trendRows.length - 1]?.schoolYear ??
+      programRows[0]?.schoolYear ??
+      "latest completed school year";
+    const highestErrors = [...programRows]
+      .sort(
+        (a, b) =>
+          b.percentageError - a.percentageError ||
+          b.absoluteDifference - a.absoluteDifference,
+      )
+      .slice(0, 5);
+    const unusualTrendRows = programRows
+      .filter(
+        (row) =>
+          row.latestChangeRate !== null && Math.abs(row.latestChangeRate) >= 20,
+      )
+      .sort(
+        (a, b) =>
+          Math.abs(b.latestChangeRate ?? 0) -
+          Math.abs(a.latestChangeRate ?? 0),
+      )
+      .slice(0, 5);
+    const actionPlanRows = programRows
+      .map(buildForecastActionPlan)
+      .sort((a, b) => {
+        const priorityRank: Record<ActionPriority, number> = {
+          High: 3,
+          Moderate: 2,
+          Low: 1,
+        };
+
+        return (
+          priorityRank[b.priority] - priorityRank[a.priority] ||
+          b.studentsVariance - a.studentsVariance
+        );
+      });
+
+    const assumptions = [
+      "The system does not show a stored historical prediction for the completed period, so this report uses a linear-regression backtest: prior school-year data predicts the latest completed school year, then that prediction is compared with actual enrollment.",
+      "Percentage error is computed as absolute difference divided by actual enrollment. Accuracy is computed as 100% minus percentage error, floored at 0%.",
+      "Programs with fewer than two prior historical data points use the previous observed enrollment as a fallback and are marked as limited-data cases.",
+      "Forecast Action Plan section estimates one section or room slot per 40-student variance when exact section capacity is not available in the completed-period data.",
+    ];
+
+    return {
+      schoolYear: latestSchoolYear,
+      programRows,
+      actionPlanRows,
+      trendRows,
+      totals: {
+        actual: actualTotal,
+        predicted: predictedTotal,
+        difference: totalDifference,
+        absoluteDifference: Math.abs(totalDifference),
+        percentageError: totalPercentageError,
+        accuracy: clampAccuracy(totalPercentageError),
+        status: calculateAccuracyStatus(
+          predictedTotal,
+          actualTotal,
+          totalPercentageError,
+        ),
+      },
+      highestErrors,
+      accuratelyPredictedCount: programRows.filter(
+        (row) => row.status === "Accurately predicted",
+      ).length,
+      overpredictedCount: programRows.filter(
+        (row) => row.status === "Overpredicted",
+      ).length,
+      underpredictedCount: programRows.filter(
+        (row) => row.status === "Underpredicted",
+      ).length,
+      insufficientHistoricalCount,
+      unusualTrendRows,
+      assumptions,
+    };
+  }, [forecastResult]);
+
   /* ── Render ── */
 
   return (
@@ -601,6 +984,10 @@ const StudentForecastDashboard: React.FC = () => {
                   </div>
                 </div>
               </div>
+            )}
+
+            {postEnrollmentReport && (
+              <PostEnrollmentAnalyticalReport report={postEnrollmentReport} />
             )}
 
             {/* ─── Per-Program Mini Charts ─── */}
@@ -1548,6 +1935,612 @@ function SummaryCard({
           </p>
         )}
       </div>
+    </div>
+  );
+}
+
+function PostEnrollmentAnalyticalReport({
+  report,
+}: {
+  report: PostEnrollmentReport;
+}) {
+  const reliabilityLabel =
+    report.totals.accuracy >= 90
+      ? "reliable"
+      : report.totals.accuracy >= 80
+        ? "generally usable with monitoring"
+        : "not yet reliable without recalibration";
+  const statusPhrase =
+    report.totals.status === "Accurately predicted"
+      ? "accurate within the accepted 5% tolerance"
+      : report.totals.status === "Overpredicted"
+        ? "overestimated actual enrollment"
+        : "underestimated actual enrollment";
+  const topAffected = report.highestErrors[0];
+  const latestTrend = report.trendRows[report.trendRows.length - 1];
+  const previousTrend = report.trendRows[report.trendRows.length - 2];
+
+  return (
+    <section
+      className='mb-8 bg-white rounded-xl shadow-sm border p-6'
+      style={{ borderColor: colors.neutralBorder }}
+    >
+      <div className='flex items-start justify-between gap-4 flex-wrap mb-6'>
+        <div>
+          <div className='flex items-center gap-3 mb-1'>
+            <BarChart3
+              className='w-5 h-5'
+              style={{ color: colors.secondary }}
+            />
+            <h2
+              className='text-xl font-bold'
+              style={{ color: colors.primary }}
+            >
+              Post-Enrollment Analytical Report
+            </h2>
+          </div>
+          <p className='text-xs ml-8' style={{ color: colors.neutral }}>
+            Completed-period model performance analysis for {report.schoolYear}.
+          </p>
+        </div>
+        <span
+          className='text-xs font-bold px-3 py-1 rounded-full'
+          style={getStatusBadgeStyle(report.totals.status)}
+        >
+          {report.totals.status}
+        </span>
+      </div>
+
+      <div className='grid grid-cols-1 md:grid-cols-4 gap-3 mb-6'>
+        <ReportMetric
+          label='Predicted Enrollment'
+          value={report.totals.predicted.toLocaleString()}
+        />
+        <ReportMetric
+          label='Actual Enrollment'
+          value={report.totals.actual.toLocaleString()}
+        />
+        <ReportMetric
+          label='Percentage Error'
+          value={`${report.totals.percentageError.toFixed(1)}%`}
+        />
+        <ReportMetric
+          label='Accuracy'
+          value={`${report.totals.accuracy.toFixed(1)}%`}
+        />
+      </div>
+
+      <div className='space-y-7'>
+        <ReportSection title='1. Executive Summary'>
+          <p className='text-sm leading-relaxed' style={{ color: colors.neutralDark }}>
+            The enrollment prediction model {statusPhrase}. The overall
+            prediction for {report.schoolYear} was{" "}
+            <strong>{report.totals.predicted.toLocaleString()}</strong>{" "}
+            students compared with{" "}
+            <strong>{report.totals.actual.toLocaleString()}</strong> actual
+            students, producing an absolute variance of{" "}
+            <strong>{report.totals.absoluteDifference.toLocaleString()}</strong>{" "}
+            students. Overall accuracy is{" "}
+            <strong>{report.totals.accuracy.toFixed(1)}%</strong>, so the model
+            is currently {reliabilityLabel} for administrative planning.
+          </p>
+        </ReportSection>
+
+        <ReportSection title='2. Prediction Accuracy Analysis'>
+          <div className='overflow-x-auto'>
+            <table className='w-full border-collapse text-sm'>
+              <thead>
+                <tr style={{ backgroundColor: colors.neutralLight }}>
+                  {[
+                    "Metric",
+                    "Value",
+                    "Interpretation",
+                  ].map((heading) => (
+                    <th
+                      key={heading}
+                      className='text-left py-3 px-4 text-xs font-semibold uppercase'
+                      style={{ color: colors.primary }}
+                    >
+                      {heading}
+                    </th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                <ReportTableRow
+                  label='Difference (Predicted - Actual)'
+                  value={formatSignedNumber(report.totals.difference)}
+                  note={
+                    report.totals.difference > 0
+                      ? "The model overestimated enrollment."
+                      : report.totals.difference < 0
+                        ? "The model underestimated enrollment."
+                        : "The model matched actual enrollment."
+                  }
+                />
+                <ReportTableRow
+                  label='Percentage Error'
+                  value={`${report.totals.percentageError.toFixed(1)}%`}
+                  note='Lower error means the prediction was closer to actual enrollment.'
+                />
+                <ReportTableRow
+                  label='Accuracy Percentage'
+                  value={`${report.totals.accuracy.toFixed(1)}%`}
+                  note='Accuracy is calculated as 100% minus percentage error.'
+                />
+              </tbody>
+            </table>
+          </div>
+
+          <div className='overflow-x-auto mt-4'>
+            <table className='w-full border-collapse text-sm'>
+              <thead>
+                <tr style={{ backgroundColor: colors.neutralLight }}>
+                  {[
+                    "Program",
+                    "Predicted",
+                    "Actual",
+                    "Difference",
+                    "Error",
+                    "Accuracy",
+                    "Status",
+                  ].map((heading) => (
+                    <th
+                      key={heading}
+                      className='text-left py-3 px-4 text-xs font-semibold uppercase'
+                      style={{ color: colors.primary }}
+                    >
+                      {heading}
+                    </th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {report.programRows.map((row, index) => (
+                  <tr
+                    key={row.program}
+                    style={{
+                      borderBottom: `1px solid ${colors.neutralBorder}`,
+                      backgroundColor:
+                        index % 2 === 0 ? "white" : colors.neutralLight,
+                    }}
+                  >
+                    <td className='py-3 px-4 font-medium' style={{ color: colors.primary }}>
+                      {row.program}
+                    </td>
+                    <td className='py-3 px-4 tabular-nums'>
+                      {row.predicted.toLocaleString()}
+                    </td>
+                    <td className='py-3 px-4 tabular-nums'>
+                      {row.actual.toLocaleString()}
+                    </td>
+                    <td className='py-3 px-4 tabular-nums'>
+                      {formatSignedNumber(row.difference)}
+                    </td>
+                    <td className='py-3 px-4 tabular-nums'>
+                      {row.percentageError.toFixed(1)}%
+                    </td>
+                    <td className='py-3 px-4 tabular-nums'>
+                      {row.accuracy.toFixed(1)}%
+                    </td>
+                    <td className='py-3 px-4'>
+                      <StatusBadge status={row.status} />
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </ReportSection>
+
+        <ReportSection title='3. Failure Analysis'>
+          <div className='grid grid-cols-1 md:grid-cols-2 gap-4 text-sm'>
+            <ReportParagraph>
+              The main causes of prediction error are likely related to changes
+              that a single-variable linear regression model cannot fully see.
+              These include sudden changes in enrollment demand, tuition fee or
+              payment policy adjustments, local economic conditions, program
+              popularity shifts, admission policy changes, and unexpected
+              external events during the enrollment period.
+            </ReportParagraph>
+            <ReportParagraph>
+              {report.insufficientHistoricalCount > 0
+                ? `${report.insufficientHistoricalCount} program(s) have limited historical records, which weakens regression reliability and increases the chance of unstable predictions.`
+                : "All analyzed programs had enough prior data for a linear-regression backtest, but sharp demand changes can still reduce accuracy."}
+              {report.unusualTrendRows.length > 0
+                ? ` Unusual movement was detected in ${report.unusualTrendRows.length} program(s), led by ${report.unusualTrendRows[0].program}.`
+                : " No major program-level spike or decline above the 20% review threshold was detected."}
+            </ReportParagraph>
+          </div>
+        </ReportSection>
+
+        <ReportSection title='4. Affected Courses or Programs'>
+          <p className='text-sm mb-3' style={{ color: colors.neutralDark }}>
+            The highest prediction errors are shown below. These programs should
+            receive priority review before the next forecasting cycle.
+          </p>
+          <div className='overflow-x-auto'>
+            <table className='w-full border-collapse text-sm'>
+              <thead>
+                <tr style={{ backgroundColor: colors.neutralLight }}>
+                  {[
+                    "Program",
+                    "Classification",
+                    "Students Off",
+                    "Error",
+                    "Data Basis",
+                  ].map((heading) => (
+                    <th
+                      key={heading}
+                      className='text-left py-3 px-4 text-xs font-semibold uppercase'
+                      style={{ color: colors.primary }}
+                    >
+                      {heading}
+                    </th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {report.highestErrors.map((row, index) => (
+                  <tr
+                    key={row.program}
+                    style={{
+                      borderBottom: `1px solid ${colors.neutralBorder}`,
+                      backgroundColor:
+                        index % 2 === 0 ? "white" : colors.neutralLight,
+                    }}
+                  >
+                    <td className='py-3 px-4 font-medium' style={{ color: colors.primary }}>
+                      {row.program}
+                    </td>
+                    <td className='py-3 px-4'>
+                      <StatusBadge status={row.status} />
+                    </td>
+                    <td className='py-3 px-4 tabular-nums'>
+                      {row.absoluteDifference.toLocaleString()}
+                    </td>
+                    <td className='py-3 px-4 tabular-nums'>
+                      {row.percentageError.toFixed(1)}%
+                    </td>
+                    <td className='py-3 px-4' style={{ color: colors.neutral }}>
+                      {row.method}, {row.dataPoints} point
+                      {row.dataPoints !== 1 ? "s" : ""}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </ReportSection>
+
+        <ReportSection title='5. Forecast Action Plan'>
+          <p className='text-sm mb-3' style={{ color: colors.neutralDark }}>
+            This converts the post-enrollment variance into specific
+            administrative actions. Underpredicted programs trigger expansion
+            actions, overpredicted programs trigger consolidation actions, and
+            accurate programs are marked for monitoring.
+          </p>
+          <div className='grid grid-cols-1 md:grid-cols-3 gap-3 mb-4'>
+            <ReportMetric
+              label='Expansion Actions'
+              value={report.actionPlanRows
+                .filter((row) => row.status === "Underpredicted")
+                .length.toLocaleString()}
+            />
+            <ReportMetric
+              label='Consolidation Actions'
+              value={report.actionPlanRows
+                .filter((row) => row.status === "Overpredicted")
+                .length.toLocaleString()}
+            />
+            <ReportMetric
+              label='Monitor Only'
+              value={report.actionPlanRows
+                .filter((row) => row.status === "Accurately predicted")
+                .length.toLocaleString()}
+            />
+          </div>
+          <div className='overflow-x-auto'>
+            <table className='w-full border-collapse text-sm'>
+              <thead>
+                <tr style={{ backgroundColor: colors.neutralLight }}>
+                  {[
+                    "Program",
+                    "Priority",
+                    "Variance",
+                    "Section Action",
+                    "Faculty Action",
+                    "Room Action",
+                    "Marketing / Model Handling",
+                  ].map((heading) => (
+                    <th
+                      key={heading}
+                      className='text-left py-3 px-4 text-xs font-semibold uppercase'
+                      style={{ color: colors.primary }}
+                    >
+                      {heading}
+                    </th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {report.actionPlanRows.map((row, index) => (
+                  <tr
+                    key={`${row.program}-${row.sectionAction}`}
+                    style={{
+                      borderBottom: `1px solid ${colors.neutralBorder}`,
+                      backgroundColor:
+                        index % 2 === 0 ? "white" : colors.neutralLight,
+                    }}
+                  >
+                    <td className='py-3 px-4 align-top'>
+                      <p className='font-medium' style={{ color: colors.primary }}>
+                        {row.program}
+                      </p>
+                      <div className='mt-1'>
+                        <StatusBadge status={row.status} />
+                      </div>
+                    </td>
+                    <td className='py-3 px-4 align-top'>
+                      <ActionPriorityBadge priority={row.priority} />
+                    </td>
+                    <td className='py-3 px-4 align-top tabular-nums'>
+                      {row.studentsVariance.toLocaleString()} student
+                      {row.studentsVariance !== 1 ? "s" : ""}
+                    </td>
+                    <td className='py-3 px-4 align-top min-w-[220px]'>
+                      {row.sectionAction}
+                    </td>
+                    <td className='py-3 px-4 align-top min-w-[220px]'>
+                      {row.facultyAction}
+                    </td>
+                    <td className='py-3 px-4 align-top min-w-[220px]'>
+                      {row.roomAction}
+                    </td>
+                    <td className='py-3 px-4 align-top min-w-[260px]'>
+                      <p>{row.marketingAction}</p>
+                      <p className='mt-2' style={{ color: colors.neutral }}>
+                        {row.modelAction}
+                      </p>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </ReportSection>
+
+        <ReportSection title='6. Trend and Pattern Analysis'>
+          <div className='grid grid-cols-1 lg:grid-cols-2 gap-4'>
+            <div className='overflow-x-auto'>
+              <table className='w-full border-collapse text-sm'>
+                <thead>
+                  <tr style={{ backgroundColor: colors.neutralLight }}>
+                    {["School Year", "Actual Enrollment", "Change"].map(
+                      (heading) => (
+                        <th
+                          key={heading}
+                          className='text-left py-3 px-4 text-xs font-semibold uppercase'
+                          style={{ color: colors.primary }}
+                        >
+                          {heading}
+                        </th>
+                      ),
+                    )}
+                  </tr>
+                </thead>
+                <tbody>
+                  {report.trendRows.slice(-6).map((row, index) => (
+                    <tr
+                      key={row.year}
+                      style={{
+                        borderBottom: `1px solid ${colors.neutralBorder}`,
+                        backgroundColor:
+                          index % 2 === 0 ? "white" : colors.neutralLight,
+                      }}
+                    >
+                      <td className='py-3 px-4'>{row.schoolYear}</td>
+                      <td className='py-3 px-4 tabular-nums'>
+                        {row.totalStudents.toLocaleString()}
+                      </td>
+                      <td className='py-3 px-4 tabular-nums'>
+                        {row.change === null
+                          ? "Baseline"
+                          : `${formatSignedNumber(row.change)} (${formatPercent(row.changeRate)})`}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+            <div
+              className='rounded-lg border p-4'
+              style={{ borderColor: colors.neutralBorder }}
+            >
+              <p className='text-sm leading-relaxed' style={{ color: colors.neutralDark }}>
+                {latestTrend && previousTrend
+                  ? `Latest enrollment changed from ${previousTrend.totalStudents.toLocaleString()} to ${latestTrend.totalStudents.toLocaleString()} students, a ${formatPercent(latestTrend.changeRate)} movement.`
+                  : "Trend movement is limited because only one completed school-year total is available."}
+              </p>
+              <p className='text-sm leading-relaxed mt-3' style={{ color: colors.neutralDark }}>
+                {report.unusualTrendRows.length > 0
+                  ? `Unusual spikes or declines were detected in ${report.unusualTrendRows.map((row) => row.program).join(", ")}. These programs should be reviewed for marketing, tuition, admission, or policy changes.`
+                  : "No unusual program-level spike or decline above 20% was detected in the latest completed period."}
+              </p>
+            </div>
+          </div>
+        </ReportSection>
+
+        <ReportSection title='7. Recommendations and Improvements'>
+          <div className='grid grid-cols-1 md:grid-cols-2 gap-4'>
+            <RecommendationList
+              title='Operational Recommendations'
+              items={[
+                topAffected
+                  ? `Review section planning for ${topAffected.program}, the program with the highest current prediction error.`
+                  : "Review section planning for programs with the largest enrollment variance.",
+                report.totals.status === "Underpredicted"
+                  ? "Prepare additional sections, rooms, and faculty assignments earlier for programs where actual demand exceeded prediction."
+                  : "Avoid opening excess sections too early for programs where projected demand exceeded actual enrollment.",
+                "Improve marketing campaigns for programs with declining actual enrollment or repeated underperformance.",
+                "Use final enrollment counts to adjust faculty loading, room allocation, and section merging decisions.",
+              ]}
+            />
+            <RecommendationList
+              title='Machine Learning Improvements'
+              items={[
+                "Retrain the forecasting model after every completed enrollment period using the newest actual enrollment dataset.",
+                "Add independent variables such as tuition changes, scholarship availability, marketing activity, admission policy changes, economic indicators, and program capacity.",
+                "Move from simple linear regression to multiple linear regression when enough feature data is available.",
+                "Store each generated forecast with school year, program, model version, and confidence score so future post-enrollment reports can compare against the exact original prediction.",
+              ]}
+            />
+          </div>
+        </ReportSection>
+
+        <ReportSection title='8. Conclusion'>
+          <p className='text-sm leading-relaxed' style={{ color: colors.neutralDark }}>
+            Based on the completed enrollment comparison, the forecasting model
+            produced an overall accuracy of{" "}
+            <strong>{report.totals.accuracy.toFixed(1)}%</strong>. It remains{" "}
+            {reliabilityLabel} for future enrollment planning, provided that
+            administrators continue validating predictions after each enrollment
+            cycle and improve the model with more explanatory variables.
+          </p>
+        </ReportSection>
+
+        <ReportSection title='Analytical Assumptions'>
+          <ul className='space-y-2 text-sm' style={{ color: colors.neutralDark }}>
+            {report.assumptions.map((assumption) => (
+              <li key={assumption} className='flex gap-2'>
+                <span style={{ color: colors.secondary }}>-</span>
+                <span>{assumption}</span>
+              </li>
+            ))}
+          </ul>
+        </ReportSection>
+      </div>
+    </section>
+  );
+}
+
+function ReportMetric({ label, value }: { label: string; value: string }) {
+  return (
+    <div
+      className='rounded-lg border p-4'
+      style={{
+        borderColor: colors.neutralBorder,
+        backgroundColor: colors.neutralLight,
+      }}
+    >
+      <p className='text-xs font-semibold mb-1' style={{ color: colors.neutral }}>
+        {label}
+      </p>
+      <p className='text-xl font-bold tabular-nums' style={{ color: colors.primary }}>
+        {value}
+      </p>
+    </div>
+  );
+}
+
+function ReportSection({
+  title,
+  children,
+}: {
+  title: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <div>
+      <h3 className='text-base font-bold mb-3' style={{ color: colors.primary }}>
+        {title}
+      </h3>
+      {children}
+    </div>
+  );
+}
+
+function ReportParagraph({ children }: { children: React.ReactNode }) {
+  return (
+    <div
+      className='rounded-lg border p-4 leading-relaxed'
+      style={{ borderColor: colors.neutralBorder, color: colors.neutralDark }}
+    >
+      {children}
+    </div>
+  );
+}
+
+function ReportTableRow({
+  label,
+  value,
+  note,
+}: {
+  label: string;
+  value: string;
+  note: string;
+}) {
+  return (
+    <tr style={{ borderBottom: `1px solid ${colors.neutralBorder}` }}>
+      <td className='py-3 px-4 font-medium' style={{ color: colors.primary }}>
+        {label}
+      </td>
+      <td className='py-3 px-4 tabular-nums'>{value}</td>
+      <td className='py-3 px-4' style={{ color: colors.neutral }}>
+        {note}
+      </td>
+    </tr>
+  );
+}
+
+function StatusBadge({ status }: { status: PredictionStatus }) {
+  return (
+    <span
+      className='inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold'
+      style={getStatusBadgeStyle(status)}
+    >
+      {status}
+    </span>
+  );
+}
+
+function ActionPriorityBadge({ priority }: { priority: ActionPriority }) {
+  return (
+    <span
+      className='inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold'
+      style={getActionPriorityStyle(priority)}
+    >
+      {priority}
+    </span>
+  );
+}
+
+function RecommendationList({
+  title,
+  items,
+}: {
+  title: string;
+  items: string[];
+}) {
+  return (
+    <div
+      className='rounded-lg border p-4'
+      style={{ borderColor: colors.neutralBorder }}
+    >
+      <p className='text-sm font-bold mb-3' style={{ color: colors.primary }}>
+        {title}
+      </p>
+      <ul className='space-y-2 text-sm' style={{ color: colors.neutralDark }}>
+        {items.map((item) => (
+          <li key={item} className='flex gap-2'>
+            <CheckCircle2
+              className='w-4 h-4 flex-shrink-0 mt-0.5'
+              style={{ color: colors.success }}
+            />
+            <span>{item}</span>
+          </li>
+        ))}
+      </ul>
     </div>
   );
 }
