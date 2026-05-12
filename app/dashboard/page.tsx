@@ -210,13 +210,15 @@ function DashboardContent() {
 
   return (
     <ProtectedRoute>
-      <div className='flex h-screen bg-gray-50'>
+      <div className='fixed inset-0 flex overflow-hidden bg-gray-50'>
         <Navigation
           key={`nav-${userRole}`}
           currentView={currentView}
           onViewChange={handleViewChange}
         />
-        <main className='flex-1 overflow-auto'>{renderCurrentView()}</main>
+        <main className='min-h-0 min-w-0 flex-1 overflow-y-auto overflow-x-hidden'>
+          {renderCurrentView()}
+        </main>
       </div>
     </ProtectedRoute>
   );
